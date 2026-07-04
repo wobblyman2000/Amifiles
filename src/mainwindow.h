@@ -59,6 +59,11 @@ private slots:
     // Mini status bar player slot
     void updateMiniPlayer();
 
+    // Drive navigation slots
+    void updateDrivesList();
+    void onToggleDrivesMenu(bool checked);
+    void onToggleDrivesToolbar(bool checked);
+
 private:
     void setupActions();
     void setupMenus();
@@ -91,6 +96,7 @@ private:
     QMenu* m_menuEdit = nullptr;
     QMenu* m_menuView = nullptr;
     QMenu* m_menuFavorites = nullptr;
+    QMenu* m_menuDrives = nullptr;
     QMenu* m_menuHelp = nullptr;
 
     // Actions (wired to toolbar & menu items)
@@ -107,11 +113,14 @@ private:
     QAction* m_actToggleDualPane = nullptr;
     QAction* m_actTogglePreview = nullptr;
     QAction* m_actToggleAgeColoring = nullptr;
+    QAction* m_actToggleDrivesMenu = nullptr;
+    QAction* m_actToggleDrivesToolbar = nullptr;
 
     // Dynamic Toolbars
     QToolBar* m_tbFile = nullptr;
     QToolBar* m_tbView = nullptr;
     QToolBar* m_customToolBar = nullptr;
+    QToolBar* m_tbDrives = nullptr;
 };
 
 #endif // MAINWINDOW_H

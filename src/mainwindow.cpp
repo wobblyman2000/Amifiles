@@ -3,6 +3,7 @@
 #include "favoritesmanager.h"
 #include "bulkrename.h"
 #include <QMenuBar>
+#include <QStorageInfo>
 #include <QToolBar>
 #include <QApplication>
 #include <QStyle>
@@ -29,7 +30,7 @@ public:
     CustomButtonDialog(const QString& name, const QString& script, const QString& iconPath, QWidget* parent = nullptr) 
         : QDialog(parent), m_iconPath(iconPath) {
         setWindowTitle("Custom Command Button Editor");
-        resize(500, 450);
+        resize(500, 500);
 
         QVBoxLayout* layout = new QVBoxLayout(this);
 
@@ -39,7 +40,67 @@ public:
         m_nameEdit->setPlaceholderText("Enter button text...");
         layout->addWidget(m_nameEdit);
 
-        layout->addWidget(new QLabel("Button Icon (Optional):"));
+        // System Icon Theme Selection
+        layout->addWidget(new QLabel("Select System Icon (Links to active KDE/Breeze Theme):"));
+        m_comboSysIcon = new QComboBox(this);
+        m_comboSysIcon->addItems({
+            "(No System Icon)",
+            "📁 Folder (folder)",
+            "💽 Hard Drive (drive-harddisk)",
+            "🖥️ Terminal (utilities-terminal)",
+            "⚡ Run / Execute (system-run)",
+            "🔄 Refresh / Sync (view-refresh)",
+            "ℹ️ Info / Help (help-about)",
+            "📄 Document (document-properties)",
+            "📋 Copy (edit-copy)",
+            "✂️ Cut (edit-cut)",
+            "📥 Paste (edit-paste)",
+            "🗑️ Delete (edit-delete)",
+            "⚙️ Settings (preferences-system)",
+            "🔍 Search (edit-find)",
+            "➕ Add (list-add)"
+        });
+
+        static const QStringList themeKeys = {
+            "",
+            "folder",
+            "drive-harddisk",
+            "utilities-terminal",
+            "system-run",
+            "view-refresh",
+            "help-about",
+            "document-properties",
+            "edit-copy",
+            "edit-cut",
+            "edit-paste",
+            "edit-delete",
+            "preferences-system",
+            "edit-find",
+            "list-add"
+        };
+
+        if (m_iconPath.startsWith("theme:")) {
+            QString currentThemeKey = m_iconPath.mid(6);
+            int idx = themeKeys.indexOf(currentThemeKey);
+            if (idx >= 0) {
+                m_comboSysIcon->setCurrentIndex(idx);
+            }
+        }
+
+        connect(m_comboSysIcon, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int index) {
+            if (index > 0) {
+                m_iconPath = "theme:" + themeKeys[index];
+                m_lblIconPath->setText("System Theme: " + themeKeys[index]);
+            } else {
+                if (m_iconPath.startsWith("theme:")) {
+                    m_iconPath.clear();
+                    m_lblIconPath->setText("(No Icon Selected)");
+                }
+            }
+        });
+        layout->addWidget(m_comboSysIcon);
+
+        layout->addWidget(new QLabel("Or Browse for Custom Image File:"));
         QHBoxLayout* iconLayout = new QHBoxLayout();
         m_lblIconPath = new QLabel(m_iconPath.isEmpty() ? "(No Icon Selected)" : m_iconPath, this);
         m_lblIconPath->setStyleSheet("color: #a6adc8; font-size: 11px;");
@@ -54,6 +115,7 @@ public:
             if (!file.isEmpty()) {
                 m_iconPath = file;
                 m_lblIconPath->setText(m_iconPath);
+                m_comboSysIcon->setCurrentIndex(0); // Reset system theme selection
             }
         });
 
@@ -62,6 +124,7 @@ public:
         connect(btnClearIcon, &QPushButton::clicked, this, [this]() {
             m_iconPath.clear();
             m_lblIconPath->setText("(No Icon Selected)");
+            m_comboSysIcon->setCurrentIndex(0); // Reset
         });
 
         iconLayout->addWidget(m_lblIconPath, 1);
@@ -106,6 +169,7 @@ public:
 private:
     QLineEdit* m_nameEdit = nullptr;
     QPlainTextEdit* m_scriptEdit = nullptr;
+    QComboBox* m_comboSysIcon = nullptr;
     QLabel* m_lblIconPath = nullptr;
     QString m_iconPath;
 };
@@ -227,6 +291,20 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     loadCustomButtons();
     rebuildCustomToolBar();
 
+    // Load drives menu & toolbar visibility from settings
+    QSettings settings("Amifiles", "Amifiles");
+    bool drivesMenuVisible = settings.value("drives/menu_visible", true).toBool();
+    bool drivesToolbarVisible = settings.value("drives/toolbar_visible", true).toBool();
+
+    m_actToggleDrivesMenu->setChecked(drivesMenuVisible);
+    m_menuDrives->menuAction()->setVisible(drivesMenuVisible);
+
+    m_actToggleDrivesToolbar->setChecked(drivesToolbarVisible);
+    m_tbDrives->setVisible(drivesToolbarVisible);
+
+    // Initial populate of drives
+    updateDrivesList();
+
     // Default active panel is Left
     onPanelActivated(m_leftPanel);
 }
@@ -347,6 +425,20 @@ void MainWindow::setupActions() {
     m_actToggleAgeColoring->setToolTip("Highlight files by creation/modified age: Red if < 24h, Blue if < 7 days");
     connect(m_actToggleAgeColoring, &QAction::toggled, this, &MainWindow::onToggleAgeColoring);
 
+    // Toggle Drives Menu Action
+    m_actToggleDrivesMenu = new QAction("Attached Drives Menu", this);
+    m_actToggleDrivesMenu->setCheckable(true);
+    m_actToggleDrivesMenu->setChecked(true);
+    m_actToggleDrivesMenu->setToolTip("Show/hide the Drives menu in the menu bar");
+    connect(m_actToggleDrivesMenu, &QAction::toggled, this, &MainWindow::onToggleDrivesMenu);
+
+    // Toggle Drives Toolbar Action
+    m_actToggleDrivesToolbar = new QAction("Drives Toolbar", this);
+    m_actToggleDrivesToolbar->setCheckable(true);
+    m_actToggleDrivesToolbar->setChecked(true);
+    m_actToggleDrivesToolbar->setToolTip("Show/hide the attached drives toolbar");
+    connect(m_actToggleDrivesToolbar, &QAction::toggled, this, &MainWindow::onToggleDrivesToolbar);
+
     // Bind actions to window to ensure keyboard shortcuts work globally
     addAction(m_actNewFolder);
     addAction(m_actProperties);
@@ -360,6 +452,8 @@ void MainWindow::setupActions() {
     addAction(m_actToggleDualPane);
     addAction(m_actTogglePreview);
     addAction(m_actToggleAgeColoring);
+    addAction(m_actToggleDrivesMenu);
+    addAction(m_actToggleDrivesToolbar);
 }
 
 void MainWindow::setupMenus() {
@@ -382,10 +476,13 @@ void MainWindow::setupMenus() {
     m_menuView->addAction(m_actToggleDualPane);
     m_menuView->addAction(m_actTogglePreview);
     m_menuView->addAction(m_actToggleAgeColoring);
+    m_menuView->addAction(m_actToggleDrivesMenu);
+    m_menuView->addAction(m_actToggleDrivesToolbar);
     m_menuView->addSeparator();
     m_menuView->addAction(m_actRefresh);
 
     m_menuFavorites = menuBar()->addMenu("Favorites");
+    m_menuDrives = menuBar()->addMenu("Drives");
 
     m_menuHelp = menuBar()->addMenu("Help");
     m_menuHelp->addAction("About Amifiles", this, [this]() {
@@ -431,6 +528,12 @@ void MainWindow::setupToolbars() {
     m_customToolBar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     m_customToolBar->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(m_customToolBar, &QToolBar::customContextMenuRequested, this, &MainWindow::onCustomToolBarContextMenu);
+
+    // Toolbar 4: Drives Toolbar
+    m_tbDrives = addToolBar("Drives");
+    m_tbDrives->setObjectName("drivesToolBar");
+    m_tbDrives->setMovable(true);
+    m_tbDrives->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 }
 
 void MainWindow::onPanelActivated(FilePanel* panel) {
@@ -604,6 +707,101 @@ void MainWindow::updateFavoritesMenu() {
     }
 }
 
+void MainWindow::updateDrivesList() {
+    if (!m_menuDrives || !m_tbDrives) return;
+
+    m_menuDrives->clear();
+    m_tbDrives->clear();
+
+    QStyle* style = QApplication::style();
+
+    // 1. Add static "Refresh Drives" action
+    QAction* actRefresh = new QAction(style->standardIcon(QStyle::SP_BrowserReload), "Refresh Drives", this);
+    connect(actRefresh, &QAction::triggered, this, &MainWindow::updateDrivesList);
+    m_menuDrives->addAction(actRefresh);
+    m_tbDrives->addAction(actRefresh);
+
+    m_menuDrives->addSeparator();
+    m_tbDrives->addSeparator();
+
+    // 2. Fetch mounted volumes
+    QList<QStorageInfo> volumes = QStorageInfo::mountedVolumes();
+    
+    // Sort volumes by root path to be neat
+    std::sort(volumes.begin(), volumes.end(), [](const QStorageInfo& a, const QStorageInfo& b) {
+        return a.rootPath() < b.rootPath();
+    });
+
+    // Helper lambda to add a drive option
+    auto addDriveOption = [this, style](const QString& name, const QString& path, QStyle::StandardPixmap iconPixmap) {
+        QIcon icon = style->standardIcon(iconPixmap);
+
+        // Menu action
+        QAction* actMenu = m_menuDrives->addAction(icon, QString("%1 (%2)").arg(name).arg(QDir::toNativeSeparators(path)));
+        connect(actMenu, &QAction::triggered, this, [this, path]() {
+            if (m_activePanel) m_activePanel->setPath(path);
+        });
+
+        // Toolbar action
+        QAction* actTb = m_tbDrives->addAction(icon, name);
+        actTb->setToolTip(QString("Navigate to %1").arg(QDir::toNativeSeparators(path)));
+        connect(actTb, &QAction::triggered, this, [this, path]() {
+            if (m_activePanel) m_activePanel->setPath(path);
+        });
+    };
+
+    // Add home folder shortcut
+    addDriveOption("Home", QDir::homePath(), QStyle::SP_DirIcon);
+
+    // List of added paths to avoid duplicates
+    QStringList addedPaths = { QDir::homePath() };
+
+    for (const QStorageInfo& volume : volumes) {
+        if (!volume.isValid() || !volume.isReady()) continue;
+
+        QString path = volume.rootPath();
+        
+        // Filter out duplicates or internal system mounts to keep the list clean
+        if (addedPaths.contains(path)) continue;
+
+        bool isPhysicalDrive = path == "/" ||
+                               path.startsWith("/media/") ||
+                               path.startsWith("/mnt/") ||
+                               path.startsWith("/run/media/");
+
+        if (!isPhysicalDrive) continue;
+
+        QString name = volume.displayName();
+        if (name.isEmpty()) {
+            name = volume.name();
+        }
+        if (name.isEmpty() || name == "/") {
+            name = (path == "/") ? "Root (/) " : QFileInfo(path).fileName();
+        }
+
+        addDriveOption(name, path, QStyle::SP_DriveHDIcon);
+        addedPaths.append(path);
+    }
+}
+
+void MainWindow::onToggleDrivesMenu(bool checked) {
+    if (m_menuDrives) {
+        m_menuDrives->menuAction()->setVisible(checked);
+    }
+    // Save to settings
+    QSettings settings("Amifiles", "Amifiles");
+    settings.setValue("drives/menu_visible", checked);
+}
+
+void MainWindow::onToggleDrivesToolbar(bool checked) {
+    if (m_tbDrives) {
+        m_tbDrives->setVisible(checked);
+    }
+    // Save to settings
+    QSettings settings("Amifiles", "Amifiles");
+    settings.setValue("drives/toolbar_visible", checked);
+}
+
 // ================= Custom Script Buttons Implementation =================
 
 void MainWindow::loadCustomButtons() {
@@ -652,7 +850,9 @@ void MainWindow::rebuildCustomToolBar() {
         QIcon qicon;
         QString iconPath = m_customButtons[i].icon;
         if (!iconPath.isEmpty()) {
-            if (iconPath.startsWith("qt:")) {
+            if (iconPath.startsWith("theme:")) {
+                qicon = QIcon::fromTheme(iconPath.mid(6));
+            } else if (iconPath.startsWith("qt:")) {
                 QString qtKey = iconPath.mid(3);
                 QStyle::StandardPixmap pixmap = QStyle::SP_CustomBase;
                 if (qtKey == "SP_MessageBoxInformation") pixmap = QStyle::SP_MessageBoxInformation;

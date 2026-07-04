@@ -125,11 +125,23 @@ void FilePanel::setupUI() {
     m_btnFilterAll->setToolTip("Show all files");
     m_btnFilterAll->setStyleSheet("QToolButton { padding: 4px 8px; font-weight: bold; }");
 
-    m_btnFilterMedia = new QToolButton(this);
-    m_btnFilterMedia->setText("🎵 Media");
-    m_btnFilterMedia->setCheckable(true);
-    m_btnFilterMedia->setToolTip("Filter audio, video, and image files");
-    m_btnFilterMedia->setStyleSheet("QToolButton { padding: 4px 8px; }");
+    m_btnFilterAudio = new QToolButton(this);
+    m_btnFilterAudio->setText("🎵 Audio");
+    m_btnFilterAudio->setCheckable(true);
+    m_btnFilterAudio->setToolTip("Filter audio music files");
+    m_btnFilterAudio->setStyleSheet("QToolButton { padding: 4px 8px; }");
+
+    m_btnFilterVideos = new QToolButton(this);
+    m_btnFilterVideos->setText("🎬 Videos");
+    m_btnFilterVideos->setCheckable(true);
+    m_btnFilterVideos->setToolTip("Filter video files");
+    m_btnFilterVideos->setStyleSheet("QToolButton { padding: 4px 8px; }");
+
+    m_btnFilterPictures = new QToolButton(this);
+    m_btnFilterPictures->setText("🖼️ Pictures");
+    m_btnFilterPictures->setCheckable(true);
+    m_btnFilterPictures->setToolTip("Filter picture/image files");
+    m_btnFilterPictures->setStyleSheet("QToolButton { padding: 4px 8px; }");
 
     m_btnFilterDocs = new QToolButton(this);
     m_btnFilterDocs->setText("📄 Docs");
@@ -147,12 +159,16 @@ void FilePanel::setupUI() {
     QButtonGroup* filterGroup = new QButtonGroup(this);
     filterGroup->setExclusive(true);
     filterGroup->addButton(m_btnFilterAll);
-    filterGroup->addButton(m_btnFilterMedia);
+    filterGroup->addButton(m_btnFilterAudio);
+    filterGroup->addButton(m_btnFilterVideos);
+    filterGroup->addButton(m_btnFilterPictures);
     filterGroup->addButton(m_btnFilterDocs);
     filterGroup->addButton(m_btnFilterArchive);
 
     connect(m_btnFilterAll, &QToolButton::clicked, this, &FilePanel::onFilterTypeChanged);
-    connect(m_btnFilterMedia, &QToolButton::clicked, this, &FilePanel::onFilterTypeChanged);
+    connect(m_btnFilterAudio, &QToolButton::clicked, this, &FilePanel::onFilterTypeChanged);
+    connect(m_btnFilterVideos, &QToolButton::clicked, this, &FilePanel::onFilterTypeChanged);
+    connect(m_btnFilterPictures, &QToolButton::clicked, this, &FilePanel::onFilterTypeChanged);
     connect(m_btnFilterDocs, &QToolButton::clicked, this, &FilePanel::onFilterTypeChanged);
     connect(m_btnFilterArchive, &QToolButton::clicked, this, &FilePanel::onFilterTypeChanged);
 
@@ -164,7 +180,9 @@ void FilePanel::setupUI() {
     categoryLayout->setSpacing(4);
     categoryLayout->setContentsMargins(0, 0, 0, 0);
     categoryLayout->addWidget(m_btnFilterAll);
-    categoryLayout->addWidget(m_btnFilterMedia);
+    categoryLayout->addWidget(m_btnFilterAudio);
+    categoryLayout->addWidget(m_btnFilterVideos);
+    categoryLayout->addWidget(m_btnFilterPictures);
     categoryLayout->addWidget(m_btnFilterDocs);
     categoryLayout->addWidget(m_btnFilterArchive);
     categoryLayout->addStretch(1); // Push buttons to the left
@@ -312,8 +330,12 @@ void FilePanel::onFilterChanged(const QString& filterText) {
 void FilePanel::onFilterTypeChanged() {
     if (m_btnFilterAll->isChecked()) {
         m_proxyModel->setFilterType(FileFilterProxyModel::FilterAll);
-    } else if (m_btnFilterMedia->isChecked()) {
-        m_proxyModel->setFilterType(FileFilterProxyModel::FilterMedia);
+    } else if (m_btnFilterAudio->isChecked()) {
+        m_proxyModel->setFilterType(FileFilterProxyModel::FilterAudio);
+    } else if (m_btnFilterVideos->isChecked()) {
+        m_proxyModel->setFilterType(FileFilterProxyModel::FilterVideos);
+    } else if (m_btnFilterPictures->isChecked()) {
+        m_proxyModel->setFilterType(FileFilterProxyModel::FilterPictures);
     } else if (m_btnFilterDocs->isChecked()) {
         m_proxyModel->setFilterType(FileFilterProxyModel::FilterDocs);
     } else if (m_btnFilterArchive->isChecked()) {

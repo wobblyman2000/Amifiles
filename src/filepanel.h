@@ -22,7 +22,7 @@
 class FileFilterProxyModel : public QSortFilterProxyModel {
     Q_OBJECT
 public:
-    enum FilterType { FilterAll, FilterMedia, FilterDocs, FilterArchive };
+    enum FilterType { FilterAll, FilterAudio, FilterVideos, FilterPictures, FilterDocs, FilterArchive };
 
     explicit FileFilterProxyModel(QObject* parent = nullptr) : QSortFilterProxyModel(parent) {}
 
@@ -102,18 +102,27 @@ protected:
             return true;
         }
 
-        // Always accept directories under type filters so folder structures can be navigated
+        // Hide directory nodes when a specific type filter is active to show only documents/media/etc.
         if (isDir) {
-            return true;
+            return false;
         }
 
         QString ext = QFileInfo(fileName).suffix().toLower();
-        if (m_filterType == FilterMedia) {
-            static const QStringList mediaExts = {
-                "mp3", "wav", "flac", "ogg", "m4a", "mp4", "avi", "mkv", "mov", "webm",
-                "png", "jpg", "jpeg", "gif", "bmp", "webp", "svg"
+        if (m_filterType == FilterAudio) {
+            static const QStringList audioExts = {
+                "mp3", "wav", "flac", "ogg", "m4a", "wma", "aac", "mid", "midi"
             };
-            return mediaExts.contains(ext);
+            return audioExts.contains(ext);
+        } else if (m_filterType == FilterVideos) {
+            static const QStringList videoExts = {
+                "mp4", "avi", "mkv", "mov", "webm", "flv", "wmv", "m4v", "mpg", "mpeg"
+            };
+            return videoExts.contains(ext);
+        } else if (m_filterType == FilterPictures) {
+            static const QStringList pictureExts = {
+                "png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "tiff", "ico"
+            };
+            return pictureExts.contains(ext);
         } else if (m_filterType == FilterDocs) {
             static const QStringList docExts = {
                 "txt", "log", "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt",
@@ -217,7 +226,9 @@ private:
     // Bottom Filter Bar
     QLineEdit* m_filterEdit = nullptr;
     QToolButton* m_btnFilterAll = nullptr;
-    QToolButton* m_btnFilterMedia = nullptr;
+    QToolButton* m_btnFilterAudio = nullptr;
+    QToolButton* m_btnFilterVideos = nullptr;
+    QToolButton* m_btnFilterPictures = nullptr;
     QToolButton* m_btnFilterDocs = nullptr;
     QToolButton* m_btnFilterArchive = nullptr;
     QLabel* m_statusLabel = nullptr;

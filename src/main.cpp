@@ -10,7 +10,7 @@ int main(int argc, char *argv[]) {
     app.setApplicationVersion("1.0");
 
     MainWindow w;
-    w.show();
+    w.showMaximized();
 
     return app.exec();
 }
