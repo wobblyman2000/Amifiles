@@ -333,6 +333,8 @@ void MainWindow::setupCentralWidget() {
 
     m_leftPanel = new FilePanel(QDir::homePath(), this);
     m_rightPanel = new FilePanel(QDir::homePath(), this);
+    m_leftPanel->setSiblingPanel(m_rightPanel);
+    m_rightPanel->setSiblingPanel(m_leftPanel);
     m_previewPanel = new PreviewPanel(this);
 
     // Initial age coloring sync
@@ -592,6 +594,25 @@ void MainWindow::onPanelActivated(FilePanel* panel) {
         
         m_leftPanel->setActive(m_activePanel == m_leftPanel);
         m_rightPanel->setActive(m_activePanel == m_rightPanel);
+
+        // Sync visible filter controls to active panel's state
+        if (m_leftPanel && m_rightPanel) {
+            if (m_activePanel == m_leftPanel) {
+                if (!m_leftPanel->isFilterTextBarVisible() && m_rightPanel->isFilterTextBarVisible()) {
+                    m_rightPanel->syncFilterText(m_leftPanel->filterText());
+                }
+                if (!m_leftPanel->isCategoryButtonsVisible() && m_rightPanel->isCategoryButtonsVisible()) {
+                    m_rightPanel->syncFilterType(m_leftPanel->proxyModel()->filterType());
+                }
+            } else { // right is active
+                if (!m_rightPanel->isFilterTextBarVisible() && m_leftPanel->isFilterTextBarVisible()) {
+                    m_leftPanel->syncFilterText(m_rightPanel->filterText());
+                }
+                if (!m_rightPanel->isCategoryButtonsVisible() && m_leftPanel->isCategoryButtonsVisible()) {
+                    m_leftPanel->syncFilterType(m_rightPanel->proxyModel()->filterType());
+                }
+            }
+        }
 
         QString selectedFile = m_activePanel->activeFilePath();
         if (m_activePanel->selectedPaths().isEmpty()) {

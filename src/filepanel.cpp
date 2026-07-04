@@ -348,8 +348,14 @@ void FilePanel::updateFavoritesUI() {
 }
 
 void FilePanel::onFilterChanged(const QString& filterText) {
-    m_proxyModel->setFilterText(filterText);
-    updateStatusText();
+    if (m_siblingPanel && !m_isActive && !m_siblingPanel->isFilterTextBarVisible()) {
+        m_siblingPanel->proxyModel()->setFilterText(filterText);
+        m_siblingPanel->updateStatusText();
+        m_siblingPanel->syncFilterText(filterText);
+    } else {
+        m_proxyModel->setFilterText(filterText);
+        updateStatusText();
+    }
 }
 
 void FilePanel::onFilterTypeChanged() {
@@ -367,6 +373,11 @@ void FilePanel::onFilterTypeChanged() {
         targetType = FileFilterProxyModel::FilterArchive;
     }
 
+    FilePanel* targetPanel = this;
+    if (m_siblingPanel && !m_isActive && !m_siblingPanel->isCategoryButtonsVisible()) {
+        targetPanel = m_siblingPanel;
+    }
+
     if (targetType != FileFilterProxyModel::FilterAll) {
         QStringList filters;
         if (targetType == FileFilterProxyModel::FilterAudio) {
@@ -381,18 +392,22 @@ void FilePanel::onFilterTypeChanged() {
             filters = { "*.zip", "*.tar", "*.gz", "*.bz2", "*.xz", "*.rar", "*.7z", "*.tgz" };
         }
 
-        QDir dir(m_currentPath);
+        QDir dir(targetPanel->currentPath());
         QFileInfoList list = dir.entryInfoList(filters, QDir::Files);
         if (list.isEmpty()) {
             m_btnFilterAll->setChecked(true);
-            m_proxyModel->setFilterType(FileFilterProxyModel::FilterAll);
+            targetPanel->proxyModel()->setFilterType(FileFilterProxyModel::FilterAll);
             m_statusLabel->setText("No matching files found. Showing all.");
             return;
         }
     }
 
-    m_proxyModel->setFilterType(targetType);
-    updateStatusText();
+    targetPanel->proxyModel()->setFilterType(targetType);
+    targetPanel->updateStatusText();
+
+    if (targetPanel != this) {
+        targetPanel->syncFilterType(targetType);
+    }
 }
 
 void FilePanel::onDoubleClicked(const QModelIndex& index) {
@@ -798,4 +813,41 @@ bool FilePanel::isCategoryButtonsVisible() const {
 
 bool FilePanel::isFilterTextBarVisible() const {
     return m_filterTextWidget && m_filterTextWidget->isVisible();
+}
+
+QString FilePanel::filterText() const {
+    return m_filterEdit ? m_filterEdit->text() : "";
+}
+
+void FilePanel::syncFilterText(const QString& text) {
+    if (m_filterEdit) {
+        m_filterEdit->blockSignals(true);
+        m_filterEdit->setText(text);
+        m_filterEdit->blockSignals(false);
+    }
+}
+
+void FilePanel::syncFilterType(FileFilterProxyModel::FilterType type) {
+    if (m_btnFilterAll && m_btnFilterAudio && m_btnFilterVideos && m_btnFilterPictures && m_btnFilterDocs && m_btnFilterArchive) {
+        m_btnFilterAll->blockSignals(true);
+        m_btnFilterAudio->blockSignals(true);
+        m_btnFilterVideos->blockSignals(true);
+        m_btnFilterPictures->blockSignals(true);
+        m_btnFilterDocs->blockSignals(true);
+        m_btnFilterArchive->blockSignals(true);
+
+        m_btnFilterAll->setChecked(type == FileFilterProxyModel::FilterAll);
+        m_btnFilterAudio->setChecked(type == FileFilterProxyModel::FilterAudio);
+        m_btnFilterVideos->setChecked(type == FileFilterProxyModel::FilterVideos);
+        m_btnFilterPictures->setChecked(type == FileFilterProxyModel::FilterPictures);
+        m_btnFilterDocs->setChecked(type == FileFilterProxyModel::FilterDocs);
+        m_btnFilterArchive->setChecked(type == FileFilterProxyModel::FilterArchive);
+
+        m_btnFilterAll->blockSignals(false);
+        m_btnFilterAudio->blockSignals(false);
+        m_btnFilterVideos->blockSignals(false);
+        m_btnFilterPictures->blockSignals(false);
+        m_btnFilterDocs->blockSignals(false);
+        m_btnFilterArchive->blockSignals(false);
+    }
 }

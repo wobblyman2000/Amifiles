@@ -184,6 +184,12 @@ public:
     bool isCategoryButtonsVisible() const;
     bool isFilterTextBarVisible() const;
 
+    // Sibling panel mapping for cross-panel filtering
+    void setSiblingPanel(FilePanel* sibling) { m_siblingPanel = sibling; }
+    QString filterText() const;
+    void syncFilterText(const QString& text);
+    void syncFilterType(FileFilterProxyModel::FilterType type);
+
 signals:
     void pathChanged(const QString& path);
     void fileSelected(const QString& filePath);
@@ -243,6 +249,7 @@ private:
 
     QWidget* m_categoryWidget = nullptr;
     QWidget* m_filterTextWidget = nullptr;
+    FilePanel* m_siblingPanel = nullptr;
 
     QString m_folderArtPath;
 };
