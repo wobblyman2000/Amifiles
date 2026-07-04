@@ -936,6 +936,10 @@ void FilePanel::setFlatViewEnabled(bool enabled) {
         m_btnFlatView->blockSignals(false);
     }
 
+    if (m_treeView->selectionModel()) {
+        disconnect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
+    }
+
     if (enabled) {
         m_treeView->setModel(m_flatProxyModel);
         m_flatModel->setRootPath(m_currentPath);
@@ -948,6 +952,10 @@ void FilePanel::setFlatViewEnabled(bool enabled) {
     } else {
         m_treeView->setModel(m_proxyModel);
         if (m_categoryWidget) m_categoryWidget->setVisible(m_categoryButtonsVisible);
+    }
+
+    if (m_treeView->selectionModel()) {
+        connect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
     }
 
     m_treeView->header()->setSectionResizeMode(0, QHeaderView::Stretch);
