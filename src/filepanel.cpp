@@ -109,9 +109,6 @@ void FilePanel::setupUI() {
     connect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
 
     // Bottom Filter and Status bar
-    QVBoxLayout* bottomLayout = new QVBoxLayout();
-    bottomLayout->setSpacing(4);
-    bottomLayout->setContentsMargins(0, 0, 0, 0);
 
     m_filterEdit = new QLineEdit(this);
     m_filterEdit->setPlaceholderText("Filter files & folders (contains)...");
@@ -175,8 +172,9 @@ void FilePanel::setupUI() {
     m_statusLabel = new QLabel("0 items", this);
     m_statusLabel->setStyleSheet("color: #a6adc8; font-size: 11px; margin-left: 6px;");
 
-    // Category buttons on their own row
-    QHBoxLayout* categoryLayout = new QHBoxLayout();
+    // Wrap Category buttons row in a container widget to make it toggleable
+    m_categoryWidget = new QWidget(this);
+    QHBoxLayout* categoryLayout = new QHBoxLayout(m_categoryWidget);
     categoryLayout->setSpacing(4);
     categoryLayout->setContentsMargins(0, 0, 0, 0);
     categoryLayout->addWidget(m_btnFilterAll);
@@ -187,15 +185,19 @@ void FilePanel::setupUI() {
     categoryLayout->addWidget(m_btnFilterArchive);
     categoryLayout->addStretch(1); // Push buttons to the left
 
-    // Text filter box and status label on the second row
-    QHBoxLayout* filterTextLayout = new QHBoxLayout();
+    // Wrap Text filter row in a container widget to make it toggleable
+    m_filterTextWidget = new QWidget(this);
+    QHBoxLayout* filterTextLayout = new QHBoxLayout(m_filterTextWidget);
     filterTextLayout->setSpacing(6);
     filterTextLayout->setContentsMargins(0, 0, 0, 0);
-    filterTextLayout->addWidget(m_filterEdit, 1); // Expand to fill space
+    filterTextLayout->addWidget(m_filterEdit, 1);
     filterTextLayout->addWidget(m_statusLabel);
 
-    bottomLayout->addLayout(categoryLayout);
-    bottomLayout->addLayout(filterTextLayout);
+    QVBoxLayout* bottomLayout = new QVBoxLayout();
+    bottomLayout->setContentsMargins(0, 0, 0, 0);
+    bottomLayout->setSpacing(4);
+    bottomLayout->addWidget(m_categoryWidget);
+    bottomLayout->addWidget(m_filterTextWidget);
 
     mainLayout->addLayout(navLayout);
     mainLayout->addWidget(m_treeView, 1);
@@ -776,4 +778,24 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     } else if (selected == actProp) {
         onShowProperties();
     }
+}
+
+void FilePanel::setCategoryButtonsVisible(bool visible) {
+    if (m_categoryWidget) {
+        m_categoryWidget->setVisible(visible);
+    }
+}
+
+void FilePanel::setFilterTextBarVisible(bool visible) {
+    if (m_filterTextWidget) {
+        m_filterTextWidget->setVisible(visible);
+    }
+}
+
+bool FilePanel::isCategoryButtonsVisible() const {
+    return m_categoryWidget && m_categoryWidget->isVisible();
+}
+
+bool FilePanel::isFilterTextBarVisible() const {
+    return m_filterTextWidget && m_filterTextWidget->isVisible();
 }

@@ -64,6 +64,12 @@ private slots:
     void onToggleDrivesMenu(bool checked);
     void onToggleDrivesToolbar(bool checked);
 
+    // Individual pane filter toggle slots
+    void onToggleLeftFilterText(bool checked);
+    void onToggleLeftCategoryButtons(bool checked);
+    void onToggleRightFilterText(bool checked);
+    void onToggleRightCategoryButtons(bool checked);
+
 private:
     void setupActions();
     void setupMenus();
@@ -115,6 +121,11 @@ private:
     QAction* m_actToggleAgeColoring = nullptr;
     QAction* m_actToggleDrivesMenu = nullptr;
     QAction* m_actToggleDrivesToolbar = nullptr;
+
+    QAction* m_actLeftShowFilterText = nullptr;
+    QAction* m_actLeftShowCategoryButtons = nullptr;
+    QAction* m_actRightShowFilterText = nullptr;
+    QAction* m_actRightShowCategoryButtons = nullptr;
 
     // Dynamic Toolbars
     QToolBar* m_tbFile = nullptr;

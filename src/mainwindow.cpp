@@ -302,6 +302,24 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     m_actToggleDrivesToolbar->setChecked(drivesToolbarVisible);
     m_tbDrives->setVisible(drivesToolbarVisible);
 
+    // Load individual filter elements visibility from settings
+    bool leftFilterTextVisible = settings.value("left_panel/filter_text_visible", true).toBool();
+    bool leftCategoryVisible = settings.value("left_panel/category_buttons_visible", true).toBool();
+    bool rightFilterTextVisible = settings.value("right_panel/filter_text_visible", true).toBool();
+    bool rightCategoryVisible = settings.value("right_panel/category_buttons_visible", true).toBool();
+
+    m_actLeftShowFilterText->setChecked(leftFilterTextVisible);
+    m_leftPanel->setFilterTextBarVisible(leftFilterTextVisible);
+
+    m_actLeftShowCategoryButtons->setChecked(leftCategoryVisible);
+    m_leftPanel->setCategoryButtonsVisible(leftCategoryVisible);
+
+    m_actRightShowFilterText->setChecked(rightFilterTextVisible);
+    m_rightPanel->setFilterTextBarVisible(rightFilterTextVisible);
+
+    m_actRightShowCategoryButtons->setChecked(rightCategoryVisible);
+    m_rightPanel->setCategoryButtonsVisible(rightCategoryVisible);
+
     // Initial populate of drives
     updateDrivesList();
 
@@ -439,6 +457,27 @@ void MainWindow::setupActions() {
     m_actToggleDrivesToolbar->setToolTip("Show/hide the attached drives toolbar");
     connect(m_actToggleDrivesToolbar, &QAction::toggled, this, &MainWindow::onToggleDrivesToolbar);
 
+    // Individual panel filter toggle actions
+    m_actLeftShowFilterText = new QAction("Left Panel Text Filter Bar", this);
+    m_actLeftShowFilterText->setCheckable(true);
+    m_actLeftShowFilterText->setChecked(true);
+    connect(m_actLeftShowFilterText, &QAction::toggled, this, &MainWindow::onToggleLeftFilterText);
+
+    m_actLeftShowCategoryButtons = new QAction("Left Panel Category Buttons", this);
+    m_actLeftShowCategoryButtons->setCheckable(true);
+    m_actLeftShowCategoryButtons->setChecked(true);
+    connect(m_actLeftShowCategoryButtons, &QAction::toggled, this, &MainWindow::onToggleLeftCategoryButtons);
+
+    m_actRightShowFilterText = new QAction("Right Panel Text Filter Bar", this);
+    m_actRightShowFilterText->setCheckable(true);
+    m_actRightShowFilterText->setChecked(true);
+    connect(m_actRightShowFilterText, &QAction::toggled, this, &MainWindow::onToggleRightFilterText);
+
+    m_actRightShowCategoryButtons = new QAction("Right Panel Category Buttons", this);
+    m_actRightShowCategoryButtons->setCheckable(true);
+    m_actRightShowCategoryButtons->setChecked(true);
+    connect(m_actRightShowCategoryButtons, &QAction::toggled, this, &MainWindow::onToggleRightCategoryButtons);
+
     // Bind actions to window to ensure keyboard shortcuts work globally
     addAction(m_actNewFolder);
     addAction(m_actProperties);
@@ -454,6 +493,10 @@ void MainWindow::setupActions() {
     addAction(m_actToggleAgeColoring);
     addAction(m_actToggleDrivesMenu);
     addAction(m_actToggleDrivesToolbar);
+    addAction(m_actLeftShowFilterText);
+    addAction(m_actLeftShowCategoryButtons);
+    addAction(m_actRightShowFilterText);
+    addAction(m_actRightShowCategoryButtons);
 }
 
 void MainWindow::setupMenus() {
@@ -478,6 +521,13 @@ void MainWindow::setupMenus() {
     m_menuView->addAction(m_actToggleAgeColoring);
     m_menuView->addAction(m_actToggleDrivesMenu);
     m_menuView->addAction(m_actToggleDrivesToolbar);
+    
+    QMenu* menuFilterToggles = m_menuView->addMenu("Filter Bars");
+    menuFilterToggles->addAction(m_actLeftShowFilterText);
+    menuFilterToggles->addAction(m_actLeftShowCategoryButtons);
+    menuFilterToggles->addAction(m_actRightShowFilterText);
+    menuFilterToggles->addAction(m_actRightShowCategoryButtons);
+
     m_menuView->addSeparator();
     m_menuView->addAction(m_actRefresh);
 
@@ -800,6 +850,38 @@ void MainWindow::onToggleDrivesToolbar(bool checked) {
     // Save to settings
     QSettings settings("Amifiles", "Amifiles");
     settings.setValue("drives/toolbar_visible", checked);
+}
+
+void MainWindow::onToggleLeftFilterText(bool checked) {
+    if (m_leftPanel) {
+        m_leftPanel->setFilterTextBarVisible(checked);
+    }
+    QSettings settings("Amifiles", "Amifiles");
+    settings.setValue("left_panel/filter_text_visible", checked);
+}
+
+void MainWindow::onToggleLeftCategoryButtons(bool checked) {
+    if (m_leftPanel) {
+        m_leftPanel->setCategoryButtonsVisible(checked);
+    }
+    QSettings settings("Amifiles", "Amifiles");
+    settings.setValue("left_panel/category_buttons_visible", checked);
+}
+
+void MainWindow::onToggleRightFilterText(bool checked) {
+    if (m_rightPanel) {
+        m_rightPanel->setFilterTextBarVisible(checked);
+    }
+    QSettings settings("Amifiles", "Amifiles");
+    settings.setValue("right_panel/filter_text_visible", checked);
+}
+
+void MainWindow::onToggleRightCategoryButtons(bool checked) {
+    if (m_rightPanel) {
+        m_rightPanel->setCategoryButtonsVisible(checked);
+    }
+    QSettings settings("Amifiles", "Amifiles");
+    settings.setValue("right_panel/category_buttons_visible", checked);
 }
 
 // ================= Custom Script Buttons Implementation =================

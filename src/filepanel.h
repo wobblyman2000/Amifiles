@@ -178,6 +178,12 @@ public:
     // Age Coloring support
     FileFilterProxyModel* proxyModel() const { return m_proxyModel; }
 
+    // View modular filter components
+    void setCategoryButtonsVisible(bool visible);
+    void setFilterTextBarVisible(bool visible);
+    bool isCategoryButtonsVisible() const;
+    bool isFilterTextBarVisible() const;
+
 signals:
     void pathChanged(const QString& path);
     void fileSelected(const QString& filePath);
@@ -234,6 +240,9 @@ private:
     QToolButton* m_btnFilterDocs = nullptr;
     QToolButton* m_btnFilterArchive = nullptr;
     QLabel* m_statusLabel = nullptr;
+
+    QWidget* m_categoryWidget = nullptr;
+    QWidget* m_filterTextWidget = nullptr;
 
     QString m_folderArtPath;
 };
