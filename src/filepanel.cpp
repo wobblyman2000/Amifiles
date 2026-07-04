@@ -244,6 +244,29 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
     m_currentPath = dir.absolutePath();
     m_pathEdit->setText(QDir::toNativeSeparators(m_currentPath));
 
+    // Reset filter to All if target directory has no matching files for the current category
+    FileFilterProxyModel::FilterType currentFilter = m_proxyModel->filterType();
+    if (currentFilter != FileFilterProxyModel::FilterAll) {
+        QStringList filters;
+        if (currentFilter == FileFilterProxyModel::FilterAudio) {
+            filters = { "*.mp3", "*.wav", "*.flac", "*.ogg", "*.m4a", "*.wma", "*.aac", "*.mid", "*.midi" };
+        } else if (currentFilter == FileFilterProxyModel::FilterVideos) {
+            filters = { "*.mp4", "*.avi", "*.mkv", "*.mov", "*.webm", "*.flv", "*.wmv", "*.m4v", "*.mpg", "*.mpeg" };
+        } else if (currentFilter == FileFilterProxyModel::FilterPictures) {
+            filters = { "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp", "*.webp", "*.svg", "*.tiff", "*.ico" };
+        } else if (currentFilter == FileFilterProxyModel::FilterDocs) {
+            filters = { "*.txt", "*.log", "*.pdf", "*.doc", "*.docx", "*.xls", "*.xlsx", "*.ppt", "*.pptx", "*.odt", "*.ods", "*.odp", "*.md", "*.csv", "*.rtf", "*.html", "*.xml", "*.json" };
+        } else if (currentFilter == FileFilterProxyModel::FilterArchive) {
+            filters = { "*.zip", "*.tar", "*.gz", "*.bz2", "*.xz", "*.rar", "*.7z", "*.tgz" };
+        }
+
+        QFileInfoList list = dir.entryInfoList(filters, QDir::Files);
+        if (list.isEmpty()) {
+            m_btnFilterAll->setChecked(true);
+            m_proxyModel->setFilterType(FileFilterProxyModel::FilterAll);
+        }
+    }
+
     // Update tree view root
     m_proxyModel->setCurrentPath(m_currentPath);
     QModelIndex srcIndex = m_fileModel->index(m_currentPath);
@@ -328,19 +351,45 @@ void FilePanel::onFilterChanged(const QString& filterText) {
 }
 
 void FilePanel::onFilterTypeChanged() {
-    if (m_btnFilterAll->isChecked()) {
-        m_proxyModel->setFilterType(FileFilterProxyModel::FilterAll);
-    } else if (m_btnFilterAudio->isChecked()) {
-        m_proxyModel->setFilterType(FileFilterProxyModel::FilterAudio);
+    FileFilterProxyModel::FilterType targetType = FileFilterProxyModel::FilterAll;
+    
+    if (m_btnFilterAudio->isChecked()) {
+        targetType = FileFilterProxyModel::FilterAudio;
     } else if (m_btnFilterVideos->isChecked()) {
-        m_proxyModel->setFilterType(FileFilterProxyModel::FilterVideos);
+        targetType = FileFilterProxyModel::FilterVideos;
     } else if (m_btnFilterPictures->isChecked()) {
-        m_proxyModel->setFilterType(FileFilterProxyModel::FilterPictures);
+        targetType = FileFilterProxyModel::FilterPictures;
     } else if (m_btnFilterDocs->isChecked()) {
-        m_proxyModel->setFilterType(FileFilterProxyModel::FilterDocs);
+        targetType = FileFilterProxyModel::FilterDocs;
     } else if (m_btnFilterArchive->isChecked()) {
-        m_proxyModel->setFilterType(FileFilterProxyModel::FilterArchive);
+        targetType = FileFilterProxyModel::FilterArchive;
     }
+
+    if (targetType != FileFilterProxyModel::FilterAll) {
+        QStringList filters;
+        if (targetType == FileFilterProxyModel::FilterAudio) {
+            filters = { "*.mp3", "*.wav", "*.flac", "*.ogg", "*.m4a", "*.wma", "*.aac", "*.mid", "*.midi" };
+        } else if (targetType == FileFilterProxyModel::FilterVideos) {
+            filters = { "*.mp4", "*.avi", "*.mkv", "*.mov", "*.webm", "*.flv", "*.wmv", "*.m4v", "*.mpg", "*.mpeg" };
+        } else if (targetType == FileFilterProxyModel::FilterPictures) {
+            filters = { "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp", "*.webp", "*.svg", "*.tiff", "*.ico" };
+        } else if (targetType == FileFilterProxyModel::FilterDocs) {
+            filters = { "*.txt", "*.log", "*.pdf", "*.doc", "*.docx", "*.xls", "*.xlsx", "*.ppt", "*.pptx", "*.odt", "*.ods", "*.odp", "*.md", "*.csv", "*.rtf", "*.html", "*.xml", "*.json" };
+        } else if (targetType == FileFilterProxyModel::FilterArchive) {
+            filters = { "*.zip", "*.tar", "*.gz", "*.bz2", "*.xz", "*.rar", "*.7z", "*.tgz" };
+        }
+
+        QDir dir(m_currentPath);
+        QFileInfoList list = dir.entryInfoList(filters, QDir::Files);
+        if (list.isEmpty()) {
+            m_btnFilterAll->setChecked(true);
+            m_proxyModel->setFilterType(FileFilterProxyModel::FilterAll);
+            m_statusLabel->setText("No matching files found. Showing all.");
+            return;
+        }
+    }
+
+    m_proxyModel->setFilterType(targetType);
     updateStatusText();
 }
 

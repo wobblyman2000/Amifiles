@@ -36,6 +36,8 @@ public:
         invalidate();
     }
 
+    FilterType filterType() const { return m_filterType; }
+
     void setFilterText(const QString& text) {
         m_filterText = text;
         invalidate();
