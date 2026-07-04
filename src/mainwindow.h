@@ -17,6 +17,7 @@ struct CustomButton {
 };
 
 class MiniMediaControls;
+class ConsolePanel;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -69,6 +70,10 @@ private slots:
     void onToggleLeftCategoryButtons(bool checked);
     void onToggleRightFilterText(bool checked);
     void onToggleRightCategoryButtons(bool checked);
+    void onToggleConsole(bool checked);
+    void onToggleFlatView(bool checked);
+    void onCompareSyncAction();
+    void onDuplicateFinderAction();
 
 private:
     void setupActions();
@@ -96,6 +101,7 @@ private:
     FilePanel* m_rightPanel = nullptr;
     PreviewPanel* m_previewPanel = nullptr;
     MiniMediaControls* m_miniMediaControls = nullptr;
+    ConsolePanel* m_consolePanel = nullptr;
 
     // Menus
     QMenu* m_menuFile = nullptr;
@@ -103,6 +109,7 @@ private:
     QMenu* m_menuView = nullptr;
     QMenu* m_menuFavorites = nullptr;
     QMenu* m_menuDrives = nullptr;
+    QMenu* m_menuTools = nullptr;
     QMenu* m_menuHelp = nullptr;
 
     // Actions (wired to toolbar & menu items)
@@ -115,12 +122,16 @@ private:
     QAction* m_actProperties = nullptr;
     QAction* m_actRefresh = nullptr;
     QAction* m_actBulkRename = nullptr;
+    QAction* m_actCompareSync = nullptr;
+    QAction* m_actDuplicateFinder = nullptr;
 
     QAction* m_actToggleDualPane = nullptr;
     QAction* m_actTogglePreview = nullptr;
     QAction* m_actToggleAgeColoring = nullptr;
     QAction* m_actToggleDrivesMenu = nullptr;
     QAction* m_actToggleDrivesToolbar = nullptr;
+    QAction* m_actToggleConsole = nullptr;
+    QAction* m_actToggleFlatView = nullptr;
 
     QAction* m_actLeftShowFilterText = nullptr;
     QAction* m_actLeftShowCategoryButtons = nullptr;

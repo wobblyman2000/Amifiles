@@ -26,6 +26,16 @@ add_executable(Amifiles
     src/bulkrename.h
     src/bulkrename.cpp
     src/theme.h
+    src/consolepanel.h
+    src/consolepanel.cpp
+    src/foldersizecalculator.h
+    src/foldersizecalculator.cpp
+    src/flatmodel.h
+    src/flatmodel.cpp
+    src/foldersync.h
+    src/foldersync.cpp
+    src/dupfinder.h
+    src/dupfinder.cpp
 )
 
 target_link_libraries(Amifiles PRIVATE

@@ -2,6 +2,9 @@
 #include "theme.h"
 #include "favoritesmanager.h"
 #include "bulkrename.h"
+#include "consolepanel.h"
+#include "foldersync.h"
+#include "dupfinder.h"
 #include <QMenuBar>
 #include <QStorageInfo>
 #include <QToolBar>
@@ -302,6 +305,12 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     m_actToggleDrivesToolbar->setChecked(drivesToolbarVisible);
     m_tbDrives->setVisible(drivesToolbarVisible);
 
+    bool consoleVisible = settings.value("console/visible", true).toBool();
+    m_actToggleConsole->setChecked(consoleVisible);
+    if (m_consolePanel) {
+        m_consolePanel->setVisible(consoleVisible);
+    }
+
     // Load individual filter elements visibility from settings
     bool leftFilterTextVisible = settings.value("left_panel/filter_text_visible", true).toBool();
     bool leftCategoryVisible = settings.value("left_panel/category_buttons_visible", true).toBool();
@@ -328,6 +337,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 }
 
 void MainWindow::setupCentralWidget() {
+    QSplitter* mainVSplitter = new QSplitter(Qt::Vertical, this);
+    mainVSplitter->setHandleWidth(4);
+
     m_splitter = new QSplitter(Qt::Horizontal, this);
     m_splitter->setHandleWidth(4);
 
@@ -347,7 +359,13 @@ void MainWindow::setupCentralWidget() {
 
     m_splitter->setSizes({450, 450, 300});
 
-    setCentralWidget(m_splitter);
+    m_consolePanel = new ConsolePanel(this);
+
+    mainVSplitter->addWidget(m_splitter);
+    mainVSplitter->addWidget(m_consolePanel);
+    mainVSplitter->setSizes({600, 150});
+
+    setCentralWidget(mainVSplitter);
 
     // Connect selection/activation signals
     connect(m_leftPanel, &FilePanel::panelActivated, this, &MainWindow::onPanelActivated);
@@ -423,6 +441,16 @@ void MainWindow::setupActions() {
     m_actBulkRename->setToolTip("Open the bulk rename tool for selected files");
     connect(m_actBulkRename, &QAction::triggered, this, &MainWindow::onBulkRenameAction);
 
+    m_actCompareSync = new QAction(style->standardIcon(QStyle::SP_DialogYesButton), "Compare & Sync Folders...", this);
+    m_actCompareSync->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_G));
+    m_actCompareSync->setToolTip("Compare left and right folder contents and synchronize them");
+    connect(m_actCompareSync, &QAction::triggered, this, &MainWindow::onCompareSyncAction);
+
+    m_actDuplicateFinder = new QAction(style->standardIcon(QStyle::SP_MessageBoxQuestion), "Find Duplicate Files...", this);
+    m_actDuplicateFinder->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_U));
+    m_actDuplicateFinder->setToolTip("Find duplicate files by size or hash in directories");
+    connect(m_actDuplicateFinder, &QAction::triggered, this, &MainWindow::onDuplicateFinderAction);
+
     // Layout Toggle Actions
     m_actToggleDualPane = new QAction("Dual Pane View", this);
     m_actToggleDualPane->setCheckable(true);
@@ -458,6 +486,22 @@ void MainWindow::setupActions() {
     m_actToggleDrivesToolbar->setChecked(true);
     m_actToggleDrivesToolbar->setToolTip("Show/hide the attached drives toolbar");
     connect(m_actToggleDrivesToolbar, &QAction::toggled, this, &MainWindow::onToggleDrivesToolbar);
+
+    // Toggle Console Action
+    m_actToggleConsole = new QAction("Command Output Console", this);
+    m_actToggleConsole->setCheckable(true);
+    m_actToggleConsole->setChecked(true);
+    m_actToggleConsole->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_C));
+    m_actToggleConsole->setToolTip("Toggle command script output console window");
+    connect(m_actToggleConsole, &QAction::toggled, this, &MainWindow::onToggleConsole);
+
+    // Toggle Flat View Action
+    m_actToggleFlatView = new QAction("Flat View (Recursion Mode)", this);
+    m_actToggleFlatView->setCheckable(true);
+    m_actToggleFlatView->setChecked(false);
+    m_actToggleFlatView->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_F));
+    m_actToggleFlatView->setToolTip("Toggle flat list representation recursively showing subdirectories");
+    connect(m_actToggleFlatView, &QAction::toggled, this, &MainWindow::onToggleFlatView);
 
     // Individual panel filter toggle actions
     m_actLeftShowFilterText = new QAction("Left Panel Text Filter Bar", this);
@@ -499,6 +543,10 @@ void MainWindow::setupActions() {
     addAction(m_actLeftShowCategoryButtons);
     addAction(m_actRightShowFilterText);
     addAction(m_actRightShowCategoryButtons);
+    addAction(m_actToggleConsole);
+    addAction(m_actToggleFlatView);
+    addAction(m_actCompareSync);
+    addAction(m_actDuplicateFinder);
 }
 
 void MainWindow::setupMenus() {
@@ -523,6 +571,8 @@ void MainWindow::setupMenus() {
     m_menuView->addAction(m_actToggleAgeColoring);
     m_menuView->addAction(m_actToggleDrivesMenu);
     m_menuView->addAction(m_actToggleDrivesToolbar);
+    m_menuView->addAction(m_actToggleConsole);
+    m_menuView->addAction(m_actToggleFlatView);
     
     QMenu* menuFilterToggles = m_menuView->addMenu("Filter Bars");
     menuFilterToggles->addAction(m_actLeftShowFilterText);
@@ -535,6 +585,10 @@ void MainWindow::setupMenus() {
 
     m_menuFavorites = menuBar()->addMenu("Favorites");
     m_menuDrives = menuBar()->addMenu("Drives");
+
+    m_menuTools = menuBar()->addMenu("Tools");
+    m_menuTools->addAction(m_actCompareSync);
+    m_menuTools->addAction(m_actDuplicateFinder);
 
     m_menuHelp = menuBar()->addMenu("Help");
     m_menuHelp->addAction("About Amifiles", this, [this]() {
@@ -624,6 +678,12 @@ void MainWindow::onPanelActivated(FilePanel* panel) {
             }
         } else {
             onFileSelected(selectedFile);
+        }
+        // Sync the flat view menu checkbox state
+        if (m_actToggleFlatView) {
+            m_actToggleFlatView->blockSignals(true);
+            m_actToggleFlatView->setChecked(m_activePanel->isFlatViewEnabled());
+            m_actToggleFlatView->blockSignals(false);
         }
     }
 }
@@ -905,6 +965,43 @@ void MainWindow::onToggleRightCategoryButtons(bool checked) {
     settings.setValue("right_panel/category_buttons_visible", checked);
 }
 
+void MainWindow::onToggleConsole(bool checked) {
+    if (m_consolePanel) {
+        m_consolePanel->setVisible(checked);
+    }
+    QSettings settings("Amifiles", "Amifiles");
+    settings.setValue("console/visible", checked);
+}
+
+void MainWindow::onToggleFlatView(bool checked) {
+    if (m_activePanel) {
+        m_activePanel->setFlatViewEnabled(checked);
+    }
+}
+
+void MainWindow::onCompareSyncAction() {
+    if (!m_leftPanel || !m_rightPanel) return;
+
+    QString leftPath = m_leftPanel->currentPath();
+    QString rightPath = m_rightPanel->currentPath();
+
+    FolderSyncDialog dlg(leftPath, rightPath, this);
+    dlg.exec();
+
+    m_leftPanel->refresh();
+    m_rightPanel->refresh();
+}
+
+void MainWindow::onDuplicateFinderAction() {
+    if (!m_activePanel) return;
+
+    QString scanPath = m_activePanel->currentPath();
+    DuplicateFinderDialog dlg(scanPath, this);
+    dlg.exec();
+
+    m_activePanel->refresh();
+}
+
 // ================= Custom Script Buttons Implementation =================
 
 void MainWindow::loadCustomButtons() {
@@ -1017,16 +1114,36 @@ void MainWindow::onCustomButtonClicked() {
 
     statusBar()->showMessage(QString("Executing '%1'...").arg(act->text()), 3000);
 
+    if (m_consolePanel) {
+        m_consolePanel->appendSystem(QString("=== Running Command: %1 ===").arg(act->text()));
+        m_consolePanel->appendSystem(QString("Working Directory: %1").arg(m_activePanel->currentPath()));
+    }
+
+    connect(process, &QProcess::readyReadStandardOutput, this, [this, process]() {
+        if (m_consolePanel) {
+            m_consolePanel->appendOutput(QString::fromUtf8(process->readAllStandardOutput()));
+        }
+    });
+
+    connect(process, &QProcess::readyReadStandardError, this, [this, process]() {
+        if (m_consolePanel) {
+            m_consolePanel->appendError(QString::fromUtf8(process->readAllStandardError()));
+        }
+    });
+
     // Execute in bash shell environment
     process->start("bash", {"-c", script});
     
     connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this, [this, process, act](int exitCode, QProcess::ExitStatus status) {
         if (status == QProcess::CrashExit) {
             statusBar()->showMessage(QString("Command '%1' crashed!").arg(act->text()), 4000);
+            if (m_consolePanel) m_consolePanel->appendError("Command crashed!");
         } else if (exitCode != 0) {
             statusBar()->showMessage(QString("Command '%1' returned exit code %2").arg(act->text()).arg(exitCode), 4000);
+            if (m_consolePanel) m_consolePanel->appendError(QString("Command finished with exit code: %1").arg(exitCode));
         } else {
             statusBar()->showMessage(QString("Command '%1' completed successfully.").arg(act->text()), 3000);
+            if (m_consolePanel) m_consolePanel->appendSystem("Command finished successfully.");
             m_leftPanel->refresh();
             m_rightPanel->refresh();
         }

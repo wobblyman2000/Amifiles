@@ -17,6 +17,8 @@
 #include <QColor>
 #include <QDateTime>
 #include <QVariant>
+#include "foldersizecalculator.h"
+#include "flatmodel.h"
 
 // Custom filter proxy model to support prefix/substring matching and file type categories
 class FileFilterProxyModel : public QSortFilterProxyModel {
@@ -67,6 +69,27 @@ public:
                 }
             }
         }
+
+        if (role == Qt::DisplayRole && index.column() == 1) { // Size column
+            QModelIndex srcIndex = mapToSource(index);
+            QFileSystemModel* fileModel = qobject_cast<QFileSystemModel*>(sourceModel());
+            if (fileModel && fileModel->isDir(srcIndex)) {
+                QString path = fileModel->filePath(srcIndex);
+                qint64 size = FolderSizeCalculator::instance().getFolderSize(path);
+                if (size == -1) {
+                    return "Calculating...";
+                } else {
+                    double kb = size / 1024.0;
+                    double mb = kb / 1024.0;
+                    double gb = mb / 1024.0;
+                    if (gb >= 1.0) return QString("%1 GB").arg(gb, 0, 'f', 1);
+                    if (mb >= 1.0) return QString("%1 MB").arg(mb, 0, 'f', 1);
+                    if (kb >= 1.0) return QString("%1 KB").arg(kb, 0, 'f', 1);
+                    return QString("%1 B").arg(size);
+                }
+            }
+        }
+
         return QSortFilterProxyModel::data(index, role);
     }
 
@@ -190,6 +213,10 @@ public:
     void syncFilterText(const QString& text);
     void syncFilterType(FileFilterProxyModel::FilterType type);
 
+    // Flat View Support
+    void setFlatViewEnabled(bool enabled);
+    bool isFlatViewEnabled() const { return m_flatViewEnabled; }
+
 signals:
     void pathChanged(const QString& path);
     void fileSelected(const QString& filePath);
@@ -221,6 +248,8 @@ private:
     bool copyRecursively(const QString& srcPath, const QString& destPath);
 
     bool m_isActive = false;
+    bool m_categoryButtonsVisible = true;
+    bool m_filterTextBarVisible = true;
     QString m_currentPath;
     QStringList m_history;
     int m_historyIndex = -1;
@@ -232,10 +261,15 @@ private:
     QLineEdit* m_pathEdit = nullptr;
     QToolButton* m_btnGo = nullptr;
     QToolButton* m_btnFavorite = nullptr;
+    QToolButton* m_btnFlatView = nullptr;
 
     QTreeView* m_treeView = nullptr;
     QFileSystemModel* m_fileModel = nullptr;
     FileFilterProxyModel* m_proxyModel = nullptr;
+
+    FlatFileSystemModel* m_flatModel = nullptr;
+    QSortFilterProxyModel* m_flatProxyModel = nullptr;
+    bool m_flatViewEnabled = false;
 
     // Bottom Filter Bar
     QLineEdit* m_filterEdit = nullptr;

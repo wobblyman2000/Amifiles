@@ -29,6 +29,23 @@ FilePanel::FilePanel(const QString& initialPath, QWidget* parent)
     connect(&FavoritesManager::instance(), &FavoritesManager::favoritesChanged,
             this, &FilePanel::updateFavoritesUI);
 
+    // Asynchronously update UI when folder sizes finish calculating
+    connect(&FolderSizeCalculator::instance(), &FolderSizeCalculator::sizeCalculated, this, [this](const QString& path, qint64 size) {
+        Q_UNUSED(size);
+        if (m_fileModel && m_proxyModel) {
+            QModelIndex srcIndex = m_fileModel->index(path);
+            if (srcIndex.isValid()) {
+                QModelIndex proxyIndex = m_proxyModel->mapFromSource(srcIndex);
+                if (proxyIndex.isValid()) {
+                    QModelIndex sizeIndex = m_proxyModel->index(proxyIndex.row(), 1, proxyIndex.parent());
+                    if (sizeIndex.isValid()) {
+                        emit m_proxyModel->dataChanged(sizeIndex, sizeIndex, {Qt::DisplayRole});
+                    }
+                }
+            }
+        }
+    });
+
     navigateTo(initialPath, true);
 }
 
@@ -73,12 +90,20 @@ void FilePanel::setupUI() {
     m_btnFavorite->setStyleSheet("QToolButton { font-size: 16px; font-weight: bold; color: #f9e2af; }");
     connect(m_btnFavorite, &QToolButton::clicked, this, &FilePanel::onFavoriteClicked);
 
+    m_btnFlatView = new QToolButton(this);
+    m_btnFlatView->setText("Flat View");
+    m_btnFlatView->setCheckable(true);
+    m_btnFlatView->setToolTip("Toggle Flat View (Recurse all subfolders)");
+    m_btnFlatView->setStyleSheet("QToolButton { font-weight: bold; color: #a6e3a1; }");
+    connect(m_btnFlatView, &QToolButton::toggled, this, &FilePanel::setFlatViewEnabled);
+
     navLayout->addWidget(m_btnBack);
     navLayout->addWidget(m_btnForward);
     navLayout->addWidget(m_btnUp);
     navLayout->addWidget(m_pathEdit, 1);
     navLayout->addWidget(m_btnGo);
     navLayout->addWidget(m_btnFavorite);
+    navLayout->addWidget(m_btnFlatView);
 
     // Central Tree View
     m_treeView = new QTreeView(this);
@@ -96,6 +121,12 @@ void FilePanel::setupUI() {
 
     m_proxyModel = new FileFilterProxyModel(this);
     m_proxyModel->setSourceModel(m_fileModel);
+
+    m_flatModel = new FlatFileSystemModel(this);
+    m_flatProxyModel = new QSortFilterProxyModel(this);
+    m_flatProxyModel->setSourceModel(m_flatModel);
+    m_flatProxyModel->setFilterKeyColumn(0);
+    m_flatProxyModel->setFilterCaseSensitivity(Qt::CaseInsensitive);
 
     m_treeView->setModel(m_proxyModel);
 
@@ -270,10 +301,15 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
     }
 
     // Update tree view root
-    m_proxyModel->setCurrentPath(m_currentPath);
-    QModelIndex srcIndex = m_fileModel->index(m_currentPath);
-    QModelIndex proxyIndex = m_proxyModel->mapFromSource(srcIndex);
-    m_treeView->setRootIndex(proxyIndex);
+    if (m_flatViewEnabled) {
+        m_flatModel->setRootPath(m_currentPath);
+        m_treeView->setRootIndex(QModelIndex());
+    } else {
+        m_proxyModel->setCurrentPath(m_currentPath);
+        QModelIndex srcIndex = m_fileModel->index(m_currentPath);
+        QModelIndex proxyIndex = m_proxyModel->mapFromSource(srcIndex);
+        m_treeView->setRootIndex(proxyIndex);
+    }
 
     // Update History
     if (addHistory) {
@@ -349,11 +385,19 @@ void FilePanel::updateFavoritesUI() {
 
 void FilePanel::onFilterChanged(const QString& filterText) {
     if (m_siblingPanel && !m_isActive && !m_siblingPanel->isFilterTextBarVisible()) {
-        m_siblingPanel->proxyModel()->setFilterText(filterText);
+        if (m_siblingPanel->isFlatViewEnabled()) {
+            m_siblingPanel->m_flatProxyModel->setFilterFixedString(filterText);
+        } else {
+            m_siblingPanel->proxyModel()->setFilterText(filterText);
+        }
         m_siblingPanel->updateStatusText();
         m_siblingPanel->syncFilterText(filterText);
     } else {
-        m_proxyModel->setFilterText(filterText);
+        if (m_flatViewEnabled) {
+            m_flatProxyModel->setFilterFixedString(filterText);
+        } else {
+            m_proxyModel->setFilterText(filterText);
+        }
         updateStatusText();
     }
 }
@@ -411,8 +455,14 @@ void FilePanel::onFilterTypeChanged() {
 }
 
 void FilePanel::onDoubleClicked(const QModelIndex& index) {
-    QModelIndex srcIndex = m_proxyModel->mapToSource(index);
-    QString path = m_fileModel->filePath(srcIndex);
+    QString path;
+    if (m_flatViewEnabled) {
+        QModelIndex srcIndex = m_flatProxyModel->mapToSource(index);
+        path = m_flatModel->filePath(srcIndex);
+    } else {
+        QModelIndex srcIndex = m_proxyModel->mapToSource(index);
+        path = m_fileModel->filePath(srcIndex);
+    }
 
     QFileInfo info(path);
     if (info.isDir()) {
@@ -441,8 +491,16 @@ QStringList FilePanel::selectedPaths() const {
     QStringList paths;
     QModelIndexList selectedRows = m_treeView->selectionModel()->selectedRows();
     for (const QModelIndex& index : selectedRows) {
-        QModelIndex srcIndex = m_proxyModel->mapToSource(index);
-        paths.append(m_fileModel->filePath(srcIndex));
+        if (m_flatViewEnabled) {
+            QSortFilterProxyModel* proxy = qobject_cast<QSortFilterProxyModel*>(m_treeView->model());
+            if (proxy) {
+                QModelIndex srcIndex = proxy->mapToSource(index);
+                paths.append(m_flatModel->filePath(srcIndex));
+            }
+        } else {
+            QModelIndex srcIndex = m_proxyModel->mapToSource(index);
+            paths.append(m_fileModel->filePath(srcIndex));
+        }
     }
     return paths;
 }
@@ -475,7 +533,10 @@ void FilePanel::updateNavigationButtons() {
 }
 
 void FilePanel::updateStatusText() {
-    int totalItems = m_proxyModel->rowCount(m_treeView->rootIndex());
+    QAbstractItemModel* activeModel = m_treeView->model();
+    if (!activeModel) return;
+
+    int totalItems = activeModel->rowCount(m_treeView->rootIndex());
     QModelIndexList selectedRows = m_treeView->selectionModel()->selectedRows();
     int selectedItems = selectedRows.size();
 
@@ -484,8 +545,15 @@ void FilePanel::updateStatusText() {
     } else {
         qint64 totalSize = 0;
         for (const QModelIndex& index : selectedRows) {
-            QModelIndex srcIndex = m_proxyModel->mapToSource(index);
-            QFileInfo info = m_fileModel->fileInfo(srcIndex);
+            QString path;
+            if (m_flatViewEnabled) {
+                QModelIndex srcIndex = m_flatProxyModel->mapToSource(index);
+                path = m_flatModel->filePath(srcIndex);
+            } else {
+                QModelIndex srcIndex = m_proxyModel->mapToSource(index);
+                path = m_fileModel->filePath(srcIndex);
+            }
+            QFileInfo info(path);
             if (info.isFile()) {
                 totalSize += info.size();
             }
@@ -508,9 +576,13 @@ void FilePanel::updateStatusText() {
 }
 
 void FilePanel::refresh() {
-    QModelIndex srcIndex = m_fileModel->index(m_currentPath);
-    m_fileModel->setRootPath("");
-    m_fileModel->setRootPath(m_currentPath);
+    if (m_flatViewEnabled) {
+        m_flatModel->setRootPath(m_currentPath);
+    } else {
+        QModelIndex srcIndex = m_fileModel->index(m_currentPath);
+        m_fileModel->setRootPath("");
+        m_fileModel->setRootPath(m_currentPath);
+    }
     checkFolderArt();
     updateStatusText();
 }
@@ -796,23 +868,25 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
 }
 
 void FilePanel::setCategoryButtonsVisible(bool visible) {
-    if (m_categoryWidget) {
+    m_categoryButtonsVisible = visible;
+    if (!m_flatViewEnabled && m_categoryWidget) {
         m_categoryWidget->setVisible(visible);
     }
 }
 
 void FilePanel::setFilterTextBarVisible(bool visible) {
+    m_filterTextBarVisible = visible;
     if (m_filterTextWidget) {
         m_filterTextWidget->setVisible(visible);
     }
 }
 
 bool FilePanel::isCategoryButtonsVisible() const {
-    return m_categoryWidget && m_categoryWidget->isVisible();
+    return m_categoryButtonsVisible;
 }
 
 bool FilePanel::isFilterTextBarVisible() const {
-    return m_filterTextWidget && m_filterTextWidget->isVisible();
+    return m_filterTextBarVisible;
 }
 
 QString FilePanel::filterText() const {
@@ -850,4 +924,39 @@ void FilePanel::syncFilterType(FileFilterProxyModel::FilterType type) {
         m_btnFilterDocs->blockSignals(false);
         m_btnFilterArchive->blockSignals(false);
     }
+}
+
+void FilePanel::setFlatViewEnabled(bool enabled) {
+    if (m_flatViewEnabled == enabled) return;
+    m_flatViewEnabled = enabled;
+
+    if (m_btnFlatView && m_btnFlatView->isChecked() != enabled) {
+        m_btnFlatView->blockSignals(true);
+        m_btnFlatView->setChecked(enabled);
+        m_btnFlatView->blockSignals(false);
+    }
+
+    if (enabled) {
+        m_treeView->setModel(m_flatProxyModel);
+        m_flatModel->setRootPath(m_currentPath);
+        if (m_categoryWidget) m_categoryWidget->hide();
+
+        connect(m_flatModel, &FlatFileSystemModel::scanStarted, this, [this]() {
+            m_statusLabel->setText("Scanning directory recursively...");
+        });
+        connect(m_flatModel, &FlatFileSystemModel::scanFinished, this, &FilePanel::updateStatusText);
+    } else {
+        m_treeView->setModel(m_proxyModel);
+        if (m_categoryWidget) m_categoryWidget->setVisible(m_categoryButtonsVisible);
+    }
+
+    m_treeView->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+    m_treeView->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    m_treeView->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    m_treeView->header()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+    if (enabled) {
+        m_treeView->header()->setSectionResizeMode(4, QHeaderView::Stretch);
+    }
+
+    updateStatusText();
 }
