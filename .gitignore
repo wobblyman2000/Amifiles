@@ -1,0 +1,22 @@
+# Ignore build directory
+build/
+.cache/
+
+# Ignore CMake files
+CMakeCache.txt
+CMakeFiles/
+Makefile
+cmake_install.cmake
+CMakeSettings.json
+CMakeUserPresets.json
+
+# Ignore generated Qt files
+*_autogen/
+*.moc
+moc_*.cpp
+ui_*.h
+qrc_*.cpp
+
+# System files
+.DS_Store
+Thumbs.db

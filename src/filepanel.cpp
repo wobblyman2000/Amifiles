@@ -1,0 +1,708 @@
+#include "filepanel.h"
+#include "favoritesmanager.h"
+#include "metadataextractor.h"
+#include "bulkrename.h"
+#include <QHBoxLayout>
+#include <QVBoxLayout>
+#include <QHeaderView>
+#include <QEvent>
+#include <QMouseEvent>
+#include <QStyle>
+#include <QApplication>
+#include <QDir>
+#include <QFileInfo>
+#include <QRegularExpression>
+#include <QDesktopServices>
+#include <QUrl>
+#include <QMenu>
+#include <QMessageBox>
+#include <QInputDialog>
+#include <QClipboard>
+#include <QMimeData>
+#include <QButtonGroup>
+
+FilePanel::FilePanel(const QString& initialPath, QWidget* parent)
+    : QWidget(parent) {
+    setupUI();
+    
+    // Connect to FavoritesManager changes to update UI
+    connect(&FavoritesManager::instance(), &FavoritesManager::favoritesChanged,
+            this, &FilePanel::updateFavoritesUI);
+
+    navigateTo(initialPath, true);
+}
+
+void FilePanel::setupUI() {
+    QVBoxLayout* mainLayout = new QVBoxLayout(this);
+    mainLayout->setContentsMargins(4, 4, 4, 4);
+    mainLayout->setSpacing(4);
+
+    // Top Navigation Bar
+    QHBoxLayout* navLayout = new QHBoxLayout();
+    navLayout->setSpacing(2);
+
+    QStyle* style = QApplication::style();
+
+    m_btnBack = new QToolButton(this);
+    m_btnBack->setIcon(style->standardIcon(QStyle::SP_ArrowBack));
+    m_btnBack->setToolTip("Back");
+    connect(m_btnBack, &QToolButton::clicked, this, &FilePanel::onNavigateBack);
+
+    m_btnForward = new QToolButton(this);
+    m_btnForward->setIcon(style->standardIcon(QStyle::SP_ArrowForward));
+    m_btnForward->setToolTip("Forward");
+    connect(m_btnForward, &QToolButton::clicked, this, &FilePanel::onNavigateForward);
+
+    m_btnUp = new QToolButton(this);
+    m_btnUp->setIcon(style->standardIcon(QStyle::SP_FileDialogToParent));
+    m_btnUp->setToolTip("Up to parent directory");
+    connect(m_btnUp, &QToolButton::clicked, this, &FilePanel::onNavigateUp);
+
+    m_pathEdit = new QLineEdit(this);
+    m_pathEdit->setPlaceholderText("Enter folder path...");
+    connect(m_pathEdit, &QLineEdit::returnPressed, this, &FilePanel::onPathEntered);
+
+    m_btnGo = new QToolButton(this);
+    m_btnGo->setIcon(style->standardIcon(QStyle::SP_BrowserReload));
+    m_btnGo->setToolTip("Go");
+    connect(m_btnGo, &QToolButton::clicked, this, &FilePanel::onPathEntered);
+
+    m_btnFavorite = new QToolButton(this);
+    m_btnFavorite->setText("☆");
+    m_btnFavorite->setToolTip("Add/Remove Favorite");
+    m_btnFavorite->setStyleSheet("QToolButton { font-size: 16px; font-weight: bold; color: #f9e2af; }");
+    connect(m_btnFavorite, &QToolButton::clicked, this, &FilePanel::onFavoriteClicked);
+
+    navLayout->addWidget(m_btnBack);
+    navLayout->addWidget(m_btnForward);
+    navLayout->addWidget(m_btnUp);
+    navLayout->addWidget(m_pathEdit, 1);
+    navLayout->addWidget(m_btnGo);
+    navLayout->addWidget(m_btnFavorite);
+
+    // Central Tree View
+    m_treeView = new QTreeView(this);
+    m_treeView->setAlternatingRowColors(true);
+    m_treeView->setSortingEnabled(true);
+    m_treeView->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_treeView->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    m_treeView->setContextMenuPolicy(Qt::CustomContextMenu); // Enable context menu
+    m_treeView->installEventFilter(this); // Install event filter to capture focus events
+
+    // File Model & Proxy Model Setup
+    m_fileModel = new QFileSystemModel(this);
+    m_fileModel->setReadOnly(false);
+    m_fileModel->setRootPath("");
+
+    m_proxyModel = new FileFilterProxyModel(this);
+    m_proxyModel->setSourceModel(m_fileModel);
+
+    m_treeView->setModel(m_proxyModel);
+
+    // Header formatting
+    QHeaderView* header = m_treeView->header();
+    header->setSectionsMovable(true);
+    header->setStretchLastSection(true);
+
+    connect(m_treeView, &QTreeView::doubleClicked, this, &FilePanel::onDoubleClicked);
+    connect(m_treeView, &QTreeView::customContextMenuRequested, this, &FilePanel::onCustomContextMenu);
+    connect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
+
+    // Bottom Filter and Status bar
+    QVBoxLayout* bottomLayout = new QVBoxLayout();
+    bottomLayout->setSpacing(4);
+    bottomLayout->setContentsMargins(0, 0, 0, 0);
+
+    m_filterEdit = new QLineEdit(this);
+    m_filterEdit->setPlaceholderText("Filter files & folders (contains)...");
+    connect(m_filterEdit, &QLineEdit::textChanged, this, &FilePanel::onFilterChanged);
+
+    // Flat Category Buttons
+    m_btnFilterAll = new QToolButton(this);
+    m_btnFilterAll->setText("All");
+    m_btnFilterAll->setCheckable(true);
+    m_btnFilterAll->setChecked(true);
+    m_btnFilterAll->setToolTip("Show all files");
+    m_btnFilterAll->setStyleSheet("QToolButton { padding: 4px 8px; font-weight: bold; }");
+
+    m_btnFilterMedia = new QToolButton(this);
+    m_btnFilterMedia->setText("🎵 Media");
+    m_btnFilterMedia->setCheckable(true);
+    m_btnFilterMedia->setToolTip("Filter audio, video, and image files");
+    m_btnFilterMedia->setStyleSheet("QToolButton { padding: 4px 8px; }");
+
+    m_btnFilterDocs = new QToolButton(this);
+    m_btnFilterDocs->setText("📄 Docs");
+    m_btnFilterDocs->setCheckable(true);
+    m_btnFilterDocs->setToolTip("Filter documents and text files");
+    m_btnFilterDocs->setStyleSheet("QToolButton { padding: 4px 8px; }");
+
+    m_btnFilterArchive = new QToolButton(this);
+    m_btnFilterArchive->setText("📦 Archives");
+    m_btnFilterArchive->setCheckable(true);
+    m_btnFilterArchive->setToolTip("Filter compressed archive files");
+    m_btnFilterArchive->setStyleSheet("QToolButton { padding: 4px 8px; }");
+
+    // Button group to make selection mutually exclusive
+    QButtonGroup* filterGroup = new QButtonGroup(this);
+    filterGroup->setExclusive(true);
+    filterGroup->addButton(m_btnFilterAll);
+    filterGroup->addButton(m_btnFilterMedia);
+    filterGroup->addButton(m_btnFilterDocs);
+    filterGroup->addButton(m_btnFilterArchive);
+
+    connect(m_btnFilterAll, &QToolButton::clicked, this, &FilePanel::onFilterTypeChanged);
+    connect(m_btnFilterMedia, &QToolButton::clicked, this, &FilePanel::onFilterTypeChanged);
+    connect(m_btnFilterDocs, &QToolButton::clicked, this, &FilePanel::onFilterTypeChanged);
+    connect(m_btnFilterArchive, &QToolButton::clicked, this, &FilePanel::onFilterTypeChanged);
+
+    m_statusLabel = new QLabel("0 items", this);
+    m_statusLabel->setStyleSheet("color: #a6adc8; font-size: 11px; margin-left: 6px;");
+
+    // Category buttons on their own row
+    QHBoxLayout* categoryLayout = new QHBoxLayout();
+    categoryLayout->setSpacing(4);
+    categoryLayout->setContentsMargins(0, 0, 0, 0);
+    categoryLayout->addWidget(m_btnFilterAll);
+    categoryLayout->addWidget(m_btnFilterMedia);
+    categoryLayout->addWidget(m_btnFilterDocs);
+    categoryLayout->addWidget(m_btnFilterArchive);
+    categoryLayout->addStretch(1); // Push buttons to the left
+
+    // Text filter box and status label on the second row
+    QHBoxLayout* filterTextLayout = new QHBoxLayout();
+    filterTextLayout->setSpacing(6);
+    filterTextLayout->setContentsMargins(0, 0, 0, 0);
+    filterTextLayout->addWidget(m_filterEdit, 1); // Expand to fill space
+    filterTextLayout->addWidget(m_statusLabel);
+
+    bottomLayout->addLayout(categoryLayout);
+    bottomLayout->addLayout(filterTextLayout);
+
+    mainLayout->addLayout(navLayout);
+    mainLayout->addWidget(m_treeView, 1);
+    mainLayout->addLayout(bottomLayout);
+
+    setActive(false);
+    updateNavigationButtons();
+}
+
+bool FilePanel::eventFilter(QObject* watched, QEvent* event) {
+    if (watched == m_treeView) {
+        if (event->type() == QEvent::FocusIn) {
+            setActive(true);
+            emit panelActivated(this);
+        } else if (event->type() == QEvent::MouseButtonPress) {
+            setActive(true);
+            emit panelActivated(this);
+        }
+    }
+    return QWidget::eventFilter(watched, event);
+}
+
+void FilePanel::setActive(bool active) {
+    m_isActive = active;
+    if (active) {
+        m_treeView->setStyleSheet("QTreeView { border: 2px solid #89b4fa; }");
+    } else {
+        m_treeView->setStyleSheet("QTreeView { border: 2px solid #313244; }");
+    }
+}
+
+QString FilePanel::currentPath() const {
+    return m_currentPath;
+}
+
+void FilePanel::setPath(const QString& path) {
+    navigateTo(path, true);
+}
+
+void FilePanel::navigateTo(const QString& path, bool addHistory) {
+    QDir dir(path);
+    if (!dir.exists()) {
+        return;
+    }
+
+    m_currentPath = dir.absolutePath();
+    m_pathEdit->setText(QDir::toNativeSeparators(m_currentPath));
+
+    // Update tree view root
+    m_proxyModel->setCurrentPath(m_currentPath);
+    QModelIndex srcIndex = m_fileModel->index(m_currentPath);
+    QModelIndex proxyIndex = m_proxyModel->mapFromSource(srcIndex);
+    m_treeView->setRootIndex(proxyIndex);
+
+    // Update History
+    if (addHistory) {
+        if (m_historyIndex >= 0 && m_historyIndex < m_history.size() - 1) {
+            // Cut off forward history
+            m_history = m_history.mid(0, m_historyIndex + 1);
+        }
+        m_history.append(m_currentPath);
+        m_historyIndex = m_history.size() - 1;
+    }
+
+    // Set column widths nicely for initial load
+    m_treeView->setColumnWidth(0, 250); // Name
+    m_treeView->setColumnWidth(1, 80);  // Size
+    m_treeView->setColumnWidth(2, 100); // Type
+    m_treeView->setColumnWidth(3, 140); // Date Modified
+
+    updateNavigationButtons();
+    updateFavoritesUI();
+    checkFolderArt();
+    updateStatusText();
+
+    emit pathChanged(m_currentPath);
+
+    // Since we navigated, trigger selection check
+    onSelectionChanged();
+}
+
+void FilePanel::onNavigateUp() {
+    QDir dir(m_currentPath);
+    if (dir.cdUp()) {
+        navigateTo(dir.absolutePath(), true);
+    }
+}
+
+void FilePanel::onNavigateBack() {
+    if (m_historyIndex > 0) {
+        m_historyIndex--;
+        navigateTo(m_history.at(m_historyIndex), false);
+    }
+}
+
+void FilePanel::onNavigateForward() {
+    if (m_historyIndex < m_history.size() - 1) {
+        m_historyIndex++;
+        navigateTo(m_history.at(m_historyIndex), false);
+    }
+}
+
+void FilePanel::onPathEntered() {
+    QString target = m_pathEdit->text().trimmed();
+    navigateTo(target, true);
+}
+
+void FilePanel::onFavoriteClicked() {
+    FavoritesManager& fm = FavoritesManager::instance();
+    if (fm.isFavorite(m_currentPath)) {
+        fm.removeFavorite(m_currentPath);
+    } else {
+        fm.addFavorite(m_currentPath);
+    }
+    updateFavoritesUI();
+}
+
+void FilePanel::updateFavoritesUI() {
+    FavoritesManager& fm = FavoritesManager::instance();
+    if (fm.isFavorite(m_currentPath)) {
+        m_btnFavorite->setText("★");
+    } else {
+        m_btnFavorite->setText("☆");
+    }
+}
+
+void FilePanel::onFilterChanged(const QString& filterText) {
+    m_proxyModel->setFilterText(filterText);
+    updateStatusText();
+}
+
+void FilePanel::onFilterTypeChanged() {
+    if (m_btnFilterAll->isChecked()) {
+        m_proxyModel->setFilterType(FileFilterProxyModel::FilterAll);
+    } else if (m_btnFilterMedia->isChecked()) {
+        m_proxyModel->setFilterType(FileFilterProxyModel::FilterMedia);
+    } else if (m_btnFilterDocs->isChecked()) {
+        m_proxyModel->setFilterType(FileFilterProxyModel::FilterDocs);
+    } else if (m_btnFilterArchive->isChecked()) {
+        m_proxyModel->setFilterType(FileFilterProxyModel::FilterArchive);
+    }
+    updateStatusText();
+}
+
+void FilePanel::onDoubleClicked(const QModelIndex& index) {
+    QModelIndex srcIndex = m_proxyModel->mapToSource(index);
+    QString path = m_fileModel->filePath(srcIndex);
+
+    QFileInfo info(path);
+    if (info.isDir()) {
+        navigateTo(path, true);
+    } else {
+        QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+    }
+}
+
+void FilePanel::onSelectionChanged() {
+    updateStatusText();
+    QStringList paths = selectedPaths();
+
+    if (paths.isEmpty()) {
+        if (!m_folderArtPath.isEmpty()) {
+            emit folderArtDetected(m_folderArtPath);
+        } else {
+            emit fileSelected("");
+        }
+    } else {
+        emit fileSelected(paths.first());
+    }
+}
+
+QStringList FilePanel::selectedPaths() const {
+    QStringList paths;
+    QModelIndexList selectedRows = m_treeView->selectionModel()->selectedRows();
+    for (const QModelIndex& index : selectedRows) {
+        QModelIndex srcIndex = m_proxyModel->mapToSource(index);
+        paths.append(m_fileModel->filePath(srcIndex));
+    }
+    return paths;
+}
+
+QString FilePanel::activeFilePath() const {
+    QStringList paths = selectedPaths();
+    if (!paths.isEmpty()) {
+        return paths.first();
+    }
+    return m_currentPath;
+}
+
+void FilePanel::checkFolderArt() {
+    m_folderArtPath.clear();
+    QStringList checks = { "folder.jpg", "folder.png", "poster.jpg", "poster.png", 
+                           "folder.JPEG", "folder.PNG", "poster.JPEG", "poster.PNG" };
+    
+    QDir dir(m_currentPath);
+    for (const QString& file : checks) {
+        if (dir.exists(file)) {
+            m_folderArtPath = dir.absoluteFilePath(file);
+            break;
+        }
+    }
+}
+
+void FilePanel::updateNavigationButtons() {
+    m_btnBack->setEnabled(m_historyIndex > 0);
+    m_btnForward->setEnabled(m_historyIndex < m_history.size() - 1);
+}
+
+void FilePanel::updateStatusText() {
+    int totalItems = m_proxyModel->rowCount(m_treeView->rootIndex());
+    QModelIndexList selectedRows = m_treeView->selectionModel()->selectedRows();
+    int selectedItems = selectedRows.size();
+
+    if (selectedItems == 0) {
+        m_statusLabel->setText(QString("%1 items").arg(totalItems));
+    } else {
+        qint64 totalSize = 0;
+        for (const QModelIndex& index : selectedRows) {
+            QModelIndex srcIndex = m_proxyModel->mapToSource(index);
+            QFileInfo info = m_fileModel->fileInfo(srcIndex);
+            if (info.isFile()) {
+                totalSize += info.size();
+            }
+        }
+
+        QString sizeStr;
+        if (totalSize < 1024) {
+            sizeStr = QString("%1 B").arg(totalSize);
+        } else if (totalSize < 1024 * 1024) {
+            sizeStr = QString("%1 KB").arg(QString::number(totalSize / 1024.0, 'f', 1));
+        } else {
+            sizeStr = QString("%1 MB").arg(QString::number(totalSize / (1024.0 * 1024.0), 'f', 1));
+        }
+
+        m_statusLabel->setText(QString("%1 items | %2 selected (%3)")
+                               .arg(totalItems)
+                               .arg(selectedItems)
+                               .arg(sizeStr));
+    }
+}
+
+void FilePanel::refresh() {
+    QModelIndex srcIndex = m_fileModel->index(m_currentPath);
+    m_fileModel->setRootPath("");
+    m_fileModel->setRootPath(m_currentPath);
+    checkFolderArt();
+    updateStatusText();
+}
+
+// ================= Clipboard & File Operations =================
+
+void FilePanel::onCopy() {
+    QStringList paths = selectedPaths();
+    if (paths.isEmpty()) return;
+
+    QClipboard* clipboard = QApplication::clipboard();
+    QMimeData* mimeData = new QMimeData();
+    QList<QUrl> urls;
+    for (const QString& path : paths) {
+        urls.append(QUrl::fromLocalFile(path));
+    }
+    mimeData->setUrls(urls);
+    clipboard->setMimeData(mimeData);
+}
+
+void FilePanel::onCut() {
+    QStringList paths = selectedPaths();
+    if (paths.isEmpty()) return;
+
+    QClipboard* clipboard = QApplication::clipboard();
+    QMimeData* mimeData = new QMimeData();
+    QList<QUrl> urls;
+    for (const QString& path : paths) {
+        urls.append(QUrl::fromLocalFile(path));
+    }
+    mimeData->setUrls(urls);
+    
+    // Custom formats to indicate cut (move) operation
+    mimeData->setData("application/amifiles-cut", "1");
+    mimeData->setData("application/x-kde-cutselection", "1"); // Standard on Linux desktop
+
+    clipboard->setMimeData(mimeData);
+}
+
+void FilePanel::onPaste() {
+    QClipboard* clipboard = QApplication::clipboard();
+    const QMimeData* mimeData = clipboard->mimeData();
+    if (!mimeData || !mimeData->hasUrls()) return;
+
+    QList<QUrl> urls = mimeData->urls();
+    bool isCut = mimeData->hasFormat("application/amifiles-cut") || 
+                 mimeData->hasFormat("application/x-kde-cutselection");
+
+    for (const QUrl& url : urls) {
+        QString srcPath = url.toLocalFile();
+        QFileInfo srcInfo(srcPath);
+        if (!srcInfo.exists()) continue;
+
+        QString destPath = QDir(m_currentPath).filePath(srcInfo.fileName());
+        if (srcPath == destPath) continue; // Prevent pasting into self
+
+        if (isCut) {
+            // Move file
+            QFile::rename(srcPath, destPath);
+        } else {
+            // Copy file/directory recursively
+            copyRecursively(srcPath, destPath);
+        }
+    }
+    
+    // Clear clipboard if cut selection
+    if (isCut) {
+        clipboard->clear();
+    }
+
+    refresh();
+}
+
+bool FilePanel::copyRecursively(const QString& srcPath, const QString& destPath) {
+    QFileInfo srcInfo(srcPath);
+    if (srcInfo.isDir()) {
+        QDir destDir(destPath);
+        if (!destDir.exists() && !destDir.mkpath(".")) {
+            return false;
+        }
+        QDir srcDir(srcPath);
+        QStringList entries = srcDir.entryList(QDir::NoDotAndDotDot | QDir::AllEntries | QDir::Hidden);
+        for (const QString& entry : entries) {
+            QString subSrc = srcDir.filePath(entry);
+            QString subDest = destDir.filePath(entry);
+            if (!copyRecursively(subSrc, subDest)) {
+                return false;
+            }
+        }
+        return true;
+    } else {
+        // If file already exists, we might append or overwrite
+        if (QFile::exists(destPath)) {
+            QFile::remove(destPath);
+        }
+        return QFile::copy(srcPath, destPath);
+    }
+}
+
+void FilePanel::onDelete() {
+    QStringList paths = selectedPaths();
+    if (paths.isEmpty()) return;
+
+    QString msg = QString("Are you sure you want to permanently delete the %1 selected item(s)?")
+                  .arg(paths.size());
+    
+    auto button = QMessageBox::question(this, "Confirm Delete", msg, 
+                                       QMessageBox::Yes | QMessageBox::No);
+    
+    if (button == QMessageBox::Yes) {
+        for (const QString& path : paths) {
+            QFileInfo info(path);
+            if (info.isDir()) {
+                QDir(path).removeRecursively();
+            } else {
+                QFile::remove(path);
+            }
+        }
+        refresh();
+    }
+}
+
+void FilePanel::onRename() {
+    QStringList paths = selectedPaths();
+    if (paths.isEmpty()) return;
+
+    QString oldPath = paths.first();
+    QFileInfo info(oldPath);
+    QString oldName = info.fileName();
+
+    bool ok;
+    QString newName = QInputDialog::getText(this, "Rename File", 
+                                            "Enter new name:", QLineEdit::Normal,
+                                            oldName, &ok);
+    if (ok && !newName.isEmpty() && newName != oldName) {
+        QString newPath = info.dir().filePath(newName);
+        if (QFile::rename(oldPath, newPath)) {
+            refresh();
+        } else {
+            QMessageBox::warning(this, "Rename Failed", "Could not rename the selected item.");
+        }
+    }
+}
+
+void FilePanel::onNewFolder() {
+    bool ok;
+    QString folderName = QInputDialog::getText(this, "New Folder",
+                                               "Enter folder name:", QLineEdit::Normal,
+                                               "New Folder", &ok);
+    if (ok && !folderName.isEmpty()) {
+        QDir dir(m_currentPath);
+        if (dir.mkdir(folderName)) {
+            refresh();
+        } else {
+            QMessageBox::warning(this, "Error", "Could not create folder.");
+        }
+    }
+}
+
+void FilePanel::onShowProperties() {
+    QStringList paths = selectedPaths();
+    QString targetPath = paths.isEmpty() ? m_currentPath : paths.first();
+
+    FileMetadata meta = MetadataExtractor::extract(targetPath);
+    
+    QString details = QString(
+        "Name: \t%1\n"
+        "Path: \t%2\n"
+        "Size: \t%3 bytes\n"
+        "Permissions: \t%4\n"
+        "Created: \t%5\n"
+        "Modified: \t%6\n"
+    ).arg(meta.name)
+     .arg(meta.path)
+     .arg(meta.size)
+     .arg(meta.permissions)
+     .arg(meta.created)
+     .arg(meta.modified);
+
+    if (meta.imageDimensions.isValid()) {
+        details += QString("Dimensions: \t%1 x %2\nFormat: \t%3\n")
+            .arg(meta.imageDimensions.width())
+            .arg(meta.imageDimensions.height())
+            .arg(meta.imageFormat);
+    }
+    if (!meta.title.isEmpty() || !meta.artist.isEmpty()) {
+        details += QString("Audio Title: \t%1\nArtist: \t%2\nAlbum: \t%3\n")
+            .arg(meta.title)
+            .arg(meta.artist)
+            .arg(meta.album);
+    }
+
+    QMessageBox::information(this, "Properties", details);
+}
+
+void FilePanel::onCustomContextMenu(const QPoint& pos) {
+    QModelIndex index = m_treeView->indexAt(pos);
+    
+    QMenu menu(this);
+    QStyle* style = QApplication::style();
+
+    // Standard Operations
+    QAction* actOpen = menu.addAction(style->standardIcon(QStyle::SP_DialogOpenButton), "Open");
+    menu.addSeparator();
+    
+    QAction* actCopy = menu.addAction(style->standardIcon(QStyle::SP_DialogSaveButton), "Copy");
+    actCopy->setShortcut(QKeySequence::Copy);
+    
+    QAction* actCut = menu.addAction("Cut");
+    actCut->setShortcut(QKeySequence::Cut);
+    
+    QAction* actPaste = menu.addAction("Paste");
+    actPaste->setShortcut(QKeySequence::Paste);
+    
+    QAction* actDelete = menu.addAction(style->standardIcon(QStyle::SP_TrashIcon), "Delete");
+    actDelete->setShortcut(QKeySequence::Delete);
+    
+    QAction* actRename = menu.addAction("Rename");
+    QAction* actBulkRename = menu.addAction("Bulk Rename...");
+    menu.addSeparator();
+    
+    QAction* actNewFolder = menu.addAction(style->standardIcon(QStyle::SP_FileDialogNewFolder), "New Folder");
+    menu.addSeparator();
+    
+    QAction* actFav = menu.addAction("Toggle Favorite");
+    menu.addSeparator();
+    
+    QAction* actProp = menu.addAction(style->standardIcon(QStyle::SP_MessageBoxInformation), "Properties");
+
+    // Enable/disable actions depending on context
+    bool hasSelection = index.isValid();
+    actOpen->setEnabled(hasSelection);
+    actCopy->setEnabled(hasSelection);
+    actCut->setEnabled(hasSelection);
+    actDelete->setEnabled(hasSelection);
+    actRename->setEnabled(hasSelection);
+    actBulkRename->setEnabled(hasSelection);
+
+    // Paste is enabled only if clipboard has files
+    QClipboard* clipboard = QApplication::clipboard();
+    const QMimeData* mimeData = clipboard->mimeData();
+    actPaste->setEnabled(mimeData && mimeData->hasUrls());
+
+    // Execute menu
+    QAction* selected = menu.exec(m_treeView->viewport()->mapToGlobal(pos));
+    if (!selected) return;
+
+    if (selected == actOpen) {
+        onDoubleClicked(index);
+    } else if (selected == actCopy) {
+        onCopy();
+    } else if (selected == actCut) {
+        onCut();
+    } else if (selected == actPaste) {
+        onPaste();
+    } else if (selected == actDelete) {
+        onDelete();
+    } else if (selected == actRename) {
+        QStringList paths = selectedPaths();
+        if (paths.size() > 1) {
+            BulkRenameDialog dlg(paths, this);
+            if (dlg.exec() == QDialog::Accepted) {
+                refresh();
+            }
+        } else {
+            onRename();
+        }
+    } else if (selected == actBulkRename) {
+        QStringList paths = selectedPaths();
+        if (!paths.isEmpty()) {
+            BulkRenameDialog dlg(paths, this);
+            if (dlg.exec() == QDialog::Accepted) {
+                refresh();
+            }
+        }
+    } else if (selected == actNewFolder) {
+        onNewFolder();
+    } else if (selected == actFav) {
+        onFavoriteClicked();
+    } else if (selected == actProp) {
+        onShowProperties();
+    }
+}

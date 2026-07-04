@@ -1,0 +1,95 @@
+#ifndef PREVIEWPANEL_H
+#define PREVIEWPANEL_H
+
+#include <QWidget>
+#include <QStackedWidget>
+#include <QPlainTextEdit>
+#include <QLabel>
+#include <QScrollArea>
+#include <QPushButton>
+#include <QSlider>
+#include <QMediaPlayer>
+#include <QAudioOutput>
+#include <QVideoWidget>
+#include <QTableWidget>
+#include <QPixmap>
+#include "metadataextractor.h"
+
+class PreviewPanel : public QWidget {
+    Q_OBJECT
+public:
+    explicit PreviewPanel(QWidget* parent = nullptr);
+    ~PreviewPanel() override;
+
+    void previewFile(const QString& filePath);
+    void previewFolderArt(const QString& artPath, const QString& folderPath);
+    void clearPreview();
+    QMediaPlayer* player() const { return m_player; }
+
+protected:
+    void resizeEvent(QResizeEvent* event) override;
+
+private slots:
+    void onSaveText();
+    void onTextChanged();
+    
+    // Media Player Slots
+    void onPlayPause();
+    void onStop();
+    void onPositionChanged(qint64 position);
+    void onDurationChanged(qint64 duration);
+    void onVolumeChanged(int value);
+    void onSliderMoved(int value);
+    void onMediaMetadataChanged();
+
+private:
+    void setupUI();
+    void showTextPreview(const QString& filePath);
+    void showImagePreview(const QString& filePath);
+    void showMediaPreview(const QString& filePath, bool isVideo);
+    void updateMetadataDisplay(const FileMetadata& meta);
+    void scaleImage();
+    
+    QString formatDuration(qint64 ms);
+
+    QString m_previewedFilePath;
+    bool m_textChanged = false;
+    QPixmap m_originalPixmap;
+
+    // Media Player Backend (Qt6)
+    QMediaPlayer* m_player = nullptr;
+    QAudioOutput* m_audioOutput = nullptr;
+
+    // UI Layout Components
+    QStackedWidget* m_stack = nullptr;
+
+    // Empty View
+    QWidget* m_emptyView = nullptr;
+
+    // Text View
+    QWidget* m_textView = nullptr;
+    QPlainTextEdit* m_textEdit = nullptr;
+    QWidget* m_textControls = nullptr;
+    QPushButton* m_btnSaveText = nullptr;
+
+    // Image View
+    QWidget* m_imageView = nullptr;
+    QLabel* m_imageLabel = nullptr;
+    QScrollArea* m_imageScrollArea = nullptr;
+
+    // Media View
+    QWidget* m_mediaView = nullptr;
+    QVideoWidget* m_videoWidget = nullptr;
+    QLabel* m_audioPlaceholder = nullptr;
+    QPushButton* m_btnPlayPause = nullptr;
+    QPushButton* m_btnStop = nullptr;
+    QSlider* m_sliderProgress = nullptr;
+    QLabel* m_lblProgressTime = nullptr;
+    QSlider* m_sliderVolume = nullptr;
+
+    // Metadata View (Bottom half)
+    QWidget* m_metadataContainer = nullptr;
+    QTableWidget* m_metadataTable = nullptr;
+};
+
+#endif // PREVIEWPANEL_H
