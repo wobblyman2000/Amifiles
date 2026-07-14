@@ -87,9 +87,11 @@ void FilePanel::setupUI() {
 
     m_btnFavorite = new QToolButton(this);
     m_btnFavorite->setText("☆");
-    m_btnFavorite->setToolTip("Add/Remove Favorite");
+    m_btnFavorite->setToolTip("Add/Remove Favorite (Right-click to manage all favorites)");
     m_btnFavorite->setStyleSheet("QToolButton { font-size: 16px; font-weight: bold; color: #f9e2af; }");
+    m_btnFavorite->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(m_btnFavorite, &QToolButton::clicked, this, &FilePanel::onFavoriteClicked);
+    connect(m_btnFavorite, &QToolButton::customContextMenuRequested, this, &FilePanel::onFavoriteButtonContextMenu);
 
     m_btnFlatView = new QToolButton(this);
     m_btnFlatView->setText("Flat View");
@@ -983,4 +985,25 @@ void FilePanel::setFlatViewEnabled(bool enabled) {
     }
 
     updateStatusText();
+}
+
+void FilePanel::onFavoriteButtonContextMenu(const QPoint& pos) {
+    QMenu menu(this);
+    QStyle* style = QApplication::style();
+    QStringList favs = FavoritesManager::instance().getFavorites();
+
+    QMenu* menuRemove = menu.addMenu(style->standardIcon(QStyle::SP_TrashIcon), "Remove from Favorites...");
+    if (favs.isEmpty()) {
+        QAction* actNone = menuRemove->addAction("(No Favorites Configured)");
+        actNone->setEnabled(false);
+    } else {
+        for (const QString& path : favs) {
+            QAction* actRemove = menuRemove->addAction(QDir::toNativeSeparators(path));
+            connect(actRemove, &QAction::triggered, this, [path]() {
+                FavoritesManager::instance().removeFavorite(path);
+            });
+        }
+    }
+
+    menu.exec(m_btnFavorite->mapToGlobal(pos));
 }

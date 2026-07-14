@@ -238,6 +238,7 @@ private slots:
     void onDoubleClicked(const QModelIndex& index);
     void updateFavoritesUI();
     void onCustomContextMenu(const QPoint& pos);
+    void onFavoriteButtonContextMenu(const QPoint& pos);
 
 private:
     void setupUI();

@@ -847,9 +847,22 @@ void MainWindow::updateFavoritesMenu() {
         }
     });
 
+    QStringList favs = FavoritesManager::instance().getFavorites();
+    QMenu* menuRemove = m_menuFavorites->addMenu("Remove from Favorites...");
+    if (favs.isEmpty()) {
+        QAction* actNone = menuRemove->addAction("(No Favorites Configured)");
+        actNone->setEnabled(false);
+    } else {
+        for (const QString& path : favs) {
+            QAction* actRemove = menuRemove->addAction(QDir::toNativeSeparators(path));
+            connect(actRemove, &QAction::triggered, this, [path]() {
+                FavoritesManager::instance().removeFavorite(path);
+            });
+        }
+    }
+
     m_menuFavorites->addSeparator();
 
-    QStringList favs = FavoritesManager::instance().getFavorites();
     if (favs.isEmpty()) {
         QAction* actNone = m_menuFavorites->addAction("(No Favorites Configured)");
         actNone->setEnabled(false);
@@ -927,14 +940,26 @@ void MainWindow::updateDrivesList() {
         });
     };
 
+    // Helper to get standard paths safely with home subdirectory fallback
+    auto getSafeShortcutPath = [](QStandardPaths::StandardLocation location, const QString& fallbackFolderName) {
+        QString path = QStandardPaths::writableLocation(location);
+        if (path.isEmpty() || path == QDir::homePath()) {
+            QString testPath = QDir(QDir::homePath()).filePath(fallbackFolderName);
+            if (QDir(testPath).exists()) {
+                return testPath;
+            }
+        }
+        return path;
+    };
+
     // Add common shortcuts
     addShortcutOption("Home", QDir::homePath(), "user-home", QStyle::SP_DirHomeIcon);
-    addShortcutOption("Desktop", QStandardPaths::writableLocation(QStandardPaths::DesktopLocation), "user-desktop", QStyle::SP_DirIcon);
-    addShortcutOption("Documents", QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation), "folder-documents", QStyle::SP_DirIcon);
-    addShortcutOption("Downloads", QStandardPaths::writableLocation(QStandardPaths::DownloadLocation), "folder-download", QStyle::SP_DirIcon);
-    addShortcutOption("Pictures", QStandardPaths::writableLocation(QStandardPaths::PicturesLocation), "folder-pictures", QStyle::SP_DirIcon);
-    addShortcutOption("Music", QStandardPaths::writableLocation(QStandardPaths::MusicLocation), "folder-music", QStyle::SP_DirIcon);
-    addShortcutOption("Videos", QStandardPaths::writableLocation(QStandardPaths::MoviesLocation), "folder-videos", QStyle::SP_DirIcon);
+    addShortcutOption("Desktop", getSafeShortcutPath(QStandardPaths::DesktopLocation, "Desktop"), "user-desktop", QStyle::SP_DirIcon);
+    addShortcutOption("Documents", getSafeShortcutPath(QStandardPaths::DocumentsLocation, "Documents"), "folder-documents", QStyle::SP_DirIcon);
+    addShortcutOption("Downloads", getSafeShortcutPath(QStandardPaths::DownloadLocation, "Downloads"), "folder-download", QStyle::SP_DirIcon);
+    addShortcutOption("Pictures", getSafeShortcutPath(QStandardPaths::PicturesLocation, "Pictures"), "folder-pictures", QStyle::SP_DirIcon);
+    addShortcutOption("Music", getSafeShortcutPath(QStandardPaths::MusicLocation, "Music"), "folder-music", QStyle::SP_DirIcon);
+    addShortcutOption("Videos", getSafeShortcutPath(QStandardPaths::MoviesLocation, "Videos"), "folder-videos", QStyle::SP_DirIcon);
 
     m_menuDrives->addSeparator();
     m_tbDrives->addSeparator();
@@ -945,12 +970,12 @@ void MainWindow::updateDrivesList() {
     auto addPathSafe = [&addedPaths](const QString& path) {
         if (!path.isEmpty()) addedPaths.append(path);
     };
-    addPathSafe(QStandardPaths::writableLocation(QStandardPaths::DesktopLocation));
-    addPathSafe(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation));
-    addPathSafe(QStandardPaths::writableLocation(QStandardPaths::DownloadLocation));
-    addPathSafe(QStandardPaths::writableLocation(QStandardPaths::PicturesLocation));
-    addPathSafe(QStandardPaths::writableLocation(QStandardPaths::MusicLocation));
-    addPathSafe(QStandardPaths::writableLocation(QStandardPaths::MoviesLocation));
+    addPathSafe(getSafeShortcutPath(QStandardPaths::DesktopLocation, "Desktop"));
+    addPathSafe(getSafeShortcutPath(QStandardPaths::DocumentsLocation, "Documents"));
+    addPathSafe(getSafeShortcutPath(QStandardPaths::DownloadLocation, "Downloads"));
+    addPathSafe(getSafeShortcutPath(QStandardPaths::PicturesLocation, "Pictures"));
+    addPathSafe(getSafeShortcutPath(QStandardPaths::MusicLocation, "Music"));
+    addPathSafe(getSafeShortcutPath(QStandardPaths::MoviesLocation, "Videos"));
 
     for (const QStorageInfo& volume : volumes) {
         if (!volume.isValid() || !volume.isReady()) continue;
