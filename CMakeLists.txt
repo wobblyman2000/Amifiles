@@ -48,6 +48,8 @@ add_executable(Amifiles
     src/searchworker.cpp
     src/helpdialog.h
     src/helpdialog.cpp
+    src/spaceanalyzer.h
+    src/spaceanalyzer.cpp
 )
 
 target_link_libraries(Amifiles PRIVATE

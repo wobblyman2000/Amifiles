@@ -91,6 +91,7 @@ private slots:
     void onNewTabAction();
     void onCloseTabAction();
     void onShowHelpAction();
+    void onSpaceAnalyzerAction();
 
 public:
     QTabWidget* leftTabWidget() const { return m_leftTabWidget; }
@@ -173,6 +174,7 @@ private:
     QAction* m_actNewTab = nullptr;
     QAction* m_actCloseTab = nullptr;
     QAction* m_actShowHelp = nullptr;
+    QAction* m_actSpaceAnalyzer = nullptr;
 
     // Dynamic Toolbars
     QToolBar* m_tbFile = nullptr;

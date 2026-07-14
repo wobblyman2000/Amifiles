@@ -7,6 +7,7 @@
 #include "foldersync.h"
 #include "dupfinder.h"
 #include "helpdialog.h"
+#include "spaceanalyzer.h"
 #include <QMenuBar>
 #include <QStorageInfo>
 #include <QToolBar>
@@ -154,7 +155,7 @@ public:
             "  <font color='#fab387'>{dest}</font> - Path of the opposite panel folder<br/>"
             "<b>Internal Commands:</b> Start command with <font color='#89b4fa'>@internal:</font> followed by:<br/>"
             "  Copy, Move, Cut, Paste, Delete, Rename, NewFolder, Refresh, CompareSync,<br/>"
-            "  DuplicateFinder, ToggleDualPane, TogglePreview, ToggleFlatView, Go &lt;path&gt;", this);
+            "  DuplicateFinder, SpaceAnalyzer, ToggleDualPane, TogglePreview, ToggleFlatView, Go &lt;path&gt;", this);
         lblHelp->setStyleSheet("color: #a6adc8; font-size: 10px;");
         layout->addWidget(lblHelp);
 
@@ -595,6 +596,11 @@ void MainWindow::setupActions() {
     m_actShowHelp->setToolTip("Open user manual (F1)");
     connect(m_actShowHelp, &QAction::triggered, this, &MainWindow::onShowHelpAction);
 
+    m_actSpaceAnalyzer = new QAction(style->standardIcon(QStyle::SP_DriveHDIcon), "Folder Space Analyzer...", this);
+    m_actSpaceAnalyzer->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_L));
+    m_actSpaceAnalyzer->setToolTip("View visual directory size analysis (Ctrl+L)");
+    connect(m_actSpaceAnalyzer, &QAction::triggered, this, &MainWindow::onSpaceAnalyzerAction);
+
     // Bind actions to window to ensure keyboard shortcuts work globally
     addAction(m_actNewFolder);
     addAction(m_actProperties);
@@ -621,6 +627,7 @@ void MainWindow::setupActions() {
     addAction(m_actNewTab);
     addAction(m_actCloseTab);
     addAction(m_actShowHelp);
+    addAction(m_actSpaceAnalyzer);
 }
 
 void MainWindow::setupMenus() {
@@ -672,6 +679,7 @@ void MainWindow::setupMenus() {
     m_menuTools = menuBar()->addMenu("Tools");
     m_menuTools->addAction(m_actCompareSync);
     m_menuTools->addAction(m_actDuplicateFinder);
+    m_menuTools->addAction(m_actSpaceAnalyzer);
 
     m_menuSearch = menuBar()->addMenu("Search");
     m_menuSearch->addAction("Save Current Search as Preset...", this, &MainWindow::onSaveSearchPreset);
@@ -1443,6 +1451,8 @@ void MainWindow::onCustomButtonClicked() {
             onCompareSyncAction();
         } else if (cmd == "DuplicateFinder") {
             onDuplicateFinderAction();
+        } else if (cmd == "SpaceAnalyzer") {
+            onSpaceAnalyzerAction();
         } else if (cmd.startsWith("Go ") || cmd == "Go") {
             QString path = cmd.mid(3).trimmed();
             QString activeDir = m_activePanel ? m_activePanel->currentPath() : "";
@@ -1793,6 +1803,18 @@ void MainWindow::onCloseTabAction() {
 void MainWindow::onShowHelpAction() {
     HelpDialog dlg(this);
     dlg.exec();
+}
+
+void MainWindow::onSpaceAnalyzerAction() {
+    if (!m_activePanel) return;
+
+    QString startPath = m_activePanel->currentPath();
+    SpaceAnalyzerDialog dlg(startPath, this);
+    if (dlg.exec() == QDialog::Accepted) {
+        if (dlg.navigateRequested() && !dlg.selectedPath().isEmpty()) {
+            m_activePanel->setPath(dlg.selectedPath());
+        }
+    }
 }
 
 #include "mainwindow.moc"
