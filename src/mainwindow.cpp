@@ -316,6 +316,12 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
         m_previewPanel->setMuted(previewMuted);
     }
 
+    bool archiveNav = settings.value("preferences/archive_nav", true).toBool();
+    m_actToggleArchiveNav->setChecked(archiveNav);
+
+    bool casingOverlays = settings.value("preferences/casing_overlays", true).toBool();
+    m_actToggleCasingOverlays->setChecked(casingOverlays);
+
     bool consoleVisible = settings.value("console/visible", true).toBool();
     m_actToggleConsole->setChecked(consoleVisible);
     if (m_consolePanel) {
@@ -490,6 +496,18 @@ void MainWindow::setupActions() {
     m_actToggleAgeColoring->setToolTip("Highlight files by creation/modified age: Red if < 24h, Blue if < 7 days");
     connect(m_actToggleAgeColoring, &QAction::toggled, this, &MainWindow::onToggleAgeColoring);
 
+    m_actToggleArchiveNav = new QAction("Enable Archive Navigation", this);
+    m_actToggleArchiveNav->setCheckable(true);
+    m_actToggleArchiveNav->setChecked(true);
+    m_actToggleArchiveNav->setToolTip("Allows browsing archives (.zip, .tar.gz, etc.) like directories");
+    connect(m_actToggleArchiveNav, &QAction::toggled, this, &MainWindow::onToggleArchiveNav);
+
+    m_actToggleCasingOverlays = new QAction("Enable Media Casing Overlays", this);
+    m_actToggleCasingOverlays->setCheckable(true);
+    m_actToggleCasingOverlays->setChecked(true);
+    m_actToggleCasingOverlays->setToolTip("Renders DVD/CD case overlays over folders containing cover art");
+    connect(m_actToggleCasingOverlays, &QAction::toggled, this, &MainWindow::onToggleCasingOverlays);
+
     // Toggle Drives Menu Action
     m_actToggleDrivesMenu = new QAction("Attached Drives Menu", this);
     m_actToggleDrivesMenu->setCheckable(true);
@@ -591,6 +609,9 @@ void MainWindow::setupMenus() {
     m_menuView->addAction(m_actToggleDrivesToolbar);
     m_menuView->addAction(m_actToggleConsole);
     m_menuView->addAction(m_actToggleFlatView);
+    m_menuView->addSeparator();
+    m_menuView->addAction(m_actToggleArchiveNav);
+    m_menuView->addAction(m_actToggleCasingOverlays);
     
     QMenu* menuFilterToggles = m_menuView->addMenu("Filter Bars");
     menuFilterToggles->addAction(m_actLeftShowFilterText);
@@ -1029,6 +1050,20 @@ void MainWindow::onMutePreview(bool checked) {
     }
     QSettings settings("Amifiles", "Amifiles");
     settings.setValue("preview/muted", checked);
+}
+
+void MainWindow::onToggleArchiveNav(bool checked) {
+    QSettings settings("Amifiles", "Amifiles");
+    settings.setValue("preferences/archive_nav", checked);
+    if (m_leftPanel) m_leftPanel->refresh();
+    if (m_rightPanel) m_rightPanel->refresh();
+}
+
+void MainWindow::onToggleCasingOverlays(bool checked) {
+    QSettings settings("Amifiles", "Amifiles");
+    settings.setValue("preferences/casing_overlays", checked);
+    if (m_leftPanel) m_leftPanel->refresh();
+    if (m_rightPanel) m_rightPanel->refresh();
 }
 
 void MainWindow::onToggleLeftFilterText(bool checked) {

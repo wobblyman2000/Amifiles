@@ -75,6 +75,8 @@ private slots:
     void onCompareSyncAction();
     void onDuplicateFinderAction();
     void onMutePreview(bool checked);
+    void onToggleArchiveNav(bool checked);
+    void onToggleCasingOverlays(bool checked);
 
 private:
     void setupActions();
@@ -130,6 +132,8 @@ private:
     QAction* m_actTogglePreview = nullptr;
     QAction* m_actMutePreview = nullptr;
     QAction* m_actToggleAgeColoring = nullptr;
+    QAction* m_actToggleArchiveNav = nullptr;
+    QAction* m_actToggleCasingOverlays = nullptr;
     QAction* m_actToggleDrivesMenu = nullptr;
     QAction* m_actToggleDrivesToolbar = nullptr;
     QAction* m_actToggleConsole = nullptr;

@@ -38,6 +38,8 @@ add_executable(Amifiles
     src/dupfinder.cpp
     src/copyqueue.h
     src/copyqueue.cpp
+    src/archivemodel.h
+    src/archivemodel.cpp
 )
 
 target_link_libraries(Amifiles PRIVATE

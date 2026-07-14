@@ -1,5 +1,6 @@
 #include "filepanel.h"
 #include "favoritesmanager.h"
+#include "archivemodel.h"
 #include "metadataextractor.h"
 #include "bulkrename.h"
 #include "copyqueue.h"
@@ -130,6 +131,8 @@ void FilePanel::setupUI() {
     m_flatProxyModel->setSourceModel(m_flatModel);
     m_flatProxyModel->setFilterKeyColumn(0);
     m_flatProxyModel->setFilterCaseSensitivity(Qt::CaseInsensitive);
+
+    m_archiveModel = new ArchiveModel(this);
 
     m_treeView->setModel(m_proxyModel);
 
@@ -272,6 +275,58 @@ void FilePanel::setPath(const QString& path) {
 }
 
 void FilePanel::navigateTo(const QString& path, bool addHistory) {
+    if (path.contains("//")) {
+        int sepIdx = path.indexOf("//");
+        QString archiveFile = path.left(sepIdx);
+        QString virtualSubpath = path.mid(sepIdx + 2);
+
+        QFileInfo archInfo(archiveFile);
+        if (archInfo.exists() && archInfo.isFile()) {
+            if (!m_archiveViewActive) {
+                if (m_treeView->selectionModel()) {
+                    disconnect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
+                }
+                
+                m_archiveViewActive = true;
+                m_treeView->setModel(m_archiveModel);
+
+                if (m_treeView->selectionModel()) {
+                    connect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
+                }
+
+                if (m_categoryWidget) m_categoryWidget->hide();
+
+                m_treeView->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+                m_treeView->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+                m_treeView->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+                m_treeView->header()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+            }
+
+            m_archiveModel->loadArchive(archiveFile);
+            m_archiveModel->navigateToVirtualPath(virtualSubpath);
+            m_pathEdit->setText(QDir::toNativeSeparators(archiveFile) + "//" + m_archiveModel->currentVirtualPath());
+            emit pathChanged(m_currentPath);
+            updateStatusText();
+            return;
+        }
+    } else if (m_archiveViewActive) {
+        if (m_treeView->selectionModel()) {
+            disconnect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
+        }
+        m_archiveViewActive = false;
+        m_treeView->setModel(m_proxyModel);
+        if (m_treeView->selectionModel()) {
+            connect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
+        }
+
+        if (m_categoryWidget) m_categoryWidget->setVisible(m_categoryButtonsVisible);
+
+        m_treeView->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+        m_treeView->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+        m_treeView->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+        m_treeView->header()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+    }
+
     QDir dir(path);
     if (!dir.exists()) {
         return;
@@ -342,6 +397,37 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
 }
 
 void FilePanel::onNavigateUp() {
+    if (m_archiveViewActive) {
+        if (!m_archiveModel->currentVirtualPath().isEmpty()) {
+            m_archiveModel->navigateUp();
+            m_pathEdit->setText(QDir::toNativeSeparators(m_archiveModel->archivePath()) + "//" + m_archiveModel->currentVirtualPath());
+            emit pathChanged(m_currentPath);
+            updateStatusText();
+        } else {
+            if (m_treeView->selectionModel()) {
+                disconnect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
+            }
+
+            m_archiveViewActive = false;
+            m_treeView->setModel(m_proxyModel);
+
+            if (m_treeView->selectionModel()) {
+                connect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
+            }
+
+            if (m_categoryWidget) m_categoryWidget->setVisible(m_categoryButtonsVisible);
+
+            m_treeView->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+            m_treeView->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+            m_treeView->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+            m_treeView->header()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+
+            QString parentDir = QFileInfo(m_archiveModel->archivePath()).absolutePath();
+            navigateTo(parentDir, true);
+        }
+        return;
+    }
+
     QDir dir(m_currentPath);
     if (dir.cdUp()) {
         navigateTo(dir.absolutePath(), true);
@@ -458,6 +544,28 @@ void FilePanel::onFilterTypeChanged() {
 }
 
 void FilePanel::onDoubleClicked(const QModelIndex& index) {
+    if (m_archiveViewActive) {
+        if (m_archiveModel->isDir(index)) {
+            QString name = m_archiveModel->entryName(index);
+            m_archiveModel->enterDirectory(name);
+            m_pathEdit->setText(QDir::toNativeSeparators(m_archiveModel->archivePath()) + "//" + m_archiveModel->currentVirtualPath());
+            emit pathChanged(m_currentPath);
+            updateStatusText();
+        } else {
+            QString vPath = m_archiveModel->entryPath(index);
+            m_statusLabel->setText("Extracting file...");
+            QApplication::processEvents();
+            QString localPath = m_archiveModel->extractFile(vPath);
+            updateStatusText();
+            if (!localPath.isEmpty()) {
+                QDesktopServices::openUrl(QUrl::fromLocalFile(localPath));
+            } else {
+                QMessageBox::warning(this, "Extract File", "Failed to extract file from archive.");
+            }
+        }
+        return;
+    }
+
     QString path;
     if (m_flatViewEnabled) {
         QModelIndex srcIndex = m_flatProxyModel->mapToSource(index);
@@ -471,6 +579,43 @@ void FilePanel::onDoubleClicked(const QModelIndex& index) {
     if (info.isDir()) {
         navigateTo(path, true);
     } else {
+        QString ext = info.suffix().toLower();
+        QSettings settings("Amifiles", "Amifiles");
+        bool archiveNavEnabled = settings.value("preferences/archive_nav", true).toBool();
+        QStringList archiveExts = { "zip", "tar", "gz", "xz", "bz2", "tgz", "rar" };
+
+        if (archiveNavEnabled && archiveExts.contains(ext)) {
+            m_statusLabel->setText("Loading archive...");
+            QApplication::processEvents();
+            bool ok = m_archiveModel->loadArchive(path);
+            updateStatusText();
+
+            if (ok) {
+                if (m_treeView->selectionModel()) {
+                    disconnect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
+                }
+                
+                m_archiveViewActive = true;
+                m_treeView->setModel(m_archiveModel);
+
+                if (m_treeView->selectionModel()) {
+                    connect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
+                }
+
+                m_pathEdit->setText(QDir::toNativeSeparators(path) + "//");
+                
+                m_treeView->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+                m_treeView->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+                m_treeView->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+                m_treeView->header()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+
+                if (m_categoryWidget) m_categoryWidget->hide();
+
+                emit pathChanged(path);
+                return;
+            }
+        }
+
         QDesktopServices::openUrl(QUrl::fromLocalFile(path));
     }
 }
@@ -492,9 +637,12 @@ void FilePanel::onSelectionChanged() {
 
 QStringList FilePanel::selectedPaths() const {
     QStringList paths;
+    if (!m_treeView->selectionModel()) return paths;
     QModelIndexList selectedRows = m_treeView->selectionModel()->selectedRows();
     for (const QModelIndex& index : selectedRows) {
-        if (m_flatViewEnabled) {
+        if (m_archiveViewActive) {
+            paths.append(m_archiveModel->entryPath(index));
+        } else if (m_flatViewEnabled) {
             QSortFilterProxyModel* proxy = qobject_cast<QSortFilterProxyModel*>(m_treeView->model());
             if (proxy) {
                 QModelIndex srcIndex = proxy->mapToSource(index);
@@ -536,6 +684,17 @@ void FilePanel::updateNavigationButtons() {
 }
 
 void FilePanel::updateStatusText() {
+    if (m_archiveViewActive) {
+        int totalItems = m_archiveModel->rowCount();
+        int selectedItems = m_treeView->selectionModel() ? m_treeView->selectionModel()->selectedRows().size() : 0;
+        if (selectedItems == 0) {
+            m_statusLabel->setText(QString("%1 items (Archive)").arg(totalItems));
+        } else {
+            m_statusLabel->setText(QString("%1 of %2 items selected (Archive)").arg(selectedItems).arg(totalItems));
+        }
+        return;
+    }
+
     QAbstractItemModel* activeModel = m_treeView->model();
     if (!activeModel) return;
 

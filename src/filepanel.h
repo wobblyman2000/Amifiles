@@ -17,8 +17,15 @@
 #include <QColor>
 #include <QDateTime>
 #include <QVariant>
+#include <QPainter>
+#include <QLinearGradient>
+#include <QPolygon>
+#include <QIcon>
+#include <QSettings>
 #include "foldersizecalculator.h"
 #include "flatmodel.h"
+
+class ArchiveModel;
 
 // Custom filter proxy model to support prefix/substring matching and file type categories
 class FileFilterProxyModel : public QSortFilterProxyModel {
@@ -65,6 +72,73 @@ public:
                         return QBrush(QColor("#ff5555")); // Red for <24h
                     } else if (secs <= 7 * 24 * 3600) {
                         return QBrush(QColor("#89b4fa")); // Blue for 24h - 7d
+                    }
+                }
+            }
+        }
+
+        if (role == Qt::DecorationRole && index.column() == 0) {
+            QSettings settings("Amifiles", "Amifiles");
+            bool casingEnabled = settings.value("preferences/casing_overlays", true).toBool();
+            if (casingEnabled) {
+                QModelIndex srcIndex = mapToSource(index);
+                QFileSystemModel* fileModel = qobject_cast<QFileSystemModel*>(sourceModel());
+                if (fileModel && fileModel->isDir(srcIndex)) {
+                    QString path = fileModel->filePath(srcIndex);
+                    QString artPath;
+                    QStringList checks = { "folder.jpg", "folder.png", "cover.jpg", "cover.png" };
+                    for (const QString& check : checks) {
+                        QString test = QDir(path).filePath(check);
+                        if (QFile::exists(test)) {
+                            artPath = test;
+                            break;
+                        }
+                    }
+
+                    if (!artPath.isEmpty()) {
+                        QPixmap cover(artPath);
+                        if (!cover.isNull()) {
+                            int caseW = 48;
+                            int caseH = 48;
+                            QPixmap casePixmap(caseW, caseH);
+                            casePixmap.fill(Qt::transparent);
+
+                            QPainter painter(&casePixmap);
+                            painter.setRenderHint(QPainter::Antialiasing);
+
+                            painter.setBrush(QColor("#313244"));
+                            painter.setPen(QPen(QColor("#45475a"), 1));
+                            painter.drawRoundedRect(2, 2, caseW - 4, caseH - 4, 3, 3);
+
+                            painter.setBrush(QColor("#11111b"));
+                            painter.setPen(Qt::NoPen);
+                            painter.drawRect(3, 3, 5, caseH - 6);
+
+                            int coverX = 10;
+                            int coverY = 4;
+                            int coverW = caseW - 14;
+                            int coverH = caseH - 8;
+                            painter.drawPixmap(coverX, coverY, coverW, coverH, cover.scaled(coverW, coverH, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+
+                            painter.setBrush(Qt::NoBrush);
+                            painter.setPen(QPen(QColor(255, 255, 255, 60), 1));
+                            painter.drawRoundedRect(3, 3, caseW - 6, caseH - 6, 2, 2);
+
+                            QLinearGradient gradient(0, 0, caseW, caseH);
+                            gradient.setColorAt(0.0, QColor(255, 255, 255, 80));
+                            gradient.setColorAt(0.3, QColor(255, 255, 255, 120));
+                            gradient.setColorAt(0.35, QColor(255, 255, 255, 0));
+                            gradient.setColorAt(1.0, QColor(255, 255, 255, 0));
+
+                            painter.setBrush(gradient);
+                            painter.setPen(Qt::NoPen);
+                            QPolygon gloss;
+                            gloss << QPoint(9, 4) << QPoint(caseW - 4, 4) << QPoint(9, caseH - 4);
+                            painter.drawPolygon(gloss);
+
+                            painter.end();
+                            return QIcon(casePixmap);
+                        }
                     }
                 }
             }
@@ -271,6 +345,9 @@ private:
     FlatFileSystemModel* m_flatModel = nullptr;
     QSortFilterProxyModel* m_flatProxyModel = nullptr;
     bool m_flatViewEnabled = false;
+
+    ArchiveModel* m_archiveModel = nullptr;
+    bool m_archiveViewActive = false;
 
     // Bottom Filter Bar
     QLineEdit* m_filterEdit = nullptr;
