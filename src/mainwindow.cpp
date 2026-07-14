@@ -404,12 +404,7 @@ void MainWindow::setupCentralWidget() {
         if (m_previewPanel) m_previewPanel->playPlaylist(paths);
     });
 
-    connect(m_leftPanel, &FilePanel::zoomChanged, this, [this](int zoom) {
-        if (m_rightPanel) m_rightPanel->syncZoom(zoom);
-    });
-    connect(m_rightPanel, &FilePanel::zoomChanged, this, [this](int zoom) {
-        if (m_leftPanel) m_leftPanel->syncZoom(zoom);
-    });
+
 
     // Initialize mini media controller in the status bar
     m_miniMediaControls = new MiniMediaControls(m_previewPanel->player(), this);

@@ -318,8 +318,10 @@ void FilePanel::setActive(bool active) {
     m_isActive = active;
     if (active) {
         m_treeView->setStyleSheet("QTreeView { border: 2px solid #89b4fa; }");
+        m_listView->setStyleSheet("QListView { border: 2px solid #89b4fa; }");
     } else {
         m_treeView->setStyleSheet("QTreeView { border: 2px solid #313244; }");
+        m_listView->setStyleSheet("QListView { border: 2px solid #313244; }");
     }
 }
 
