@@ -11,6 +11,8 @@
 #include <QSettings>
 #include <QInputDialog>
 #include <QRegularExpression>
+#include <QListWidget>
+#include <QDate>
 #include <QDebug>
 
 BulkRenameDialog::BulkRenameDialog(const QStringList& filePaths, QWidget* parent)
@@ -89,6 +91,58 @@ void BulkRenameDialog::setupUI() {
     layoutReplace->addWidget(m_chkCaseSensitive, 3, 0, 1, 2);
     layoutReplace->addWidget(m_chkApplyToExt, 4, 0, 1, 2);
     optLayout->addWidget(grpReplace);
+
+    // 3.5. Quick Regex Cheatsheet Group
+    QGroupBox* grpCheatsheet = new QGroupBox("Quick Regex Cheatsheet", optWidget);
+    QVBoxLayout* layoutCheatsheet = new QVBoxLayout(grpCheatsheet);
+    layoutCheatsheet->setContentsMargins(4, 4, 4, 4);
+    QListWidget* listCheatsheet = new QListWidget(grpCheatsheet);
+    listCheatsheet->setFixedHeight(100);
+    listCheatsheet->addItems({
+        "Remove Spaces (replace with _)",
+        "Remove Digits",
+        "Prepend Today's Date (YYYY-MM-DD_)",
+        "Add Prefix 'prefix_'",
+        "Add Suffix '_suffix'",
+        "Strip Non-ASCII characters",
+        "Convert Space to Hyphen"
+    });
+    connect(listCheatsheet, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem* item) {
+        QString text = item->text();
+        if (text.startsWith("Remove Spaces")) {
+            m_txtFind->setText("\\s+");
+            m_txtReplace->setText("_");
+            m_chkRegex->setChecked(true);
+        } else if (text.startsWith("Remove Digits")) {
+            m_txtFind->setText("\\d+");
+            m_txtReplace->setText("");
+            m_chkRegex->setChecked(true);
+        } else if (text.startsWith("Prepend Today's Date")) {
+            QString today = QDate::currentDate().toString("yyyy-MM-dd_");
+            m_txtFind->setText("^");
+            m_txtReplace->setText(today);
+            m_chkRegex->setChecked(true);
+        } else if (text.startsWith("Add Prefix")) {
+            m_txtFind->setText("^");
+            m_txtReplace->setText("prefix_");
+            m_chkRegex->setChecked(true);
+        } else if (text.startsWith("Add Suffix")) {
+            m_txtFind->setText("$");
+            m_txtReplace->setText("_suffix");
+            m_chkRegex->setChecked(true);
+        } else if (text.startsWith("Strip Non-ASCII")) {
+            m_txtFind->setText("[^\\x00-\\x7F]");
+            m_txtReplace->setText("");
+            m_chkRegex->setChecked(true);
+        } else if (text.startsWith("Convert Space to Hyphen")) {
+            m_txtFind->setText(" ");
+            m_txtReplace->setText("-");
+            m_chkRegex->setChecked(false);
+        }
+        onUpdatePreview();
+    });
+    layoutCheatsheet->addWidget(listCheatsheet);
+    optLayout->addWidget(grpCheatsheet);
 
     // 4. Numbering Group
     QGroupBox* grpNum = new QGroupBox("Index Numbering", optWidget);
@@ -267,8 +321,10 @@ void BulkRenameDialog::onUpdatePreview() {
         
         // Visual indicator: show difference in color if name changes
         if (originalName != newName) {
-            itemNewName->setForeground(QBrush(QColor("#a6e3a1"))); // Highlight green
+            itemNewName->setBackground(QBrush(QColor("#1e3a1e"))); // soft green bg tint
+            itemNewName->setForeground(QBrush(QColor("#a6e3a1"))); // Highlight green text
         } else {
+            itemNewName->setBackground(QBrush(Qt::transparent));
             itemNewName->setForeground(QBrush(QColor("#cdd6f4"))); // Default light gray
         }
     }

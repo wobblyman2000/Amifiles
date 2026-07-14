@@ -40,6 +40,10 @@ add_executable(Amifiles
     src/copyqueue.cpp
     src/archivemodel.h
     src/archivemodel.cpp
+    src/customfilesystemmodel.h
+    src/customfilesystemmodel.cpp
+    src/buttoneditor.h
+    src/buttoneditor.cpp
 )
 
 target_link_libraries(Amifiles PRIVATE

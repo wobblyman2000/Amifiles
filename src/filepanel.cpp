@@ -149,7 +149,7 @@ void FilePanel::setupUI() {
     m_viewStack->addWidget(m_listView);
 
     // File Model & Proxy Model Setup
-    m_fileModel = new QFileSystemModel(this);
+    m_fileModel = new CustomFileSystemModel(this);
     m_fileModel->setReadOnly(false);
     m_fileModel->setRootPath("");
 
@@ -186,6 +186,13 @@ void FilePanel::setupUI() {
         m_viewStack->setCurrentWidget(m_listView);
     } else {
         m_viewStack->setCurrentWidget(m_treeView);
+    }
+
+    m_treeView->header()->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_treeView->header(), &QHeaderView::customContextMenuRequested, this, &FilePanel::onHeaderContextMenu);
+    for (int i = 0; i < 9; ++i) {
+        bool hidden = settings.value(QString("columns/hidden_%1").arg(i), i >= 4).toBool();
+        m_treeView->header()->setSectionHidden(i, hidden);
     }
 
 
@@ -811,6 +818,9 @@ void FilePanel::updateStatusText() {
 }
 
 void FilePanel::refresh() {
+    if (m_fileModel) {
+        m_fileModel->clearCache();
+    }
     if (m_proxyModel) {
         m_proxyModel->clearCasingCache();
     }
@@ -875,6 +885,19 @@ void FilePanel::onPaste() {
 
     if (srcPaths.isEmpty()) return;
 
+    if (m_archiveViewActive) {
+        QSettings settings("Amifiles", "Amifiles");
+        bool enableArchiveNav = settings.value("preferences/archive_nav", true).toBool();
+        if (enableArchiveNav) {
+            if (m_archiveModel->addFiles(srcPaths)) {
+                refresh();
+            } else {
+                QMessageBox::warning(this, "Archive Add Failed", "Could not add selected files to the archive.");
+            }
+            return;
+        }
+    }
+
     bool isCut = mimeData->hasFormat("application/amifiles-cut") || 
                  mimeData->hasFormat("application/x-kde-cutselection");
 
@@ -900,6 +923,19 @@ void FilePanel::onDelete() {
                                        QMessageBox::Yes | QMessageBox::No);
     
     if (button == QMessageBox::Yes) {
+        if (m_archiveViewActive) {
+            QSettings settings("Amifiles", "Amifiles");
+            bool enableArchiveNav = settings.value("preferences/archive_nav", true).toBool();
+            if (enableArchiveNav) {
+                if (m_archiveModel->deleteFiles(paths)) {
+                    refresh();
+                } else {
+                    QMessageBox::warning(this, "Archive Delete Failed", "Could not delete selected items from the archive.");
+                }
+                return;
+            }
+        }
+
         for (const QString& path : paths) {
             QFileInfo info(path);
             if (info.isDir()) {
@@ -1348,4 +1384,23 @@ void FilePanel::syncZoom(int value) {
     if (m_listView->viewMode() == QListView::IconMode) {
         m_listView->setGridSize(QSize(size + 60, size + 40));
     }
+}
+
+void FilePanel::onHeaderContextMenu(const QPoint& pos) {
+    QMenu menu(this);
+    QHeaderView* header = m_treeView->header();
+    
+    QStringList colNames = {"Name", "Size", "Type", "Date Modified", "Title", "Artist", "Album", "Bitrate", "Resolution"};
+    for (int i = 0; i < colNames.size(); ++i) {
+        QAction* act = menu.addAction(colNames[i]);
+        act->setCheckable(true);
+        act->setChecked(!header->isSectionHidden(i));
+        
+        connect(act, &QAction::toggled, this, [header, i](bool checked) {
+            header->setSectionHidden(i, !checked);
+            QSettings settings("Amifiles", "Amifiles");
+            settings.setValue(QString("columns/hidden_%1").arg(i), !checked);
+        });
+    }
+    menu.exec(m_treeView->header()->mapToGlobal(pos));
 }

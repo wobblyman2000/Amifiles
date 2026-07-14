@@ -145,10 +145,11 @@ public:
 
         // Env variables description
         QLabel* lblHelp = new QLabel(
-            "<b>Available Environment Variables:</b><br/>"
-            "  <font color='#f38ba8'>$AMIFILES_CURRENT_DIR</font> - Path of the active directory<br/>"
-            "  <font color='#a6e3a1'>$AMIFILES_SELECTED_FIRST</font> - First selected file/folder path<br/>"
-            "  <font color='#89b4fa'>$AMIFILES_SELECTED</font> - Newline-separated list of all selected paths", this);
+            "<b>Available Environment Variables & Macros:</b><br/>"
+            "  <font color='#f38ba8'>$AMIFILES_CURRENT_DIR</font> or <font color='#f38ba8'>{dir}</font> - Active folder directory<br/>"
+            "  <font color='#a6e3a1'>$AMIFILES_SELECTED_FIRST</font> or <font color='#a6e3a1'>{filepath}</font> - First selected path<br/>"
+            "  <font color='#89b4fa'>$AMIFILES_SELECTED</font> - Newline list of all selected paths<br/>"
+            "  <font color='#fab387'>{dest}</font> - Path of the opposite panel folder", this);
         lblHelp->setStyleSheet("color: #a6adc8; font-size: 11px;");
         layout->addWidget(lblHelp);
 
@@ -1308,8 +1309,18 @@ void MainWindow::onCustomButtonClicked() {
         }
     });
 
+    QString commandStr = script;
+    QString activeDir = m_activePanel ? m_activePanel->currentPath() : "";
+    FilePanel* destPanel = (m_activePanel == m_leftPanel) ? m_rightPanel : m_leftPanel;
+    QString destDir = destPanel ? destPanel->currentPath() : "";
+    QString firstSelected = selected.isEmpty() ? "" : selected.first();
+
+    commandStr.replace("{filepath}", firstSelected);
+    commandStr.replace("{dir}", activeDir);
+    commandStr.replace("{dest}", destDir);
+
     // Execute in bash shell environment
-    process->start("bash", {"-c", script});
+    process->start("bash", {"-c", commandStr});
     
     connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this, [this, process, act](int exitCode, QProcess::ExitStatus status) {
         if (status == QProcess::CrashExit) {

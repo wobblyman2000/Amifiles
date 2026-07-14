@@ -29,7 +29,9 @@ public:
     void navigateUp();
     void navigateToVirtualPath(const QString& path);
 
-    // QAbstractItemModel interface
+    bool addFiles(const QStringList& localPaths);
+    bool deleteFiles(const QStringList& virtualPaths);
+
     int rowCount(const QModelIndex& parent = QModelIndex()) const override;
     int columnCount(const QModelIndex& parent = QModelIndex()) const override;
     QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;

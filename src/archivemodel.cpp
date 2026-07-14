@@ -365,3 +365,225 @@ QString ArchiveModel::extractFile(const QString& virtualFilePath) {
     }
     return "";
 }
+
+static bool copyDirRecursively(const QString& src, const QString& dest) {
+    QProcess proc;
+    proc.start("cp", {"-r", src, dest});
+    return proc.waitForFinished() && proc.exitCode() == 0;
+}
+
+bool ArchiveModel::deleteFiles(const QStringList& virtualPaths) {
+    QFileInfo info(m_archivePath);
+    QString ext = info.suffix().toLower();
+    
+    if (ext == "zip") {
+        QProcess proc;
+        QStringList args = { "-d", m_archivePath };
+        for (const QString& vp : virtualPaths) {
+            args.append(vp);
+            args.append(vp + "/*");
+        }
+        proc.start("zip", args);
+        if (proc.waitForFinished() && proc.exitCode() == 0) {
+            loadArchive(m_archivePath);
+            return true;
+        }
+        return false;
+    }
+    
+    QString compressionType;
+    bool compressed = false;
+    if (m_archivePath.endsWith(".tar.gz", Qt::CaseInsensitive) || m_archivePath.endsWith(".tgz", Qt::CaseInsensitive)) {
+        compressed = true;
+        compressionType = "gzip";
+    } else if (m_archivePath.endsWith(".tar.xz", Qt::CaseInsensitive)) {
+        compressed = true;
+        compressionType = "xz";
+    } else if (m_archivePath.endsWith(".tar.bz2", Qt::CaseInsensitive)) {
+        compressed = true;
+        compressionType = "bzip2";
+    }
+    
+    QString tempTarPath = m_archivePath + ".temp_uncompressed.tar";
+    if (compressed) {
+        QProcess decompressProc;
+        if (compressionType == "gzip") {
+            decompressProc.start("sh", {"-c", QString("gunzip -c \"%1\" > \"%2\"").arg(m_archivePath).arg(tempTarPath)});
+        } else if (compressionType == "xz") {
+            decompressProc.start("sh", {"-c", QString("xz -d -c \"%1\" > \"%2\"").arg(m_archivePath).arg(tempTarPath)});
+        } else if (compressionType == "bzip2") {
+            decompressProc.start("sh", {"-c", QString("bunzip2 -c \"%1\" > \"%2\"").arg(m_archivePath).arg(tempTarPath)});
+        }
+        if (!decompressProc.waitForFinished() || decompressProc.exitCode() != 0) {
+            QFile::remove(tempTarPath);
+            return false;
+        }
+    } else {
+        QFile::remove(tempTarPath);
+        if (!QFile::copy(m_archivePath, tempTarPath)) return false;
+    }
+    
+    QProcess deleteProc;
+    QStringList tarArgs = { "--delete", "-f", tempTarPath };
+    tarArgs.append(virtualPaths);
+    deleteProc.start("tar", tarArgs);
+    if (!deleteProc.waitForFinished() || deleteProc.exitCode() != 0) {
+        QFile::remove(tempTarPath);
+        return false;
+    }
+    
+    if (compressed) {
+        QProcess compressProc;
+        if (compressionType == "gzip") {
+            compressProc.start("sh", {"-c", QString("gzip -c \"%1\" > \"%2\"").arg(tempTarPath).arg(m_archivePath)});
+        } else if (compressionType == "xz") {
+            compressProc.start("sh", {"-c", QString("xz -c \"%1\" > \"%2\"").arg(tempTarPath).arg(m_archivePath)});
+        } else if (compressionType == "bzip2") {
+            compressProc.start("sh", {"-c", QString("bzip2 -c \"%1\" > \"%2\"").arg(tempTarPath).arg(m_archivePath)});
+        }
+        bool ok = compressProc.waitForFinished() && compressProc.exitCode() == 0;
+        QFile::remove(tempTarPath);
+        if (ok) {
+            loadArchive(m_archivePath);
+            return true;
+        }
+        return false;
+    } else {
+        QFile::remove(m_archivePath);
+        bool ok = QFile::copy(tempTarPath, m_archivePath);
+        QFile::remove(tempTarPath);
+        if (ok) {
+            loadArchive(m_archivePath);
+            return true;
+        }
+        return false;
+    }
+}
+
+bool ArchiveModel::addFiles(const QStringList& localPaths) {
+    if (localPaths.isEmpty()) return false;
+    
+    QFileInfo info(m_archivePath);
+    QString ext = info.suffix().toLower();
+    
+    QString tempAddDir = "/home/dave/cpp_projects/Amifiles/build/tmp_archive_add";
+    QDir(tempAddDir).removeRecursively();
+    QDir().mkpath(tempAddDir);
+    
+    QString targetSubdir = tempAddDir;
+    if (!m_currentVirtualPath.isEmpty()) {
+        targetSubdir = tempAddDir + "/" + m_currentVirtualPath;
+        QDir().mkpath(targetSubdir);
+    }
+    
+    QStringList relativePathsToZip;
+    for (const QString& lp : localPaths) {
+        QFileInfo lInfo(lp);
+        QString destPath = targetSubdir + "/" + lInfo.fileName();
+        if (lInfo.isDir()) {
+            copyDirRecursively(lp, destPath);
+        } else {
+            QFile::copy(lp, destPath);
+        }
+        
+        if (m_currentVirtualPath.isEmpty()) {
+            relativePathsToZip.append(lInfo.fileName());
+        }
+    }
+    
+    if (!m_currentVirtualPath.isEmpty()) {
+        QString firstSeg = m_currentVirtualPath.split('/').first();
+        relativePathsToZip.append(firstSeg);
+    }
+    
+    if (ext == "zip") {
+        QProcess proc;
+        proc.setWorkingDirectory(tempAddDir);
+        QStringList args = { "-u", "-r", m_archivePath };
+        args.append(relativePathsToZip);
+        proc.start("zip", args);
+        bool ok = proc.waitForFinished() && proc.exitCode() == 0;
+        QDir(tempAddDir).removeRecursively();
+        if (ok) {
+            loadArchive(m_archivePath);
+            return true;
+        }
+        return false;
+    }
+    
+    QString compressionType;
+    bool compressed = false;
+    if (m_archivePath.endsWith(".tar.gz", Qt::CaseInsensitive) || m_archivePath.endsWith(".tgz", Qt::CaseInsensitive)) {
+        compressed = true;
+        compressionType = "gzip";
+    } else if (m_archivePath.endsWith(".tar.xz", Qt::CaseInsensitive)) {
+        compressed = true;
+        compressionType = "xz";
+    } else if (m_archivePath.endsWith(".tar.bz2", Qt::CaseInsensitive)) {
+        compressed = true;
+        compressionType = "bzip2";
+    }
+    
+    QString tempTarPath = m_archivePath + ".temp_uncompressed.tar";
+    if (compressed) {
+        QProcess decompressProc;
+        if (compressionType == "gzip") {
+            decompressProc.start("sh", {"-c", QString("gunzip -c \"%1\" > \"%2\"").arg(m_archivePath).arg(tempTarPath)});
+        } else if (compressionType == "xz") {
+            decompressProc.start("sh", {"-c", QString("xz -d -c \"%1\" > \"%2\"").arg(m_archivePath).arg(tempTarPath)});
+        } else if (compressionType == "bzip2") {
+            decompressProc.start("sh", {"-c", QString("bunzip2 -c \"%1\" > \"%2\"").arg(m_archivePath).arg(tempTarPath)});
+        }
+        if (!decompressProc.waitForFinished() || decompressProc.exitCode() != 0) {
+            QFile::remove(tempTarPath);
+            QDir(tempAddDir).removeRecursively();
+            return false;
+        }
+    } else {
+        QFile::remove(tempTarPath);
+        if (!QFile::copy(m_archivePath, tempTarPath)) {
+            QDir(tempAddDir).removeRecursively();
+            return false;
+        }
+    }
+    
+    QProcess addProc;
+    addProc.setWorkingDirectory(tempAddDir);
+    QStringList tarArgs = { "-rf", tempTarPath };
+    tarArgs.append(relativePathsToZip);
+    addProc.start("tar", tarArgs);
+    if (!addProc.waitForFinished() || addProc.exitCode() != 0) {
+        QFile::remove(tempTarPath);
+        QDir(tempAddDir).removeRecursively();
+        return false;
+    }
+    
+    if (compressed) {
+        QProcess compressProc;
+        if (compressionType == "gzip") {
+            compressProc.start("sh", {"-c", QString("gzip -c \"%1\" > \"%2\"").arg(tempTarPath).arg(m_archivePath)});
+        } else if (compressionType == "xz") {
+            compressProc.start("sh", {"-c", QString("xz -c \"%1\" > \"%2\"").arg(tempTarPath).arg(m_archivePath)});
+        } else if (compressionType == "bzip2") {
+            compressProc.start("sh", {"-c", QString("bzip2 -c \"%1\" > \"%2\"").arg(tempTarPath).arg(m_archivePath)});
+        }
+        bool ok = compressProc.waitForFinished() && compressProc.exitCode() == 0;
+        QFile::remove(tempTarPath);
+        QDir(tempAddDir).removeRecursively();
+        if (ok) {
+            loadArchive(m_archivePath);
+            return true;
+        }
+        return false;
+    } else {
+        QFile::remove(m_archivePath);
+        bool ok = QFile::copy(tempTarPath, m_archivePath);
+        QFile::remove(tempTarPath);
+        QDir(tempAddDir).removeRecursively();
+        if (ok) {
+            loadArchive(m_archivePath);
+            return true;
+        }
+        return false;
+    }
+}

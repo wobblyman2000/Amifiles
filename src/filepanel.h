@@ -27,6 +27,7 @@
 #include <QSettings>
 #include "foldersizecalculator.h"
 #include "flatmodel.h"
+#include "customfilesystemmodel.h"
 
 class ArchiveModel;
 
@@ -470,6 +471,7 @@ private slots:
     void onFavoriteButtonContextMenu(const QPoint& pos);
     void onToggleViewMode();
     void onZoomChanged(int value);
+    void onHeaderContextMenu(const QPoint& pos);
     void zoomIn();
     void zoomOut();
 
@@ -498,7 +500,7 @@ private:
     QToolButton* m_btnFlatView = nullptr;
 
     QTreeView* m_treeView = nullptr;
-    QFileSystemModel* m_fileModel = nullptr;
+    CustomFileSystemModel* m_fileModel = nullptr;
     FileFilterProxyModel* m_proxyModel = nullptr;
 
     FlatFileSystemModel* m_flatModel = nullptr;
