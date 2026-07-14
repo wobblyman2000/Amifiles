@@ -32,6 +32,7 @@ PreviewPanel::PreviewPanel(QWidget* parent) : QWidget(parent) {
     connect(m_player, &QMediaPlayer::positionChanged, this, &PreviewPanel::onPositionChanged);
     connect(m_player, &QMediaPlayer::durationChanged, this, &PreviewPanel::onDurationChanged);
     connect(m_player, &QMediaPlayer::metaDataChanged, this, &PreviewPanel::onMediaMetadataChanged);
+    connect(m_player, &QMediaPlayer::mediaStatusChanged, this, &PreviewPanel::onMediaStatusChanged);
 
     clearPreview();
 }
@@ -203,6 +204,12 @@ void PreviewPanel::clearPreview() {
 }
 
 void PreviewPanel::previewFile(const QString& filePath) {
+    if (!m_playlist.isEmpty() && m_playlistIndex >= 0 && m_playlistIndex < m_playlist.size()) {
+        if (m_playlist[m_playlistIndex] != filePath) {
+            m_playlist.clear();
+            m_playlistIndex = -1;
+        }
+    }
     clearPreview();
 
     QFileInfo info(filePath);
@@ -499,4 +506,39 @@ bool PreviewPanel::isMuted() const {
         return m_audioOutput->isMuted();
     }
     return false;
+}
+
+void PreviewPanel::playPlaylist(const QStringList& filePaths) {
+    m_playlist = filePaths;
+    m_playlistIndex = 0;
+    
+    if (m_playlist.isEmpty()) {
+        clearPreview();
+        return;
+    }
+
+    previewFile(m_playlist[0]);
+    
+    int row = m_metadataTable->rowCount();
+    m_metadataTable->insertRow(row);
+    m_metadataTable->setItem(row, 0, new QTableWidgetItem("Playlist Status"));
+    m_metadataTable->setItem(row, 1, new QTableWidgetItem(QString("Playing track %1 of %2").arg(1).arg(m_playlist.size())));
+}
+
+void PreviewPanel::onMediaStatusChanged(QMediaPlayer::MediaStatus status) {
+    if (status == QMediaPlayer::EndOfMedia) {
+        if (m_playlistIndex >= 0 && m_playlistIndex < m_playlist.size() - 1) {
+            m_playlistIndex++;
+            
+            previewFile(m_playlist[m_playlistIndex]);
+            
+            int row = m_metadataTable->rowCount();
+            m_metadataTable->insertRow(row);
+            m_metadataTable->setItem(row, 0, new QTableWidgetItem("Playlist Status"));
+            m_metadataTable->setItem(row, 1, new QTableWidgetItem(QString("Playing track %1 of %2").arg(m_playlistIndex + 1).arg(m_playlist.size())));
+        } else {
+            m_playlist.clear();
+            m_playlistIndex = -1;
+        }
+    }
 }

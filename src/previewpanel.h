@@ -24,6 +24,7 @@ public:
     void previewFile(const QString& filePath);
     void previewFolderArt(const QString& artPath, const QString& folderPath);
     void clearPreview();
+    void playPlaylist(const QStringList& filePaths);
     QMediaPlayer* player() const { return m_player; }
     void setMuted(bool muted);
     bool isMuted() const;
@@ -43,6 +44,7 @@ private slots:
     void onVolumeChanged(int value);
     void onSliderMoved(int value);
     void onMediaMetadataChanged();
+    void onMediaStatusChanged(QMediaPlayer::MediaStatus status);
 
 private:
     void setupUI();
@@ -56,6 +58,8 @@ private:
 
     QString m_previewedFilePath;
     bool m_textChanged = false;
+    QStringList m_playlist;
+    int m_playlistIndex = -1;
     QPixmap m_originalPixmap;
 
     // Media Player Backend (Qt6)

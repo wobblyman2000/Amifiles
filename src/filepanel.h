@@ -5,6 +5,9 @@
 #include <QFileSystemModel>
 #include <QSortFilterProxyModel>
 #include <QTreeView>
+#include <QListView>
+#include <QStackedWidget>
+#include <QSlider>
 #include <QLineEdit>
 #include <QLabel>
 #include <QPushButton>
@@ -296,6 +299,7 @@ signals:
     void fileSelected(const QString& filePath);
     void folderArtDetected(const QString& artPath);
     void panelActivated(FilePanel* panel);
+    void playlistPlayRequested(const QStringList& filePaths);
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
@@ -313,6 +317,10 @@ private slots:
     void updateFavoritesUI();
     void onCustomContextMenu(const QPoint& pos);
     void onFavoriteButtonContextMenu(const QPoint& pos);
+    void onToggleViewMode();
+    void onZoomChanged(int value);
+    void zoomIn();
+    void zoomOut();
 
 private:
     void setupUI();
@@ -348,6 +356,12 @@ private:
 
     ArchiveModel* m_archiveModel = nullptr;
     bool m_archiveViewActive = false;
+
+    QToolButton* m_btnViewMode = nullptr;
+    QSlider* m_zoomSlider = nullptr;
+    QStackedWidget* m_viewStack = nullptr;
+    QListView* m_listView = nullptr;
+    int m_zoomLevel = 1;
 
     // Bottom Filter Bar
     QLineEdit* m_filterEdit = nullptr;

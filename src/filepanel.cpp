@@ -101,6 +101,12 @@ void FilePanel::setupUI() {
     m_btnFlatView->setStyleSheet("QToolButton { font-weight: bold; color: #a6e3a1; }");
     connect(m_btnFlatView, &QToolButton::toggled, this, &FilePanel::setFlatViewEnabled);
 
+    m_btnViewMode = new QToolButton(this);
+    m_btnViewMode->setText("List/Grid");
+    m_btnViewMode->setToolTip("Toggle Details List View vs. Icon Grid View");
+    m_btnViewMode->setStyleSheet("QToolButton { font-weight: bold; color: #89b4fa; }");
+    connect(m_btnViewMode, &QToolButton::clicked, this, &FilePanel::onToggleViewMode);
+
     navLayout->addWidget(m_btnBack);
     navLayout->addWidget(m_btnForward);
     navLayout->addWidget(m_btnUp);
@@ -108,6 +114,7 @@ void FilePanel::setupUI() {
     navLayout->addWidget(m_btnGo);
     navLayout->addWidget(m_btnFavorite);
     navLayout->addWidget(m_btnFlatView);
+    navLayout->addWidget(m_btnViewMode);
 
     // Central Tree View
     m_treeView = new QTreeView(this);
@@ -117,6 +124,21 @@ void FilePanel::setupUI() {
     m_treeView->setSelectionMode(QAbstractItemView::ExtendedSelection);
     m_treeView->setContextMenuPolicy(Qt::CustomContextMenu); // Enable context menu
     m_treeView->installEventFilter(this); // Install event filter to capture focus events
+
+    // Icon Grid List View
+    m_listView = new QListView(this);
+    m_listView->setViewMode(QListView::IconMode);
+    m_listView->setResizeMode(QListView::Adjust);
+    m_listView->setWordWrap(true);
+    m_listView->setUniformItemSizes(true);
+    m_listView->setSpacing(10);
+    m_listView->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    m_listView->setContextMenuPolicy(Qt::CustomContextMenu);
+    m_listView->installEventFilter(this);
+
+    m_viewStack = new QStackedWidget(this);
+    m_viewStack->addWidget(m_treeView);
+    m_viewStack->addWidget(m_listView);
 
     // File Model & Proxy Model Setup
     m_fileModel = new QFileSystemModel(this);
@@ -135,6 +157,8 @@ void FilePanel::setupUI() {
     m_archiveModel = new ArchiveModel(this);
 
     m_treeView->setModel(m_proxyModel);
+    m_listView->setModel(m_proxyModel);
+    m_listView->setSelectionModel(m_treeView->selectionModel()); // sync selections
 
     // Header formatting
     QHeaderView* header = m_treeView->header();
@@ -143,7 +167,19 @@ void FilePanel::setupUI() {
 
     connect(m_treeView, &QTreeView::doubleClicked, this, &FilePanel::onDoubleClicked);
     connect(m_treeView, &QTreeView::customContextMenuRequested, this, &FilePanel::onCustomContextMenu);
+    connect(m_listView, &QListView::doubleClicked, this, &FilePanel::onDoubleClicked);
+    connect(m_listView, &QListView::customContextMenuRequested, this, &FilePanel::onCustomContextMenu);
     connect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
+
+    // Restore view mode choice from settings
+    QSettings settings("Amifiles", "Amifiles");
+    bool viewModeGrid = settings.value("file_panel/view_mode_grid", false).toBool();
+    if (viewModeGrid) {
+        m_viewStack->setCurrentWidget(m_listView);
+    } else {
+        m_viewStack->setCurrentWidget(m_treeView);
+    }
+
 
     // Bottom Filter and Status bar
 
@@ -230,6 +266,14 @@ void FilePanel::setupUI() {
     filterTextLayout->addWidget(m_filterEdit, 1);
     filterTextLayout->addWidget(m_statusLabel);
 
+    m_zoomSlider = new QSlider(Qt::Horizontal, this);
+    m_zoomSlider->setRange(0, 6);
+    m_zoomSlider->setValue(1);
+    m_zoomSlider->setFixedWidth(100);
+    m_zoomSlider->setToolTip("Zoom Display Icons and Text");
+    connect(m_zoomSlider, &QSlider::valueChanged, this, &FilePanel::onZoomChanged);
+    filterTextLayout->addWidget(m_zoomSlider);
+
     QVBoxLayout* bottomLayout = new QVBoxLayout();
     bottomLayout->setContentsMargins(0, 0, 0, 0);
     bottomLayout->setSpacing(4);
@@ -237,21 +281,34 @@ void FilePanel::setupUI() {
     bottomLayout->addWidget(m_filterTextWidget);
 
     mainLayout->addLayout(navLayout);
-    mainLayout->addWidget(m_treeView, 1);
+    mainLayout->addWidget(m_viewStack, 1);
     mainLayout->addLayout(bottomLayout);
+
+    int initialZoom = settings.value("file_panel/zoom_level", 1).toInt();
+    m_zoomSlider->setValue(initialZoom);
+    onZoomChanged(initialZoom);
 
     setActive(false);
     updateNavigationButtons();
 }
 
 bool FilePanel::eventFilter(QObject* watched, QEvent* event) {
-    if (watched == m_treeView) {
-        if (event->type() == QEvent::FocusIn) {
+    if (watched == m_treeView || watched == m_listView) {
+        if (event->type() == QEvent::FocusIn || event->type() == QEvent::MouseButtonPress) {
             setActive(true);
             emit panelActivated(this);
-        } else if (event->type() == QEvent::MouseButtonPress) {
-            setActive(true);
-            emit panelActivated(this);
+        }
+        
+        if (event->type() == QEvent::Wheel) {
+            QWheelEvent* wheel = static_cast<QWheelEvent*>(event);
+            if (wheel->modifiers() & Qt::ControlModifier) {
+                if (wheel->angleDelta().y() > 0) {
+                    zoomIn();
+                } else {
+                    zoomOut();
+                }
+                return true; // Consume event
+            }
         }
     }
     return QWidget::eventFilter(watched, event);
@@ -289,6 +346,8 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
                 
                 m_archiveViewActive = true;
                 m_treeView->setModel(m_archiveModel);
+                m_listView->setModel(m_archiveModel);
+                m_listView->setSelectionModel(m_treeView->selectionModel());
 
                 if (m_treeView->selectionModel()) {
                     connect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
@@ -315,6 +374,8 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
         }
         m_archiveViewActive = false;
         m_treeView->setModel(m_proxyModel);
+        m_listView->setModel(m_proxyModel);
+        m_listView->setSelectionModel(m_treeView->selectionModel());
         if (m_treeView->selectionModel()) {
             connect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
         }
@@ -362,11 +423,13 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
     if (m_flatViewEnabled) {
         m_flatModel->setRootPath(m_currentPath);
         m_treeView->setRootIndex(QModelIndex());
+        m_listView->setRootIndex(QModelIndex());
     } else {
         m_proxyModel->setCurrentPath(m_currentPath);
         QModelIndex srcIndex = m_fileModel->index(m_currentPath);
         QModelIndex proxyIndex = m_proxyModel->mapFromSource(srcIndex);
         m_treeView->setRootIndex(proxyIndex);
+        m_listView->setRootIndex(proxyIndex);
     }
 
     // Update History
@@ -914,12 +977,16 @@ void FilePanel::onShowProperties() {
 }
 
 void FilePanel::onCustomContextMenu(const QPoint& pos) {
-    QModelIndex index = m_treeView->indexAt(pos);
+    QModelIndex index;
+    if (m_viewStack->currentWidget() == m_listView) {
+        index = m_listView->indexAt(pos);
+    } else {
+        index = m_treeView->indexAt(pos);
+    }
     
     QMenu menu(this);
     QStyle* style = QApplication::style();
 
-    // Standard Operations
     QAction* actOpen = menu.addAction(style->standardIcon(QStyle::SP_DialogOpenButton), "Open");
     menu.addSeparator();
     
@@ -946,7 +1013,10 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     bool isFolder = false;
     bool isFavorite = false;
     if (index.isValid()) {
-        if (m_flatViewEnabled) {
+        if (m_archiveViewActive) {
+            selectedPath = m_archiveModel->entryPath(index);
+            isFolder = m_archiveModel->isDir(index);
+        } else if (m_flatViewEnabled) {
             QModelIndex srcIndex = m_flatProxyModel->mapToSource(index);
             selectedPath = m_flatModel->filePath(srcIndex);
         } else {
@@ -975,11 +1045,28 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
             actFav = menu.addAction(style->standardIcon(QStyle::SP_DialogYesButton), "Add Current to Favorites");
         }
     }
+    // Scan selected folder or current folder for playable audio & video files
+    QString folderToCheck = isFolder ? selectedPath : m_currentPath;
+    QStringList playlistPaths;
+    QStringList mediaExts = { "mp3", "wav", "flac", "ogg", "m4a", "mp4", "avi", "mkv", "mov", "webm", "mpeg", "mpg" };
+    if (!folderToCheck.isEmpty()) {
+        QDir dir(folderToCheck);
+        QFileInfoList files = dir.entryInfoList(QDir::Files, QDir::Name);
+        for (const QFileInfo& fInfo : files) {
+            if (mediaExts.contains(fInfo.suffix().toLower())) {
+                playlistPaths.append(fInfo.absoluteFilePath());
+            }
+        }
+    }
+
+    QAction* actPlayPlaylist = nullptr;
+    if (!playlistPaths.isEmpty()) {
+        actPlayPlaylist = menu.addAction(style->standardIcon(QStyle::SP_MediaPlay), "Play Folder/Album in Preview");
+    }
+
     menu.addSeparator();
-    
     QAction* actProp = menu.addAction(style->standardIcon(QStyle::SP_MessageBoxInformation), "Properties");
 
-    // Enable/disable actions depending on context
     bool hasSelection = index.isValid();
     actOpen->setEnabled(hasSelection);
     actCopy->setEnabled(hasSelection);
@@ -988,13 +1075,13 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     actRename->setEnabled(hasSelection);
     actBulkRename->setEnabled(hasSelection);
 
-    // Paste is enabled only if clipboard has files
     QClipboard* clipboard = QApplication::clipboard();
     const QMimeData* mimeData = clipboard->mimeData();
     actPaste->setEnabled(mimeData && mimeData->hasUrls());
 
-    // Execute menu
-    QAction* selected = menu.exec(m_treeView->viewport()->mapToGlobal(pos));
+    // Execute menu on the active view layout widget
+    QWidget* activeViewWidget = (m_viewStack->currentWidget() == m_listView) ? static_cast<QWidget*>(m_listView) : static_cast<QWidget*>(m_treeView);
+    QAction* selected = menu.exec(activeViewWidget->mapToGlobal(pos));
     if (!selected) return;
 
     if (selected == actOpen) {
@@ -1027,6 +1114,8 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         }
     } else if (selected == actNewFolder) {
         onNewFolder();
+    } else if (selected == actPlayPlaylist) {
+        emit playlistPlayRequested(playlistPaths);
     } else if (selected == actFav) {
         if (isFolder && !selectedPath.isEmpty()) {
             FavoritesManager& fm = FavoritesManager::instance();
@@ -1119,6 +1208,8 @@ void FilePanel::setFlatViewEnabled(bool enabled) {
 
     if (enabled) {
         m_treeView->setModel(m_flatProxyModel);
+        m_listView->setModel(m_flatProxyModel);
+        m_listView->setSelectionModel(m_treeView->selectionModel());
         m_flatModel->setRootPath(m_currentPath);
         if (m_categoryWidget) m_categoryWidget->hide();
 
@@ -1128,6 +1219,8 @@ void FilePanel::setFlatViewEnabled(bool enabled) {
         connect(m_flatModel, &FlatFileSystemModel::scanFinished, this, &FilePanel::updateStatusText);
     } else {
         m_treeView->setModel(m_proxyModel);
+        m_listView->setModel(m_proxyModel);
+        m_listView->setSelectionModel(m_treeView->selectionModel());
         if (m_categoryWidget) m_categoryWidget->setVisible(m_categoryButtonsVisible);
     }
 
@@ -1165,4 +1258,56 @@ void FilePanel::onFavoriteButtonContextMenu(const QPoint& pos) {
     }
 
     menu.exec(m_btnFavorite->mapToGlobal(pos));
+}
+
+void FilePanel::onToggleViewMode() {
+    if (m_viewStack->currentWidget() == m_treeView) {
+        m_viewStack->setCurrentWidget(m_listView);
+        
+        QSettings settings("Amifiles", "Amifiles");
+        settings.setValue("file_panel/view_mode_grid", true);
+
+        onZoomChanged(m_zoomLevel);
+    } else {
+        m_viewStack->setCurrentWidget(m_treeView);
+
+        QSettings settings("Amifiles", "Amifiles");
+        settings.setValue("file_panel/view_mode_grid", false);
+    }
+}
+
+void FilePanel::zoomIn() {
+    if (m_zoomLevel < 6) {
+        m_zoomSlider->setValue(m_zoomLevel + 1);
+    }
+}
+
+void FilePanel::zoomOut() {
+    if (m_zoomLevel > 0) {
+        m_zoomSlider->setValue(m_zoomLevel - 1);
+    }
+}
+
+void FilePanel::onZoomChanged(int value) {
+    m_zoomLevel = value;
+    
+    QSettings settings("Amifiles", "Amifiles");
+    settings.setValue("file_panel/zoom_level", value);
+
+    int sizes[] = { 16, 24, 32, 48, 64, 96, 128 };
+    int size = sizes[qBound(0, value, 6)];
+    
+    m_treeView->setIconSize(QSize(size, size));
+    m_listView->setIconSize(QSize(size, size));
+    
+    int fonts[] = { 9, 10, 12, 14, 16, 18, 20 };
+    int fontSize = fonts[qBound(0, value, 6)];
+    
+    QString stylesheet = QString("font-size: %1px;").arg(fontSize);
+    m_treeView->setStyleSheet(stylesheet);
+    m_listView->setStyleSheet(stylesheet);
+
+    if (m_listView->viewMode() == QListView::IconMode) {
+        m_listView->setGridSize(QSize(size + 60, size + 40));
+    }
 }

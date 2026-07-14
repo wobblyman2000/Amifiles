@@ -397,6 +397,13 @@ void MainWindow::setupCentralWidget() {
     connect(m_leftPanel, &FilePanel::pathChanged, this, &MainWindow::onPathChanged);
     connect(m_rightPanel, &FilePanel::pathChanged, this, &MainWindow::onPathChanged);
 
+    connect(m_leftPanel, &FilePanel::playlistPlayRequested, this, [this](const QStringList& paths) {
+        if (m_previewPanel) m_previewPanel->playPlaylist(paths);
+    });
+    connect(m_rightPanel, &FilePanel::playlistPlayRequested, this, [this](const QStringList& paths) {
+        if (m_previewPanel) m_previewPanel->playPlaylist(paths);
+    });
+
     // Initialize mini media controller in the status bar
     m_miniMediaControls = new MiniMediaControls(m_previewPanel->player(), this);
     statusBar()->addPermanentWidget(m_miniMediaControls);
