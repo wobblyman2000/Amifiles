@@ -582,6 +582,7 @@ void MainWindow::setupMenus() {
     m_menuEdit->addAction(m_actRename);
     m_menuEdit->addAction(m_actBulkRename);
 
+    m_menuView = menuBar()->addMenu("View");
     m_menuView->addAction(m_actToggleDualPane);
     m_menuView->addAction(m_actTogglePreview);
     m_menuView->addAction(m_actMutePreview);
