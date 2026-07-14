@@ -106,34 +106,35 @@ const QString Stylesheet = R"(
     }
 
     /* Tree View / List View (File Displays) */
-    QTreeView {
+    QTreeView, QListView {
         background-color: #181825;
         border: 2px solid #313244;
         border-radius: 6px;
-        alternate-background-color: #1e1e2e;
-        show-decoration-selected: 1;
         outline: 0;
     }
-    QTreeView:focus {
-        /* Set dynamically or styled as highlight in code */
+    QTreeView {
+        alternate-background-color: #1e1e2e;
+        show-decoration-selected: 1;
+    }
+    QTreeView::item, QListView::item {
+        padding: 4px;
+        color: #cdd6f4;
     }
     QTreeView::item {
-        height: 28px;
-        padding: 4px;
         border-bottom: 1px solid #1e1e2e;
     }
-    QTreeView::item:hover {
+    QTreeView::item:hover, QListView::item:hover {
         background-color: #2d2d3f;
     }
-    QTreeView::item:selected {
+    QTreeView::item:selected, QListView::item:selected {
         background-color: #3a86ff;
         color: #ffffff;
     }
-    QTreeView::item:selected:active {
+    QTreeView::item:selected:active, QListView::item:selected:active {
         background-color: #3a86ff;
         color: #ffffff;
     }
-    QTreeView::item:selected:!active {
+    QTreeView::item:selected:!active, QListView::item:selected:!active {
         background-color: #45475a;
         color: #cdd6f4;
     }

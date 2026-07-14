@@ -17,6 +17,9 @@
 #include <QColor>
 #include <QFont>
 #include <QTableWidgetItem>
+#include <QPainter>
+#include <QLinearGradient>
+#include <QPolygon>
 
 PreviewPanel::PreviewPanel(QWidget* parent) : QWidget(parent) {
     // Initialize QMediaPlayer and AudioOutput first so setupUI can configure them
@@ -192,11 +195,14 @@ void PreviewPanel::clearPreview() {
     m_player->stop();
     m_player->setSource(QUrl());
     m_previewedFilePath.clear();
+    m_currentAudioPath.clear();
     m_originalPixmap = QPixmap();
     m_imageLabel->clear();
     m_textEdit->clear();
     m_textChanged = false;
     m_textControls->hide();
+    m_audioPlaceholder->setPixmap(QPixmap());
+    m_audioPlaceholder->setText("");
 
     m_stack->setCurrentWidget(m_emptyView);
 
@@ -300,7 +306,10 @@ void PreviewPanel::showMediaPreview(const QString& filePath, bool isVideo) {
     m_audioPlaceholder->setVisible(!isVideo);
 
     if (!isVideo) {
-        m_audioPlaceholder->setText(QString("🎵 Playing Audio\n\n%1").arg(QFileInfo(filePath).fileName()));
+        m_currentAudioPath = filePath;
+        updateAudioPlaceholder(filePath);
+    } else {
+        m_currentAudioPath.clear();
     }
 
     m_btnPlayPause->setIcon(style()->standardIcon(QStyle::SP_MediaPlay));
@@ -337,6 +346,9 @@ void PreviewPanel::resizeEvent(QResizeEvent* event) {
     QWidget::resizeEvent(event);
     if (m_stack->currentWidget() == m_imageView) {
         scaleImage();
+    }
+    if (!m_currentAudioPath.isEmpty()) {
+        updateAudioPlaceholder(m_currentAudioPath);
     }
 }
 
@@ -541,4 +553,61 @@ void PreviewPanel::onMediaStatusChanged(QMediaPlayer::MediaStatus status) {
             m_playlistIndex = -1;
         }
     }
+}
+
+void PreviewPanel::updateAudioPlaceholder(const QString& filePath) {
+    if (filePath.isEmpty()) {
+        m_audioPlaceholder->setPixmap(QPixmap());
+        m_audioPlaceholder->setText("");
+        return;
+    }
+
+    QString dirPath = QFileInfo(filePath).absolutePath();
+    QDir dir(dirPath);
+    QStringList artNames = { "folder", "cover", "album", "poster" };
+    QStringList artExts = { "jpg", "jpeg", "png", "webp" };
+    QString artPath;
+    for (const QString& name : artNames) {
+        for (const QString& ext : artExts) {
+            QString path = dir.filePath(name + "." + ext);
+            if (QFile::exists(path)) {
+                artPath = path;
+                break;
+            }
+        }
+        if (!artPath.isEmpty()) break;
+    }
+
+    QSize size = m_audioPlaceholder->size();
+    if (size.width() < 50) size.setWidth(400);
+    if (size.height() < 50) size.setHeight(300);
+
+    QPixmap pixmap(size);
+    pixmap.fill(Qt::transparent);
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing);
+
+    if (!artPath.isEmpty()) {
+        QPixmap cover(artPath);
+        if (!cover.isNull()) {
+            painter.drawPixmap(pixmap.rect(), cover.scaled(size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+            painter.fillRect(pixmap.rect(), QColor(17, 17, 27, 200));
+        } else {
+            painter.fillRect(pixmap.rect(), QColor("#1e1e2e"));
+        }
+    } else {
+        painter.fillRect(pixmap.rect(), QColor("#1e1e2e"));
+    }
+
+    painter.setPen(QColor("#cdd6f4"));
+    QFont font = m_audioPlaceholder->font();
+    font.setPointSize(14);
+    font.setBold(true);
+    painter.setFont(font);
+
+    QString text = QString("🎵 Playing Audio\n\n%1").arg(QFileInfo(filePath).fileName());
+    painter.drawText(pixmap.rect(), Qt::AlignCenter, text);
+    painter.end();
+
+    m_audioPlaceholder->setPixmap(pixmap);
 }

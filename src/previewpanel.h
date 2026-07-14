@@ -53,10 +53,12 @@ private:
     void showMediaPreview(const QString& filePath, bool isVideo);
     void updateMetadataDisplay(const FileMetadata& meta);
     void scaleImage();
+    void updateAudioPlaceholder(const QString& filePath);
     
     QString formatDuration(qint64 ms);
 
     QString m_previewedFilePath;
+    QString m_currentAudioPath;
     bool m_textChanged = false;
     QStringList m_playlist;
     int m_playlistIndex = -1;
