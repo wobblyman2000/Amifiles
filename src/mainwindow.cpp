@@ -1345,4 +1345,13 @@ void MainWindow::onCustomToolBarContextMenu(const QPoint& pos) {
     }
 }
 
+MainWindow::~MainWindow() {
+    if (m_leftPanel) {
+        disconnect(m_leftPanel, nullptr, nullptr, nullptr);
+    }
+    if (m_rightPanel) {
+        disconnect(m_rightPanel, nullptr, nullptr, nullptr);
+    }
+}
+
 #include "mainwindow.moc"

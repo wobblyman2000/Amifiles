@@ -590,8 +590,12 @@ void PreviewPanel::updateAudioPlaceholder(const QString& filePath) {
     if (!artPath.isEmpty()) {
         QPixmap cover(artPath);
         if (!cover.isNull()) {
-            painter.drawPixmap(pixmap.rect(), cover.scaled(size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
-            painter.fillRect(pixmap.rect(), QColor(17, 17, 27, 200));
+            painter.fillRect(pixmap.rect(), QColor("#1e1e2e"));
+            QPixmap scaledCover = cover.scaled(QSize(220, 220), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+            int x = (size.width() - scaledCover.width()) / 2;
+            int y = (size.height() - scaledCover.height()) / 2;
+            painter.drawPixmap(x, y, scaledCover);
+            painter.fillRect(pixmap.rect(), QColor(30, 30, 46, 180));
         } else {
             painter.fillRect(pixmap.rect(), QColor("#1e1e2e"));
         }

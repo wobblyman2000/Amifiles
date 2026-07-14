@@ -88,13 +88,45 @@ public:
                 QFileSystemModel* fileModel = qobject_cast<QFileSystemModel*>(sourceModel());
                 if (fileModel && fileModel->isDir(srcIndex)) {
                     QString path = fileModel->filePath(srcIndex);
+                    
+                    enum CasingType { CasingCD, CasingDVD, CasingBluRay };
+                    CasingType casingType = CasingCD;
                     QString artPath;
-                    QStringList checks = { "folder.jpg", "folder.png", "cover.jpg", "cover.png" };
-                    for (const QString& check : checks) {
+
+                    // 1. Check Blu-ray covers first
+                    QStringList blurayChecks = { "bluray_cover.jpg", "bluray_cover.png", "bluray.jpg", "bluray.png" };
+                    for (const QString& check : blurayChecks) {
                         QString test = QDir(path).filePath(check);
                         if (QFile::exists(test)) {
                             artPath = test;
+                            casingType = CasingBluRay;
                             break;
+                        }
+                    }
+
+                    // 2. Check DVD covers next
+                    if (artPath.isEmpty()) {
+                        QStringList dvdChecks = { "dvd_cover.jpg", "dvd_cover.png", "dvd.jpg", "dvd.png", "movie.jpg", "movie.png" };
+                        for (const QString& check : dvdChecks) {
+                            QString test = QDir(path).filePath(check);
+                            if (QFile::exists(test)) {
+                                artPath = test;
+                                casingType = CasingDVD;
+                                break;
+                            }
+                        }
+                    }
+
+                    // 3. Fall back to CD covers
+                    if (artPath.isEmpty()) {
+                        QStringList cdChecks = { "folder.jpg", "folder.png", "cover.jpg", "cover.png" };
+                        for (const QString& check : cdChecks) {
+                            QString test = QDir(path).filePath(check);
+                            if (QFile::exists(test)) {
+                                artPath = test;
+                                casingType = CasingCD;
+                                break;
+                            }
                         }
                     }
 
@@ -103,6 +135,13 @@ public:
                         if (!cover.isNull()) {
                              int caseW = 256;
                              int caseH = 256;
+                             
+                             if (casingType == CasingDVD) {
+                                 caseW = 180;
+                             } else if (casingType == CasingBluRay) {
+                                 caseW = 210;
+                             }
+                             
                              double s = 256.0 / 48.0;
 
                              QPixmap casePixmap(caseW, caseH);
@@ -111,37 +150,113 @@ public:
                              QPainter painter(&casePixmap);
                              painter.setRenderHint(QPainter::Antialiasing);
 
-                             painter.setBrush(QColor("#313244"));
-                             painter.setPen(QPen(QColor("#45475a"), qMax(1, qRound(1 * s))));
-                             painter.drawRoundedRect(qRound(2 * s), qRound(2 * s), caseW - qRound(4 * s), caseH - qRound(4 * s), qRound(3 * s), qRound(3 * s));
+                             if (casingType == CasingCD) {
+                                 painter.setBrush(QColor("#313244"));
+                                 painter.setPen(QPen(QColor("#45475a"), qMax(1, qRound(1 * s))));
+                                 painter.drawRoundedRect(qRound(2 * s), qRound(2 * s), caseW - qRound(4 * s), caseH - qRound(4 * s), qRound(3 * s), qRound(3 * s));
 
-                             painter.setBrush(QColor("#11111b"));
-                             painter.setPen(Qt::NoPen);
-                             painter.drawRect(qRound(3 * s), qRound(3 * s), qRound(5 * s), caseH - qRound(6 * s));
+                                 painter.setBrush(QColor("#11111b"));
+                                 painter.setPen(Qt::NoPen);
+                                 painter.drawRect(qRound(3 * s), qRound(3 * s), qRound(5 * s), caseH - qRound(6 * s));
 
-                             int coverX = qRound(10 * s);
-                             int coverY = qRound(4 * s);
-                             int coverW = caseW - qRound(14 * s);
-                             int coverH = caseH - qRound(8 * s);
-                             painter.drawPixmap(coverX, coverY, coverW, coverH, cover.scaled(coverW, coverH, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+                                 int coverX = qRound(10 * s);
+                                 int coverY = qRound(4 * s);
+                                 int coverW = caseW - qRound(14 * s);
+                                 int coverH = caseH - qRound(8 * s);
+                                 painter.drawPixmap(coverX, coverY, coverW, coverH, cover.scaled(coverW, coverH, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
 
-                             painter.setBrush(Qt::NoBrush);
-                             painter.setPen(QPen(QColor(255, 255, 255, 60), qMax(1, qRound(1 * s))));
-                             painter.drawRoundedRect(qRound(3 * s), qRound(3 * s), caseW - qRound(6 * s), caseH - qRound(6 * s), qRound(2 * s), qRound(2 * s));
+                                 painter.setBrush(Qt::NoBrush);
+                                 painter.setPen(QPen(QColor(255, 255, 255, 60), qMax(1, qRound(1 * s))));
+                                 painter.drawRoundedRect(qRound(3 * s), qRound(3 * s), caseW - qRound(6 * s), caseH - qRound(6 * s), qRound(2 * s), qRound(2 * s));
 
-                             QLinearGradient gradient(0, 0, caseW, caseH);
-                             gradient.setColorAt(0.0, QColor(255, 255, 255, 80));
-                             gradient.setColorAt(0.3, QColor(255, 255, 255, 120));
-                             gradient.setColorAt(0.35, QColor(255, 255, 255, 0));
-                             gradient.setColorAt(1.0, QColor(255, 255, 255, 0));
+                                 QLinearGradient gradient(0, 0, caseW, caseH);
+                                 gradient.setColorAt(0.0, QColor(255, 255, 255, 80));
+                                 gradient.setColorAt(0.3, QColor(255, 255, 255, 120));
+                                 gradient.setColorAt(0.35, QColor(255, 255, 255, 0));
+                                 gradient.setColorAt(1.0, QColor(255, 255, 255, 0));
 
-                             painter.setBrush(gradient);
-                             painter.setPen(Qt::NoPen);
-                             QPolygon gloss;
-                             gloss << QPoint(qRound(9 * s), qRound(4 * s))
-                                   << QPoint(caseW - qRound(4 * s), qRound(4 * s))
-                                   << QPoint(qRound(9 * s), caseH - qRound(4 * s));
-                             painter.drawPolygon(gloss);
+                                 painter.setBrush(gradient);
+                                 painter.setPen(Qt::NoPen);
+                                 QPolygon gloss;
+                                 gloss << QPoint(qRound(9 * s), qRound(4 * s))
+                                       << QPoint(caseW - qRound(4 * s), qRound(4 * s))
+                                       << QPoint(qRound(9 * s), caseH - qRound(4 * s));
+                                 painter.drawPolygon(gloss);
+                             }
+                             else if (casingType == CasingDVD) {
+                                 painter.setBrush(QColor("#1e1e2e"));
+                                 painter.setPen(QPen(QColor("#313244"), qMax(1, qRound(1.5 * s))));
+                                 painter.drawRoundedRect(qRound(2 * s), qRound(2 * s), caseW - qRound(4 * s), caseH - qRound(4 * s), qRound(4 * s), qRound(4 * s));
+
+                                 int coverX = qRound(4 * s);
+                                 int coverY = qRound(4 * s);
+                                 int coverW = caseW - qRound(8 * s);
+                                 int coverH = caseH - qRound(8 * s);
+                                 painter.drawPixmap(coverX, coverY, coverW, coverH, cover.scaled(coverW, coverH, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+
+                                 painter.setBrush(Qt::NoBrush);
+                                 painter.setPen(QPen(QColor(255, 255, 255, 40), qMax(1, qRound(1 * s))));
+                                 painter.drawRoundedRect(qRound(3 * s), qRound(3 * s), caseW - qRound(6 * s), caseH - qRound(6 * s), qRound(3 * s), qRound(3 * s));
+
+                                 QLinearGradient gradient(0, 0, caseW, caseH);
+                                 gradient.setColorAt(0.0, QColor(255, 255, 255, 60));
+                                 gradient.setColorAt(0.25, QColor(255, 255, 255, 100));
+                                 gradient.setColorAt(0.3, QColor(255, 255, 255, 0));
+                                 gradient.setColorAt(1.0, QColor(255, 255, 255, 0));
+
+                                 painter.setBrush(gradient);
+                                 painter.setPen(Qt::NoPen);
+                                 QPolygon gloss;
+                                 gloss << QPoint(qRound(4 * s), qRound(4 * s))
+                                       << QPoint(caseW - qRound(4 * s), qRound(4 * s))
+                                       << QPoint(qRound(4 * s), caseH - qRound(4 * s));
+                                 painter.drawPolygon(gloss);
+                             }
+                             else if (casingType == CasingBluRay) {
+                                 painter.setBrush(QColor("#1e1e2e"));
+                                 painter.setPen(QPen(QColor("#313244"), qMax(1, qRound(1.5 * s))));
+                                 painter.drawRoundedRect(qRound(2 * s), qRound(2 * s), caseW - qRound(4 * s), caseH - qRound(4 * s), qRound(4 * s), qRound(4 * s));
+
+                                 int coverX = qRound(4 * s);
+                                 int coverY = qRound(9 * s);
+                                 int coverW = caseW - qRound(8 * s);
+                                 int coverH = caseH - qRound(13 * s);
+                                 painter.drawPixmap(coverX, coverY, coverW, coverH, cover.scaled(coverW, coverH, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+
+                                 QLinearGradient blueGrad(0, 0, 0, coverY);
+                                 blueGrad.setColorAt(0.0, QColor(14, 165, 233, 220));
+                                 blueGrad.setColorAt(1.0, QColor(3, 105, 161, 180));
+                                 
+                                 painter.setBrush(blueGrad);
+                                 painter.setPen(Qt::NoPen);
+                                 painter.drawRoundedRect(qRound(3 * s), qRound(3 * s), caseW - qRound(6 * s), qRound(7 * s), qRound(2 * s), qRound(2 * s));
+
+                                 painter.setPen(QPen(QColor(255, 255, 255, 140), 1));
+                                 QFont logoFont = painter.font();
+                                 logoFont.setPointSize(qRound(2.2 * s));
+                                 logoFont.setBold(true);
+                                 logoFont.setLetterSpacing(QFont::AbsoluteSpacing, qRound(0.4 * s));
+                                 painter.setFont(logoFont);
+                                 painter.drawText(QRect(0, qRound(3 * s), caseW, qRound(6 * s)), Qt::AlignCenter, "BLU-RAY");
+
+                                 painter.setBrush(Qt::NoBrush);
+                                 painter.setPen(QPen(QColor(255, 255, 255, 45), qMax(1, qRound(1 * s))));
+                                 painter.drawRoundedRect(qRound(3 * s), qRound(3 * s), caseW - qRound(6 * s), caseH - qRound(6 * s), qRound(3 * s), qRound(3 * s));
+
+                                 QLinearGradient gradient(0, 0, caseW, caseH);
+                                 gradient.setColorAt(0.0, QColor(255, 255, 255, 60));
+                                 gradient.setColorAt(0.25, QColor(255, 255, 255, 90));
+                                 gradient.setColorAt(0.3, QColor(255, 255, 255, 0));
+                                 gradient.setColorAt(1.0, QColor(255, 255, 255, 0));
+
+                                 painter.setBrush(gradient);
+                                 painter.setPen(Qt::NoPen);
+                                 QPolygon gloss;
+                                 gloss << QPoint(qRound(4 * s), qRound(4 * s))
+                                       << QPoint(caseW - qRound(4 * s), qRound(4 * s))
+                                       << QPoint(qRound(4 * s), caseH - qRound(4 * s));
+                                 painter.drawPolygon(gloss);
+                             }
 
                              painter.end();
                              return QIcon(casePixmap);
