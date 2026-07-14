@@ -48,6 +48,14 @@ FilePanel::FilePanel(const QString& initialPath, QWidget* parent)
         }
     });
 
+    // Auto-refresh when background file copy/move tasks finish
+    connect(CopyQueueManager::instance().worker(), &CopyQueueWorker::jobFinished, this, [this](const QString& src, const QString& dest, bool success) {
+        Q_UNUSED(src);
+        Q_UNUSED(dest);
+        Q_UNUSED(success);
+        refresh();
+    });
+
     navigateTo(initialPath, true);
 }
 
