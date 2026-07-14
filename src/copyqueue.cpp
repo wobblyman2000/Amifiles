@@ -30,6 +30,8 @@ void CopyQueueWorker::addJob(const CopyJob& job) {
     QMutexLocker locker(&m_mutex);
     m_queue.enqueue(job);
     m_cond.wakeOne();
+    locker.unlock();
+    emit jobAdded();
 }
 
 void CopyQueueWorker::pause() {
@@ -247,6 +249,20 @@ void CopyQueueManager::queueCopy(const QStringList& srcPaths, const QString& des
     }
 }
 
+void CopyQueueManager::showQueueDialog(QWidget* parent) {
+    if (!m_activeDialog) {
+        m_activeDialog = new CopyQueueDialog(parent);
+        m_activeDialog->setAttribute(Qt::WA_DeleteOnClose);
+        connect(m_activeDialog, &QObject::destroyed, this, [this]() {
+            m_activeDialog = nullptr;
+        });
+        m_activeDialog->show();
+    } else {
+        m_activeDialog->raise();
+        m_activeDialog->activateWindow();
+    }
+}
+
 // ================= CopyQueueDialog =================
 
 CopyQueueDialog::CopyQueueDialog(QWidget* parent) : QDialog(parent) {
@@ -267,6 +283,7 @@ CopyQueueDialog::CopyQueueDialog(QWidget* parent) : QDialog(parent) {
     connect(worker, &CopyQueueWorker::fileProgress, this, &CopyQueueDialog::onFileProgress);
     connect(worker, &CopyQueueWorker::batchProgress, this, &CopyQueueDialog::onBatchProgress);
     connect(worker, &CopyQueueWorker::queueFinished, this, &CopyQueueDialog::onWorkerFinished);
+    connect(worker, &CopyQueueWorker::jobAdded, this, &CopyQueueDialog::updatePendingList);
 
     updatePendingList();
 }

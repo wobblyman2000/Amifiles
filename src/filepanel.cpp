@@ -872,12 +872,8 @@ void FilePanel::onPaste() {
         clipboard->clear();
     }
 
-    // Launch the modeless monitor dialog
-    CopyQueueDialog* dlg = new CopyQueueDialog(this);
-    dlg->setAttribute(Qt::WA_DeleteOnClose);
-    connect(dlg, &CopyQueueDialog::accepted, this, &FilePanel::refresh);
-    connect(dlg, &CopyQueueDialog::rejected, this, &FilePanel::refresh);
-    dlg->show();
+    // Launch the centralized modeless monitor dialog
+    CopyQueueManager::instance().showQueueDialog(this);
 }
 
 void FilePanel::onDelete() {
@@ -1289,11 +1285,40 @@ void FilePanel::zoomOut() {
 }
 
 void FilePanel::onZoomChanged(int value) {
+    if (m_zoomLevel == value) return;
     m_zoomLevel = value;
     
     QSettings settings("Amifiles", "Amifiles");
     settings.setValue("file_panel/zoom_level", value);
 
+    int sizes[] = { 16, 24, 32, 48, 64, 96, 128 };
+    int size = sizes[qBound(0, value, 6)];
+    
+    m_treeView->setIconSize(QSize(size, size));
+    m_listView->setIconSize(QSize(size, size));
+    
+    int fonts[] = { 9, 10, 12, 14, 16, 18, 20 };
+    int fontSize = fonts[qBound(0, value, 6)];
+    
+    QString stylesheet = QString("font-size: %1px;").arg(fontSize);
+    m_treeView->setStyleSheet(stylesheet);
+    m_listView->setStyleSheet(stylesheet);
+
+    if (m_listView->viewMode() == QListView::IconMode) {
+        m_listView->setGridSize(QSize(size + 60, size + 40));
+    }
+
+    emit zoomChanged(value);
+}
+
+void FilePanel::syncZoom(int value) {
+    if (m_zoomLevel == value) return;
+    m_zoomLevel = value;
+
+    m_zoomSlider->blockSignals(true);
+    m_zoomSlider->setValue(value);
+    m_zoomSlider->blockSignals(false);
+    
     int sizes[] = { 16, 24, 32, 48, 64, 96, 128 };
     int size = sizes[qBound(0, value, 6)];
     

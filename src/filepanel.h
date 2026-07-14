@@ -101,46 +101,50 @@ public:
                     if (!artPath.isEmpty()) {
                         QPixmap cover(artPath);
                         if (!cover.isNull()) {
-                            int caseW = 48;
-                            int caseH = 48;
-                            QPixmap casePixmap(caseW, caseH);
-                            casePixmap.fill(Qt::transparent);
+                             int caseW = 256;
+                             int caseH = 256;
+                             double s = 256.0 / 48.0;
 
-                            QPainter painter(&casePixmap);
-                            painter.setRenderHint(QPainter::Antialiasing);
+                             QPixmap casePixmap(caseW, caseH);
+                             casePixmap.fill(Qt::transparent);
 
-                            painter.setBrush(QColor("#313244"));
-                            painter.setPen(QPen(QColor("#45475a"), 1));
-                            painter.drawRoundedRect(2, 2, caseW - 4, caseH - 4, 3, 3);
+                             QPainter painter(&casePixmap);
+                             painter.setRenderHint(QPainter::Antialiasing);
 
-                            painter.setBrush(QColor("#11111b"));
-                            painter.setPen(Qt::NoPen);
-                            painter.drawRect(3, 3, 5, caseH - 6);
+                             painter.setBrush(QColor("#313244"));
+                             painter.setPen(QPen(QColor("#45475a"), qMax(1, qRound(1 * s))));
+                             painter.drawRoundedRect(qRound(2 * s), qRound(2 * s), caseW - qRound(4 * s), caseH - qRound(4 * s), qRound(3 * s), qRound(3 * s));
 
-                            int coverX = 10;
-                            int coverY = 4;
-                            int coverW = caseW - 14;
-                            int coverH = caseH - 8;
-                            painter.drawPixmap(coverX, coverY, coverW, coverH, cover.scaled(coverW, coverH, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+                             painter.setBrush(QColor("#11111b"));
+                             painter.setPen(Qt::NoPen);
+                             painter.drawRect(qRound(3 * s), qRound(3 * s), qRound(5 * s), caseH - qRound(6 * s));
 
-                            painter.setBrush(Qt::NoBrush);
-                            painter.setPen(QPen(QColor(255, 255, 255, 60), 1));
-                            painter.drawRoundedRect(3, 3, caseW - 6, caseH - 6, 2, 2);
+                             int coverX = qRound(10 * s);
+                             int coverY = qRound(4 * s);
+                             int coverW = caseW - qRound(14 * s);
+                             int coverH = caseH - qRound(8 * s);
+                             painter.drawPixmap(coverX, coverY, coverW, coverH, cover.scaled(coverW, coverH, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
 
-                            QLinearGradient gradient(0, 0, caseW, caseH);
-                            gradient.setColorAt(0.0, QColor(255, 255, 255, 80));
-                            gradient.setColorAt(0.3, QColor(255, 255, 255, 120));
-                            gradient.setColorAt(0.35, QColor(255, 255, 255, 0));
-                            gradient.setColorAt(1.0, QColor(255, 255, 255, 0));
+                             painter.setBrush(Qt::NoBrush);
+                             painter.setPen(QPen(QColor(255, 255, 255, 60), qMax(1, qRound(1 * s))));
+                             painter.drawRoundedRect(qRound(3 * s), qRound(3 * s), caseW - qRound(6 * s), caseH - qRound(6 * s), qRound(2 * s), qRound(2 * s));
 
-                            painter.setBrush(gradient);
-                            painter.setPen(Qt::NoPen);
-                            QPolygon gloss;
-                            gloss << QPoint(9, 4) << QPoint(caseW - 4, 4) << QPoint(9, caseH - 4);
-                            painter.drawPolygon(gloss);
+                             QLinearGradient gradient(0, 0, caseW, caseH);
+                             gradient.setColorAt(0.0, QColor(255, 255, 255, 80));
+                             gradient.setColorAt(0.3, QColor(255, 255, 255, 120));
+                             gradient.setColorAt(0.35, QColor(255, 255, 255, 0));
+                             gradient.setColorAt(1.0, QColor(255, 255, 255, 0));
 
-                            painter.end();
-                            return QIcon(casePixmap);
+                             painter.setBrush(gradient);
+                             painter.setPen(Qt::NoPen);
+                             QPolygon gloss;
+                             gloss << QPoint(qRound(9 * s), qRound(4 * s))
+                                   << QPoint(caseW - qRound(4 * s), qRound(4 * s))
+                                   << QPoint(qRound(9 * s), caseH - qRound(4 * s));
+                             painter.drawPolygon(gloss);
+
+                             painter.end();
+                             return QIcon(casePixmap);
                         }
                     }
                 }
@@ -289,6 +293,7 @@ public:
     QString filterText() const;
     void syncFilterText(const QString& text);
     void syncFilterType(FileFilterProxyModel::FilterType type);
+    void syncZoom(int value);
 
     // Flat View Support
     void setFlatViewEnabled(bool enabled);
@@ -300,6 +305,7 @@ signals:
     void folderArtDetected(const QString& artPath);
     void panelActivated(FilePanel* panel);
     void playlistPlayRequested(const QStringList& filePaths);
+    void zoomChanged(int value);
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
@@ -361,7 +367,7 @@ private:
     QSlider* m_zoomSlider = nullptr;
     QStackedWidget* m_viewStack = nullptr;
     QListView* m_listView = nullptr;
-    int m_zoomLevel = 1;
+    int m_zoomLevel = -1;
 
     // Bottom Filter Bar
     QLineEdit* m_filterEdit = nullptr;

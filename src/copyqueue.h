@@ -35,6 +35,7 @@ public:
 
 signals:
     void jobStarted(const QString& src, const QString& dest, bool isMove);
+    void jobAdded();
     void fileProgress(const QString& filename, qint64 bytesCopied, qint64 bytesTotal);
     void batchProgress(int currentFile, int totalFiles, qint64 totalBytesCopied, qint64 totalBytesTotal);
     void jobFinished(const QString& src, const QString& dest, bool success);
@@ -65,12 +66,15 @@ private:
     qint64 m_batchBytesTotal;
 };
 
+class CopyQueueDialog;
+
 class CopyQueueManager : public QObject {
     Q_OBJECT
 public:
     static CopyQueueManager& instance();
 
     void queueCopy(const QStringList& srcPaths, const QString& destDir, bool isMove);
+    void showQueueDialog(QWidget* parent = nullptr);
     CopyQueueWorker* worker() const { return m_worker; }
 
 private:
@@ -78,6 +82,7 @@ private:
     ~CopyQueueManager() override = default;
 
     CopyQueueWorker* m_worker = nullptr;
+    CopyQueueDialog* m_activeDialog = nullptr;
 };
 
 class CopyQueueDialog : public QDialog {
