@@ -791,8 +791,8 @@ void MainWindow::updateMiniPlayer() {
     static const QStringList audioExts = { "mp3", "wav", "flac", "ogg", "m4a" };
     static const QStringList videoExts = { "mp4", "avi", "mkv", "mov", "webm", "flv", "wmv", "m4v" };
 
-    bool isAudio = info.exists() && audioExts.contains(ext);
-    bool isVideo = info.exists() && videoExts.contains(ext);
+    bool isAudio = audioExts.contains(ext);
+    bool isVideo = videoExts.contains(ext);
     bool isMedia = isAudio || isVideo;
 
     if (!m_showPreview && isMedia) {
