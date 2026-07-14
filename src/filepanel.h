@@ -404,6 +404,8 @@ public:
     explicit FilePanel(const QString& initialPath, QWidget* parent = nullptr);
     ~FilePanel() override = default;
 
+    bool isArchiveViewActive() const { return m_archiveViewActive; }
+
     QString currentPath() const;
     void setPath(const QString& path);
 

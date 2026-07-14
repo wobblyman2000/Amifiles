@@ -47,6 +47,8 @@ private slots:
     void onShowPropertiesAction();
     void onRefreshAction();
     void onBulkRenameAction();
+    void onCopyToSiblingAction();
+    void onMoveToSiblingAction();
 
     // Favorites List Management
     void onFavoriteTriggered();
@@ -138,6 +140,8 @@ private:
     QAction* m_actToggleDrivesToolbar = nullptr;
     QAction* m_actToggleConsole = nullptr;
     QAction* m_actToggleFlatView = nullptr;
+    QAction* m_actCopyToSibling = nullptr;
+    QAction* m_actMoveToSibling = nullptr;
 
     QAction* m_actLeftShowFilterText = nullptr;
     QAction* m_actLeftShowCategoryButtons = nullptr;

@@ -1,4 +1,5 @@
 #include "mainwindow.h"
+#include "copyqueue.h"
 #include "theme.h"
 #include "favoritesmanager.h"
 #include "bulkrename.h"
@@ -459,14 +460,24 @@ void MainWindow::setupActions() {
     connect(m_actRename, &QAction::triggered, this, &MainWindow::onRenameAction);
 
     m_actRefresh = new QAction(style->standardIcon(QStyle::SP_BrowserReload), "Refresh", this);
-    m_actRefresh->setShortcut(QKeySequence(Qt::Key_F5));
+    m_actRefresh->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_R));
     m_actRefresh->setToolTip("Refresh current directory listing");
     connect(m_actRefresh, &QAction::triggered, this, &MainWindow::onRefreshAction);
 
     m_actBulkRename = new QAction(style->standardIcon(QStyle::SP_DialogResetButton), "Bulk Rename...", this);
-    m_actBulkRename->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_R));
+    m_actBulkRename->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_R));
     m_actBulkRename->setToolTip("Open the bulk rename tool for selected files");
     connect(m_actBulkRename, &QAction::triggered, this, &MainWindow::onBulkRenameAction);
+
+    m_actCopyToSibling = new QAction(style->standardIcon(QStyle::SP_DialogSaveButton), "Copy to Sibling", this);
+    m_actCopyToSibling->setShortcut(QKeySequence(Qt::Key_F5));
+    m_actCopyToSibling->setToolTip("Copy selected items to the opposite panel (F5)");
+    connect(m_actCopyToSibling, &QAction::triggered, this, &MainWindow::onCopyToSiblingAction);
+
+    m_actMoveToSibling = new QAction(style->standardIcon(QStyle::SP_DialogDiscardButton), "Move to Sibling", this);
+    m_actMoveToSibling->setShortcut(QKeySequence(Qt::Key_F6));
+    m_actMoveToSibling->setToolTip("Move selected items to the opposite panel (F6)");
+    connect(m_actMoveToSibling, &QAction::triggered, this, &MainWindow::onMoveToSiblingAction);
 
     m_actCompareSync = new QAction(style->standardIcon(QStyle::SP_DialogYesButton), "Compare & Sync Folders...", this);
     m_actCompareSync->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_G));
@@ -605,6 +616,8 @@ void MainWindow::setupMenus() {
     m_menuEdit->addAction(m_actCut);
     m_menuEdit->addAction(m_actCopy);
     m_menuEdit->addAction(m_actPaste);
+    m_menuEdit->addAction(m_actCopyToSibling);
+    m_menuEdit->addAction(m_actMoveToSibling);
     m_menuEdit->addSeparator();
     m_menuEdit->addAction(m_actDelete);
     m_menuEdit->addAction(m_actRename);
@@ -661,6 +674,8 @@ void MainWindow::setupToolbars() {
     m_tbFile->addAction(m_actCopy);
     m_tbFile->addAction(m_actCut);
     m_tbFile->addAction(m_actPaste);
+    m_tbFile->addAction(m_actCopyToSibling);
+    m_tbFile->addAction(m_actMoveToSibling);
     m_tbFile->addAction(m_actDelete);
     m_tbFile->addAction(m_actRefresh);
     m_tbFile->addAction(m_actBulkRename);
@@ -892,6 +907,64 @@ void MainWindow::onBulkRenameAction() {
     if (dlg.exec() == QDialog::Accepted) {
         m_leftPanel->refresh();
         m_rightPanel->refresh();
+    }
+}
+
+void MainWindow::onCopyToSiblingAction() {
+    if (!m_activePanel) return;
+    FilePanel* destPanel = (m_activePanel == m_leftPanel) ? m_rightPanel : m_leftPanel;
+    if (!destPanel) return;
+
+    QStringList paths = m_activePanel->selectedPaths();
+    if (paths.isEmpty()) {
+        QMessageBox::information(this, "Copy to Sibling", "Please select one or more items in the active display pane first.");
+        return;
+    }
+
+    QString destDir = destPanel->currentPath();
+    if (destDir.isEmpty()) return;
+
+    auto button = QMessageBox::question(this, "Confirm Copy",
+                                         QString("Copy the %1 selected item(s) to %2?")
+                                         .arg(paths.size()).arg(destDir),
+                                         QMessageBox::Yes | QMessageBox::No);
+    if (button == QMessageBox::Yes) {
+        if (destPanel->isArchiveViewActive()) {
+            QMessageBox::warning(this, "Archive Write Unsupported", "Directly copying to a closed archive VFS from opposite pane is not supported. Please paste inside the active VFS instead.");
+            return;
+        }
+        
+        CopyQueueManager::instance().queueCopy(paths, destDir, false);
+        CopyQueueManager::instance().showQueueDialog(this);
+    }
+}
+
+void MainWindow::onMoveToSiblingAction() {
+    if (!m_activePanel) return;
+    FilePanel* destPanel = (m_activePanel == m_leftPanel) ? m_rightPanel : m_leftPanel;
+    if (!destPanel) return;
+
+    QStringList paths = m_activePanel->selectedPaths();
+    if (paths.isEmpty()) {
+        QMessageBox::information(this, "Move to Sibling", "Please select one or more items in the active display pane first.");
+        return;
+    }
+
+    QString destDir = destPanel->currentPath();
+    if (destDir.isEmpty()) return;
+
+    auto button = QMessageBox::question(this, "Confirm Move",
+                                         QString("Move the %1 selected item(s) to %2?")
+                                         .arg(paths.size()).arg(destDir),
+                                         QMessageBox::Yes | QMessageBox::No);
+    if (button == QMessageBox::Yes) {
+        if (destPanel->isArchiveViewActive()) {
+            QMessageBox::warning(this, "Archive Write Unsupported", "Directly moving to a closed archive VFS from opposite pane is not supported. Please paste inside the active VFS instead.");
+            return;
+        }
+        
+        CopyQueueManager::instance().queueCopy(paths, destDir, true);
+        CopyQueueManager::instance().showQueueDialog(this);
     }
 }
 

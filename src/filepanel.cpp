@@ -1043,6 +1043,12 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     
     QAction* actPaste = menu.addAction("Paste");
     actPaste->setShortcut(QKeySequence::Paste);
+
+    QAction* actCopyToSibling = menu.addAction("Copy to Sibling Panel");
+    actCopyToSibling->setShortcut(QKeySequence(Qt::Key_F5));
+
+    QAction* actMoveToSibling = menu.addAction("Move to Sibling Panel");
+    actMoveToSibling->setShortcut(QKeySequence(Qt::Key_F6));
     
     QAction* actDelete = menu.addAction(style->standardIcon(QStyle::SP_TrashIcon), "Delete");
     actDelete->setShortcut(QKeySequence::Delete);
@@ -1120,6 +1126,10 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     actRename->setEnabled(hasSelection);
     actBulkRename->setEnabled(hasSelection);
 
+    bool hasSibling = m_siblingPanel && m_siblingPanel->isVisible();
+    actCopyToSibling->setEnabled(hasSelection && hasSibling);
+    actMoveToSibling->setEnabled(hasSelection && hasSibling);
+
     QClipboard* clipboard = QApplication::clipboard();
     const QMimeData* mimeData = clipboard->mimeData();
     actPaste->setEnabled(mimeData && mimeData->hasUrls());
@@ -1137,6 +1147,22 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         onCut();
     } else if (selected == actPaste) {
         onPaste();
+    } else if (selected == actCopyToSibling) {
+        QWidget* p = parentWidget();
+        while (p && !p->inherits("MainWindow")) {
+            p = p->parentWidget();
+        }
+        if (p) {
+            QMetaObject::invokeMethod(p, "onCopyToSiblingAction");
+        }
+    } else if (selected == actMoveToSibling) {
+        QWidget* p = parentWidget();
+        while (p && !p->inherits("MainWindow")) {
+            p = p->parentWidget();
+        }
+        if (p) {
+            QMetaObject::invokeMethod(p, "onMoveToSiblingAction");
+        }
     } else if (selected == actDelete) {
         onDelete();
     } else if (selected == actRename) {
