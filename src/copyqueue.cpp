@@ -9,6 +9,10 @@
 #include <QStyle>
 #include <QMessageBox>
 #include <QTime>
+#include <QPainter>
+#include <QPainterPath>
+#include <QLinearGradient>
+#include <QGridLayout>
 
 // ================= CopyQueueWorker =================
 
@@ -18,6 +22,7 @@ CopyQueueWorker::CopyQueueWorker(QObject* parent)
     m_totalFileCount = 0;
     m_batchBytesCopied = 0;
     m_batchBytesTotal = 0;
+    m_defaultResolution.store(ResolvePrompt);
 }
 
 CopyQueueWorker::~CopyQueueWorker() {
@@ -74,6 +79,7 @@ void CopyQueueWorker::run() {
 
         m_cancelled = false;
         m_skipCurrent = false;
+        m_defaultResolution.store(ResolvePrompt);
 
         emit jobStarted(job.srcPath, job.destPath, job.isMove);
 
@@ -91,6 +97,10 @@ void CopyQueueWorker::run() {
         } else {
             m_totalFileCount = 1;
         }
+
+        m_batchTimer.start();
+        m_lastElapsed = 0;
+        m_lastBytesCopied = 0;
 
         bool success = processJob(job);
         emit jobFinished(job.srcPath, job.destPath, success);
@@ -122,10 +132,74 @@ void CopyQueueWorker::scanDirForFiles(const QString& dirPath, QStringList& fileL
     }
 }
 
+int CopyQueueWorker::checkCollision(const QString& src, const QString& dest) {
+    if (!QFile::exists(dest)) {
+        return ResolveOverwrite;
+    }
+
+    int defRes = m_defaultResolution.load();
+    if (defRes == ResolveOverwriteAll) return ResolveOverwrite;
+    if (defRes == ResolveSkipAll) return ResolveSkip;
+    if (defRes == ResolveCancel) return ResolveCancel;
+
+    int resolution = ResolvePrompt;
+    emit collisionDetected(src, dest, &resolution);
+
+    if (resolution == ResolvePrompt || resolution == ResolveCancel) {
+        m_defaultResolution.store(ResolveCancel);
+        m_cancelled = true;
+        return ResolveCancel;
+    }
+
+    if (resolution == ResolveOverwriteAll) {
+        m_defaultResolution.store(ResolveOverwriteAll);
+        return ResolveOverwrite;
+    }
+    if (resolution == ResolveSkipAll) {
+        m_defaultResolution.store(ResolveSkipAll);
+        return ResolveSkip;
+    }
+
+    return resolution;
+}
+
 bool CopyQueueWorker::processJob(const CopyJob& job) {
+    m_defaultResolution.store(ResolvePrompt);
+
     if (job.isMove) {
-        if (QFile::rename(job.srcPath, job.destPath)) {
-            return true;
+        QFileInfo destInfo(job.destPath);
+        if (!destInfo.exists()) {
+            if (QFile::rename(job.srcPath, job.destPath)) {
+                return true;
+            }
+        } else {
+            int res = checkCollision(job.srcPath, job.destPath);
+            if (res == ResolveSkip) {
+                return true;
+            }
+            if (res == ResolveCancel) {
+                return false;
+            }
+            if (res == ResolveOverwrite) {
+                QFile::remove(job.destPath);
+                if (QFile::rename(job.srcPath, job.destPath)) {
+                    return true;
+                }
+            }
+            if (res == ResolveKeepBoth) {
+                QFileInfo info(job.destPath);
+                QString dir = info.absolutePath();
+                QString base = info.completeBaseName();
+                QString suffix = info.suffix();
+                QString newDest = job.destPath;
+                int counter = 1;
+                while (QFile::exists(newDest)) {
+                    newDest = QDir(dir).filePath(QString("%1 (%2).%3").arg(base).arg(counter++).arg(suffix));
+                }
+                if (QFile::rename(job.srcPath, newDest)) {
+                    return true;
+                }
+            }
         }
     }
 
@@ -178,8 +252,35 @@ bool CopyQueueWorker::copyDirRecursively(const QString& srcDir, const QString& d
 bool CopyQueueWorker::copyFileChunked(const QString& src, const QString& dest) {
     if (m_skipCurrent) return true;
 
+    QString actualDest = dest;
+    if (QFile::exists(actualDest)) {
+        int res = checkCollision(src, actualDest);
+        if (res == ResolveSkip) {
+            m_currentFileIndex++;
+            m_batchBytesCopied += QFileInfo(src).size();
+            emit batchProgress(m_currentFileIndex, m_totalFileCount, m_batchBytesCopied, m_batchBytesTotal);
+            return true;
+        }
+        if (res == ResolveCancel) {
+            return false;
+        }
+        if (res == ResolveOverwrite) {
+            QFile::remove(actualDest);
+        }
+        if (res == ResolveKeepBoth) {
+            QFileInfo info(actualDest);
+            QString dir = info.absolutePath();
+            QString base = info.completeBaseName();
+            QString suffix = info.suffix();
+            int counter = 1;
+            while (QFile::exists(actualDest)) {
+                actualDest = QDir(dir).filePath(QString("%1 (%2).%3").arg(base).arg(counter++).arg(suffix));
+            }
+        }
+    }
+
     QFile srcFile(src);
-    QFile destFile(dest);
+    QFile destFile(actualDest);
     if (!srcFile.open(QIODevice::ReadOnly)) return false;
     if (!destFile.open(QIODevice::WriteOnly)) return false;
 
@@ -190,19 +291,19 @@ bool CopyQueueWorker::copyFileChunked(const QString& src, const QString& dest) {
     while (fileCopied < fileSize) {
         if (m_cancelled) {
             destFile.close();
-            QFile::remove(dest);
+            QFile::remove(actualDest);
             return false;
         }
         if (m_skipCurrent) {
             destFile.close();
-            QFile::remove(dest);
+            QFile::remove(actualDest);
             return true;
         }
         while (m_paused) {
             QThread::msleep(100);
             if (m_cancelled) {
                 destFile.close();
-                QFile::remove(dest);
+                QFile::remove(actualDest);
                 return false;
             }
         }
@@ -214,6 +315,21 @@ bool CopyQueueWorker::copyFileChunked(const QString& src, const QString& dest) {
 
         fileCopied += read;
         m_batchBytesCopied += read;
+
+        qint64 elapsedMs = m_batchTimer.elapsed();
+        qint64 timeDiff = elapsedMs - m_lastElapsed;
+        if (timeDiff >= 1000) {
+            qint64 bytesDiff = m_batchBytesCopied - m_lastBytesCopied;
+            double speed = (double)bytesDiff / (timeDiff / 1000.0);
+            double avgSpeed = (double)m_batchBytesCopied / (elapsedMs / 1000.0);
+            qint64 remainingBytes = m_batchBytesTotal - m_batchBytesCopied;
+            qint64 remainingSecs = (avgSpeed > 0) ? (remainingBytes / avgSpeed) : 0;
+
+            emit speedUpdated(speed, remainingSecs);
+
+            m_lastElapsed = elapsedMs;
+            m_lastBytesCopied = m_batchBytesCopied;
+        }
 
         emit fileProgress(QFileInfo(src).fileName(), fileCopied, fileSize);
         emit batchProgress(m_currentFileIndex, m_totalFileCount, m_batchBytesCopied, m_batchBytesTotal);
@@ -263,11 +379,204 @@ void CopyQueueManager::showQueueDialog(QWidget* parent) {
     }
 }
 
+// ================= SpeedChartWidget =================
+
+SpeedChartWidget::SpeedChartWidget(QWidget* parent) : QWidget(parent) {
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    setFixedHeight(80);
+}
+
+void SpeedChartWidget::addSpeedPoint(double speedMBPerSec) {
+    m_speedHistory.append(speedMBPerSec);
+    if (m_speedHistory.size() > 60) {
+        m_speedHistory.removeFirst();
+    }
+    update();
+}
+
+void SpeedChartWidget::clearHistory() {
+    m_speedHistory.clear();
+    update();
+}
+
+void SpeedChartWidget::paintEvent(QPaintEvent* event) {
+    Q_UNUSED(event);
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing);
+
+    // Draw background
+    painter.fillRect(rect(), QColor("#181825"));
+
+    // Draw grid lines
+    painter.setPen(QPen(QColor("#313244"), 1, Qt::DashLine));
+    int numGridLines = 3;
+    for (int i = 1; i < numGridLines; ++i) {
+        int y = (height() * i) / numGridLines;
+        painter.drawLine(0, y, width(), y);
+    }
+
+    if (m_speedHistory.isEmpty()) {
+        painter.setPen(QColor("#a6adc8"));
+        painter.drawText(rect(), Qt::AlignCenter, "Calculating speed...");
+        return;
+    }
+
+    // Determine scale
+    m_maxSpeed = 1.0;
+    for (double speed : m_speedHistory) {
+        if (speed > m_maxSpeed) {
+            m_maxSpeed = speed;
+        }
+    }
+
+    double yMax = m_maxSpeed * 1.1;
+
+    QPainterPath path;
+    QPainterPath fillPath;
+
+    int w = width();
+    int h = height();
+    int points = m_speedHistory.size();
+
+    QPolygonF poly;
+    double xStep = (points > 1) ? (double)w / (points - 1) : (double)w;
+
+    for (int i = 0; i < points; ++i) {
+        double x = i * xStep;
+        double y = h - (m_speedHistory[i] / yMax) * h;
+        y = qBound(0.0, y, (double)h);
+        poly.append(QPointF(x, y));
+    }
+
+    if (poly.isEmpty()) return;
+
+    path.addPolygon(poly);
+
+    fillPath.moveTo(0, h);
+    for (const QPointF& pt : poly) {
+        fillPath.lineTo(pt);
+    }
+    fillPath.lineTo(poly.last().x(), h);
+    fillPath.closeSubpath();
+
+    QLinearGradient grad(0, 0, 0, h);
+    grad.setColorAt(0.0, QColor(137, 180, 250, 100));
+    grad.setColorAt(1.0, QColor(137, 180, 250, 0));
+    painter.fillPath(fillPath, grad);
+
+    painter.setPen(QPen(QColor("#89b4fa"), 2));
+    painter.drawPath(path);
+
+    painter.setPen(QColor("#cdd6f4"));
+    painter.drawText(10, 15, QString("Max Speed: %1 MB/s").arg(m_maxSpeed, 0, 'f', 1));
+}
+
+// ================= FileCollisionDialog =================
+
+FileCollisionDialog::FileCollisionDialog(const QString& srcPath, const QString& destPath, QWidget* parent)
+    : QDialog(parent) {
+    setWindowTitle("File Already Exists");
+    resize(550, 240);
+    setStyleSheet("QDialog { background-color: #1e1e2e; color: #cdd6f4; }"
+                  "QLabel { color: #cdd6f4; }"
+                  "QPushButton { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 4px; padding: 6px 12px; }"
+                  "QPushButton:hover { background-color: #45475a; }");
+    setupUI(srcPath, destPath);
+}
+
+void FileCollisionDialog::setupUI(const QString& srcPath, const QString& destPath) {
+    QVBoxLayout* layout = new QVBoxLayout(this);
+    layout->setSpacing(12);
+
+    QLabel* title = new QLabel("<b>A file with the same name already exists at the destination.</b>", this);
+    title->setStyleSheet("font-size: 13px; color: #f9e2af;");
+    layout->addWidget(title);
+
+    QGridLayout* grid = new QGridLayout();
+    grid->setSpacing(8);
+
+    QLabel* lblHeader1 = new QLabel("<b>Source File (Copying)</b>", this);
+    lblHeader1->setStyleSheet("color: #a6e3a1;");
+    QLabel* lblHeader2 = new QLabel("<b>Destination File (Existing)</b>", this);
+    lblHeader2->setStyleSheet("color: #f38ba8;");
+
+    grid->addWidget(lblHeader1, 0, 1);
+    grid->addWidget(lblHeader2, 0, 2);
+
+    grid->addWidget(new QLabel("Name:", this), 1, 0);
+    grid->addWidget(new QLabel(QFileInfo(srcPath).fileName(), this), 1, 1);
+    grid->addWidget(new QLabel(QFileInfo(destPath).fileName(), this), 1, 2);
+
+    QFileInfo srcInfo(srcPath);
+    QFileInfo destInfo(destPath);
+    grid->addWidget(new QLabel("Size:", this), 2, 0);
+    grid->addWidget(new QLabel(formatBytes(srcInfo.size()), this), 2, 1);
+    grid->addWidget(new QLabel(formatBytes(destInfo.size()), this), 2, 2);
+
+    grid->addWidget(new QLabel("Modified:", this), 3, 0);
+    grid->addWidget(new QLabel(formatDateTime(srcInfo.lastModified()), this), 3, 1);
+    grid->addWidget(new QLabel(formatDateTime(destInfo.lastModified()), this), 3, 2);
+
+    layout->addLayout(grid);
+
+    QHBoxLayout* btnLayout = new QHBoxLayout();
+    btnLayout->setSpacing(6);
+
+    QPushButton* btnOverwrite = new QPushButton("Overwrite", this);
+    btnOverwrite->setStyleSheet("QPushButton { background-color: #f38ba8; color: #11111b; font-weight: bold; }");
+    connect(btnOverwrite, &QPushButton::clicked, this, &FileCollisionDialog::onOverwrite);
+    btnLayout->addWidget(btnOverwrite);
+
+    QPushButton* btnOverwriteAll = new QPushButton("Overwrite All", this);
+    connect(btnOverwriteAll, &QPushButton::clicked, this, &FileCollisionDialog::onOverwriteAll);
+    btnLayout->addWidget(btnOverwriteAll);
+
+    QPushButton* btnKeepBoth = new QPushButton("Keep Both", this);
+    btnKeepBoth->setStyleSheet("QPushButton { background-color: #89b4fa; color: #11111b; font-weight: bold; }");
+    connect(btnKeepBoth, &QPushButton::clicked, this, &FileCollisionDialog::onKeepBoth);
+    btnLayout->addWidget(btnKeepBoth);
+
+    QPushButton* btnSkip = new QPushButton("Skip", this);
+    connect(btnSkip, &QPushButton::clicked, this, &FileCollisionDialog::onSkip);
+    btnLayout->addWidget(btnSkip);
+
+    QPushButton* btnSkipAll = new QPushButton("Skip All", this);
+    connect(btnSkipAll, &QPushButton::clicked, this, &FileCollisionDialog::onSkipAll);
+    btnLayout->addWidget(btnSkipAll);
+
+    QPushButton* btnCancel = new QPushButton("Cancel", this);
+    connect(btnCancel, &QPushButton::clicked, this, &FileCollisionDialog::onCancel);
+    btnLayout->addWidget(btnCancel);
+
+    layout->addLayout(btnLayout);
+}
+
+void FileCollisionDialog::onOverwrite() { m_resolution = ResolveOverwrite; accept(); }
+void FileCollisionDialog::onOverwriteAll() { m_resolution = ResolveOverwriteAll; accept(); }
+void FileCollisionDialog::onSkip() { m_resolution = ResolveSkip; accept(); }
+void FileCollisionDialog::onSkipAll() { m_resolution = ResolveSkipAll; accept(); }
+void FileCollisionDialog::onKeepBoth() { m_resolution = ResolveKeepBoth; accept(); }
+void FileCollisionDialog::onCancel() { m_resolution = ResolveCancel; reject(); }
+
+QString FileCollisionDialog::formatBytes(qint64 bytes) const {
+    double kb = bytes / 1024.0;
+    double mb = kb / 1024.0;
+    double gb = mb / 1024.0;
+    if (gb >= 1.0) return QString("%1 GB").arg(gb, 0, 'f', 1);
+    if (mb >= 1.0) return QString("%1 MB").arg(mb, 0, 'f', 1);
+    if (kb >= 1.0) return QString("%1 KB").arg(kb, 0, 'f', 1);
+    return QString("%1 B").arg(bytes);
+}
+
+QString FileCollisionDialog::formatDateTime(const QDateTime& dt) const {
+    return dt.toString("yyyy-MM-dd hh:mm:ss");
+}
+
 // ================= CopyQueueDialog =================
 
 CopyQueueDialog::CopyQueueDialog(QWidget* parent) : QDialog(parent) {
     setWindowTitle("File Transfer Queue");
-    resize(500, 320);
+    resize(500, 430);
     setStyleSheet("QDialog { background-color: #1e1e2e; color: #cdd6f4; }"
                   "QLabel { color: #cdd6f4; }"
                   "QProgressBar { border: 1px solid #313244; border-radius: 4px; text-align: center; background-color: #181825; color: #cdd6f4; }"
@@ -284,6 +593,9 @@ CopyQueueDialog::CopyQueueDialog(QWidget* parent) : QDialog(parent) {
     connect(worker, &CopyQueueWorker::batchProgress, this, &CopyQueueDialog::onBatchProgress);
     connect(worker, &CopyQueueWorker::queueFinished, this, &CopyQueueDialog::onWorkerFinished);
     connect(worker, &CopyQueueWorker::jobAdded, this, &CopyQueueDialog::updatePendingList);
+    
+    connect(worker, &CopyQueueWorker::collisionDetected, this, &CopyQueueDialog::onCollisionDetected, Qt::BlockingQueuedConnection);
+    connect(worker, &CopyQueueWorker::speedUpdated, this, &CopyQueueDialog::onSpeedUpdated);
 
     updatePendingList();
 }
@@ -312,9 +624,16 @@ void CopyQueueDialog::setupUI() {
     layout->addWidget(new QLabel("Overall Queue Progress:", this));
     layout->addWidget(m_progBatch);
 
+    m_lblSpeedTime = new QLabel("Speed: 0 B/s | Time Remaining: Calculating...", this);
+    m_lblSpeedTime->setStyleSheet("font-size: 11px; color: #a6e3a1; font-weight: bold;");
+    layout->addWidget(m_lblSpeedTime);
+
+    m_chart = new SpeedChartWidget(this);
+    layout->addWidget(m_chart);
+
     layout->addWidget(new QLabel("Pending Operations Queue:", this));
     m_listPending = new QListWidget(this);
-    m_listPending->setMaximumHeight(80);
+    m_listPending->setMaximumHeight(70);
     layout->addWidget(m_listPending);
 
     QHBoxLayout* btnLayout = new QHBoxLayout();
@@ -337,6 +656,8 @@ void CopyQueueDialog::onJobStarted(const QString& src, const QString& dest, bool
     Q_UNUSED(dest);
     QString action = isMove ? "Moving" : "Copying";
     m_lblStatus->setText(QString("%1: %2").arg(action).arg(QFileInfo(src).fileName()));
+    m_chart->clearHistory();
+    m_lblSpeedTime->setText("Speed: 0 B/s | Time Remaining: Calculating...");
     updatePendingList();
 }
 
@@ -397,6 +718,35 @@ void CopyQueueDialog::updatePendingList() {
                                .arg(QFileInfo(job.srcPath).fileName())
                                .arg(QFileInfo(job.destPath).absolutePath()));
     }
+}
+
+void CopyQueueDialog::onCollisionDetected(const QString& srcPath, const QString& destPath, int* resolution) {
+    FileCollisionDialog dlg(srcPath, destPath, this);
+    dlg.exec();
+    *resolution = dlg.resolution();
+}
+
+void CopyQueueDialog::onSpeedUpdated(double speedBytesPerSec, qint64 remainingSeconds) {
+    double speedMB = speedBytesPerSec / (1024.0 * 1024.0);
+    m_chart->addSpeedPoint(speedMB);
+    m_lblSpeedTime->setText(QString("Speed: %1/s | Time Remaining: %2")
+                            .arg(formatBytes(static_cast<qint64>(speedBytesPerSec)))
+                            .arg(formatTime(remainingSeconds)));
+}
+
+QString CopyQueueDialog::formatTime(qint64 seconds) const {
+    if (seconds <= 0) return "Calculating...";
+    qint64 mins = seconds / 60;
+    qint64 secs = seconds % 60;
+    qint64 hours = mins / 60;
+    mins = mins % 60;
+    
+    if (hours > 0) {
+        return QString("%1h %2m %3s").arg(hours).arg(mins).arg(secs);
+    } else if (mins > 0) {
+        return QString("%1m %2s").arg(mins).arg(secs);
+    }
+    return QString("%1s").arg(secs);
 }
 
 QString CopyQueueDialog::formatBytes(qint64 bytes) const {

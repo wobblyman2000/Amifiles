@@ -44,6 +44,10 @@ add_executable(Amifiles
     src/customfilesystemmodel.cpp
     src/buttoneditor.h
     src/buttoneditor.cpp
+    src/searchworker.h
+    src/searchworker.cpp
+    src/helpdialog.h
+    src/helpdialog.cpp
 )
 
 target_link_libraries(Amifiles PRIVATE

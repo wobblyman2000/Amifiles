@@ -16,13 +16,20 @@ struct FileMetadata {
     // Image Specific
     QSize imageDimensions;
     QString imageFormat;
+    QString cameraModel;
+    QString dateTaken;
 
-    // Audio Specific
+    // Audio / Media Specific
     QString title;
     QString artist;
     QString album;
     QString durationStr;
+    qint64 durationMs = 0;
     int bitrate = 0; // kbps
+    QString genre;
+    QString year;
+    QString track;
+    QString codec;
 };
 
 class MetadataExtractor {

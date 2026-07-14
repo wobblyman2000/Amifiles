@@ -2,6 +2,10 @@
 #define FILEPANEL_H
 
 #include <QWidget>
+#include <QDialog>
+#include <QStringListModel>
+#include <QTimer>
+#include <QThread>
 #include <QFileSystemModel>
 #include <QSortFilterProxyModel>
 #include <QTreeView>
@@ -30,10 +34,11 @@
 #include "customfilesystemmodel.h"
 
 class ArchiveModel;
+class SearchWorker;
 
 // Custom filter proxy model to support prefix/substring matching and file type categories
 class FileFilterProxyModel : public QSortFilterProxyModel {
-    Q_OBJECT
+
 public:
     enum FilterType { FilterAll, FilterAudio, FilterVideos, FilterPictures, FilterDocs, FilterArchive };
 
@@ -402,7 +407,7 @@ class FilePanel : public QWidget {
     Q_OBJECT
 public:
     explicit FilePanel(const QString& initialPath, QWidget* parent = nullptr);
-    ~FilePanel() override = default;
+    ~FilePanel() override;
 
     bool isArchiveViewActive() const { return m_archiveViewActive; }
 
@@ -446,6 +451,10 @@ public:
     // Flat View Support
     void setFlatViewEnabled(bool enabled);
     bool isFlatViewEnabled() const { return m_flatViewEnabled; }
+    
+    // Search Support
+    void setSearchQuery(const QString& query);
+    QString searchQuery() const;
 
 signals:
     void pathChanged(const QString& path);
@@ -454,6 +463,7 @@ signals:
     void panelActivated(FilePanel* panel);
     void playlistPlayRequested(const QStringList& filePaths);
     void zoomChanged(int value);
+    void sigStartSearch(const QString& query, const QString& path);
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
@@ -474,6 +484,12 @@ private slots:
     void onToggleViewMode();
     void onZoomChanged(int value);
     void onHeaderContextMenu(const QPoint& pos);
+    void onGlobalSearchChanged(const QString& text);
+    void startSearch();
+    void onSearchResultsReady(const QStringList& results);
+    void onSearchFinished();
+    void onSearchResultSelected(const QModelIndex& index);
+    void onSearchResultDoubleClicked(const QModelIndex& index);
     void zoomIn();
     void zoomOut();
 
@@ -500,6 +516,16 @@ private:
     QToolButton* m_btnGo = nullptr;
     QToolButton* m_btnFavorite = nullptr;
     QToolButton* m_btnFlatView = nullptr;
+    QToolButton* m_btnViewMode = nullptr; // keep single instance
+    QHeaderView* m_header = nullptr;
+    // New global search components
+    QLineEdit* m_globalSearchEdit = nullptr;
+    QListView* m_searchResultsView = nullptr;
+    QTimer* m_searchDebounceTimer = nullptr;
+    QThread* m_searchThread = nullptr;
+    SearchWorker* m_searchWorker = nullptr;
+    // Model for displaying results
+    QStringListModel* m_searchResultModel = nullptr;
 
     QTreeView* m_treeView = nullptr;
     CustomFileSystemModel* m_fileModel = nullptr;
@@ -512,7 +538,6 @@ private:
     ArchiveModel* m_archiveModel = nullptr;
     bool m_archiveViewActive = false;
 
-    QToolButton* m_btnViewMode = nullptr;
     QSlider* m_zoomSlider = nullptr;
     QStackedWidget* m_viewStack = nullptr;
     QListView* m_listView = nullptr;
@@ -533,6 +558,20 @@ private:
     FilePanel* m_siblingPanel = nullptr;
 
     QString m_folderArtPath;
+};
+
+class QCheckBox;
+
+class ColumnSelectorDialog : public QDialog {
+    Q_OBJECT
+public:
+    ColumnSelectorDialog(const QStringList& columnNames, const QList<bool>& visibilities, QWidget* parent = nullptr);
+    ~ColumnSelectorDialog() override = default;
+
+    QList<bool> selectedVisibilities() const;
+
+private:
+    QList<QCheckBox*> m_checkboxes;
 };
 
 #endif // FILEPANEL_H

@@ -7,6 +7,7 @@
 #include <QAction>
 #include <QList>
 #include <QToolBar>
+#include <QTabWidget>
 #include "filepanel.h"
 #include "previewpanel.h"
 
@@ -79,6 +80,25 @@ private slots:
     void onMutePreview(bool checked);
     void onToggleArchiveNav(bool checked);
     void onToggleCasingOverlays(bool checked);
+    void onSaveSearchPreset();
+    void updateSearchPresetsMenu();
+    void onSearchPresetTriggered();
+
+    // Tab slots
+    void onLeftTabChanged(int index);
+    void onRightTabChanged(int index);
+    void onTabCloseRequested(int index);
+    void onNewTabAction();
+    void onCloseTabAction();
+    void onShowHelpAction();
+
+public:
+    QTabWidget* leftTabWidget() const { return m_leftTabWidget; }
+    QTabWidget* rightTabWidget() const { return m_rightTabWidget; }
+    FilePanel* leftPanel() const;
+    FilePanel* rightPanel() const;
+    FilePanel* createTab(QTabWidget* tabWidget, const QString& path);
+    void updateSiblingLinks();
 
 private:
     void setupActions();
@@ -102,8 +122,8 @@ private:
 
     // View Splitter and Panels
     QSplitter* m_splitter = nullptr;
-    FilePanel* m_leftPanel = nullptr;
-    FilePanel* m_rightPanel = nullptr;
+    QTabWidget* m_leftTabWidget = nullptr;
+    QTabWidget* m_rightTabWidget = nullptr;
     PreviewPanel* m_previewPanel = nullptr;
     MiniMediaControls* m_miniMediaControls = nullptr;
     ConsolePanel* m_consolePanel = nullptr;
@@ -116,6 +136,8 @@ private:
     QMenu* m_menuDrives = nullptr;
     QMenu* m_menuTools = nullptr;
     QMenu* m_menuHelp = nullptr;
+    QMenu* m_menuSearch = nullptr;
+    QMenu* m_menuSearchPresets = nullptr;
 
     // Actions (wired to toolbar & menu items)
     QAction* m_actCopy = nullptr;
@@ -147,6 +169,10 @@ private:
     QAction* m_actLeftShowCategoryButtons = nullptr;
     QAction* m_actRightShowFilterText = nullptr;
     QAction* m_actRightShowCategoryButtons = nullptr;
+
+    QAction* m_actNewTab = nullptr;
+    QAction* m_actCloseTab = nullptr;
+    QAction* m_actShowHelp = nullptr;
 
     // Dynamic Toolbars
     QToolBar* m_tbFile = nullptr;

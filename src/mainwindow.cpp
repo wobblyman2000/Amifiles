@@ -6,6 +6,7 @@
 #include "consolepanel.h"
 #include "foldersync.h"
 #include "dupfinder.h"
+#include "helpdialog.h"
 #include <QMenuBar>
 #include <QStorageInfo>
 #include <QToolBar>
@@ -27,7 +28,7 @@
 #include <QSettings>
 #include <QStatusBar>
 #include <QFileDialog>
-#include <QToolButton>
+#include <QInputDialog>
 
 // Built-in dialog to create/edit custom commands (script buttons)
 class CustomButtonDialog : public QDialog {
@@ -150,8 +151,11 @@ public:
             "  <font color='#f38ba8'>$AMIFILES_CURRENT_DIR</font> or <font color='#f38ba8'>{dir}</font> - Active folder directory<br/>"
             "  <font color='#a6e3a1'>$AMIFILES_SELECTED_FIRST</font> or <font color='#a6e3a1'>{filepath}</font> - First selected path<br/>"
             "  <font color='#89b4fa'>$AMIFILES_SELECTED</font> - Newline list of all selected paths<br/>"
-            "  <font color='#fab387'>{dest}</font> - Path of the opposite panel folder", this);
-        lblHelp->setStyleSheet("color: #a6adc8; font-size: 11px;");
+            "  <font color='#fab387'>{dest}</font> - Path of the opposite panel folder<br/>"
+            "<b>Internal Commands:</b> Start command with <font color='#89b4fa'>@internal:</font> followed by:<br/>"
+            "  Copy, Move, Cut, Paste, Delete, Rename, NewFolder, Refresh, CompareSync,<br/>"
+            "  DuplicateFinder, ToggleDualPane, TogglePreview, ToggleFlatView, Go &lt;path&gt;", this);
+        lblHelp->setStyleSheet("color: #a6adc8; font-size: 10px;");
         layout->addWidget(lblHelp);
 
         QHBoxLayout* btnLayout = new QHBoxLayout();
@@ -337,22 +341,22 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     bool rightCategoryVisible = settings.value("right_panel/category_buttons_visible", true).toBool();
 
     m_actLeftShowFilterText->setChecked(leftFilterTextVisible);
-    m_leftPanel->setFilterTextBarVisible(leftFilterTextVisible);
+    if (leftPanel()) leftPanel()->setFilterTextBarVisible(leftFilterTextVisible);
 
     m_actLeftShowCategoryButtons->setChecked(leftCategoryVisible);
-    m_leftPanel->setCategoryButtonsVisible(leftCategoryVisible);
+    if (leftPanel()) leftPanel()->setCategoryButtonsVisible(leftCategoryVisible);
 
     m_actRightShowFilterText->setChecked(rightFilterTextVisible);
-    m_rightPanel->setFilterTextBarVisible(rightFilterTextVisible);
+    if (rightPanel()) rightPanel()->setFilterTextBarVisible(rightFilterTextVisible);
 
     m_actRightShowCategoryButtons->setChecked(rightCategoryVisible);
-    m_rightPanel->setCategoryButtonsVisible(rightCategoryVisible);
+    if (rightPanel()) rightPanel()->setCategoryButtonsVisible(rightCategoryVisible);
 
     // Initial populate of drives
     updateDrivesList();
 
     // Default active panel is Left
-    onPanelActivated(m_leftPanel);
+    onPanelActivated(leftPanel());
 }
 
 void MainWindow::setupCentralWidget() {
@@ -362,18 +366,29 @@ void MainWindow::setupCentralWidget() {
     m_splitter = new QSplitter(Qt::Horizontal, this);
     m_splitter->setHandleWidth(4);
 
-    m_leftPanel = new FilePanel(QDir::homePath(), this);
-    m_rightPanel = new FilePanel(QDir::homePath(), this);
-    m_leftPanel->setSiblingPanel(m_rightPanel);
-    m_rightPanel->setSiblingPanel(m_leftPanel);
+    m_leftTabWidget = new QTabWidget(this);
+    m_leftTabWidget->setTabsClosable(true);
+    m_leftTabWidget->setMovable(true);
+    m_leftTabWidget->setStyleSheet(
+        "QTabWidget::pane { border: 1px solid #313244; background-color: #1e1e2e; }"
+        "QTabBar::tab { background-color: #181825; color: #a6adc8; border: 1px solid #313244; border-bottom: none; padding: 6px 12px; border-top-left-radius: 4px; border-top-right-radius: 4px; }"
+        "QTabBar::tab:selected { background-color: #1e1e2e; color: #cdd6f4; border-color: #313244; }"
+        "QTabBar::tab:hover { background-color: #313244; color: #cdd6f4; }"
+    );
+
+    m_rightTabWidget = new QTabWidget(this);
+    m_rightTabWidget->setTabsClosable(true);
+    m_rightTabWidget->setMovable(true);
+    m_rightTabWidget->setStyleSheet(m_leftTabWidget->styleSheet());
+
     m_previewPanel = new PreviewPanel(this);
 
-    // Initial age coloring sync
-    m_leftPanel->proxyModel()->setAgeColoringEnabled(m_ageColoringEnabled);
-    m_rightPanel->proxyModel()->setAgeColoringEnabled(m_ageColoringEnabled);
+    // Add first tabs
+    createTab(m_leftTabWidget, QDir::homePath());
+    createTab(m_rightTabWidget, QDir::homePath());
 
-    m_splitter->addWidget(m_leftPanel);
-    m_splitter->addWidget(m_rightPanel);
+    m_splitter->addWidget(m_leftTabWidget);
+    m_splitter->addWidget(m_rightTabWidget);
     m_splitter->addWidget(m_previewPanel);
 
     m_splitter->setSizes({450, 450, 300});
@@ -386,27 +401,13 @@ void MainWindow::setupCentralWidget() {
 
     setCentralWidget(mainVSplitter);
 
-    // Connect selection/activation signals
-    connect(m_leftPanel, &FilePanel::panelActivated, this, &MainWindow::onPanelActivated);
-    connect(m_rightPanel, &FilePanel::panelActivated, this, &MainWindow::onPanelActivated);
+    // Connect tab change and close signals
+    connect(m_leftTabWidget, &QTabWidget::currentChanged, this, &MainWindow::onLeftTabChanged);
+    connect(m_rightTabWidget, &QTabWidget::currentChanged, this, &MainWindow::onRightTabChanged);
+    connect(m_leftTabWidget, &QTabWidget::tabCloseRequested, this, &MainWindow::onTabCloseRequested);
+    connect(m_rightTabWidget, &QTabWidget::tabCloseRequested, this, &MainWindow::onTabCloseRequested);
 
-    connect(m_leftPanel, &FilePanel::fileSelected, this, &MainWindow::onFileSelected);
-    connect(m_rightPanel, &FilePanel::fileSelected, this, &MainWindow::onFileSelected);
-
-    connect(m_leftPanel, &FilePanel::folderArtDetected, this, &MainWindow::onFolderArtDetected);
-    connect(m_rightPanel, &FilePanel::folderArtDetected, this, &MainWindow::onFolderArtDetected);
-
-    connect(m_leftPanel, &FilePanel::pathChanged, this, &MainWindow::onPathChanged);
-    connect(m_rightPanel, &FilePanel::pathChanged, this, &MainWindow::onPathChanged);
-
-    connect(m_leftPanel, &FilePanel::playlistPlayRequested, this, [this](const QStringList& paths) {
-        if (m_previewPanel) m_previewPanel->playPlaylist(paths);
-    });
-    connect(m_rightPanel, &FilePanel::playlistPlayRequested, this, [this](const QStringList& paths) {
-        if (m_previewPanel) m_previewPanel->playPlaylist(paths);
-    });
-
-
+    updateSiblingLinks();
 
     // Initialize mini media controller in the status bar
     m_miniMediaControls = new MiniMediaControls(m_previewPanel->player(), this);
@@ -579,6 +580,20 @@ void MainWindow::setupActions() {
     m_actRightShowCategoryButtons->setCheckable(true);
     m_actRightShowCategoryButtons->setChecked(true);
     connect(m_actRightShowCategoryButtons, &QAction::toggled, this, &MainWindow::onToggleRightCategoryButtons);
+    m_actNewTab = new QAction("New Tab", this);
+    m_actNewTab->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_T));
+    m_actNewTab->setToolTip("Open a new folder tab (Ctrl+T)");
+    connect(m_actNewTab, &QAction::triggered, this, &MainWindow::onNewTabAction);
+
+    m_actCloseTab = new QAction("Close Tab", this);
+    m_actCloseTab->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_W));
+    m_actCloseTab->setToolTip("Close the current tab (Ctrl+W)");
+    connect(m_actCloseTab, &QAction::triggered, this, &MainWindow::onCloseTabAction);
+
+    m_actShowHelp = new QAction(style->standardIcon(QStyle::SP_DialogHelpButton), "User Guide & Documentation", this);
+    m_actShowHelp->setShortcut(QKeySequence(Qt::Key_F1));
+    m_actShowHelp->setToolTip("Open user manual (F1)");
+    connect(m_actShowHelp, &QAction::triggered, this, &MainWindow::onShowHelpAction);
 
     // Bind actions to window to ensure keyboard shortcuts work globally
     addAction(m_actNewFolder);
@@ -603,10 +618,16 @@ void MainWindow::setupActions() {
     addAction(m_actToggleFlatView);
     addAction(m_actCompareSync);
     addAction(m_actDuplicateFinder);
+    addAction(m_actNewTab);
+    addAction(m_actCloseTab);
+    addAction(m_actShowHelp);
 }
 
 void MainWindow::setupMenus() {
     m_menuFile = menuBar()->addMenu("File");
+    m_menuFile->addAction(m_actNewTab);
+    m_menuFile->addAction(m_actCloseTab);
+    m_menuFile->addSeparator();
     m_menuFile->addAction(m_actNewFolder);
     m_menuFile->addAction(m_actProperties);
     m_menuFile->addSeparator();
@@ -652,7 +673,14 @@ void MainWindow::setupMenus() {
     m_menuTools->addAction(m_actCompareSync);
     m_menuTools->addAction(m_actDuplicateFinder);
 
+    m_menuSearch = menuBar()->addMenu("Search");
+    m_menuSearch->addAction("Save Current Search as Preset...", this, &MainWindow::onSaveSearchPreset);
+    m_menuSearchPresets = m_menuSearch->addMenu("Saved Presets");
+    connect(m_menuSearchPresets, &QMenu::aboutToShow, this, &MainWindow::updateSearchPresetsMenu);
+
     m_menuHelp = menuBar()->addMenu("Help");
+    m_menuHelp->addAction(m_actShowHelp);
+    m_menuHelp->addSeparator();
     m_menuHelp->addAction("About Amifiles", this, [this]() {
         QMessageBox::about(this, "About Amifiles", 
                            "<h3>Amifiles v1.0</h3>"
@@ -710,24 +738,26 @@ void MainWindow::onPanelActivated(FilePanel* panel) {
     if (m_activePanel != panel) {
         m_activePanel = panel;
         
-        m_leftPanel->setActive(m_activePanel == m_leftPanel);
-        m_rightPanel->setActive(m_activePanel == m_rightPanel);
+        FilePanel* lp = leftPanel();
+        FilePanel* rp = rightPanel();
+        if (lp) lp->setActive(m_activePanel == lp);
+        if (rp) rp->setActive(m_activePanel == rp);
 
         // Sync visible filter controls to active panel's state
-        if (m_leftPanel && m_rightPanel) {
-            if (m_activePanel == m_leftPanel) {
-                if (!m_leftPanel->isFilterTextBarVisible() && m_rightPanel->isFilterTextBarVisible()) {
-                    m_rightPanel->syncFilterText(m_leftPanel->filterText());
+        if (lp && rp) {
+            if (m_activePanel == lp) {
+                if (!lp->isFilterTextBarVisible() && rp->isFilterTextBarVisible()) {
+                    rp->syncFilterText(lp->filterText());
                 }
-                if (!m_leftPanel->isCategoryButtonsVisible() && m_rightPanel->isCategoryButtonsVisible()) {
-                    m_rightPanel->syncFilterType(m_leftPanel->proxyModel()->filterType());
+                if (!lp->isCategoryButtonsVisible() && rp->isCategoryButtonsVisible()) {
+                    rp->syncFilterType(lp->proxyModel()->filterType());
                 }
             } else { // right is active
-                if (!m_rightPanel->isFilterTextBarVisible() && m_leftPanel->isFilterTextBarVisible()) {
-                    m_leftPanel->syncFilterText(m_rightPanel->filterText());
+                if (!rp->isFilterTextBarVisible() && lp->isFilterTextBarVisible()) {
+                    lp->syncFilterText(rp->filterText());
                 }
-                if (!m_rightPanel->isCategoryButtonsVisible() && m_leftPanel->isCategoryButtonsVisible()) {
-                    m_leftPanel->syncFilterType(m_rightPanel->proxyModel()->filterType());
+                if (!rp->isCategoryButtonsVisible() && lp->isCategoryButtonsVisible()) {
+                    lp->syncFilterType(rp->proxyModel()->filterType());
                 }
             }
         }
@@ -780,10 +810,10 @@ void MainWindow::onPathChanged(const QString& path) {
 
 void MainWindow::onToggleDualPane(bool checked) {
     m_isDualPane = checked;
-    m_rightPanel->setVisible(checked);
+    if (m_rightTabWidget) m_rightTabWidget->setVisible(checked);
     
-    if (!checked && m_activePanel == m_rightPanel) {
-        onPanelActivated(m_leftPanel);
+    if (!checked && m_activePanel && m_rightTabWidget && m_rightTabWidget->indexOf(m_activePanel) != -1) {
+        onPanelActivated(leftPanel());
     }
 
     if (m_splitter) {
@@ -856,10 +886,20 @@ void MainWindow::updateMiniPlayer() {
 
 void MainWindow::onToggleAgeColoring(bool checked) {
     m_ageColoringEnabled = checked;
-    m_leftPanel->proxyModel()->setAgeColoringEnabled(checked);
-    m_rightPanel->proxyModel()->setAgeColoringEnabled(checked);
-    m_leftPanel->refresh();
-    m_rightPanel->refresh();
+    for (int i = 0; i < m_leftTabWidget->count(); ++i) {
+        FilePanel* panel = qobject_cast<FilePanel*>(m_leftTabWidget->widget(i));
+        if (panel) {
+            panel->proxyModel()->setAgeColoringEnabled(checked);
+            panel->refresh();
+        }
+    }
+    for (int i = 0; i < m_rightTabWidget->count(); ++i) {
+        FilePanel* panel = qobject_cast<FilePanel*>(m_rightTabWidget->widget(i));
+        if (panel) {
+            panel->proxyModel()->setAgeColoringEnabled(checked);
+            panel->refresh();
+        }
+    }
 }
 
 // Router Slots
@@ -905,14 +945,14 @@ void MainWindow::onBulkRenameAction() {
     
     BulkRenameDialog dlg(selected, this);
     if (dlg.exec() == QDialog::Accepted) {
-        m_leftPanel->refresh();
-        m_rightPanel->refresh();
+        if (leftPanel()) leftPanel()->refresh();
+        if (rightPanel()) rightPanel()->refresh();
     }
 }
 
 void MainWindow::onCopyToSiblingAction() {
     if (!m_activePanel) return;
-    FilePanel* destPanel = (m_activePanel == m_leftPanel) ? m_rightPanel : m_leftPanel;
+    FilePanel* destPanel = (m_activePanel == leftPanel()) ? rightPanel() : leftPanel();
     if (!destPanel) return;
 
     QStringList paths = m_activePanel->selectedPaths();
@@ -941,7 +981,7 @@ void MainWindow::onCopyToSiblingAction() {
 
 void MainWindow::onMoveToSiblingAction() {
     if (!m_activePanel) return;
-    FilePanel* destPanel = (m_activePanel == m_leftPanel) ? m_rightPanel : m_leftPanel;
+    FilePanel* destPanel = (m_activePanel == leftPanel()) ? rightPanel() : leftPanel();
     if (!destPanel) return;
 
     QStringList paths = m_activePanel->selectedPaths();
@@ -1173,44 +1213,68 @@ void MainWindow::onMutePreview(bool checked) {
 void MainWindow::onToggleArchiveNav(bool checked) {
     QSettings settings("Amifiles", "Amifiles");
     settings.setValue("preferences/archive_nav", checked);
-    if (m_leftPanel) m_leftPanel->refresh();
-    if (m_rightPanel) m_rightPanel->refresh();
+    for (int i = 0; i < m_leftTabWidget->count(); ++i) {
+        FilePanel* p = qobject_cast<FilePanel*>(m_leftTabWidget->widget(i));
+        if (p) p->refresh();
+    }
+    for (int i = 0; i < m_rightTabWidget->count(); ++i) {
+        FilePanel* p = qobject_cast<FilePanel*>(m_rightTabWidget->widget(i));
+        if (p) p->refresh();
+    }
 }
 
 void MainWindow::onToggleCasingOverlays(bool checked) {
     QSettings settings("Amifiles", "Amifiles");
     settings.setValue("preferences/casing_overlays", checked);
-    if (m_leftPanel) m_leftPanel->refresh();
-    if (m_rightPanel) m_rightPanel->refresh();
+    for (int i = 0; i < m_leftTabWidget->count(); ++i) {
+        FilePanel* p = qobject_cast<FilePanel*>(m_leftTabWidget->widget(i));
+        if (p) p->refresh();
+    }
+    for (int i = 0; i < m_rightTabWidget->count(); ++i) {
+        FilePanel* p = qobject_cast<FilePanel*>(m_rightTabWidget->widget(i));
+        if (p) p->refresh();
+    }
 }
 
 void MainWindow::onToggleLeftFilterText(bool checked) {
-    if (m_leftPanel) {
-        m_leftPanel->setFilterTextBarVisible(checked);
+    for (int i = 0; i < m_leftTabWidget->count(); ++i) {
+        FilePanel* panel = qobject_cast<FilePanel*>(m_leftTabWidget->widget(i));
+        if (panel) {
+            panel->setFilterTextBarVisible(checked);
+        }
     }
     QSettings settings("Amifiles", "Amifiles");
     settings.setValue("left_panel/filter_text_visible", checked);
 }
 
 void MainWindow::onToggleLeftCategoryButtons(bool checked) {
-    if (m_leftPanel) {
-        m_leftPanel->setCategoryButtonsVisible(checked);
+    for (int i = 0; i < m_leftTabWidget->count(); ++i) {
+        FilePanel* panel = qobject_cast<FilePanel*>(m_leftTabWidget->widget(i));
+        if (panel) {
+            panel->setCategoryButtonsVisible(checked);
+        }
     }
     QSettings settings("Amifiles", "Amifiles");
     settings.setValue("left_panel/category_buttons_visible", checked);
 }
 
 void MainWindow::onToggleRightFilterText(bool checked) {
-    if (m_rightPanel) {
-        m_rightPanel->setFilterTextBarVisible(checked);
+    for (int i = 0; i < m_rightTabWidget->count(); ++i) {
+        FilePanel* panel = qobject_cast<FilePanel*>(m_rightTabWidget->widget(i));
+        if (panel) {
+            panel->setFilterTextBarVisible(checked);
+        }
     }
     QSettings settings("Amifiles", "Amifiles");
     settings.setValue("right_panel/filter_text_visible", checked);
 }
 
 void MainWindow::onToggleRightCategoryButtons(bool checked) {
-    if (m_rightPanel) {
-        m_rightPanel->setCategoryButtonsVisible(checked);
+    for (int i = 0; i < m_rightTabWidget->count(); ++i) {
+        FilePanel* panel = qobject_cast<FilePanel*>(m_rightTabWidget->widget(i));
+        if (panel) {
+            panel->setCategoryButtonsVisible(checked);
+        }
     }
     QSettings settings("Amifiles", "Amifiles");
     settings.setValue("right_panel/category_buttons_visible", checked);
@@ -1231,16 +1295,18 @@ void MainWindow::onToggleFlatView(bool checked) {
 }
 
 void MainWindow::onCompareSyncAction() {
-    if (!m_leftPanel || !m_rightPanel) return;
+    FilePanel* lp = leftPanel();
+    FilePanel* rp = rightPanel();
+    if (!lp || !rp) return;
 
-    QString leftPath = m_leftPanel->currentPath();
-    QString rightPath = m_rightPanel->currentPath();
+    QString leftPath = lp->currentPath();
+    QString rightPath = rp->currentPath();
 
     FolderSyncDialog dlg(leftPath, rightPath, this);
     dlg.exec();
 
-    m_leftPanel->refresh();
-    m_rightPanel->refresh();
+    lp->refresh();
+    rp->refresh();
 }
 
 void MainWindow::onDuplicateFinderAction() {
@@ -1346,8 +1412,50 @@ void MainWindow::onCustomButtonClicked() {
     QAction* act = qobject_cast<QAction*>(sender());
     if (!act || !m_activePanel) return;
 
-    QString script = act->property("script").toString();
+    QString script = act->property("script").toString().trimmed();
     if (script.isEmpty()) return;
+
+    if (script.startsWith("@internal:")) {
+        QString cmd = script.mid(10).trimmed();
+        if (cmd == "Copy") {
+            onCopyToSiblingAction();
+        } else if (cmd == "Move") {
+            onMoveToSiblingAction();
+        } else if (cmd == "Cut") {
+            onCutAction();
+        } else if (cmd == "Paste") {
+            onPasteAction();
+        } else if (cmd == "Delete") {
+            onDeleteAction();
+        } else if (cmd == "Rename") {
+            onRenameAction();
+        } else if (cmd == "NewFolder") {
+            onNewFolderAction();
+        } else if (cmd == "Refresh") {
+            onRefreshAction();
+        } else if (cmd == "ToggleDualPane") {
+            m_actToggleDualPane->trigger();
+        } else if (cmd == "TogglePreview") {
+            m_actTogglePreview->trigger();
+        } else if (cmd == "ToggleFlatView") {
+            m_actToggleFlatView->trigger();
+        } else if (cmd == "CompareSync") {
+            onCompareSyncAction();
+        } else if (cmd == "DuplicateFinder") {
+            onDuplicateFinderAction();
+        } else if (cmd.startsWith("Go ") || cmd == "Go") {
+            QString path = cmd.mid(3).trimmed();
+            QString activeDir = m_activePanel ? m_activePanel->currentPath() : "";
+            FilePanel* destPanel = (m_activePanel == leftPanel()) ? rightPanel() : leftPanel();
+            QString destDir = destPanel ? destPanel->currentPath() : "";
+            path.replace("{dest}", destDir);
+            path.replace("{dir}", activeDir);
+            m_activePanel->setPath(path);
+        } else {
+            statusBar()->showMessage(QString("Unknown internal command: %1").arg(cmd), 4000);
+        }
+        return;
+    }
 
     QProcess* process = new QProcess(this);
     process->setWorkingDirectory(m_activePanel->currentPath());
@@ -1384,7 +1492,7 @@ void MainWindow::onCustomButtonClicked() {
 
     QString commandStr = script;
     QString activeDir = m_activePanel ? m_activePanel->currentPath() : "";
-    FilePanel* destPanel = (m_activePanel == m_leftPanel) ? m_rightPanel : m_leftPanel;
+    FilePanel* destPanel = (m_activePanel == leftPanel()) ? rightPanel() : leftPanel();
     QString destDir = destPanel ? destPanel->currentPath() : "";
     QString firstSelected = selected.isEmpty() ? "" : selected.first();
 
@@ -1405,8 +1513,8 @@ void MainWindow::onCustomButtonClicked() {
         } else {
             statusBar()->showMessage(QString("Command '%1' completed successfully.").arg(act->text()), 3000);
             if (m_consolePanel) m_consolePanel->appendSystem("Command finished successfully.");
-            m_leftPanel->refresh();
-            m_rightPanel->refresh();
+            if (leftPanel()) leftPanel()->refresh();
+            if (rightPanel()) rightPanel()->refresh();
         }
         process->deleteLater();
     });
@@ -1459,19 +1567,232 @@ void MainWindow::onCustomToolBarContextMenu(const QPoint& pos) {
     }
 }
 
+void MainWindow::onSaveSearchPreset() {
+    if (!m_activePanel) return;
+    
+    QString query = m_activePanel->searchQuery();
+    if (query.isEmpty()) {
+        QMessageBox::information(this, "Save Search Preset", "Please enter a search query in the search bar first.");
+        return;
+    }
+    
+    bool ok;
+    QString presetName = QInputDialog::getText(this, "Save Search Preset", 
+                                               "Enter a name for this search preset:", 
+                                               QLineEdit::Normal, "", &ok);
+    if (!ok || presetName.trimmed().isEmpty()) {
+        return;
+    }
+    
+    QSettings settings("Amifiles", "Amifiles");
+    QVariantList presets = settings.value("search/presets").toList();
+    
+    QVariantMap newPreset;
+    newPreset["name"] = presetName.trimmed();
+    newPreset["query"] = query;
+    presets.append(newPreset);
+    
+    settings.setValue("search/presets", presets);
+    statusBar()->showMessage(QString("Search preset '%1' saved.").arg(presetName), 3000);
+}
+
+void MainWindow::updateSearchPresetsMenu() {
+    m_menuSearchPresets->clear();
+    
+    QSettings settings("Amifiles", "Amifiles");
+    QVariantList presets = settings.value("search/presets").toList();
+    
+    if (presets.isEmpty()) {
+        QAction* emptyAct = m_menuSearchPresets->addAction("No presets saved");
+        emptyAct->setEnabled(false);
+        return;
+    }
+    
+    for (const QVariant& pVar : presets) {
+        QVariantMap pMap = pVar.toMap();
+        QString name = pMap["name"].toString();
+        QString query = pMap["query"].toString();
+        
+        QAction* act = m_menuSearchPresets->addAction(QString("%1 (%2)").arg(name, query));
+        act->setData(query);
+        connect(act, &QAction::triggered, this, &MainWindow::onSearchPresetTriggered);
+    }
+}
+
+void MainWindow::onSearchPresetTriggered() {
+    QAction* act = qobject_cast<QAction*>(sender());
+    if (!act) return;
+    
+    QString query = act->data().toString();
+    if (m_activePanel) {
+        m_activePanel->setSearchQuery(query);
+    }
+}
+
 MainWindow::~MainWindow() {
-    if (m_leftPanel) {
-        disconnect(m_leftPanel, nullptr, nullptr, nullptr);
-    }
-    if (m_rightPanel) {
-        disconnect(m_rightPanel, nullptr, nullptr, nullptr);
-    }
     if (m_previewPanel) {
         disconnect(m_previewPanel, nullptr, nullptr, nullptr);
         if (m_previewPanel->player()) {
             disconnect(m_previewPanel->player(), nullptr, nullptr, nullptr);
         }
     }
+}
+
+FilePanel* MainWindow::leftPanel() const {
+    if (!m_leftTabWidget) return nullptr;
+    return qobject_cast<FilePanel*>(m_leftTabWidget->currentWidget());
+}
+
+FilePanel* MainWindow::rightPanel() const {
+    if (!m_rightTabWidget) return nullptr;
+    return qobject_cast<FilePanel*>(m_rightTabWidget->currentWidget());
+}
+
+FilePanel* MainWindow::createTab(QTabWidget* tabWidget, const QString& path) {
+    FilePanel* panel = new FilePanel(path, this);
+
+    connect(panel, &FilePanel::panelActivated, this, &MainWindow::onPanelActivated);
+    connect(panel, &FilePanel::fileSelected, this, &MainWindow::onFileSelected);
+    connect(panel, &FilePanel::folderArtDetected, this, &MainWindow::onFolderArtDetected);
+    connect(panel, &FilePanel::pathChanged, this, &MainWindow::onPathChanged);
+    connect(panel, &FilePanel::playlistPlayRequested, this, [this](const QStringList& paths) {
+        if (m_previewPanel) m_previewPanel->playPlaylist(paths);
+    });
+
+    panel->proxyModel()->setAgeColoringEnabled(m_ageColoringEnabled);
+
+    // Keep tab title sync'd with path changes
+    connect(panel, &FilePanel::pathChanged, this, [tabWidget, panel](const QString& newPath) {
+        int idx = tabWidget->indexOf(panel);
+        if (idx != -1) {
+            QString name = QFileInfo(newPath).fileName();
+            if (name.isEmpty()) name = newPath;
+            tabWidget->setTabText(idx, name);
+        }
+    });
+
+    QString name = QFileInfo(path).fileName();
+    if (name.isEmpty()) name = path;
+
+    int index = tabWidget->addTab(panel, name);
+    tabWidget->setCurrentIndex(index);
+
+    updateSiblingLinks();
+    return panel;
+}
+
+void MainWindow::updateSiblingLinks() {
+    FilePanel* left = leftPanel();
+    FilePanel* right = rightPanel();
+    if (left && right) {
+        left->setSiblingPanel(right);
+        right->setSiblingPanel(left);
+    }
+}
+
+void MainWindow::onLeftTabChanged(int index) {
+    Q_UNUSED(index);
+    updateSiblingLinks();
+    FilePanel* lp = leftPanel();
+    if (lp) {
+        onPanelActivated(lp);
+        QStringList selected = lp->selectedPaths();
+        if (!selected.isEmpty()) {
+            onFileSelected(selected.first());
+        }
+    }
+}
+
+void MainWindow::onRightTabChanged(int index) {
+    Q_UNUSED(index);
+    updateSiblingLinks();
+    FilePanel* rp = rightPanel();
+    if (rp) {
+        onPanelActivated(rp);
+        QStringList selected = rp->selectedPaths();
+        if (!selected.isEmpty()) {
+            onFileSelected(selected.first());
+        }
+    }
+}
+
+void MainWindow::onTabCloseRequested(int index) {
+    QTabWidget* tabWidget = qobject_cast<QTabWidget*>(sender());
+    if (!tabWidget) {
+        if (m_activePanel) {
+            if (m_leftTabWidget->indexOf(m_activePanel) != -1) {
+                tabWidget = m_leftTabWidget;
+            } else if (m_rightTabWidget->indexOf(m_activePanel) != -1) {
+                tabWidget = m_rightTabWidget;
+            }
+        }
+    }
+    if (!tabWidget) return;
+
+    if (tabWidget->count() <= 1) {
+        statusBar()->showMessage("Cannot close the last tab.", 3000);
+        return;
+    }
+
+    QWidget* widget = tabWidget->widget(index);
+    tabWidget->removeTab(index);
+    widget->deleteLater();
+
+    updateSiblingLinks();
+    
+    FilePanel* active = qobject_cast<FilePanel*>(tabWidget->currentWidget());
+    if (active) {
+        onPanelActivated(active);
+    }
+}
+
+void MainWindow::onNewTabAction() {
+    QTabWidget* activeTabWidget = nullptr;
+    FilePanel* active = m_activePanel;
+    if (active) {
+        if (m_leftTabWidget->indexOf(active) != -1) {
+            activeTabWidget = m_leftTabWidget;
+        } else if (m_rightTabWidget->indexOf(active) != -1) {
+            activeTabWidget = m_rightTabWidget;
+        }
+    }
+
+    if (!activeTabWidget) {
+        activeTabWidget = m_leftTabWidget;
+    }
+
+    QString currentPath = QDir::homePath();
+    FilePanel* currentPanel = qobject_cast<FilePanel*>(activeTabWidget->currentWidget());
+    if (currentPanel) {
+        currentPath = currentPanel->currentPath();
+    }
+
+    createTab(activeTabWidget, currentPath);
+    statusBar()->showMessage("New tab opened.", 2000);
+}
+
+void MainWindow::onCloseTabAction() {
+    QTabWidget* activeTabWidget = nullptr;
+    FilePanel* active = m_activePanel;
+    if (active) {
+        if (m_leftTabWidget->indexOf(active) != -1) {
+            activeTabWidget = m_leftTabWidget;
+        } else if (m_rightTabWidget->indexOf(active) != -1) {
+            activeTabWidget = m_rightTabWidget;
+        }
+    }
+
+    if (!activeTabWidget) return;
+
+    int idx = activeTabWidget->currentIndex();
+    if (idx != -1) {
+        onTabCloseRequested(idx);
+    }
+}
+
+void MainWindow::onShowHelpAction() {
+    HelpDialog dlg(this);
+    dlg.exec();
 }
 
 #include "mainwindow.moc"

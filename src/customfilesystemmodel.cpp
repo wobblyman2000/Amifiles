@@ -5,7 +5,7 @@ CustomFileSystemModel::CustomFileSystemModel(QObject* parent)
 
 int CustomFileSystemModel::columnCount(const QModelIndex& parent) const {
     if (parent.column() > 0) return 0;
-    return QFileSystemModel::columnCount(parent) + 5;
+    return QFileSystemModel::columnCount(parent) + 12;
 }
 
 QVariant CustomFileSystemModel::headerData(int section, Qt::Orientation orientation, int role) const {
@@ -16,6 +16,13 @@ QVariant CustomFileSystemModel::headerData(int section, Qt::Orientation orientat
             case 6: return "Album";
             case 7: return "Bitrate";
             case 8: return "Resolution";
+            case 9: return "Date Taken";
+            case 10: return "Camera Model";
+            case 11: return "Genre";
+            case 12: return "Year";
+            case 13: return "Track";
+            case 14: return "Duration";
+            case 15: return "Codec";
             default: break;
         }
     }
@@ -37,6 +44,17 @@ QVariant CustomFileSystemModel::data(const QModelIndex& index, int role) const {
                 if (meta.imageDimensions.isValid()) {
                     return QString("%1x%2").arg(meta.imageDimensions.width()).arg(meta.imageDimensions.height());
                 }
+                return QVariant();
+            }
+            case 9: return meta.dateTaken;
+            case 10: return meta.cameraModel;
+            case 11: return meta.genre;
+            case 12: return meta.year;
+            case 13: return meta.track;
+            case 14: return meta.durationStr;
+            case 15: {
+                if (!meta.codec.isEmpty()) return meta.codec;
+                if (!meta.imageFormat.isEmpty()) return meta.imageFormat;
                 return QVariant();
             }
             default: break;

@@ -1,6 +1,7 @@
 #include "filepanel.h"
 #include "favoritesmanager.h"
 #include "archivemodel.h"
+#include "searchworker.h"
 #include "metadataextractor.h"
 #include "bulkrename.h"
 #include "copyqueue.h"
@@ -14,10 +15,12 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QRegularExpression>
+#include <QKeyEvent>
 #include <QDesktopServices>
 #include <QUrl>
 #include <QMenu>
 #include <QMessageBox>
+#include <QCheckBox>
 #include <QInputDialog>
 #include <QClipboard>
 #include <QMimeData>
@@ -57,6 +60,16 @@ FilePanel::FilePanel(const QString& initialPath, QWidget* parent)
     });
 
     navigateTo(initialPath, true);
+}
+
+FilePanel::~FilePanel() {
+    if (m_searchWorker) {
+        m_searchWorker->cancel();
+    }
+    if (m_searchThread) {
+        m_searchThread->quit();
+        m_searchThread->wait();
+    }
 }
 
 void FilePanel::setupUI() {
@@ -148,6 +161,35 @@ void FilePanel::setupUI() {
     m_viewStack->addWidget(m_treeView);
     m_viewStack->addWidget(m_listView);
 
+    // Global Search UI Setup
+    m_globalSearchEdit = new QLineEdit(this);
+    m_globalSearchEdit->setPlaceholderText("🔍 Search files & subfolders... (Esc to clear)");
+    m_globalSearchEdit->setClearButtonEnabled(true);
+    m_globalSearchEdit->installEventFilter(this);
+    connect(m_globalSearchEdit, &QLineEdit::textChanged, this, &FilePanel::onGlobalSearchChanged);
+
+    m_searchResultsView = new QListView(this);
+    m_searchResultsView->setVisible(false);
+    m_searchResultsView->installEventFilter(this);
+    m_searchResultModel = new QStringListModel(this);
+    m_searchResultsView->setModel(m_searchResultModel);
+    connect(m_searchResultsView, &QListView::clicked, this, &FilePanel::onSearchResultSelected);
+    connect(m_searchResultsView, &QListView::doubleClicked, this, &FilePanel::onSearchResultDoubleClicked);
+
+    m_searchDebounceTimer = new QTimer(this);
+    m_searchDebounceTimer->setSingleShot(true);
+    m_searchDebounceTimer->setInterval(300);
+    connect(m_searchDebounceTimer, &QTimer::timeout, this, &FilePanel::startSearch);
+
+    m_searchThread = new QThread(this);
+    m_searchWorker = new SearchWorker();
+    m_searchWorker->moveToThread(m_searchThread);
+    connect(m_searchThread, &QThread::finished, m_searchWorker, &QObject::deleteLater);
+    connect(this, &FilePanel::sigStartSearch, m_searchWorker, &SearchWorker::doSearch);
+    connect(m_searchWorker, &SearchWorker::resultsReady, this, &FilePanel::onSearchResultsReady);
+    connect(m_searchWorker, &SearchWorker::searchFinished, this, &FilePanel::onSearchFinished);
+    m_searchThread->start();
+
     // File Model & Proxy Model Setup
     m_fileModel = new CustomFileSystemModel(this);
     m_fileModel->setReadOnly(false);
@@ -172,6 +214,7 @@ void FilePanel::setupUI() {
     QHeaderView* header = m_treeView->header();
     header->setSectionsMovable(true);
     header->setStretchLastSection(true);
+    header->setSectionResizeMode(QHeaderView::Interactive);
 
     connect(m_treeView, &QTreeView::doubleClicked, this, &FilePanel::onDoubleClicked);
     connect(m_treeView, &QTreeView::customContextMenuRequested, this, &FilePanel::onCustomContextMenu);
@@ -190,7 +233,7 @@ void FilePanel::setupUI() {
 
     m_treeView->header()->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(m_treeView->header(), &QHeaderView::customContextMenuRequested, this, &FilePanel::onHeaderContextMenu);
-    for (int i = 0; i < 9; ++i) {
+    for (int i = 0; i < 16; ++i) {
         bool hidden = settings.value(QString("columns/hidden_%1").arg(i), i >= 4).toBool();
         m_treeView->header()->setSectionHidden(i, hidden);
     }
@@ -295,7 +338,9 @@ void FilePanel::setupUI() {
     bottomLayout->addWidget(m_categoryWidget);
     bottomLayout->addWidget(m_filterTextWidget);
 
+    mainLayout->addWidget(m_globalSearchEdit);
     mainLayout->addLayout(navLayout);
+    mainLayout->addWidget(m_searchResultsView, 1);
     mainLayout->addWidget(m_viewStack, 1);
     mainLayout->addLayout(bottomLayout);
 
@@ -308,6 +353,25 @@ void FilePanel::setupUI() {
 }
 
 bool FilePanel::eventFilter(QObject* watched, QEvent* event) {
+    if (watched == m_globalSearchEdit) {
+        if (event->type() == QEvent::FocusIn || event->type() == QEvent::MouseButtonPress) {
+            setActive(true);
+            emit panelActivated(this);
+        }
+        if (event->type() == QEvent::KeyPress) {
+            QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
+            if (keyEvent->key() == Qt::Key_Escape) {
+                m_globalSearchEdit->clear();
+                return true;
+            }
+        }
+    }
+    if (watched == m_searchResultsView) {
+        if (event->type() == QEvent::FocusIn || event->type() == QEvent::MouseButtonPress) {
+            setActive(true);
+            emit panelActivated(this);
+        }
+    }
     if (watched == m_treeView || watched == m_listView) {
         if (event->type() == QEvent::FocusIn || event->type() == QEvent::MouseButtonPress) {
             setActive(true);
@@ -334,9 +398,21 @@ void FilePanel::setActive(bool active) {
     if (active) {
         m_treeView->setStyleSheet("QTreeView { border: 2px solid #89b4fa; }");
         m_listView->setStyleSheet("QListView { border: 2px solid #89b4fa; }");
+        if (m_searchResultsView) {
+            m_searchResultsView->setStyleSheet("QListView { border: 2px solid #89b4fa; background-color: #1e1e2e; color: #cdd6f4; }");
+        }
+        if (m_globalSearchEdit) {
+            m_globalSearchEdit->setStyleSheet("QLineEdit { border: 2px solid #89b4fa; background-color: #1e1e2e; color: #cdd6f4; padding: 4px 8px; border-radius: 4px; }");
+        }
     } else {
         m_treeView->setStyleSheet("QTreeView { border: 2px solid #313244; }");
         m_listView->setStyleSheet("QListView { border: 2px solid #313244; }");
+        if (m_searchResultsView) {
+            m_searchResultsView->setStyleSheet("QListView { border: 2px solid #313244; background-color: #1e1e2e; color: #cdd6f4; }");
+        }
+        if (m_globalSearchEdit) {
+            m_globalSearchEdit->setStyleSheet("QLineEdit { border: 2px solid #313244; background-color: #1e1e2e; color: #cdd6f4; padding: 4px 8px; border-radius: 4px; }");
+        }
     }
 }
 
@@ -372,10 +448,10 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
 
                 if (m_categoryWidget) m_categoryWidget->hide();
 
-                m_treeView->header()->setSectionResizeMode(0, QHeaderView::Stretch);
-                m_treeView->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
-                m_treeView->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-                m_treeView->header()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+                // Enable interactive resizing for all columns
+                for (int i = 0; i < 4; ++i) {
+                    m_treeView->header()->setSectionResizeMode(i, QHeaderView::Interactive);
+                }
             }
 
             m_archiveModel->loadArchive(archiveFile);
@@ -399,10 +475,10 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
 
         if (m_categoryWidget) m_categoryWidget->setVisible(m_categoryButtonsVisible);
 
-        m_treeView->header()->setSectionResizeMode(0, QHeaderView::Stretch);
-        m_treeView->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
-        m_treeView->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-        m_treeView->header()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+        // Restore interactive resizing for all columns
+        for (int i = 0; i < 4; ++i) {
+            m_treeView->header()->setSectionResizeMode(i, QHeaderView::Interactive);
+        }
     }
 
     QDir dir(path);
@@ -497,10 +573,10 @@ void FilePanel::onNavigateUp() {
 
             if (m_categoryWidget) m_categoryWidget->setVisible(m_categoryButtonsVisible);
 
-            m_treeView->header()->setSectionResizeMode(0, QHeaderView::Stretch);
-            m_treeView->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
-            m_treeView->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-            m_treeView->header()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+            // Enable interactive resizing for main columns after exiting archive view
+            for (int i = 0; i < 4; ++i) {
+                m_treeView->header()->setSectionResizeMode(i, QHeaderView::Interactive);
+            }
 
             QString parentDir = QFileInfo(m_archiveModel->archivePath()).absolutePath();
             navigateTo(parentDir, true);
@@ -684,10 +760,10 @@ void FilePanel::onDoubleClicked(const QModelIndex& index) {
 
                 m_pathEdit->setText(QDir::toNativeSeparators(path) + "//");
                 
-                m_treeView->header()->setSectionResizeMode(0, QHeaderView::Stretch);
-                m_treeView->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
-                m_treeView->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-                m_treeView->header()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+                // Use interactive resizing for archive view columns
+                for (int i = 0; i < 4; ++i) {
+                    m_treeView->header()->setSectionResizeMode(i, QHeaderView::Interactive);
+                }
 
                 if (m_categoryWidget) m_categoryWidget->hide();
 
@@ -1299,10 +1375,10 @@ void FilePanel::setFlatViewEnabled(bool enabled) {
         connect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
     }
 
-    m_treeView->header()->setSectionResizeMode(0, QHeaderView::Stretch);
-    m_treeView->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
-    m_treeView->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-    m_treeView->header()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+    // Enable interactive resizing for main columns
+    for (int i = 0; i < 4; ++i) {
+        m_treeView->header()->setSectionResizeMode(i, QHeaderView::Interactive);
+    }
     if (enabled) {
         m_treeView->header()->setSectionResizeMode(4, QHeaderView::Stretch);
     }
@@ -1416,8 +1492,14 @@ void FilePanel::onHeaderContextMenu(const QPoint& pos) {
     QMenu menu(this);
     QHeaderView* header = m_treeView->header();
     
-    QStringList colNames = {"Name", "Size", "Type", "Date Modified", "Title", "Artist", "Album", "Bitrate", "Resolution"};
-    for (int i = 0; i < colNames.size(); ++i) {
+    QStringList colNames = {
+        "Name", "Size", "Type", "Date Modified", 
+        "Title", "Artist", "Album", "Bitrate", "Resolution", 
+        "Date Taken", "Camera Model", "Genre", "Year", "Track", "Duration", "Codec"
+    };
+
+    // Standard context menu lists first 9 columns for quick toggle
+    for (int i = 0; i < qMin(9, colNames.size()); ++i) {
         QAction* act = menu.addAction(colNames[i]);
         act->setCheckable(true);
         act->setChecked(!header->isSectionHidden(i));
@@ -1428,5 +1510,169 @@ void FilePanel::onHeaderContextMenu(const QPoint& pos) {
             settings.setValue(QString("columns/hidden_%1").arg(i), !checked);
         });
     }
-    menu.exec(m_treeView->header()->mapToGlobal(pos));
+
+    menu.addSeparator();
+    QAction* actMore = menu.addAction("More...");
+
+    QAction* selected = menu.exec(m_treeView->header()->mapToGlobal(pos));
+    if (selected == actMore) {
+        QList<bool> visibilities;
+        for (int i = 0; i < colNames.size(); ++i) {
+            visibilities.append(!header->isSectionHidden(i));
+        }
+
+        ColumnSelectorDialog dlg(colNames, visibilities, this);
+        if (dlg.exec() == QDialog::Accepted) {
+            QList<bool> newVis = dlg.selectedVisibilities();
+            QSettings settings("Amifiles", "Amifiles");
+            for (int i = 0; i < colNames.size(); ++i) {
+                bool visible = newVis[i];
+                header->setSectionHidden(i, !visible);
+                settings.setValue(QString("columns/hidden_%1").arg(i), !visible);
+            }
+        }
+    }
+}
+
+void FilePanel::setSearchQuery(const QString& query) {
+    if (m_globalSearchEdit) {
+        m_globalSearchEdit->setText(query);
+    }
+}
+
+QString FilePanel::searchQuery() const {
+    return m_globalSearchEdit ? m_globalSearchEdit->text() : "";
+}
+
+void FilePanel::onGlobalSearchChanged(const QString& text) {
+    m_searchDebounceTimer->stop();
+    if (text.isEmpty()) {
+        if (m_searchWorker) {
+            m_searchWorker->cancel();
+        }
+        m_searchResultModel->setStringList(QStringList());
+        m_searchResultsView->setVisible(false);
+        m_viewStack->setVisible(true);
+        updateStatusText();
+    } else {
+        m_viewStack->setVisible(false);
+        m_searchResultsView->setVisible(true);
+        m_searchDebounceTimer->start();
+        m_statusLabel->setText("Typing...");
+    }
+}
+
+void FilePanel::startSearch() {
+    QString text = m_globalSearchEdit->text().trimmed();
+    if (text.isEmpty()) {
+        return;
+    }
+
+    if (m_searchWorker) {
+        m_searchWorker->cancel();
+    }
+
+    m_searchResultModel->setStringList(QStringList());
+    m_statusLabel->setText("Searching...");
+
+    emit sigStartSearch(text, m_currentPath);
+}
+
+void FilePanel::onSearchResultsReady(const QStringList& results) {
+    QStringList currentList = m_searchResultModel->stringList();
+    currentList.append(results);
+    m_searchResultModel->setStringList(currentList);
+
+    m_statusLabel->setText(QString("Found %1 items").arg(currentList.size()));
+}
+
+void FilePanel::onSearchFinished() {
+    int count = m_searchResultModel->stringList().size();
+    m_statusLabel->setText(QString("Search finished. Found %1 items").arg(count));
+}
+
+void FilePanel::onSearchResultSelected(const QModelIndex& index) {
+    QString filePath = index.data().toString();
+    emit fileSelected(filePath);
+}
+
+void FilePanel::onSearchResultDoubleClicked(const QModelIndex& index) {
+    QString filePath = index.data().toString();
+    QFileInfo info(filePath);
+    if (!info.exists()) {
+        return;
+    }
+
+    if (info.isDir()) {
+        navigateTo(filePath, true);
+    } else {
+        QString parentDir = info.absolutePath();
+        navigateTo(parentDir, true);
+
+        QModelIndex srcIndex = m_fileModel->index(filePath);
+        if (srcIndex.isValid()) {
+            QModelIndex proxyIndex = m_proxyModel->mapFromSource(srcIndex);
+            if (proxyIndex.isValid()) {
+                m_treeView->setCurrentIndex(proxyIndex);
+                m_treeView->scrollTo(proxyIndex);
+                m_listView->setCurrentIndex(proxyIndex);
+                m_listView->scrollTo(proxyIndex);
+            }
+        }
+    }
+
+    m_globalSearchEdit->clear();
+}
+
+ColumnSelectorDialog::ColumnSelectorDialog(const QStringList& columnNames, const QList<bool>& visibilities, QWidget* parent)
+    : QDialog(parent) {
+    setWindowTitle("Configure Columns");
+    resize(420, 260);
+    setStyleSheet("QDialog { background-color: #1e1e2e; color: #cdd6f4; }"
+                  "QLabel { color: #cdd6f4; font-weight: bold; }"
+                  "QCheckBox { color: #cdd6f4; }"
+                  "QPushButton { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 4px; padding: 6px 12px; }"
+                  "QPushButton:hover { background-color: #45475a; }");
+
+    QVBoxLayout* mainLayout = new QVBoxLayout(this);
+    mainLayout->setSpacing(10);
+
+    mainLayout->addWidget(new QLabel("Select columns to display in tree view details:", this));
+
+    QGridLayout* grid = new QGridLayout();
+    grid->setSpacing(6);
+
+    int rows = (columnNames.size() + 1) / 2;
+    for (int i = 0; i < columnNames.size(); ++i) {
+        QCheckBox* cb = new QCheckBox(columnNames[i], this);
+        cb->setChecked(visibilities[i]);
+        if (i == 0) {
+            cb->setEnabled(false); // Name column is always visible
+        }
+        m_checkboxes.append(cb);
+        grid->addWidget(cb, i % rows, i / rows);
+    }
+    mainLayout->addLayout(grid);
+
+    QHBoxLayout* btnLayout = new QHBoxLayout();
+    btnLayout->addStretch(1);
+    
+    QPushButton* btnOk = new QPushButton("OK", this);
+    btnOk->setStyleSheet("QPushButton { background-color: #89b4fa; color: #11111b; font-weight: bold; }");
+    QObject::connect(btnOk, &QPushButton::clicked, this, &QDialog::accept);
+    
+    QPushButton* btnCancel = new QPushButton("Cancel", this);
+    QObject::connect(btnCancel, &QPushButton::clicked, this, &QDialog::reject);
+
+    btnLayout->addWidget(btnOk);
+    btnLayout->addWidget(btnCancel);
+    mainLayout->addLayout(btnLayout);
+}
+
+QList<bool> ColumnSelectorDialog::selectedVisibilities() const {
+    QList<bool> vis;
+    for (QCheckBox* cb : m_checkboxes) {
+        vis.append(cb->isChecked());
+    }
+    return vis;
 }
