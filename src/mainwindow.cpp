@@ -769,6 +769,23 @@ void MainWindow::onToggleDualPane(bool checked) {
     if (!checked && m_activePanel == m_rightPanel) {
         onPanelActivated(m_leftPanel);
     }
+
+    if (m_splitter) {
+        int totalWidth = m_splitter->width();
+        if (checked) {
+            if (m_showPreview) {
+                m_splitter->setSizes({totalWidth / 3, totalWidth / 3, totalWidth / 3});
+            } else {
+                m_splitter->setSizes({totalWidth / 2, totalWidth / 2, 0});
+            }
+        } else {
+            if (m_showPreview) {
+                m_splitter->setSizes({totalWidth / 2, 0, totalWidth / 2});
+            } else {
+                m_splitter->setSizes({totalWidth, 0, 0});
+            }
+        }
+    }
 }
 
 void MainWindow::onTogglePreview(bool checked) {
@@ -777,6 +794,24 @@ void MainWindow::onTogglePreview(bool checked) {
     if (!checked && m_previewPanel && m_previewPanel->player()) {
         m_previewPanel->player()->pause();
     }
+
+    if (m_splitter) {
+        int totalWidth = m_splitter->width();
+        if (checked) {
+            if (m_isDualPane) {
+                m_splitter->setSizes({totalWidth / 3, totalWidth / 3, totalWidth / 3});
+            } else {
+                m_splitter->setSizes({totalWidth / 2, 0, totalWidth / 2});
+            }
+        } else {
+            if (m_isDualPane) {
+                m_splitter->setSizes({totalWidth / 2, totalWidth / 2, 0});
+            } else {
+                m_splitter->setSizes({totalWidth, 0, 0});
+            }
+        }
+    }
+
     updateMiniPlayer();
 }
 
@@ -1346,6 +1381,12 @@ MainWindow::~MainWindow() {
     }
     if (m_rightPanel) {
         disconnect(m_rightPanel, nullptr, nullptr, nullptr);
+    }
+    if (m_previewPanel) {
+        disconnect(m_previewPanel, nullptr, nullptr, nullptr);
+        if (m_previewPanel->player()) {
+            disconnect(m_previewPanel->player(), nullptr, nullptr, nullptr);
+        }
     }
 }
 

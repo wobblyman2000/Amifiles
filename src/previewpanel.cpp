@@ -20,6 +20,7 @@
 #include <QPainter>
 #include <QLinearGradient>
 #include <QPolygon>
+#include <QSizePolicy>
 
 PreviewPanel::PreviewPanel(QWidget* parent) : QWidget(parent) {
     // Initialize QMediaPlayer and AudioOutput first so setupUI can configure them
@@ -114,6 +115,7 @@ void PreviewPanel::setupUI() {
     m_audioPlaceholder->setAlignment(Qt::AlignCenter);
     m_audioPlaceholder->setStyleSheet("color: #cdd6f4; font-size: 16px; font-weight: bold; background-color: #1e1e2e; border-radius: 4px;");
     m_audioPlaceholder->setMinimumHeight(150);
+    m_audioPlaceholder->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
 
     // Media Controls Layout
     QHBoxLayout* mediaCtrlLayout = new QHBoxLayout();
