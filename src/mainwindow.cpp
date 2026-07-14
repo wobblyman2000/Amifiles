@@ -8,6 +8,7 @@
 #include <QMenuBar>
 #include <QStorageInfo>
 #include <QToolBar>
+#include <QStandardPaths>
 #include <QApplication>
 #include <QStyle>
 #include <QMessageBox>
@@ -214,9 +215,10 @@ public:
         connect(m_player, &QMediaPlayer::positionChanged, this, &MiniMediaControls::onPositionChanged);
     }
 
-    void updateTrackInfo(const QString& name, qint64 duration) {
+    void updateTrackInfo(const QString& name, qint64 duration, bool isVideo) {
         m_trackName = name;
         m_duration = duration;
+        m_isVideo = isVideo;
         updateLabel(m_player->position());
     }
 
@@ -248,7 +250,9 @@ private slots:
 
 private:
     void updateLabel(qint64 position) {
-        m_lblInfo->setText(QString("🎵 %1 (%2 / %3)")
+        QString prefix = m_isVideo ? "🎥" : "🎵";
+        m_lblInfo->setText(QString("%1 %2 (%3 / %4)")
+                           .arg(prefix)
                            .arg(m_trackName)
                            .arg(formatDuration(position))
                            .arg(formatDuration(m_duration)));
@@ -270,6 +274,7 @@ private:
     
     QString m_trackName;
     qint64 m_duration = 0;
+    bool m_isVideo = false;
 };
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
@@ -304,6 +309,12 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 
     m_actToggleDrivesToolbar->setChecked(drivesToolbarVisible);
     m_tbDrives->setVisible(drivesToolbarVisible);
+
+    bool previewMuted = settings.value("preview/muted", false).toBool();
+    m_actMutePreview->setChecked(previewMuted);
+    if (m_previewPanel) {
+        m_previewPanel->setMuted(previewMuted);
+    }
 
     bool consoleVisible = settings.value("console/visible", true).toBool();
     m_actToggleConsole->setChecked(consoleVisible);
@@ -466,6 +477,12 @@ void MainWindow::setupActions() {
     m_actTogglePreview->setToolTip("Toggle the file preview panel on/off");
     connect(m_actTogglePreview, &QAction::toggled, this, &MainWindow::onTogglePreview);
 
+    m_actMutePreview = new QAction("Mute Preview Audio", this);
+    m_actMutePreview->setCheckable(true);
+    m_actMutePreview->setChecked(false);
+    m_actMutePreview->setToolTip("Mute the file preview panel audio output");
+    connect(m_actMutePreview, &QAction::toggled, this, &MainWindow::onMutePreview);
+
     // Age Coloring Highlights Toggle Action
     m_actToggleAgeColoring = new QAction("Age Highlight (Red <24h, Blue <7d)", this);
     m_actToggleAgeColoring->setCheckable(true);
@@ -565,9 +582,9 @@ void MainWindow::setupMenus() {
     m_menuEdit->addAction(m_actRename);
     m_menuEdit->addAction(m_actBulkRename);
 
-    m_menuView = menuBar()->addMenu("View");
     m_menuView->addAction(m_actToggleDualPane);
     m_menuView->addAction(m_actTogglePreview);
+    m_menuView->addAction(m_actMutePreview);
     m_menuView->addAction(m_actToggleAgeColoring);
     m_menuView->addAction(m_actToggleDrivesMenu);
     m_menuView->addAction(m_actToggleDrivesToolbar);
@@ -726,6 +743,9 @@ void MainWindow::onToggleDualPane(bool checked) {
 void MainWindow::onTogglePreview(bool checked) {
     m_showPreview = checked;
     m_previewPanel->setVisible(checked);
+    if (!checked && m_previewPanel && m_previewPanel->player()) {
+        m_previewPanel->player()->pause();
+    }
     updateMiniPlayer();
 }
 
@@ -738,11 +758,14 @@ void MainWindow::updateMiniPlayer() {
     QFileInfo info(path);
     QString ext = info.suffix().toLower();
     static const QStringList audioExts = { "mp3", "wav", "flac", "ogg", "m4a" };
+    static const QStringList videoExts = { "mp4", "avi", "mkv", "mov", "webm", "flv", "wmv", "m4v" };
 
     bool isAudio = info.exists() && audioExts.contains(ext);
+    bool isVideo = info.exists() && videoExts.contains(ext);
+    bool isMedia = isAudio || isVideo;
 
-    if (!m_showPreview && isAudio && player->playbackState() != QMediaPlayer::StoppedState) {
-        m_miniMediaControls->updateTrackInfo(info.fileName(), player->duration());
+    if (!m_showPreview && isMedia) {
+        m_miniMediaControls->updateTrackInfo(info.fileName(), player->duration(), isVideo);
         m_miniMediaControls->show();
     } else {
         m_miniMediaControls->hide();
@@ -863,6 +886,28 @@ void MainWindow::updateDrivesList() {
         return a.rootPath() < b.rootPath();
     });
 
+    // Helper lambda to add a shortcut option
+    auto addShortcutOption = [this, style](const QString& name, const QString& path, const QString& themeIconName, QStyle::StandardPixmap fallbackPixmap) {
+        if (path.isEmpty()) return;
+        QIcon icon = QIcon::fromTheme(themeIconName);
+        if (icon.isNull()) {
+            icon = style->standardIcon(fallbackPixmap);
+        }
+
+        // Menu action
+        QAction* actMenu = m_menuDrives->addAction(icon, QString("%1 (%2)").arg(name).arg(QDir::toNativeSeparators(path)));
+        connect(actMenu, &QAction::triggered, this, [this, path]() {
+            if (m_activePanel) m_activePanel->setPath(path);
+        });
+
+        // Toolbar action
+        QAction* actTb = m_tbDrives->addAction(icon, name);
+        actTb->setToolTip(QString("Navigate to %1").arg(QDir::toNativeSeparators(path)));
+        connect(actTb, &QAction::triggered, this, [this, path]() {
+            if (m_activePanel) m_activePanel->setPath(path);
+        });
+    };
+
     // Helper lambda to add a drive option
     auto addDriveOption = [this, style](const QString& name, const QString& path, QStyle::StandardPixmap iconPixmap) {
         QIcon icon = style->standardIcon(iconPixmap);
@@ -881,11 +926,30 @@ void MainWindow::updateDrivesList() {
         });
     };
 
-    // Add home folder shortcut
-    addDriveOption("Home", QDir::homePath(), QStyle::SP_DirIcon);
+    // Add common shortcuts
+    addShortcutOption("Home", QDir::homePath(), "user-home", QStyle::SP_DirHomeIcon);
+    addShortcutOption("Desktop", QStandardPaths::writableLocation(QStandardPaths::DesktopLocation), "user-desktop", QStyle::SP_DirIcon);
+    addShortcutOption("Documents", QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation), "folder-documents", QStyle::SP_DirIcon);
+    addShortcutOption("Downloads", QStandardPaths::writableLocation(QStandardPaths::DownloadLocation), "folder-download", QStyle::SP_DirIcon);
+    addShortcutOption("Pictures", QStandardPaths::writableLocation(QStandardPaths::PicturesLocation), "folder-pictures", QStyle::SP_DirIcon);
+    addShortcutOption("Music", QStandardPaths::writableLocation(QStandardPaths::MusicLocation), "folder-music", QStyle::SP_DirIcon);
+    addShortcutOption("Videos", QStandardPaths::writableLocation(QStandardPaths::MoviesLocation), "folder-videos", QStyle::SP_DirIcon);
+
+    m_menuDrives->addSeparator();
+    m_tbDrives->addSeparator();
 
     // List of added paths to avoid duplicates
-    QStringList addedPaths = { QDir::homePath() };
+    QStringList addedPaths;
+    addedPaths.append(QDir::homePath());
+    auto addPathSafe = [&addedPaths](const QString& path) {
+        if (!path.isEmpty()) addedPaths.append(path);
+    };
+    addPathSafe(QStandardPaths::writableLocation(QStandardPaths::DesktopLocation));
+    addPathSafe(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation));
+    addPathSafe(QStandardPaths::writableLocation(QStandardPaths::DownloadLocation));
+    addPathSafe(QStandardPaths::writableLocation(QStandardPaths::PicturesLocation));
+    addPathSafe(QStandardPaths::writableLocation(QStandardPaths::MusicLocation));
+    addPathSafe(QStandardPaths::writableLocation(QStandardPaths::MoviesLocation));
 
     for (const QStorageInfo& volume : volumes) {
         if (!volume.isValid() || !volume.isReady()) continue;
@@ -931,6 +995,14 @@ void MainWindow::onToggleDrivesToolbar(bool checked) {
     // Save to settings
     QSettings settings("Amifiles", "Amifiles");
     settings.setValue("drives/toolbar_visible", checked);
+}
+
+void MainWindow::onMutePreview(bool checked) {
+    if (m_previewPanel) {
+        m_previewPanel->setMuted(checked);
+    }
+    QSettings settings("Amifiles", "Amifiles");
+    settings.setValue("preview/muted", checked);
 }
 
 void MainWindow::onToggleLeftFilterText(bool checked) {

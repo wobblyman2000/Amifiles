@@ -25,6 +25,8 @@ public:
     void previewFolderArt(const QString& artPath, const QString& folderPath);
     void clearPreview();
     QMediaPlayer* player() const { return m_player; }
+    void setMuted(bool muted);
+    bool isMuted() const;
 
 protected:
     void resizeEvent(QResizeEvent* event) override;

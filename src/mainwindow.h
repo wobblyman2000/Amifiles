@@ -74,6 +74,7 @@ private slots:
     void onToggleFlatView(bool checked);
     void onCompareSyncAction();
     void onDuplicateFinderAction();
+    void onMutePreview(bool checked);
 
 private:
     void setupActions();
@@ -127,6 +128,7 @@ private:
 
     QAction* m_actToggleDualPane = nullptr;
     QAction* m_actTogglePreview = nullptr;
+    QAction* m_actMutePreview = nullptr;
     QAction* m_actToggleAgeColoring = nullptr;
     QAction* m_actToggleDrivesMenu = nullptr;
     QAction* m_actToggleDrivesToolbar = nullptr;

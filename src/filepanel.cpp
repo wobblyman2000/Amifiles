@@ -2,6 +2,7 @@
 #include "favoritesmanager.h"
 #include "metadataextractor.h"
 #include "bulkrename.h"
+#include "copyqueue.h"
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QHeaderView>
@@ -628,58 +629,31 @@ void FilePanel::onPaste() {
     if (!mimeData || !mimeData->hasUrls()) return;
 
     QList<QUrl> urls = mimeData->urls();
+    QStringList srcPaths;
+    for (const QUrl& url : urls) {
+        if (url.isLocalFile()) {
+            srcPaths.append(url.toLocalFile());
+        }
+    }
+
+    if (srcPaths.isEmpty()) return;
+
     bool isCut = mimeData->hasFormat("application/amifiles-cut") || 
                  mimeData->hasFormat("application/x-kde-cutselection");
 
-    for (const QUrl& url : urls) {
-        QString srcPath = url.toLocalFile();
-        QFileInfo srcInfo(srcPath);
-        if (!srcInfo.exists()) continue;
+    // Queue copy/move operations
+    CopyQueueManager::instance().queueCopy(srcPaths, m_currentPath, isCut);
 
-        QString destPath = QDir(m_currentPath).filePath(srcInfo.fileName());
-        if (srcPath == destPath) continue; // Prevent pasting into self
-
-        if (isCut) {
-            // Move file
-            QFile::rename(srcPath, destPath);
-        } else {
-            // Copy file/directory recursively
-            copyRecursively(srcPath, destPath);
-        }
-    }
-    
-    // Clear clipboard if cut selection
     if (isCut) {
         clipboard->clear();
     }
 
-    refresh();
-}
-
-bool FilePanel::copyRecursively(const QString& srcPath, const QString& destPath) {
-    QFileInfo srcInfo(srcPath);
-    if (srcInfo.isDir()) {
-        QDir destDir(destPath);
-        if (!destDir.exists() && !destDir.mkpath(".")) {
-            return false;
-        }
-        QDir srcDir(srcPath);
-        QStringList entries = srcDir.entryList(QDir::NoDotAndDotDot | QDir::AllEntries | QDir::Hidden);
-        for (const QString& entry : entries) {
-            QString subSrc = srcDir.filePath(entry);
-            QString subDest = destDir.filePath(entry);
-            if (!copyRecursively(subSrc, subDest)) {
-                return false;
-            }
-        }
-        return true;
-    } else {
-        // If file already exists, we might append or overwrite
-        if (QFile::exists(destPath)) {
-            QFile::remove(destPath);
-        }
-        return QFile::copy(srcPath, destPath);
-    }
+    // Launch the modeless monitor dialog
+    CopyQueueDialog* dlg = new CopyQueueDialog(this);
+    dlg->setAttribute(Qt::WA_DeleteOnClose);
+    connect(dlg, &CopyQueueDialog::accepted, this, &FilePanel::refresh);
+    connect(dlg, &CopyQueueDialog::rejected, this, &FilePanel::refresh);
+    dlg->show();
 }
 
 void FilePanel::onDelete() {
@@ -807,7 +781,39 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     QAction* actNewFolder = menu.addAction(style->standardIcon(QStyle::SP_FileDialogNewFolder), "New Folder");
     menu.addSeparator();
     
-    QAction* actFav = menu.addAction("Toggle Favorite");
+    QString selectedPath;
+    bool isFolder = false;
+    bool isFavorite = false;
+    if (index.isValid()) {
+        if (m_flatViewEnabled) {
+            QModelIndex srcIndex = m_flatProxyModel->mapToSource(index);
+            selectedPath = m_flatModel->filePath(srcIndex);
+        } else {
+            QModelIndex srcIndex = m_proxyModel->mapToSource(index);
+            selectedPath = m_fileModel->filePath(srcIndex);
+        }
+        QFileInfo info(selectedPath);
+        if (info.isDir()) {
+            isFolder = true;
+            isFavorite = FavoritesManager::instance().isFavorite(selectedPath);
+        }
+    }
+
+    QAction* actFav = nullptr;
+    if (isFolder) {
+        if (isFavorite) {
+            actFav = menu.addAction(style->standardIcon(QStyle::SP_DialogCancelButton), "Remove from Favorites");
+        } else {
+            actFav = menu.addAction(style->standardIcon(QStyle::SP_DialogYesButton), "Add to Favorites");
+        }
+    } else {
+        bool isCurrentFavorite = FavoritesManager::instance().isFavorite(m_currentPath);
+        if (isCurrentFavorite) {
+            actFav = menu.addAction(style->standardIcon(QStyle::SP_DialogCancelButton), "Remove Current from Favorites");
+        } else {
+            actFav = menu.addAction(style->standardIcon(QStyle::SP_DialogYesButton), "Add Current to Favorites");
+        }
+    }
     menu.addSeparator();
     
     QAction* actProp = menu.addAction(style->standardIcon(QStyle::SP_MessageBoxInformation), "Properties");
@@ -861,7 +867,17 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     } else if (selected == actNewFolder) {
         onNewFolder();
     } else if (selected == actFav) {
-        onFavoriteClicked();
+        if (isFolder && !selectedPath.isEmpty()) {
+            FavoritesManager& fm = FavoritesManager::instance();
+            if (isFavorite) {
+                fm.removeFavorite(selectedPath);
+            } else {
+                fm.addFavorite(selectedPath);
+            }
+            updateFavoritesUI();
+        } else {
+            onFavoriteClicked();
+        }
     } else if (selected == actProp) {
         onShowProperties();
     }

@@ -36,6 +36,8 @@ add_executable(Amifiles
     src/foldersync.cpp
     src/dupfinder.h
     src/dupfinder.cpp
+    src/copyqueue.h
+    src/copyqueue.cpp
 )
 
 target_link_libraries(Amifiles PRIVATE

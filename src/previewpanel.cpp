@@ -12,6 +12,7 @@
 #include <QStyle>
 #include <QApplication>
 #include <QDateTime>
+#include <QSettings>
 #include <QBrush>
 #include <QColor>
 #include <QFont>
@@ -299,8 +300,18 @@ void PreviewPanel::showMediaPreview(const QString& filePath, bool isVideo) {
     m_stack->setCurrentWidget(m_mediaView);
 
     m_player->setSource(QUrl::fromLocalFile(filePath));
-    m_player->play();
-    m_btnPlayPause->setIcon(style()->standardIcon(QStyle::SP_MediaPause));
+    
+    QSettings settings("Amifiles", "Amifiles");
+    bool muted = settings.value("preview/muted", false).toBool();
+    setMuted(muted);
+
+    if (isVisible()) {
+        m_player->play();
+        m_btnPlayPause->setIcon(style()->standardIcon(QStyle::SP_MediaPause));
+    } else {
+        m_player->stop();
+        m_btnPlayPause->setIcon(style()->standardIcon(QStyle::SP_MediaPlay));
+    }
 }
 
 void PreviewPanel::scaleImage() {
@@ -475,4 +486,17 @@ QString PreviewPanel::formatDuration(qint64 ms) {
     return QString("%1:%2")
         .arg(min, 2, 10, QChar('0'))
         .arg(sec, 2, 10, QChar('0'));
+}
+
+void PreviewPanel::setMuted(bool muted) {
+    if (m_audioOutput) {
+        m_audioOutput->setMuted(muted);
+    }
+}
+
+bool PreviewPanel::isMuted() const {
+    if (m_audioOutput) {
+        return m_audioOutput->isMuted();
+    }
+    return false;
 }
