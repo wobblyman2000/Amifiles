@@ -801,6 +801,9 @@ void FilePanel::updateStatusText() {
 }
 
 void FilePanel::refresh() {
+    if (m_proxyModel) {
+        m_proxyModel->clearCasingCache();
+    }
     if (m_flatViewEnabled) {
         m_flatModel->setRootPath(m_currentPath);
     } else {

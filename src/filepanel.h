@@ -60,6 +60,12 @@ public:
         emit layoutChanged();
     }
 
+    void clearCasingCache() {
+        m_casingCache.clear();
+        m_iconCache.clear();
+        invalidate();
+    }
+
     // Overriding data() to support dynamic file age text coloring
     QVariant data(const QModelIndex& index, int role) const override {
         if (role == Qt::ForegroundRole && m_ageColoringEnabled) {
@@ -90,55 +96,75 @@ public:
                     QString path = fileModel->filePath(srcIndex);
                     
                     enum CasingType { CasingCD, CasingDVD, CasingBluRay };
-                    CasingType casingType = CasingCD;
+                    
                     QString artPath;
-
-                    // 1. Check Blu-ray covers first
-                    QStringList blurayChecks = { "bluray_cover.jpg", "bluray_cover.png", "bluray.jpg", "bluray.png" };
-                    for (const QString& check : blurayChecks) {
-                        QString test = QDir(path).filePath(check);
-                        if (QFile::exists(test)) {
-                            artPath = test;
-                            casingType = CasingBluRay;
-                            break;
-                        }
-                    }
-
-                    // 2. Check DVD covers next
-                    if (artPath.isEmpty()) {
-                        QStringList dvdChecks = { "dvd_cover.jpg", "dvd_cover.png", "dvd.jpg", "dvd.png", "movie.jpg", "movie.png" };
-                        for (const QString& check : dvdChecks) {
+                    int casingInt = CasingCD;
+                    
+                    // Check casing cache first
+                    if (m_casingCache.contains(path)) {
+                        QPair<QString, int> cachedVal = m_casingCache.value(path);
+                        artPath = cachedVal.first;
+                        casingInt = cachedVal.second;
+                    } else {
+                        // Not cached - run checks
+                        casingInt = CasingCD;
+                        
+                        // 1. Check Blu-ray covers first
+                        QStringList blurayChecks = { "bluray_cover.jpg", "bluray_cover.png", "bluray.jpg", "bluray.png" };
+                        for (const QString& check : blurayChecks) {
                             QString test = QDir(path).filePath(check);
                             if (QFile::exists(test)) {
                                 artPath = test;
-                                casingType = CasingDVD;
+                                casingInt = CasingBluRay;
                                 break;
                             }
                         }
-                    }
 
-                    // 3. Fall back to CD covers
-                    if (artPath.isEmpty()) {
-                        QStringList cdChecks = { "folder.jpg", "folder.png", "cover.jpg", "cover.png" };
-                        for (const QString& check : cdChecks) {
-                            QString test = QDir(path).filePath(check);
-                            if (QFile::exists(test)) {
-                                artPath = test;
-                                casingType = CasingCD;
-                                break;
+                        // 2. Check DVD covers next
+                        if (artPath.isEmpty()) {
+                            QStringList dvdChecks = { "dvd_cover.jpg", "dvd_cover.png", "dvd.jpg", "dvd.png", "movie.jpg", "movie.png" };
+                            for (const QString& check : dvdChecks) {
+                                QString test = QDir(path).filePath(check);
+                                if (QFile::exists(test)) {
+                                    artPath = test;
+                                    casingInt = CasingDVD;
+                                    break;
+                                }
                             }
                         }
+
+                        // 3. Fall back to CD covers
+                        if (artPath.isEmpty()) {
+                            QStringList cdChecks = { "folder.jpg", "folder.png", "cover.jpg", "cover.png" };
+                            for (const QString& check : cdChecks) {
+                                QString test = QDir(path).filePath(check);
+                                if (QFile::exists(test)) {
+                                    artPath = test;
+                                    casingInt = CasingCD;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        // Cache resolved paths
+                        m_casingCache.insert(path, qMakePair(artPath, casingInt));
                     }
 
                     if (!artPath.isEmpty()) {
+                        // Check pre-rendered icon cache first
+                        QString cacheKey = artPath + "_" + QString::number(casingInt);
+                        if (m_iconCache.contains(cacheKey)) {
+                            return m_iconCache.value(cacheKey);
+                        }
+                        
                         QPixmap cover(artPath);
                         if (!cover.isNull()) {
                              int caseW = 256;
                              int caseH = 256;
                              
-                             if (casingType == CasingDVD) {
+                             if (casingInt == CasingDVD) {
                                  caseW = 180;
-                             } else if (casingType == CasingBluRay) {
+                             } else if (casingInt == CasingBluRay) {
                                  caseW = 210;
                              }
                              
@@ -150,7 +176,7 @@ public:
                              QPainter painter(&casePixmap);
                              painter.setRenderHint(QPainter::Antialiasing);
 
-                             if (casingType == CasingCD) {
+                             if (casingInt == CasingCD) {
                                  painter.setBrush(QColor("#313244"));
                                  painter.setPen(QPen(QColor("#45475a"), qMax(1, qRound(1 * s))));
                                  painter.drawRoundedRect(qRound(2 * s), qRound(2 * s), caseW - qRound(4 * s), caseH - qRound(4 * s), qRound(3 * s), qRound(3 * s));
@@ -183,7 +209,7 @@ public:
                                        << QPoint(qRound(9 * s), caseH - qRound(4 * s));
                                  painter.drawPolygon(gloss);
                              }
-                             else if (casingType == CasingDVD) {
+                             else if (casingInt == CasingDVD) {
                                  painter.setBrush(QColor("#1e1e2e"));
                                  painter.setPen(QPen(QColor("#313244"), qMax(1, qRound(1.5 * s))));
                                  painter.drawRoundedRect(qRound(2 * s), qRound(2 * s), caseW - qRound(4 * s), caseH - qRound(4 * s), qRound(4 * s), qRound(4 * s));
@@ -212,7 +238,7 @@ public:
                                        << QPoint(qRound(4 * s), caseH - qRound(4 * s));
                                  painter.drawPolygon(gloss);
                              }
-                             else if (casingType == CasingBluRay) {
+                             else if (casingInt == CasingBluRay) {
                                  painter.setBrush(QColor("#1e1e2e"));
                                  painter.setPen(QPen(QColor("#313244"), qMax(1, qRound(1.5 * s))));
                                  painter.drawRoundedRect(qRound(2 * s), qRound(2 * s), caseW - qRound(4 * s), caseH - qRound(4 * s), qRound(4 * s), qRound(4 * s));
@@ -259,7 +285,9 @@ public:
                              }
 
                              painter.end();
-                             return QIcon(casePixmap);
+                             QIcon iconResult(casePixmap);
+                             m_iconCache.insert(cacheKey, iconResult);
+                             return iconResult;
                         }
                     }
                 }
@@ -365,6 +393,8 @@ private:
     QString m_filterText;
     QString m_currentPath;
     bool m_ageColoringEnabled = true; // Enabled by default
+    mutable QHash<QString, QPair<QString, int>> m_casingCache;
+    mutable QHash<QString, QIcon> m_iconCache;
 };
 
 class FilePanel : public QWidget {
