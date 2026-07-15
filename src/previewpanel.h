@@ -36,7 +36,7 @@ class FullscreenWidget : public QWidget {
     Q_OBJECT
 public:
     explicit FullscreenWidget(QWidget* parent = nullptr);
-    ~FullscreenWidget() override = default;
+    ~FullscreenWidget() override;
 
     void setMediaState(bool isVideo, class QMediaPlayer* player, class QAudioOutput* audioOutput);
     void updateProgress(qint64 position, qint64 duration);

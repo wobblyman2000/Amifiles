@@ -36,7 +36,7 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
     installEventFilter(this);
 
     // Create HUD Overlay Panel
-    m_hudWidget = new QWidget(this, Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::WindowDoesNotAcceptFocus | Qt::BypassWindowManagerHint);
+    m_hudWidget = new QWidget(nullptr, Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::WindowDoesNotAcceptFocus | Qt::BypassWindowManagerHint);
     m_hudWidget->setAttribute(Qt::WA_StyledBackground, true);
     m_hudWidget->setObjectName("hudPanel");
     m_hudWidget->setFocusPolicy(Qt::NoFocus);
@@ -126,6 +126,13 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
     m_mousePollTimer->start(200);
 
     showHud();
+}
+
+FullscreenWidget::~FullscreenWidget() {
+    if (m_hudWidget) {
+        m_hudWidget->close();
+        delete m_hudWidget;
+    }
 }
 
 void FullscreenWidget::resizeEvent(QResizeEvent* event) {
