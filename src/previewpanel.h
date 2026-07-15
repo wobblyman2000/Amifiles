@@ -47,6 +47,8 @@ signals:
     void playPauseRequested();
     void stopRequested();
     void nextRequested();
+    void shuffleToggled();
+    void repeatRequested();
 
 protected:
     void keyPressEvent(class QKeyEvent* event) override;
@@ -60,12 +62,18 @@ private slots:
     void onHudSliderMoved(int val);
     void onHudVolumeChanged(int val);
     void onPollMouse();
+    void onHudSubtitles();
+    void onHudShuffle();
+    void onHudRepeat();
 
 private:
     void showHud();
 
     class QWidget* m_hudWidget = nullptr;
     class QPushButton* m_btnPlayPause = nullptr;
+    class QPushButton* m_btnSubtitles = nullptr;
+    class QPushButton* m_btnShuffle = nullptr;
+    class QPushButton* m_btnRepeat = nullptr;
     class QSlider* m_sliderProgress = nullptr;
     class QLabel* m_lblTime = nullptr;
     class QSlider* m_sliderVolume = nullptr;
@@ -73,6 +81,9 @@ private:
     class QTimer* m_mousePollTimer = nullptr;
     QPoint m_lastMousePos;
     class QMediaPlayer* m_player = nullptr;
+public:
+    QPushButton* hudShuffleButton() const { return m_btnShuffle; }
+    QPushButton* hudRepeatButton() const { return m_btnRepeat; }
 };
 
 class PreviewPanel : public QWidget {
@@ -110,6 +121,9 @@ private slots:
     void onPlaybackStateChanged(QMediaPlayer::PlaybackState state);
     void toggleFullscreen();
     void exitFullscreen();
+    void onSubtitleMenuRequested();
+    void onShuffleToggled();
+    void onRepeatClicked();
 
 private:
     void setupUI();
@@ -127,6 +141,8 @@ private:
     bool m_textChanged = false;
     QStringList m_playlist;
     int m_playlistIndex = -1;
+    bool m_shuffleEnabled = false;
+    int m_repeatMode = 0; // 0 = Off, 1 = Repeat One, 2 = Repeat All
     QPixmap m_originalPixmap;
 
     // Media Player Backend (Qt6)
@@ -162,6 +178,9 @@ private:
     QLabel* m_lblProgressTime = nullptr;
     QSlider* m_sliderVolume = nullptr;
     QPushButton* m_btnFullscreen = nullptr;
+    QPushButton* m_btnSubtitles = nullptr;
+    QPushButton* m_btnShuffle = nullptr;
+    QPushButton* m_btnRepeat = nullptr;
 
     // Bottom half: Tabbed view for Metadata and Playlist Queue
     class QTabWidget* m_bottomTab = nullptr;

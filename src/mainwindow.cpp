@@ -28,6 +28,7 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QSettings>
+#include <QListWidget>
 #include <QStatusBar>
 #include <QFileDialog>
 #include <QInputDialog>
@@ -298,9 +299,11 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     setupMenus();
     setupToolbars();
 
-    // Connect favorites changes to keep menu updated
+    // Connect favorites changes to keep menu and sidebar updated
     connect(&FavoritesManager::instance(), &FavoritesManager::favoritesChanged,
             this, &MainWindow::updateFavoritesMenu);
+    connect(&FavoritesManager::instance(), &FavoritesManager::favoritesChanged,
+            this, &MainWindow::refreshFavoritesSidebar);
     updateFavoritesMenu();
 
     // Load custom buttons & build custom toolbar
@@ -317,6 +320,10 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 
     m_actToggleDrivesToolbar->setChecked(drivesToolbarVisible);
     m_tbDrives->setVisible(drivesToolbarVisible);
+
+    bool favoritesSidebarVisible = settings.value("favorites/sidebar_visible", false).toBool();
+    m_actToggleFavoritesSidebar->setChecked(favoritesSidebarVisible);
+    m_favoritesSidebar->setVisible(favoritesSidebarVisible);
 
     bool previewMuted = settings.value("preview/muted", false).toBool();
     m_actMutePreview->setChecked(previewMuted);
@@ -371,6 +378,16 @@ void MainWindow::setupCentralWidget() {
     m_splitter = new QSplitter(Qt::Horizontal, this);
     m_splitter->setHandleWidth(4);
 
+    m_favoritesSidebar = new QListWidget(this);
+    m_favoritesSidebar->setStyleSheet(
+        "QListWidget { background-color: #181825; color: #cdd6f4; border: 1px solid #313244; border-radius: 6px; padding: 4px; }"
+        "QListWidget::item { padding: 6px 8px; border-radius: 4px; color: #cdd6f4; }"
+        "QListWidget::item:hover { background-color: #313244; color: #f5c2e7; }"
+        "QListWidget::item:selected { background-color: #89b4fa; color: #11111b; font-weight: bold; }"
+    );
+    m_favoritesSidebar->setFocusPolicy(Qt::NoFocus);
+    connect(m_favoritesSidebar, &QListWidget::itemDoubleClicked, this, &MainWindow::onFavoritesSidebarDoubleClicked);
+
     m_leftTabWidget = new QTabWidget(this);
     m_leftTabWidget->setTabsClosable(true);
     m_leftTabWidget->setMovable(true);
@@ -392,11 +409,12 @@ void MainWindow::setupCentralWidget() {
     createTab(m_leftTabWidget, QDir::homePath());
     createTab(m_rightTabWidget, QDir::homePath());
 
+    m_splitter->addWidget(m_favoritesSidebar);
     m_splitter->addWidget(m_leftTabWidget);
     m_splitter->addWidget(m_rightTabWidget);
     m_splitter->addWidget(m_previewPanel);
 
-    m_splitter->setSizes({450, 450, 300});
+    m_splitter->setSizes({160, 400, 400, 240});
 
     m_bottomTabWidget = new QTabWidget(this);
     m_bottomTabWidget->setTabPosition(QTabWidget::South);
@@ -418,6 +436,8 @@ void MainWindow::setupCentralWidget() {
     mainVSplitter->setSizes({600, 150});
 
     setCentralWidget(mainVSplitter);
+
+    refreshFavoritesSidebar();
 
     // Connect tab change and close signals
     connect(m_leftTabWidget, &QTabWidget::currentChanged, this, &MainWindow::onLeftTabChanged);
@@ -562,6 +582,14 @@ void MainWindow::setupActions() {
     m_actToggleDrivesToolbar->setToolTip("Show/hide the attached drives toolbar");
     connect(m_actToggleDrivesToolbar, &QAction::toggled, this, &MainWindow::onToggleDrivesToolbar);
 
+    // Toggle Favorites Sidebar Action
+    m_actToggleFavoritesSidebar = new QAction("Favorites Sidebar", this);
+    m_actToggleFavoritesSidebar->setCheckable(true);
+    m_actToggleFavoritesSidebar->setChecked(true);
+    m_actToggleFavoritesSidebar->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_F));
+    m_actToggleFavoritesSidebar->setToolTip("Show/hide the Favorites sidebar");
+    connect(m_actToggleFavoritesSidebar, &QAction::toggled, this, &MainWindow::onToggleFavoritesSidebar);
+
     // Toggle Console Action
     m_actToggleConsole = new QAction("Command Output Console", this);
     m_actToggleConsole->setCheckable(true);
@@ -639,6 +667,7 @@ void MainWindow::setupActions() {
     addAction(m_actToggleAgeColoring);
     addAction(m_actToggleDrivesMenu);
     addAction(m_actToggleDrivesToolbar);
+    addAction(m_actToggleFavoritesSidebar);
     addAction(m_actLeftShowFilterText);
     addAction(m_actLeftShowCategoryButtons);
     addAction(m_actRightShowFilterText);
@@ -681,6 +710,7 @@ void MainWindow::setupMenus() {
     m_menuView->addAction(m_actToggleAgeColoring);
     m_menuView->addAction(m_actToggleDrivesMenu);
     m_menuView->addAction(m_actToggleDrivesToolbar);
+    m_menuView->addAction(m_actToggleFavoritesSidebar);
     m_menuView->addAction(m_actToggleConsole);
     m_menuView->addAction(m_actToggleFlatView);
     m_menuView->addSeparator();
@@ -1860,6 +1890,45 @@ void MainWindow::onSpaceAnalyzerAction() {
         if (dlg.navigateRequested() && !dlg.selectedPath().isEmpty()) {
             m_activePanel->setPath(dlg.selectedPath());
         }
+    }
+}
+
+void MainWindow::onToggleFavoritesSidebar(bool checked) {
+    if (m_favoritesSidebar) {
+        m_favoritesSidebar->setVisible(checked);
+        QSettings settings("Amifiles", "Amifiles");
+        settings.setValue("favorites/sidebar_visible", checked);
+    }
+}
+
+void MainWindow::onFavoritesSidebarDoubleClicked(QListWidgetItem* item) {
+    if (!item) return;
+    QString path = item->data(Qt::UserRole).toString();
+    if (path.isEmpty()) return;
+
+    if (m_activePanel) {
+        m_activePanel->setPath(path);
+    }
+}
+
+void MainWindow::refreshFavoritesSidebar() {
+    if (!m_favoritesSidebar) return;
+    m_favoritesSidebar->clear();
+
+    QStringList favorites = FavoritesManager::instance().getFavorites();
+    for (const QString& path : favorites) {
+        QFileInfo info(path);
+        QString folderName = info.fileName();
+        if (folderName.isEmpty()) {
+            folderName = path;
+        }
+
+        QListWidgetItem* item = new QListWidgetItem(m_favoritesSidebar);
+        item->setText(folderName);
+        item->setToolTip(path);
+        item->setData(Qt::UserRole, path);
+        item->setIcon(QApplication::style()->standardIcon(QStyle::SP_DirIcon));
+        m_favoritesSidebar->addItem(item);
     }
 }
 

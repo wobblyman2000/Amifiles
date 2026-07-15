@@ -19,6 +19,8 @@ struct CustomButton {
 
 class MiniMediaControls;
 class ConsolePanel;
+class QListWidget;
+class QListWidgetItem;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -77,6 +79,9 @@ private slots:
     void onToggleFlatView(bool checked);
     void onCompareSyncAction();
     void onDuplicateFinderAction();
+    void onToggleFavoritesSidebar(bool checked);
+    void onFavoritesSidebarDoubleClicked(class QListWidgetItem* item);
+    void refreshFavoritesSidebar();
     void onMutePreview(bool checked);
     void onToggleArchiveNav(bool checked);
     void onToggleCasingOverlays(bool checked);
@@ -124,6 +129,7 @@ private:
 
     // View Splitter and Panels
     QSplitter* m_splitter = nullptr;
+    QListWidget* m_favoritesSidebar = nullptr;
     QTabWidget* m_leftTabWidget = nullptr;
     QTabWidget* m_rightTabWidget = nullptr;
     PreviewPanel* m_previewPanel = nullptr;
@@ -131,6 +137,7 @@ private:
     ConsolePanel* m_consolePanel = nullptr;
     class TerminalPanel* m_terminalPanel = nullptr;
     QTabWidget* m_bottomTabWidget = nullptr;
+    QAction* m_actToggleFavoritesSidebar = nullptr;
 
     // Menus
     QMenu* m_menuFile = nullptr;

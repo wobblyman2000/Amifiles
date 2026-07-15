@@ -20,11 +20,14 @@
 #include <QPainter>
 #include <QTabWidget>
 #include <QListWidget>
+#include <QMenu>
+#include <QAction>
 #include <QProcess>
 #include <QTimer>
 #include <QLinearGradient>
 #include <QPolygon>
 #include <QSizePolicy>
+#include <QRandomGenerator>
 
 #include <QScreen>
 #include <QKeyEvent>
@@ -97,6 +100,28 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
     m_sliderVolume->setFocusPolicy(Qt::NoFocus);
     connect(m_sliderVolume, &QSlider::valueChanged, this, &FullscreenWidget::onHudVolumeChanged);
 
+    m_btnSubtitles = new QPushButton(m_hudWidget);
+    m_btnSubtitles->setText("CC");
+    m_btnSubtitles->setToolTip("Subtitles");
+    m_btnSubtitles->setFocusPolicy(Qt::NoFocus);
+    m_btnSubtitles->setMaximumWidth(40);
+    m_btnSubtitles->setStyleSheet("QPushButton { font-weight: bold; }");
+    connect(m_btnSubtitles, &QPushButton::clicked, this, &FullscreenWidget::onHudSubtitles);
+
+    m_btnShuffle = new QPushButton(m_hudWidget);
+    m_btnShuffle->setText("🔀");
+    m_btnShuffle->setToolTip("Shuffle Playlist");
+    m_btnShuffle->setFocusPolicy(Qt::NoFocus);
+    m_btnShuffle->setMaximumWidth(40);
+    connect(m_btnShuffle, &QPushButton::clicked, this, &FullscreenWidget::onHudShuffle);
+
+    m_btnRepeat = new QPushButton(m_hudWidget);
+    m_btnRepeat->setText("🔁");
+    m_btnRepeat->setToolTip("Repeat Mode");
+    m_btnRepeat->setFocusPolicy(Qt::NoFocus);
+    m_btnRepeat->setMaximumWidth(40);
+    connect(m_btnRepeat, &QPushButton::clicked, this, &FullscreenWidget::onHudRepeat);
+
     QPushButton* btnExit = new QPushButton(m_hudWidget);
     btnExit->setIcon(style->standardIcon(QStyle::SP_TitleBarNormalButton));
     btnExit->setToolTip("Exit Fullscreen");
@@ -107,6 +132,9 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
     hudLayout->addWidget(m_btnPlayPause);
     hudLayout->addWidget(btnStop);
     hudLayout->addWidget(btnNext);
+    hudLayout->addWidget(m_btnShuffle);
+    hudLayout->addWidget(m_btnRepeat);
+    hudLayout->addWidget(m_btnSubtitles);
     hudLayout->addWidget(m_sliderProgress, 1);
     hudLayout->addWidget(m_lblTime);
     hudLayout->addWidget(lblVol);
@@ -210,6 +238,42 @@ void FullscreenWidget::onHudVolumeChanged(int val) {
             out->setVolume(val / 100.0f);
         }
     }
+}
+
+void FullscreenWidget::onHudSubtitles() {
+    if (!m_player) return;
+    QMenu* menu = new QMenu(this);
+    menu->setStyleSheet(
+        "QMenu { background-color: #1e1e2e; color: #cdd6f4; border: 1px solid #313244; }"
+        "QMenu::item { padding: 6px 20px; }"
+        "QMenu::item:selected { background-color: #89b4fa; color: #11111b; }"
+    );
+    QAction* disableAct = menu->addAction("Disable Subtitles");
+    connect(disableAct, &QAction::triggered, this, [this]() {
+        m_player->setActiveSubtitleTrack(-1);
+    });
+
+    auto tracks = m_player->subtitleTracks();
+    for (int i = 0; i < tracks.size(); ++i) {
+        QMediaMetaData meta = tracks[i];
+        QString name = meta.stringValue(QMediaMetaData::Language);
+        if (name.isEmpty()) name = meta.stringValue(QMediaMetaData::Title);
+        if (name.isEmpty()) name = QString("Track %1").arg(i + 1);
+
+        QAction* act = menu->addAction(name);
+        connect(act, &QAction::triggered, this, [this, i]() {
+            m_player->setActiveSubtitleTrack(i);
+        });
+    }
+    menu->exec(QCursor::pos());
+}
+
+void FullscreenWidget::onHudShuffle() {
+    emit shuffleToggled();
+}
+
+void FullscreenWidget::onHudRepeat() {
+    emit repeatRequested();
 }
 
 bool FullscreenWidget::eventFilter(QObject* watched, QEvent* event) {
@@ -382,6 +446,27 @@ void PreviewPanel::setupUI() {
     m_btnFullscreen->setMaximumWidth(40);
     connect(m_btnFullscreen, &QPushButton::clicked, this, &PreviewPanel::toggleFullscreen);
 
+    m_btnShuffle = new QPushButton(this);
+    m_btnShuffle->setText("🔀");
+    m_btnShuffle->setToolTip("Shuffle (Off)");
+    m_btnShuffle->setMaximumWidth(32);
+    m_btnShuffle->setStyleSheet("QPushButton { background-color: transparent; }");
+    connect(m_btnShuffle, &QPushButton::clicked, this, &PreviewPanel::onShuffleToggled);
+
+    m_btnRepeat = new QPushButton(this);
+    m_btnRepeat->setText("🔁");
+    m_btnRepeat->setToolTip("Repeat: Off");
+    m_btnRepeat->setMaximumWidth(32);
+    m_btnRepeat->setStyleSheet("QPushButton { background-color: transparent; }");
+    connect(m_btnRepeat, &QPushButton::clicked, this, &PreviewPanel::onRepeatClicked);
+
+    m_btnSubtitles = new QPushButton(this);
+    m_btnSubtitles->setText("CC");
+    m_btnSubtitles->setToolTip("Subtitles");
+    m_btnSubtitles->setMaximumWidth(32);
+    m_btnSubtitles->setStyleSheet("QPushButton { font-weight: bold; background-color: transparent; }");
+    connect(m_btnSubtitles, &QPushButton::clicked, this, &PreviewPanel::onSubtitleMenuRequested);
+
     m_sliderProgress = new QSlider(Qt::Horizontal, this);
     m_sliderProgress->setRange(0, 0);
     connect(m_sliderProgress, &QSlider::sliderMoved, this, &PreviewPanel::onSliderMoved);
@@ -404,6 +489,9 @@ void PreviewPanel::setupUI() {
     mediaCtrlLayout->addWidget(m_btnStop);
     mediaCtrlLayout->addWidget(m_btnNextTrack);
     mediaCtrlLayout->addWidget(m_btnFullscreen);
+    mediaCtrlLayout->addWidget(m_btnShuffle);
+    mediaCtrlLayout->addWidget(m_btnRepeat);
+    mediaCtrlLayout->addWidget(m_btnSubtitles);
     mediaCtrlLayout->addWidget(m_sliderProgress);
     mediaCtrlLayout->addWidget(m_lblProgressTime);
     mediaCtrlLayout->addWidget(lblVol);
@@ -839,40 +927,142 @@ void PreviewPanel::playPlaylist(const QStringList& filePaths) {
 
 void PreviewPanel::onMediaStatusChanged(QMediaPlayer::MediaStatus status) {
     if (status == QMediaPlayer::EndOfMedia) {
-        onNextTrack();
+        if (m_repeatMode == 1) {
+            m_player->setPosition(0);
+            m_player->play();
+        } else {
+            onNextTrack();
+        }
     }
 }
 
 void PreviewPanel::onPrevTrack() {
     if (m_playlist.isEmpty()) return;
-    if (m_playlistIndex > 0) {
-        m_playlistIndex--;
-        previewFile(m_playlist[m_playlistIndex]);
-        m_playlistList->setCurrentRow(m_playlistIndex);
-
-        int row = m_metadataTable->rowCount();
-        m_metadataTable->insertRow(row);
-        m_metadataTable->setItem(row, 0, new QTableWidgetItem("Playlist Status"));
-        m_metadataTable->setItem(row, 1, new QTableWidgetItem(QString("Playing track %1 of %2").arg(m_playlistIndex + 1).arg(m_playlist.size())));
+    if (m_shuffleEnabled) {
+        if (m_playlist.size() > 1) {
+            int prevIndex = m_playlistIndex;
+            while (prevIndex == m_playlistIndex) {
+                prevIndex = QRandomGenerator::global()->bounded(m_playlist.size());
+            }
+            m_playlistIndex = prevIndex;
+        }
+    } else {
+        if (m_playlistIndex > 0) {
+            m_playlistIndex--;
+        } else {
+            if (m_repeatMode == 2) {
+                m_playlistIndex = m_playlist.size() - 1;
+            } else {
+                return;
+            }
+        }
     }
+
+    previewFile(m_playlist[m_playlistIndex]);
+    m_playlistList->setCurrentRow(m_playlistIndex);
+
+    int row = m_metadataTable->rowCount();
+    m_metadataTable->insertRow(row);
+    m_metadataTable->setItem(row, 0, new QTableWidgetItem("Playlist Status"));
+    m_metadataTable->setItem(row, 1, new QTableWidgetItem(QString("Playing track %1 of %2").arg(m_playlistIndex + 1).arg(m_playlist.size())));
 }
 
 void PreviewPanel::onNextTrack() {
     if (m_playlist.isEmpty()) return;
-    if (m_playlistIndex < m_playlist.size() - 1) {
-        m_playlistIndex++;
-        previewFile(m_playlist[m_playlistIndex]);
-        m_playlistList->setCurrentRow(m_playlistIndex);
-
-        int row = m_metadataTable->rowCount();
-        m_metadataTable->insertRow(row);
-        m_metadataTable->setItem(row, 0, new QTableWidgetItem("Playlist Status"));
-        m_metadataTable->setItem(row, 1, new QTableWidgetItem(QString("Playing track %1 of %2").arg(m_playlistIndex + 1).arg(m_playlist.size())));
+    if (m_shuffleEnabled) {
+        if (m_playlist.size() > 1) {
+            int nextIndex = m_playlistIndex;
+            while (nextIndex == m_playlistIndex) {
+                nextIndex = QRandomGenerator::global()->bounded(m_playlist.size());
+            }
+            m_playlistIndex = nextIndex;
+        }
     } else {
-        m_playlistIndex = 0;
-        previewFile(m_playlist[0]);
-        m_playlistList->setCurrentRow(0);
+        if (m_playlistIndex < m_playlist.size() - 1) {
+            m_playlistIndex++;
+        } else {
+            if (m_repeatMode == 2) {
+                m_playlistIndex = 0;
+            } else {
+                m_player->stop();
+                return;
+            }
+        }
     }
+
+    previewFile(m_playlist[m_playlistIndex]);
+    m_playlistList->setCurrentRow(m_playlistIndex);
+
+    int row = m_metadataTable->rowCount();
+    m_metadataTable->insertRow(row);
+    m_metadataTable->setItem(row, 0, new QTableWidgetItem("Playlist Status"));
+    m_metadataTable->setItem(row, 1, new QTableWidgetItem(QString("Playing track %1 of %2").arg(m_playlistIndex + 1).arg(m_playlist.size())));
+}
+
+void PreviewPanel::onShuffleToggled() {
+    m_shuffleEnabled = !m_shuffleEnabled;
+
+    if (m_shuffleEnabled) {
+        m_btnShuffle->setStyleSheet("QPushButton { color: #a6e3a1; font-weight: bold; background-color: transparent; }");
+        m_btnShuffle->setToolTip("Shuffle (On)");
+    } else {
+        m_btnShuffle->setStyleSheet("QPushButton { background-color: transparent; }");
+        m_btnShuffle->setToolTip("Shuffle (Off)");
+    }
+
+    if (m_fullscreenWidget && m_fullscreenWidget->hudShuffleButton()) {
+        m_fullscreenWidget->hudShuffleButton()->setStyleSheet(m_shuffleEnabled ? "QPushButton { color: #a6e3a1; font-weight: bold; }" : "");
+    }
+}
+
+void PreviewPanel::onRepeatClicked() {
+    m_repeatMode = (m_repeatMode + 1) % 3;
+
+    if (m_repeatMode == 0) {
+        m_btnRepeat->setText("🔁");
+        m_btnRepeat->setToolTip("Repeat: Off");
+        m_btnRepeat->setStyleSheet("QPushButton { background-color: transparent; }");
+    } else if (m_repeatMode == 1) {
+        m_btnRepeat->setText("🔂");
+        m_btnRepeat->setToolTip("Repeat: One");
+        m_btnRepeat->setStyleSheet("QPushButton { color: #a6e3a1; font-weight: bold; background-color: transparent; }");
+    } else if (m_repeatMode == 2) {
+        m_btnRepeat->setText("🔁");
+        m_btnRepeat->setToolTip("Repeat: All");
+        m_btnRepeat->setStyleSheet("QPushButton { color: #a6e3a1; font-weight: bold; background-color: transparent; }");
+    }
+
+    if (m_fullscreenWidget && m_fullscreenWidget->hudRepeatButton()) {
+        m_fullscreenWidget->hudRepeatButton()->setText(m_repeatMode == 1 ? "🔂" : "🔁");
+        m_fullscreenWidget->hudRepeatButton()->setStyleSheet(m_repeatMode > 0 ? "QPushButton { color: #a6e3a1; font-weight: bold; }" : "");
+    }
+}
+
+void PreviewPanel::onSubtitleMenuRequested() {
+    QMenu* menu = new QMenu(this);
+    menu->setStyleSheet(
+        "QMenu { background-color: #1e1e2e; color: #cdd6f4; border: 1px solid #313244; }"
+        "QMenu::item { padding: 6px 20px; }"
+        "QMenu::item:selected { background-color: #89b4fa; color: #11111b; }"
+    );
+    QAction* disableAct = menu->addAction("Disable Subtitles");
+    connect(disableAct, &QAction::triggered, this, [this]() {
+        m_player->setActiveSubtitleTrack(-1);
+    });
+
+    auto tracks = m_player->subtitleTracks();
+    for (int i = 0; i < tracks.size(); ++i) {
+        QMediaMetaData meta = tracks[i];
+        QString name = meta.stringValue(QMediaMetaData::Language);
+        if (name.isEmpty()) name = meta.stringValue(QMediaMetaData::Title);
+        if (name.isEmpty()) name = QString("Track %1").arg(i + 1);
+
+        QAction* act = menu->addAction(name);
+        connect(act, &QAction::triggered, this, [this, i]() {
+            m_player->setActiveSubtitleTrack(i);
+        });
+    }
+    menu->exec(QCursor::pos());
 }
 
 void PreviewPanel::onPlaylistItemDoubleClicked(QListWidgetItem* item) {
@@ -982,6 +1172,17 @@ void PreviewPanel::toggleFullscreen() {
     connect(m_fullscreenWidget, &FullscreenWidget::playPauseRequested, this, &PreviewPanel::onPlayPause);
     connect(m_fullscreenWidget, &FullscreenWidget::stopRequested, this, &PreviewPanel::onStop);
     connect(m_fullscreenWidget, &FullscreenWidget::nextRequested, this, &PreviewPanel::onNextTrack);
+    connect(m_fullscreenWidget, &FullscreenWidget::shuffleToggled, this, &PreviewPanel::onShuffleToggled);
+    connect(m_fullscreenWidget, &FullscreenWidget::repeatRequested, this, &PreviewPanel::onRepeatClicked);
+
+    // Synchronize initial styles to HUD buttons
+    if (m_fullscreenWidget->hudShuffleButton()) {
+        m_fullscreenWidget->hudShuffleButton()->setStyleSheet(m_shuffleEnabled ? "QPushButton { color: #a6e3a1; font-weight: bold; }" : "");
+    }
+    if (m_fullscreenWidget->hudRepeatButton()) {
+        m_fullscreenWidget->hudRepeatButton()->setText(m_repeatMode == 1 ? "🔂" : "🔁");
+        m_fullscreenWidget->hudRepeatButton()->setStyleSheet(m_repeatMode > 0 ? "QPushButton { color: #a6e3a1; font-weight: bold; }" : "");
+    }
 
     QVBoxLayout* layout = new QVBoxLayout(m_fullscreenWidget);
     layout->setContentsMargins(0, 0, 0, 0);
