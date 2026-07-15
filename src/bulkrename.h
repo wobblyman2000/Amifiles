@@ -9,6 +9,8 @@
 #include <QCheckBox>
 #include <QSpinBox>
 #include <QPushButton>
+#include <QHash>
+#include "metadataextractor.h"
 
 class BulkRenameDialog : public QDialog {
     Q_OBJECT
@@ -26,13 +28,16 @@ private slots:
 private:
     void setupUI();
     void loadPresetNames();
-    QString computeNewName(const QString& originalName, int index) const;
+    QString computeNewName(const QString& filePath, int index) const;
     QString toTitleCase(const QString& str) const;
     QString toSentenceCase(const QString& str) const;
 
     QStringList m_filePaths;
+    QHash<QString, FileMetadata> m_metadataCache;
 
     // UI Configuration Controls
+    QCheckBox* m_chkUsePattern = nullptr;
+    QLineEdit* m_txtPattern = nullptr;
     QComboBox* m_comboCase = nullptr;
     QLineEdit* m_txtFind = nullptr;
     QLineEdit* m_txtReplace = nullptr;

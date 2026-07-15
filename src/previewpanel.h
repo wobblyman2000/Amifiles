@@ -109,13 +109,22 @@ private:
     AudioPlaceholderWidget* m_audioPlaceholder = nullptr;
     QPushButton* m_btnPlayPause = nullptr;
     QPushButton* m_btnStop = nullptr;
+    QPushButton* m_btnPrevTrack = nullptr;
+    QPushButton* m_btnNextTrack = nullptr;
     QSlider* m_sliderProgress = nullptr;
     QLabel* m_lblProgressTime = nullptr;
     QSlider* m_sliderVolume = nullptr;
 
-    // Metadata View (Bottom half)
+    // Bottom half: Tabbed view for Metadata and Playlist Queue
+    class QTabWidget* m_bottomTab = nullptr;
     QWidget* m_metadataContainer = nullptr;
     QTableWidget* m_metadataTable = nullptr;
+    class QListWidget* m_playlistList = nullptr;
+
+private slots:
+    void onPrevTrack();
+    void onNextTrack();
+    void onPlaylistItemDoubleClicked(class QListWidgetItem* item);
 };
 
 #endif // PREVIEWPANEL_H

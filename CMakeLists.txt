@@ -58,6 +58,8 @@ add_executable(Amifiles
     src/terminalpanel.cpp
     src/sunburstchart.h
     src/sunburstchart.cpp
+    src/archivedialog.h
+    src/archivedialog.cpp
 )
 
 target_link_libraries(Amifiles PRIVATE

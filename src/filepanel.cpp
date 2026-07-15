@@ -7,6 +7,7 @@
 #include "diffdialog.h"
 #include "tageditordialog.h"
 #include "copyqueue.h"
+#include "archivedialog.h"
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QHeaderView>
@@ -27,6 +28,9 @@
 #include <QClipboard>
 #include <QMimeData>
 #include <QButtonGroup>
+#include <QDragEnterEvent>
+#include <QDragMoveEvent>
+#include <QDropEvent>
 
 FilePanel::FilePanel(const QString& initialPath, QWidget* parent)
     : QWidget(parent) {
@@ -147,6 +151,10 @@ void FilePanel::setupUI() {
     m_treeView->setSelectionMode(QAbstractItemView::ExtendedSelection);
     m_treeView->setContextMenuPolicy(Qt::CustomContextMenu); // Enable context menu
     m_treeView->installEventFilter(this); // Install event filter to capture focus events
+    m_treeView->setDragEnabled(true);
+    m_treeView->setAcceptDrops(true);
+    m_treeView->setDropIndicatorShown(true);
+    m_treeView->setDragDropMode(QAbstractItemView::DragDrop);
 
     // Icon Grid List View
     m_listView = new QListView(this);
@@ -158,6 +166,10 @@ void FilePanel::setupUI() {
     m_listView->setSelectionMode(QAbstractItemView::ExtendedSelection);
     m_listView->setContextMenuPolicy(Qt::CustomContextMenu);
     m_listView->installEventFilter(this);
+    m_listView->setDragEnabled(true);
+    m_listView->setAcceptDrops(true);
+    m_listView->setDropIndicatorShown(true);
+    m_listView->setDragDropMode(QAbstractItemView::DragDrop);
 
     m_viewStack = new QStackedWidget(this);
     m_viewStack->addWidget(m_treeView);
@@ -396,6 +408,74 @@ bool FilePanel::eventFilter(QObject* watched, QEvent* event) {
                     zoomOut();
                 }
                 return true; // Consume event
+            }
+        }
+
+        if (event->type() == QEvent::DragEnter) {
+            QDragEnterEvent* dragEvent = static_cast<QDragEnterEvent*>(event);
+            if (dragEvent->mimeData()->hasUrls()) {
+                dragEvent->acceptProposedAction();
+                return true;
+            }
+        }
+        if (event->type() == QEvent::DragMove) {
+            QDragMoveEvent* dragMoveEvent = static_cast<QDragMoveEvent*>(event);
+            if (dragMoveEvent->mimeData()->hasUrls()) {
+                dragMoveEvent->acceptProposedAction();
+                return true;
+            }
+        }
+        if (event->type() == QEvent::Drop) {
+            QDropEvent* dropEvent = static_cast<QDropEvent*>(event);
+            const QMimeData* mime = dropEvent->mimeData();
+            if (mime->hasUrls()) {
+                QStringList srcPaths;
+                for (const QUrl& url : mime->urls()) {
+                    QString local = url.toLocalFile();
+                    if (!local.isEmpty() && QFile::exists(local)) {
+                        srcPaths << local;
+                    }
+                }
+                
+                if (!srcPaths.isEmpty()) {
+                    QString destDir = m_currentPath;
+                    
+                    QAbstractItemView* view = qobject_cast<QAbstractItemView*>(watched);
+                    if (view) {
+                        QModelIndex index = view->indexAt(dropEvent->position().toPoint());
+                        if (index.isValid()) {
+                            QModelIndex srcIndex = index;
+                            if (watched == m_treeView) {
+                                srcIndex = m_proxyModel->mapToSource(index);
+                            } else if (watched == m_listView && m_flatViewEnabled) {
+                                srcIndex = m_flatProxyModel->mapToSource(index);
+                            } else if (watched == m_listView) {
+                                srcIndex = m_proxyModel->mapToSource(index);
+                            }
+                            
+                            if (m_fileModel && m_fileModel->isDir(srcIndex)) {
+                                destDir = m_fileModel->filePath(srcIndex);
+                            }
+                        }
+                    }
+
+                    QMenu menu(this);
+                    QAction* actCopy = menu.addAction("Copy Here");
+                    QAction* actMove = menu.addAction("Move Here");
+                    menu.addSeparator();
+                    QAction* actCancel = menu.addAction("Cancel");
+                    
+                    QAction* chosen = menu.exec(QCursor::pos());
+                    if (chosen == actCopy) {
+                        CopyQueueManager::instance().queueCopy(srcPaths, destDir, false);
+                        CopyQueueManager::instance().showQueueDialog(this);
+                    } else if (chosen == actMove) {
+                        CopyQueueManager::instance().queueCopy(srcPaths, destDir, true);
+                        CopyQueueManager::instance().showQueueDialog(this);
+                    }
+                }
+                dropEvent->acceptProposedAction();
+                return true;
             }
         }
     }
@@ -1191,6 +1271,9 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     QAction* actCompareSibling = menu.addAction("Compare with Sibling Pane File");
     QAction* actEditTags = menu.addAction("Edit Tags...");
     menu.addSeparator();
+    QAction* actCreateArchive = menu.addAction("Create Archive...");
+    QAction* actExtractArchive = menu.addAction("Extract Archive...");
+    menu.addSeparator();
     QAction* actProp = menu.addAction(style->standardIcon(QStyle::SP_MessageBoxInformation), "Properties");
 
     bool hasSelection = index.isValid();
@@ -1216,6 +1299,14 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     }
     actCompareSibling->setEnabled(canCompareSibling);
     actEditTags->setEnabled(hasSelection);
+
+    bool isArchive = false;
+    if (curSelected.size() == 1) {
+        QString ext = QFileInfo(curSelected.first()).suffix().toLower();
+        isArchive = (ext == "zip" || ext == "tar" || ext == "gz" || ext == "xz" || ext == "bz2" || ext == "tgz");
+    }
+    actCreateArchive->setEnabled(!curSelected.isEmpty());
+    actExtractArchive->setEnabled(isArchive);
 
     bool hasSibling = m_siblingPanel && m_siblingPanel->isVisible();
     actCopyToSibling->setEnabled(hasSelection && hasSibling);
@@ -1298,6 +1389,16 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         dlg.exec();
     } else if (selected == actEditTags) {
         TagEditorDialog dlg(curSelected, this);
+        if (dlg.exec() == QDialog::Accepted) {
+            refresh();
+        }
+    } else if (selected == actCreateArchive) {
+        ArchiveDialog dlg(ArchiveDialog::ModeCreate, curSelected, m_currentPath, this);
+        if (dlg.exec() == QDialog::Accepted) {
+            refresh();
+        }
+    } else if (selected == actExtractArchive) {
+        ArchiveDialog dlg(ArchiveDialog::ModeExtract, curSelected.first(), m_currentPath, this);
         if (dlg.exec() == QDialog::Accepted) {
             refresh();
         }

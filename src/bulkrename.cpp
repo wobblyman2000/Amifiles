@@ -20,6 +20,11 @@ BulkRenameDialog::BulkRenameDialog(const QStringList& filePaths, QWidget* parent
     setWindowTitle("Bulk Rename Tool");
     resize(900, 600);
 
+    // Cache metadata for all files in-memory
+    for (const QString& path : m_filePaths) {
+        m_metadataCache.insert(path, MetadataExtractor::extract(path));
+    }
+
     setupUI();
     loadPresetNames();
     onUpdatePreview();
@@ -55,6 +60,19 @@ void BulkRenameDialog::setupUI() {
     layoutPresets->addWidget(m_btnSavePreset, 1, 1);
     layoutPresets->addWidget(m_btnDeletePreset, 1, 2);
     optLayout->addWidget(grpPresets);
+
+    // 1.5. Naming Pattern Group
+    QGroupBox* grpPattern = new QGroupBox("Naming Pattern", optWidget);
+    QVBoxLayout* layoutPattern = new QVBoxLayout(grpPattern);
+    m_chkUsePattern = new QCheckBox("Use Naming Pattern", grpPattern);
+    connect(m_chkUsePattern, &QCheckBox::toggled, this, &BulkRenameDialog::onUpdatePreview);
+    m_txtPattern = new QLineEdit(grpPattern);
+    m_txtPattern->setPlaceholderText("[Artist] - [Title]");
+    m_txtPattern->setToolTip("Placeholders: [Title], [Artist], [Album], [Year], [Track], [Seq:01], [Camera], [DateTaken]");
+    connect(m_txtPattern, &QLineEdit::textChanged, this, &BulkRenameDialog::onUpdatePreview);
+    layoutPattern->addWidget(m_chkUsePattern);
+    layoutPattern->addWidget(m_txtPattern);
+    optLayout->addWidget(grpPattern);
 
     // 2. Case Conversion Group
     QGroupBox* grpCase = new QGroupBox("Case Conversion", optWidget);
@@ -253,19 +271,65 @@ QString BulkRenameDialog::toSentenceCase(const QString& str) const {
     return str.at(0).toUpper() + str.mid(1).toLower();
 }
 
-QString BulkRenameDialog::computeNewName(const QString& originalName, int index) const {
-    QFileInfo info(originalName);
+QString BulkRenameDialog::computeNewName(const QString& filePath, int index) const {
+    QFileInfo info(filePath);
     QString name;
     QString ext;
 
     // Check complete file name vs completename and base completeBaseName
     if (m_chkApplyToExt->isChecked()) {
-        name = originalName;
+        name = info.fileName();
         ext = "";
     } else {
         name = info.completeBaseName();
         ext = info.suffix();
         if (!ext.isEmpty()) ext = "." + ext;
+    }
+
+    // 0. Naming Pattern Replacement
+    if (m_chkUsePattern && m_chkUsePattern->isChecked() && m_txtPattern) {
+        QString pattern = m_txtPattern->text();
+        if (!pattern.isEmpty()) {
+            FileMetadata meta = m_metadataCache.value(filePath);
+
+            if (pattern.contains("[Title]", Qt::CaseInsensitive)) {
+                pattern.replace("[Title]", !meta.title.isEmpty() ? meta.title : info.completeBaseName(), Qt::CaseInsensitive);
+            }
+            if (pattern.contains("[Artist]", Qt::CaseInsensitive)) {
+                pattern.replace("[Artist]", !meta.artist.isEmpty() ? meta.artist : "Unknown Artist", Qt::CaseInsensitive);
+            }
+            if (pattern.contains("[Album]", Qt::CaseInsensitive)) {
+                pattern.replace("[Album]", !meta.album.isEmpty() ? meta.album : "Unknown Album", Qt::CaseInsensitive);
+            }
+            if (pattern.contains("[Genre]", Qt::CaseInsensitive)) {
+                pattern.replace("[Genre]", !meta.genre.isEmpty() ? meta.genre : "Unknown Genre", Qt::CaseInsensitive);
+            }
+            if (pattern.contains("[Year]", Qt::CaseInsensitive)) {
+                pattern.replace("[Year]", !meta.year.isEmpty() ? meta.year : "", Qt::CaseInsensitive);
+            }
+            if (pattern.contains("[Track]", Qt::CaseInsensitive)) {
+                pattern.replace("[Track]", !meta.track.isEmpty() ? meta.track : QString::number(index + 1), Qt::CaseInsensitive);
+            }
+            if (pattern.contains("[Camera]", Qt::CaseInsensitive)) {
+                pattern.replace("[Camera]", !meta.cameraModel.isEmpty() ? meta.cameraModel : "Unknown Camera", Qt::CaseInsensitive);
+            }
+            if (pattern.contains("[DateTaken]", Qt::CaseInsensitive)) {
+                pattern.replace("[DateTaken]", !meta.dateTaken.isEmpty() ? meta.dateTaken : "", Qt::CaseInsensitive);
+            }
+
+            // Replace [Seq:01] counter pattern
+            static QRegularExpression seqRegex("\\[Seq:(0*)1\\]");
+            QRegularExpressionMatchIterator it = seqRegex.globalMatch(pattern);
+            while (it.hasNext()) {
+                QRegularExpressionMatch match = it.next();
+                int padding = match.captured(1).length() + 1;
+                int val = m_spinNumStart->value() + index * m_spinNumStep->value();
+                QString numStr = QString::number(val).rightJustified(padding, '0');
+                pattern.replace(match.captured(0), numStr);
+            }
+
+            name = pattern;
+        }
     }
 
     // 1. Find and Replace
@@ -308,13 +372,17 @@ QString BulkRenameDialog::computeNewName(const QString& originalName, int index)
         }
     }
 
+    // Sanitize any remaining directory separators
+    name.replace("/", "_");
+
     return name + ext;
 }
 
 void BulkRenameDialog::onUpdatePreview() {
     for (int i = 0; i < m_tablePreview->rowCount(); ++i) {
         QString originalName = m_tablePreview->item(i, 0)->text();
-        QString newName = computeNewName(originalName, i);
+        QString fullPath = m_tablePreview->item(i, 0)->data(Qt::UserRole).toString();
+        QString newName = computeNewName(fullPath, i);
         
         QTableWidgetItem* itemNewName = m_tablePreview->item(i, 1);
         itemNewName->setText(newName);
@@ -387,6 +455,8 @@ void BulkRenameDialog::onSavePreset() {
         QSettings settings("Amifiles", "Amifiles");
         QString prefix = QString("bulk_rename_presets/%1/").arg(name);
 
+        settings.setValue(prefix + "use_pattern", m_chkUsePattern->isChecked());
+        settings.setValue(prefix + "pattern_text", m_txtPattern->text());
         settings.setValue(prefix + "case_index", m_comboCase->currentIndex());
         settings.setValue(prefix + "find_text", m_txtFind->text());
         settings.setValue(prefix + "replace_text", m_txtReplace->text());
@@ -411,6 +481,8 @@ void BulkRenameDialog::onLoadPreset() {
     QSettings settings("Amifiles", "Amifiles");
     QString prefix = QString("bulk_rename_presets/%1/").arg(name);
 
+    m_chkUsePattern->setChecked(settings.value(prefix + "use_pattern", false).toBool());
+    m_txtPattern->setText(settings.value(prefix + "pattern_text", "").toString());
     m_comboCase->setCurrentIndex(settings.value(prefix + "case_index", 0).toInt());
     m_txtFind->setText(settings.value(prefix + "find_text", "").toString());
     m_txtReplace->setText(settings.value(prefix + "replace_text", "").toString());

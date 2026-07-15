@@ -18,6 +18,8 @@
 #include <QFont>
 #include <QTableWidgetItem>
 #include <QPainter>
+#include <QTabWidget>
+#include <QListWidget>
 #include <QLinearGradient>
 #include <QPolygon>
 #include <QSizePolicy>
@@ -125,6 +127,12 @@ void PreviewPanel::setupUI() {
 
     QStyle* style = QApplication::style();
 
+    m_btnPrevTrack = new QPushButton(this);
+    m_btnPrevTrack->setIcon(style->standardIcon(QStyle::SP_MediaSkipBackward));
+    m_btnPrevTrack->setToolTip("Previous Track");
+    m_btnPrevTrack->setMaximumWidth(40);
+    connect(m_btnPrevTrack, &QPushButton::clicked, this, &PreviewPanel::onPrevTrack);
+
     m_btnPlayPause = new QPushButton(this);
     m_btnPlayPause->setIcon(style->standardIcon(QStyle::SP_MediaPlay));
     m_btnPlayPause->setToolTip("Play/Pause");
@@ -136,6 +144,12 @@ void PreviewPanel::setupUI() {
     m_btnStop->setToolTip("Stop");
     m_btnStop->setMaximumWidth(40);
     connect(m_btnStop, &QPushButton::clicked, this, &PreviewPanel::onStop);
+
+    m_btnNextTrack = new QPushButton(this);
+    m_btnNextTrack->setIcon(style->standardIcon(QStyle::SP_MediaSkipForward));
+    m_btnNextTrack->setToolTip("Next Track");
+    m_btnNextTrack->setMaximumWidth(40);
+    connect(m_btnNextTrack, &QPushButton::clicked, this, &PreviewPanel::onNextTrack);
 
     m_sliderProgress = new QSlider(Qt::Horizontal, this);
     m_sliderProgress->setRange(0, 0);
@@ -154,8 +168,10 @@ void PreviewPanel::setupUI() {
     m_audioOutput->setVolume(0.7f);
     connect(m_sliderVolume, &QSlider::valueChanged, this, &PreviewPanel::onVolumeChanged);
 
+    mediaCtrlLayout->addWidget(m_btnPrevTrack);
     mediaCtrlLayout->addWidget(m_btnPlayPause);
     mediaCtrlLayout->addWidget(m_btnStop);
+    mediaCtrlLayout->addWidget(m_btnNextTrack);
     mediaCtrlLayout->addWidget(m_sliderProgress);
     mediaCtrlLayout->addWidget(m_lblProgressTime);
     mediaCtrlLayout->addWidget(lblVol);
@@ -166,14 +182,19 @@ void PreviewPanel::setupUI() {
     mediaLayout->addLayout(mediaCtrlLayout);
     m_stack->addWidget(m_mediaView);
 
-    // 5. Metadata Table (Bottom half of preview)
+    // 5. Bottom Tabbed Area
+    m_bottomTab = new QTabWidget(this);
+    m_bottomTab->setStyleSheet(
+        "QTabWidget::pane { border: 1px solid #313244; background-color: transparent; border-radius: 4px; }"
+        "QTabBar::tab { background-color: #11111b; color: #a6adc8; padding: 6px 12px; border-top-left-radius: 4px; border-top-right-radius: 4px; }"
+        "QTabBar::tab:selected { background-color: #313244; color: #cdd6f4; }"
+    );
+
+    // Tab 1: Metadata Container
     m_metadataContainer = new QWidget(this);
     QVBoxLayout* metaLayout = new QVBoxLayout(m_metadataContainer);
-    metaLayout->setContentsMargins(0, 4, 0, 0);
+    metaLayout->setContentsMargins(4, 4, 4, 4);
     metaLayout->setSpacing(2);
-
-    QLabel* lblMetaHeader = new QLabel("File Information", m_metadataContainer);
-    lblMetaHeader->setStyleSheet("font-weight: bold; color: #89b4fa; border-bottom: 1px solid #313244; padding-bottom: 2px;");
 
     m_metadataTable = new QTableWidget(0, 2, m_metadataContainer);
     m_metadataTable->setHorizontalHeaderLabels({"Property", "Value"});
@@ -187,12 +208,21 @@ void PreviewPanel::setupUI() {
         "QTableWidget { background-color: transparent; border: none; }"
         "QTableWidget::item { padding: 3px 6px; border: none; }"
     );
-
-    metaLayout->addWidget(lblMetaHeader);
     metaLayout->addWidget(m_metadataTable, 1);
+    m_bottomTab->addTab(m_metadataContainer, "Properties");
+
+    // Tab 2: Playlist Queue
+    m_playlistList = new QListWidget(this);
+    m_playlistList->setStyleSheet(
+        "QListWidget { background-color: transparent; border: none; color: #cdd6f4; }"
+        "QListWidget::item { padding: 4px 8px; }"
+        "QListWidget::item:selected { background-color: #313244; color: #a6e3a1; }"
+    );
+    connect(m_playlistList, &QListWidget::itemDoubleClicked, this, &PreviewPanel::onPlaylistItemDoubleClicked);
+    m_bottomTab->addTab(m_playlistList, "Playlist Queue");
 
     mainLayout->addWidget(m_stack, 2);
-    mainLayout->addWidget(m_metadataContainer, 1);
+    mainLayout->addWidget(m_bottomTab, 1);
 }
 
 void PreviewPanel::clearPreview() {
@@ -535,13 +565,20 @@ void PreviewPanel::playPlaylist(const QStringList& filePaths) {
     m_playlist = filePaths;
     m_playlistIndex = 0;
     
+    m_playlistList->clear();
+    for (const QString& path : m_playlist) {
+        m_playlistList->addItem(QFileInfo(path).fileName());
+    }
+
     if (m_playlist.isEmpty()) {
         clearPreview();
         return;
     }
 
     previewFile(m_playlist[0]);
-    
+    m_playlistList->setCurrentRow(0);
+    m_bottomTab->setCurrentIndex(1); // Switch to Playlist Queue tab
+
     int row = m_metadataTable->rowCount();
     m_metadataTable->insertRow(row);
     m_metadataTable->setItem(row, 0, new QTableWidgetItem("Playlist Status"));
@@ -550,19 +587,53 @@ void PreviewPanel::playPlaylist(const QStringList& filePaths) {
 
 void PreviewPanel::onMediaStatusChanged(QMediaPlayer::MediaStatus status) {
     if (status == QMediaPlayer::EndOfMedia) {
-        if (m_playlistIndex >= 0 && m_playlistIndex < m_playlist.size() - 1) {
-            m_playlistIndex++;
-            
-            previewFile(m_playlist[m_playlistIndex]);
-            
-            int row = m_metadataTable->rowCount();
-            m_metadataTable->insertRow(row);
-            m_metadataTable->setItem(row, 0, new QTableWidgetItem("Playlist Status"));
-            m_metadataTable->setItem(row, 1, new QTableWidgetItem(QString("Playing track %1 of %2").arg(m_playlistIndex + 1).arg(m_playlist.size())));
-        } else {
-            m_playlist.clear();
-            m_playlistIndex = -1;
-        }
+        onNextTrack();
+    }
+}
+
+void PreviewPanel::onPrevTrack() {
+    if (m_playlist.isEmpty()) return;
+    if (m_playlistIndex > 0) {
+        m_playlistIndex--;
+        previewFile(m_playlist[m_playlistIndex]);
+        m_playlistList->setCurrentRow(m_playlistIndex);
+
+        int row = m_metadataTable->rowCount();
+        m_metadataTable->insertRow(row);
+        m_metadataTable->setItem(row, 0, new QTableWidgetItem("Playlist Status"));
+        m_metadataTable->setItem(row, 1, new QTableWidgetItem(QString("Playing track %1 of %2").arg(m_playlistIndex + 1).arg(m_playlist.size())));
+    }
+}
+
+void PreviewPanel::onNextTrack() {
+    if (m_playlist.isEmpty()) return;
+    if (m_playlistIndex < m_playlist.size() - 1) {
+        m_playlistIndex++;
+        previewFile(m_playlist[m_playlistIndex]);
+        m_playlistList->setCurrentRow(m_playlistIndex);
+
+        int row = m_metadataTable->rowCount();
+        m_metadataTable->insertRow(row);
+        m_metadataTable->setItem(row, 0, new QTableWidgetItem("Playlist Status"));
+        m_metadataTable->setItem(row, 1, new QTableWidgetItem(QString("Playing track %1 of %2").arg(m_playlistIndex + 1).arg(m_playlist.size())));
+    } else {
+        m_playlistIndex = 0;
+        previewFile(m_playlist[0]);
+        m_playlistList->setCurrentRow(0);
+    }
+}
+
+void PreviewPanel::onPlaylistItemDoubleClicked(QListWidgetItem* item) {
+    int row = m_playlistList->row(item);
+    if (row >= 0 && row < m_playlist.size()) {
+        m_playlistIndex = row;
+        previewFile(m_playlist[m_playlistIndex]);
+        m_playlistList->setCurrentRow(m_playlistIndex);
+
+        int r = m_metadataTable->rowCount();
+        m_metadataTable->insertRow(r);
+        m_metadataTable->setItem(r, 0, new QTableWidgetItem("Playlist Status"));
+        m_metadataTable->setItem(r, 1, new QTableWidgetItem(QString("Playing track %1 of %2").arg(m_playlistIndex + 1).arg(m_playlist.size())));
     }
 }
 
