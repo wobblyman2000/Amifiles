@@ -1671,6 +1671,15 @@ FilePanel* MainWindow::createTab(QTabWidget* tabWidget, const QString& path) {
 
     panel->proxyModel()->setAgeColoringEnabled(m_ageColoringEnabled);
 
+    bool isLeft = (tabWidget == m_leftTabWidget);
+    if (isLeft) {
+        if (m_actLeftShowFilterText) panel->setFilterTextBarVisible(m_actLeftShowFilterText->isChecked());
+        if (m_actLeftShowCategoryButtons) panel->setCategoryButtonsVisible(m_actLeftShowCategoryButtons->isChecked());
+    } else {
+        if (m_actRightShowFilterText) panel->setFilterTextBarVisible(m_actRightShowFilterText->isChecked());
+        if (m_actRightShowCategoryButtons) panel->setCategoryButtonsVisible(m_actRightShowCategoryButtons->isChecked());
+    }
+
     // Keep tab title sync'd with path changes
     connect(panel, &FilePanel::pathChanged, this, [tabWidget, panel](const QString& newPath) {
         int idx = tabWidget->indexOf(panel);

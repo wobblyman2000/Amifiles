@@ -322,7 +322,13 @@ void FilePanel::setupUI() {
     filterTextLayout->setSpacing(6);
     filterTextLayout->setContentsMargins(0, 0, 0, 0);
     filterTextLayout->addWidget(m_filterEdit, 1);
-    filterTextLayout->addWidget(m_statusLabel);
+
+    // Status bar row (Always Visible)
+    m_statusWidget = new QWidget(this);
+    QHBoxLayout* statusLayout = new QHBoxLayout(m_statusWidget);
+    statusLayout->setContentsMargins(0, 4, 0, 4);
+    statusLayout->setSpacing(6);
+    statusLayout->addWidget(m_statusLabel, 1);
 
     m_zoomSlider = new QSlider(Qt::Horizontal, this);
     m_zoomSlider->setRange(0, 6);
@@ -330,13 +336,14 @@ void FilePanel::setupUI() {
     m_zoomSlider->setFixedWidth(100);
     m_zoomSlider->setToolTip("Zoom Display Icons and Text");
     connect(m_zoomSlider, &QSlider::valueChanged, this, &FilePanel::onZoomChanged);
-    filterTextLayout->addWidget(m_zoomSlider);
+    statusLayout->addWidget(m_zoomSlider);
 
     QVBoxLayout* bottomLayout = new QVBoxLayout();
     bottomLayout->setContentsMargins(0, 0, 0, 0);
     bottomLayout->setSpacing(4);
     bottomLayout->addWidget(m_categoryWidget);
     bottomLayout->addWidget(m_filterTextWidget);
+    bottomLayout->addWidget(m_statusWidget);
 
     mainLayout->addWidget(m_globalSearchEdit);
     mainLayout->addLayout(navLayout);
@@ -395,24 +402,10 @@ bool FilePanel::eventFilter(QObject* watched, QEvent* event) {
 
 void FilePanel::setActive(bool active) {
     m_isActive = active;
-    if (active) {
-        m_treeView->setStyleSheet("QTreeView { border: 2px solid #89b4fa; }");
-        m_listView->setStyleSheet("QListView { border: 2px solid #89b4fa; }");
-        if (m_searchResultsView) {
-            m_searchResultsView->setStyleSheet("QListView { border: 2px solid #89b4fa; background-color: #1e1e2e; color: #cdd6f4; }");
-        }
-        if (m_globalSearchEdit) {
-            m_globalSearchEdit->setStyleSheet("QLineEdit { border: 2px solid #89b4fa; background-color: #1e1e2e; color: #cdd6f4; padding: 4px 8px; border-radius: 4px; }");
-        }
-    } else {
-        m_treeView->setStyleSheet("QTreeView { border: 2px solid #313244; }");
-        m_listView->setStyleSheet("QListView { border: 2px solid #313244; }");
-        if (m_searchResultsView) {
-            m_searchResultsView->setStyleSheet("QListView { border: 2px solid #313244; background-color: #1e1e2e; color: #cdd6f4; }");
-        }
-        if (m_globalSearchEdit) {
-            m_globalSearchEdit->setStyleSheet("QLineEdit { border: 2px solid #313244; background-color: #1e1e2e; color: #cdd6f4; padding: 4px 8px; border-radius: 4px; }");
-        }
+    updateStyles();
+    if (m_globalSearchEdit) {
+        QString borderColor = active ? "#89b4fa" : "#313244";
+        m_globalSearchEdit->setStyleSheet(QString("QLineEdit { border: 2px solid %1; background-color: #1e1e2e; color: #cdd6f4; padding: 4px 8px; border-radius: 4px; }").arg(borderColor));
     }
 }
 
@@ -1448,12 +1441,7 @@ void FilePanel::onZoomChanged(int value) {
     m_treeView->setIconSize(QSize(size, size));
     m_listView->setIconSize(QSize(size, size));
     
-    int fonts[] = { 9, 10, 12, 14, 16, 18, 20 };
-    int fontSize = fonts[qBound(0, value, 6)];
-    
-    QString stylesheet = QString("font-size: %1px;").arg(fontSize);
-    m_treeView->setStyleSheet(stylesheet);
-    m_listView->setStyleSheet(stylesheet);
+    updateStyles();
 
     if (m_listView->viewMode() == QListView::IconMode) {
         m_listView->setGridSize(QSize(size + 60, size + 40));
@@ -1476,15 +1464,22 @@ void FilePanel::syncZoom(int value) {
     m_treeView->setIconSize(QSize(size, size));
     m_listView->setIconSize(QSize(size, size));
     
-    int fonts[] = { 9, 10, 12, 14, 16, 18, 20 };
-    int fontSize = fonts[qBound(0, value, 6)];
-    
-    QString stylesheet = QString("font-size: %1px;").arg(fontSize);
-    m_treeView->setStyleSheet(stylesheet);
-    m_listView->setStyleSheet(stylesheet);
+    updateStyles();
 
     if (m_listView->viewMode() == QListView::IconMode) {
         m_listView->setGridSize(QSize(size + 60, size + 40));
+    }
+}
+
+void FilePanel::updateStyles() {
+    int fonts[] = { 9, 10, 12, 14, 16, 18, 20 };
+    int fontSize = fonts[qBound(0, m_zoomLevel, 6)];
+    QString borderColor = m_isActive ? "#89b4fa" : "#313244";
+
+    m_treeView->setStyleSheet(QString("QTreeView { border: 2px solid %1; font-size: %2px; }").arg(borderColor).arg(fontSize));
+    m_listView->setStyleSheet(QString("QListView { border: 2px solid %1; font-size: %2px; }").arg(borderColor).arg(fontSize));
+    if (m_searchResultsView) {
+        m_searchResultsView->setStyleSheet(QString("QListView { border: 2px solid %1; background-color: #1e1e2e; color: #cdd6f4; font-size: %2px; }").arg(borderColor).arg(fontSize));
     }
 }
 

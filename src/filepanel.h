@@ -28,6 +28,7 @@
 #include <QLinearGradient>
 #include <QPolygon>
 #include <QIcon>
+#include <QImageReader>
 #include <QSettings>
 #include "foldersizecalculator.h"
 #include "flatmodel.h"
@@ -163,7 +164,25 @@ public:
                             return m_iconCache.value(cacheKey);
                         }
                         
-                        QPixmap cover(artPath);
+                        QPixmap cover;
+                        QImageReader reader(artPath);
+                        if (reader.canRead()) {
+                            QSize origSize = reader.size();
+                            if (origSize.isValid()) {
+                                int targetW = 220;
+                                int targetH = 220;
+                                if (casingInt == CasingDVD) {
+                                    targetW = 160;
+                                    targetH = 230;
+                                } else if (casingInt == CasingBluRay) {
+                                    targetW = 190;
+                                    targetH = 210;
+                                }
+                                QSize scaledSize = origSize.scaled(QSize(targetW, targetH), Qt::KeepAspectRatioByExpanding);
+                                reader.setScaledSize(scaledSize);
+                            }
+                            cover = QPixmap::fromImage(reader.read());
+                        }
                         if (!cover.isNull()) {
                              int caseW = 256;
                              int caseH = 256;
@@ -500,6 +519,7 @@ private:
     void updateStatusText();
     void navigateTo(const QString& path, bool addHistory = true);
     bool copyRecursively(const QString& srcPath, const QString& destPath);
+    void updateStyles();
 
     bool m_isActive = false;
     bool m_categoryButtonsVisible = true;
@@ -555,6 +575,7 @@ private:
 
     QWidget* m_categoryWidget = nullptr;
     QWidget* m_filterTextWidget = nullptr;
+    QWidget* m_statusWidget = nullptr;
     FilePanel* m_siblingPanel = nullptr;
 
     QString m_folderArtPath;
