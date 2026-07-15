@@ -112,6 +112,11 @@ void HelpDialog::onSectionChanged(int index) {
                     "<li><b>Flat View (Ctrl+F):</b> Enter recursive folder mode. Subdirectories are flattened into a single list view for quick filtering.</li>"
                     "<li><b>Drives Toolbar:</b> Access mounted disk partition buttons directly above the file panels. Toggle via View Menu.</li>"
                     "<li><b>Age Coloring:</b> Highlight recent files (Red for &lt; 24h, Blue for &lt; 7 days). Toggle via View Menu.</li>"
+                    "</ul>"
+                    "<h3>Tabbed Sidebar Panel (Ctrl+Shift+F)</h3>"
+                    "<ul>"
+                    "<li><b>Bookmarks Sidebar:</b> Displays folder bookmarks favorited using star toggles. Double-click items to navigate.</li>"
+                    "<li><b>Filters Sidebar:</b> Instantly filter directory contents by file size categories (Large, Medium, Small) or modification dates (Today, This Week, This Month).</li>"
                     "</ul>";
             break;
 
@@ -157,6 +162,8 @@ void HelpDialog::onSectionChanged(int index) {
                     "<h3>Supported Preview Formats</h3>"
                     "<ul>"
                     "<li><b>Audio/Video Player:</b> Embeds a media player. Integrates controls for play/pause/mute and volume. Synchronizes tracks with a mini player in the main status bar when the preview panel is collapsed.</li>"
+                    "<li><b>CC Subtitles Selector:</b> Click the <b>CC</b> button to dynamically load video subtitle tracks and toggle or switch subtitles.</li>"
+                    "<li><b>Playlist Playback Modes:</b> Toggle <b>Shuffle (🔀)</b> to randomize track selections. Cycle <b>Repeat (🔁)</b> to cycle between Repeat Off, Repeat One track (🔂), and Repeat All playlist.</li>"
                     "<li><b>DVD/CD Case Overlays:</b> If a folder contains cover art matching audio files, Amifiles wraps the cover in a high-fidelity CD case overlay.</li>"
                     "<li><b>Text Editor:</b> Preview text/code files inside an interactive editor. Make changes and click <b>Save</b> to write updates back to disk immediately.</li>"
                     "</ul>";
@@ -192,17 +199,23 @@ void HelpDialog::onSectionChanged(int index) {
             break;
 
         case 6: // Disk Utilities
-            html += "<h2>7. Disk Utilities</h2>"
+            html += "<h2>7. Disk Utilities &amp; Premium Tools</h2>"
                     "<h3>Compare &amp; Sync</h3>"
                     "<p>Quickly align two directories. Launches a comparison window showing missing, modified, or matching file counts. Run directional folder synchronization immediately.</p>"
-                    "<h3>MD5 Duplicate Finder</h3>"
-                    "<p>Scans selected paths and groups files that share identical MD5 checksum hashes, letting you delete clutter immediately.</p>"
-                    "<h3>Embedded System Console</h3>"
+                    "<h3>Duplicate Finder</h3>"
+                    "<p>Scans selected paths and groups files that share identical MD5 checksum hashes, letting you locate and delete duplicate clutter immediately.</p>"
+                    "<h3>Checksum Hash Checker</h3>"
+                    "<p>Generates MD5, SHA-1, and SHA-256 checksums asynchronously using a background worker thread. Paste a hash in the validation field to compare matching states with real-time green/red highlights.</p>"
+                    "<h3>Secure File Shredder</h3>"
+                    "<p>Securely overwrites file data blocks using a DoD 5220.22-M 3-pass overwrite protocol before unlinking, preventing standard data recovery software from restoring shredded data.</p>"
+                    "<h3>Embedded System Console &amp; Shell</h3>"
                     "<p>The bottom panel captures stdout, stderr, and execution messages from custom toolbar buttons in real-time, letting you debug shell scripts or review output immediately.</p>";
             break;
 
         case 7: // Keyboard Shortcuts
             html += "<h2>8. Keyboard Shortcuts</h2>"
+                    "<p>Keyboard shortcuts are fully customizable! Select <b>Edit -&gt; Keyboard Shortcuts...</b> to assign new key combinations to any of the actions listed below.</p>"
+                    "<h3>Default Hotkeys</h3>"
                     "<table>"
                     "<tr><th>Action</th><th>Shortcut</th><th>Description</th></tr>"
                     "<tr><td><b>New Tab</b></td><td><code>Ctrl+T</code></td><td>Open new folder tab on active side</td></tr>"
@@ -210,7 +223,7 @@ void HelpDialog::onSectionChanged(int index) {
                     "<tr><td><b>Copy to Sibling</b></td><td><code>F5</code></td><td>Copy selection to opposite panel directory</td></tr>"
                     "<tr><td><b>Move to Sibling</b></td><td><code>F6</code></td><td>Move selection to opposite panel directory</td></tr>"
                     "<tr><td><b>Rename Item</b></td><td><code>F2</code></td><td>Rename the selected file/folder</td></tr>"
-                    "<tr><td><b>Refresh Directory</b></td><td><code>Ctrl+R</code></td><td>Force reload active directory contents</td></tr>"
+                    "<tr><td><b>Refresh Directory</b></td><td><code>Ctrl+R</code> (or <code>F5</code>)</td><td>Force reload active directory contents</td></tr>"
                     "<tr><td><b>Dual Pane Toggle</b></td><td><code>Ctrl+D</code></td><td>Toggle split panel on/off</td></tr>"
                     "<tr><td><b>Preview Toggle</b></td><td><code>Ctrl+P</code></td><td>Show or hide the media preview dock</td></tr>"
                     "<tr><td><b>Flat View Toggle</b></td><td><code>Ctrl+F</code></td><td>Toggle flat recursive listing mode</td></tr>"
