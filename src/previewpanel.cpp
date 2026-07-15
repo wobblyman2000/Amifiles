@@ -131,8 +131,7 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
 void FullscreenWidget::resizeEvent(QResizeEvent* event) {
     QWidget::resizeEvent(event);
     int hudW = qMin(width() - 40, 850);
-    QPoint globalPos = mapToGlobal(QPoint((width() - hudW) / 2, height() - 80));
-    m_hudWidget->setGeometry(globalPos.x(), globalPos.y(), hudW, 50);
+    m_hudWidget->setGeometry((width() - hudW) / 2, height() - 80, hudW, 50);
     m_hudWidget->raise();
 }
 
@@ -167,8 +166,7 @@ void FullscreenWidget::updateProgress(qint64 position, qint64 duration) {
 
 void FullscreenWidget::showHud() {
     int hudW = qMin(width() - 40, 850);
-    QPoint globalPos = mapToGlobal(QPoint((width() - hudW) / 2, height() - 80));
-    m_hudWidget->setGeometry(globalPos.x(), globalPos.y(), hudW, 50);
+    m_hudWidget->setGeometry((width() - hudW) / 2, height() - 80, hudW, 50);
     m_hudWidget->show();
     m_hudWidget->raise();
     m_hideTimer->start(3000);
