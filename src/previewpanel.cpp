@@ -35,7 +35,7 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
     installEventFilter(this);
 
     // Create HUD Overlay Panel
-    m_hudWidget = new QWidget(this);
+    m_hudWidget = new QWidget(this, Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
     m_hudWidget->setAttribute(Qt::WA_StyledBackground, true);
     m_hudWidget->setObjectName("hudPanel");
     m_hudWidget->setStyleSheet(
@@ -122,7 +122,8 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
 void FullscreenWidget::resizeEvent(QResizeEvent* event) {
     QWidget::resizeEvent(event);
     int hudW = qMin(width() - 40, 850);
-    m_hudWidget->setGeometry((width() - hudW) / 2, height() - 70, hudW, 50);
+    QPoint globalPos = mapToGlobal(QPoint((width() - hudW) / 2, height() - 70));
+    m_hudWidget->setGeometry(globalPos.x(), globalPos.y(), hudW, 50);
     m_hudWidget->raise();
 }
 
@@ -156,6 +157,9 @@ void FullscreenWidget::updateProgress(qint64 position, qint64 duration) {
 }
 
 void FullscreenWidget::showHud() {
+    int hudW = qMin(width() - 40, 850);
+    QPoint globalPos = mapToGlobal(QPoint((width() - hudW) / 2, height() - 70));
+    m_hudWidget->setGeometry(globalPos.x(), globalPos.y(), hudW, 50);
     m_hudWidget->show();
     m_hudWidget->raise();
     setCursor(Qt::ArrowCursor);
