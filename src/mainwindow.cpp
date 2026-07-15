@@ -8,6 +8,7 @@
 #include "dupfinder.h"
 #include "helpdialog.h"
 #include "spaceanalyzer.h"
+#include "terminalpanel.h"
 #include <QMenuBar>
 #include <QStorageInfo>
 #include <QToolBar>
@@ -331,8 +332,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 
     bool consoleVisible = settings.value("console/visible", true).toBool();
     m_actToggleConsole->setChecked(consoleVisible);
-    if (m_consolePanel) {
-        m_consolePanel->setVisible(consoleVisible);
+    if (m_bottomTabWidget) {
+        m_bottomTabWidget->setVisible(consoleVisible);
     }
 
     // Load individual filter elements visibility from settings
@@ -394,10 +395,23 @@ void MainWindow::setupCentralWidget() {
 
     m_splitter->setSizes({450, 450, 300});
 
+    m_bottomTabWidget = new QTabWidget(this);
+    m_bottomTabWidget->setTabPosition(QTabWidget::South);
+    m_bottomTabWidget->setStyleSheet(
+        "QTabWidget::pane { border: 1px solid #313244; background-color: #11111b; }"
+        "QTabBar::tab { background-color: #181825; color: #a6adc8; border: 1px solid #313244; padding: 4px 10px; }"
+        "QTabBar::tab:selected { background-color: #11111b; color: #cdd6f4; }"
+    );
+
     m_consolePanel = new ConsolePanel(this);
+    m_bottomTabWidget->addTab(m_consolePanel, "Command Output Console");
+
+    m_terminalPanel = new TerminalPanel(this);
+    m_terminalPanel->startShell(QDir::homePath());
+    m_bottomTabWidget->addTab(m_terminalPanel, "Interactive Bash Shell");
 
     mainVSplitter->addWidget(m_splitter);
-    mainVSplitter->addWidget(m_consolePanel);
+    mainVSplitter->addWidget(m_bottomTabWidget);
     mainVSplitter->setSizes({600, 150});
 
     setCentralWidget(mainVSplitter);
@@ -745,6 +759,9 @@ void MainWindow::setupToolbars() {
 void MainWindow::onPanelActivated(FilePanel* panel) {
     if (m_activePanel != panel) {
         m_activePanel = panel;
+        if (m_terminalPanel && m_activePanel) {
+            m_terminalPanel->syncDirectory(m_activePanel->currentPath());
+        }
         
         FilePanel* lp = leftPanel();
         FilePanel* rp = rightPanel();
@@ -813,7 +830,9 @@ void MainWindow::onFolderArtDetected(const QString& artPath) {
 }
 
 void MainWindow::onPathChanged(const QString& path) {
-    Q_UNUSED(path);
+    if (m_terminalPanel) {
+        m_terminalPanel->syncDirectory(path);
+    }
 }
 
 void MainWindow::onToggleDualPane(bool checked) {

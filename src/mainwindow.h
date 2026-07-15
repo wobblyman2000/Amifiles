@@ -128,6 +128,8 @@ private:
     PreviewPanel* m_previewPanel = nullptr;
     MiniMediaControls* m_miniMediaControls = nullptr;
     ConsolePanel* m_consolePanel = nullptr;
+    class TerminalPanel* m_terminalPanel = nullptr;
+    QTabWidget* m_bottomTabWidget = nullptr;
 
     // Menus
     QMenu* m_menuFile = nullptr;

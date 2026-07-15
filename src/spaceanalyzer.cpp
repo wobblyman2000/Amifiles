@@ -1,4 +1,6 @@
 #include "spaceanalyzer.h"
+#include "sunburstchart.h"
+#include <QStackedWidget>
 #include <QDir>
 #include <QDirIterator>
 #include <QFileInfo>
@@ -123,6 +125,10 @@ void SpaceAnalyzerDialog::setupUI() {
     connect(m_btnBack, &QPushButton::clicked, this, &SpaceAnalyzerDialog::onBackClicked);
     navLayout->addWidget(m_btnBack);
 
+    m_btnToggleView = new QPushButton("Switch to Chart", this);
+    connect(m_btnToggleView, &QPushButton::clicked, this, &SpaceAnalyzerDialog::onToggleViewMode);
+    navLayout->addWidget(m_btnToggleView);
+
     m_pathEdit = new QLineEdit(this);
     m_pathEdit->setReadOnly(true);
     navLayout->addWidget(m_pathEdit, 1);
@@ -139,6 +145,9 @@ void SpaceAnalyzerDialog::setupUI() {
     m_scanProgress->setTextVisible(false);
     mainLayout->addWidget(m_scanProgress);
 
+    // View stack switcher (List view vs Chart view)
+    m_viewStack = new QStackedWidget(this);
+
     // Tree View listing
     m_tree = new QTreeWidget(this);
     m_tree->setColumnCount(4);
@@ -150,7 +159,14 @@ void SpaceAnalyzerDialog::setupUI() {
     m_tree->header()->setStretchLastSection(true);
     m_tree->setStyleSheet("QHeaderView::section { background-color: #313244; color: #cdd6f4; border: 1px solid #181825; padding: 4px; }");
     connect(m_tree, &QTreeWidget::itemDoubleClicked, this, &SpaceAnalyzerDialog::onItemDoubleClicked);
-    mainLayout->addWidget(m_tree);
+    m_viewStack->addWidget(m_tree);
+
+    // Chart View visualizer
+    m_chart = new SunburstChartWidget(this);
+    connect(m_chart, &SunburstChartWidget::itemClicked, this, &SpaceAnalyzerDialog::onChartItemClicked);
+    m_viewStack->addWidget(m_chart);
+
+    mainLayout->addWidget(m_viewStack);
 
     // Action buttons
     QHBoxLayout* btnLayout = new QHBoxLayout();
@@ -181,6 +197,7 @@ void SpaceAnalyzerDialog::startScan(const QString& path) {
     m_currentPath = QDir::cleanPath(path);
     m_pathEdit->setText(m_currentPath);
     m_tree->clear();
+    if (m_chart) m_chart->setEntries(QList<SpaceEntry>(), 0);
     m_btnBack->setEnabled(!m_history.isEmpty());
     m_btnNavigate->setEnabled(false);
 
@@ -251,6 +268,9 @@ void SpaceAnalyzerDialog::onScanFinished(const QList<SpaceEntry>& entries, qint6
 
         m_tree->setItemWidget(item, 2, bar);
     }
+    if (m_chart) {
+        m_chart->setEntries(sortedEntries, totalSize);
+    }
 }
 
 void SpaceAnalyzerDialog::onItemDoubleClicked(QTreeWidgetItem* item, int column) {
@@ -298,4 +318,26 @@ QString SpaceAnalyzerDialog::formatBytes(qint64 bytes) const {
     if (mb >= 1.0) return QString("%1 MB").arg(mb, 0, 'f', 1);
     if (kb >= 1.0) return QString("%1 KB").arg(kb, 0, 'f', 1);
     return QString("%1 B").arg(bytes);
+}
+
+void SpaceAnalyzerDialog::onToggleViewMode() {
+    if (!m_viewStack || !m_btnToggleView) return;
+    int current = m_viewStack->currentIndex();
+    if (current == 0) {
+        m_viewStack->setCurrentIndex(1);
+        m_btnToggleView->setText("Switch to List");
+    } else {
+        m_viewStack->setCurrentIndex(0);
+        m_btnToggleView->setText("Switch to Chart");
+    }
+}
+
+void SpaceAnalyzerDialog::onChartItemClicked(const QString& path, bool isDir) {
+    if (isDir) {
+        m_history.append(m_currentPath);
+        startScan(path);
+    } else {
+        m_selectedPath = path;
+        m_btnNavigate->setEnabled(true);
+    }
 }

@@ -50,6 +50,14 @@ add_executable(Amifiles
     src/helpdialog.cpp
     src/spaceanalyzer.h
     src/spaceanalyzer.cpp
+    src/diffdialog.h
+    src/diffdialog.cpp
+    src/tageditordialog.h
+    src/tageditordialog.cpp
+    src/terminalpanel.h
+    src/terminalpanel.cpp
+    src/sunburstchart.h
+    src/sunburstchart.cpp
 )
 
 target_link_libraries(Amifiles PRIVATE
@@ -59,6 +67,7 @@ target_link_libraries(Amifiles PRIVATE
     Qt6::Multimedia
     Qt6::MultimediaWidgets
     Qt6::Svg
+    util
 )
 
 install(TARGETS Amifiles DESTINATION bin)

@@ -58,6 +58,8 @@ private slots:
     void onItemDoubleClicked(QTreeWidgetItem* item, int column);
     void onBackClicked();
     void onNavigateClicked();
+    void onChartItemClicked(const QString& path, bool isDir);
+    void onToggleViewMode();
 
 private:
     void startScan(const QString& path);
@@ -75,8 +77,11 @@ private:
     QLabel* m_statusLabel = nullptr;
     QProgressBar* m_scanProgress = nullptr;
     QTreeWidget* m_tree = nullptr;
+    class SunburstChartWidget* m_chart = nullptr;
+    class QStackedWidget* m_viewStack = nullptr;
     QPushButton* m_btnBack = nullptr;
     QPushButton* m_btnNavigate = nullptr;
+    QPushButton* m_btnToggleView = nullptr;
 };
 
 #endif // SPACEANALYZER_H

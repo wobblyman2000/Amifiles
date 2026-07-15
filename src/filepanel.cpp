@@ -4,6 +4,8 @@
 #include "searchworker.h"
 #include "metadataextractor.h"
 #include "bulkrename.h"
+#include "diffdialog.h"
+#include "tageditordialog.h"
 #include "copyqueue.h"
 #include <QHBoxLayout>
 #include <QVBoxLayout>
@@ -1185,6 +1187,10 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     }
 
     menu.addSeparator();
+    QAction* actCompareSelected = menu.addAction("Compare Selected Files");
+    QAction* actCompareSibling = menu.addAction("Compare with Sibling Pane File");
+    QAction* actEditTags = menu.addAction("Edit Tags...");
+    menu.addSeparator();
     QAction* actProp = menu.addAction(style->standardIcon(QStyle::SP_MessageBoxInformation), "Properties");
 
     bool hasSelection = index.isValid();
@@ -1194,6 +1200,22 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     actDelete->setEnabled(hasSelection);
     actRename->setEnabled(hasSelection);
     actBulkRename->setEnabled(hasSelection);
+
+    QStringList curSelected = selectedPaths();
+    bool canCompareSelected = (curSelected.size() == 2 && QFileInfo(curSelected[0]).isFile() && QFileInfo(curSelected[1]).isFile());
+    actCompareSelected->setEnabled(canCompareSelected);
+
+    bool canCompareSibling = false;
+    QString sibSelectedPath;
+    if (m_siblingPanel && m_siblingPanel->isVisible() && curSelected.size() == 1 && QFileInfo(curSelected[0]).isFile()) {
+        QStringList sibSelected = m_siblingPanel->selectedPaths();
+        if (sibSelected.size() == 1 && QFileInfo(sibSelected[0]).isFile()) {
+            canCompareSibling = true;
+            sibSelectedPath = sibSelected[0];
+        }
+    }
+    actCompareSibling->setEnabled(canCompareSibling);
+    actEditTags->setEnabled(hasSelection);
 
     bool hasSibling = m_siblingPanel && m_siblingPanel->isVisible();
     actCopyToSibling->setEnabled(hasSelection && hasSibling);
@@ -1267,6 +1289,17 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
             updateFavoritesUI();
         } else {
             onFavoriteClicked();
+        }
+    } else if (selected == actCompareSelected) {
+        VisualDiffDialog dlg(curSelected[0], curSelected[1], this);
+        dlg.exec();
+    } else if (selected == actCompareSibling) {
+        VisualDiffDialog dlg(curSelected[0], sibSelectedPath, this);
+        dlg.exec();
+    } else if (selected == actEditTags) {
+        TagEditorDialog dlg(curSelected, this);
+        if (dlg.exec() == QDialog::Accepted) {
+            refresh();
         }
     } else if (selected == actProp) {
         onShowProperties();
