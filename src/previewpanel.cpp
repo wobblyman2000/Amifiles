@@ -20,9 +20,30 @@
 #include <QPainter>
 #include <QTabWidget>
 #include <QListWidget>
+#include <QProcess>
 #include <QLinearGradient>
 #include <QPolygon>
 #include <QSizePolicy>
+
+#include <QKeyEvent>
+#include <QMouseEvent>
+
+FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window | Qt::FramelessWindowHint) {
+    setStyleSheet("background-color: #000000;");
+}
+
+void FullscreenWidget::keyPressEvent(QKeyEvent* event) {
+    if (event->key() == Qt::Key_Escape || event->key() == Qt::Key_F || event->key() == Qt::Key_Space) {
+        emit exitRequested();
+    } else {
+        QWidget::keyPressEvent(event);
+    }
+}
+
+void FullscreenWidget::mouseDoubleClickEvent(QMouseEvent* event) {
+    Q_UNUSED(event);
+    emit exitRequested();
+}
 
 PreviewPanel::PreviewPanel(QWidget* parent) : QWidget(parent) {
     // Initialize QMediaPlayer and AudioOutput first so setupUI can configure them
@@ -33,6 +54,9 @@ PreviewPanel::PreviewPanel(QWidget* parent) : QWidget(parent) {
 
     m_player->setAudioOutput(m_audioOutput);
     m_player->setVideoOutput(m_videoWidget);
+
+    if (m_videoWidget) m_videoWidget->installEventFilter(this);
+    if (m_audioPlaceholder) m_audioPlaceholder->installEventFilter(this);
 
     // Connect player signals
     connect(m_player, &QMediaPlayer::positionChanged, this, &PreviewPanel::onPositionChanged);
@@ -45,6 +69,16 @@ PreviewPanel::PreviewPanel(QWidget* parent) : QWidget(parent) {
 
 PreviewPanel::~PreviewPanel() {
     m_player->stop();
+}
+
+bool PreviewPanel::eventFilter(QObject* watched, QEvent* event) {
+    if (watched == m_videoWidget || watched == m_audioPlaceholder) {
+        if (event->type() == QEvent::MouseButtonDblClick) {
+            toggleFullscreen();
+            return true;
+        }
+    }
+    return QWidget::eventFilter(watched, event);
 }
 
 void PreviewPanel::setupUI() {
@@ -151,6 +185,12 @@ void PreviewPanel::setupUI() {
     m_btnNextTrack->setMaximumWidth(40);
     connect(m_btnNextTrack, &QPushButton::clicked, this, &PreviewPanel::onNextTrack);
 
+    m_btnFullscreen = new QPushButton(this);
+    m_btnFullscreen->setIcon(style->standardIcon(QStyle::SP_TitleBarMaxButton));
+    m_btnFullscreen->setToolTip("Full Screen");
+    m_btnFullscreen->setMaximumWidth(40);
+    connect(m_btnFullscreen, &QPushButton::clicked, this, &PreviewPanel::toggleFullscreen);
+
     m_sliderProgress = new QSlider(Qt::Horizontal, this);
     m_sliderProgress->setRange(0, 0);
     connect(m_sliderProgress, &QSlider::sliderMoved, this, &PreviewPanel::onSliderMoved);
@@ -172,6 +212,7 @@ void PreviewPanel::setupUI() {
     mediaCtrlLayout->addWidget(m_btnPlayPause);
     mediaCtrlLayout->addWidget(m_btnStop);
     mediaCtrlLayout->addWidget(m_btnNextTrack);
+    mediaCtrlLayout->addWidget(m_btnFullscreen);
     mediaCtrlLayout->addWidget(m_sliderProgress);
     mediaCtrlLayout->addWidget(m_lblProgressTime);
     mediaCtrlLayout->addWidget(lblVol);
@@ -710,4 +751,101 @@ void AudioPlaceholderWidget::paintEvent(QPaintEvent* event) {
 
     QString text = QString("🎵 Playing Audio\n\n%1").arg(QFileInfo(m_filePath).fileName());
     painter.drawText(r.adjusted(12, 12, -12, -12), Qt::AlignCenter | Qt::TextWordWrap, text);
+}
+
+void PreviewPanel::toggleFullscreen() {
+    if (m_fullscreenWidget) {
+        exitFullscreen();
+        return;
+    }
+
+    QString activePath = !m_currentAudioPath.isEmpty() ? m_currentAudioPath : m_previewedFilePath;
+    if (activePath.isEmpty()) return;
+
+    bool isVideo = m_videoWidget->isVisible();
+
+    // Create the borderless fullscreen widget
+    m_fullscreenWidget = new FullscreenWidget();
+    connect(m_fullscreenWidget, &FullscreenWidget::exitRequested, this, &PreviewPanel::exitFullscreen);
+
+    QVBoxLayout* layout = new QVBoxLayout(m_fullscreenWidget);
+    layout->setContentsMargins(0, 0, 0, 0);
+
+    if (isVideo) {
+        m_fullscreenVideoWidget = new QVideoWidget(m_fullscreenWidget);
+        m_fullscreenVideoWidget->setStyleSheet("background-color: #000000;");
+        layout->addWidget(m_fullscreenVideoWidget);
+
+        m_player->setVideoOutput(m_fullscreenVideoWidget);
+    } else {
+        m_fullscreenAudioLabel = new QLabel(m_fullscreenWidget);
+        m_fullscreenAudioLabel->setAlignment(Qt::AlignCenter);
+
+        // Load and render cover art in large format
+        QPixmap cover;
+        QProcess proc;
+        proc.start("exiftool", {"-Picture", "-b", activePath});
+        if (proc.waitForFinished(5000)) {
+            QByteArray imgData = proc.readAllStandardOutput();
+            if (!imgData.isEmpty()) {
+                cover.loadFromData(imgData);
+            }
+        }
+        
+        if (cover.isNull()) {
+            QDir dir(QFileInfo(activePath).absolutePath());
+            QStringList coverNames = {"folder.jpg", "folder.png", "cover.jpg", "cover.png", "album.jpg", "album.png"};
+            for (const QString& name : coverNames) {
+                QString path = dir.filePath(name);
+                if (QFile::exists(path)) {
+                    cover.load(path);
+                    break;
+                }
+            }
+        }
+
+        if (cover.isNull()) {
+            cover = QPixmap(512, 512);
+            cover.fill(QColor("#11111b"));
+            QPainter painter(&cover);
+            painter.setRenderHint(QPainter::Antialiasing);
+            painter.setBrush(QBrush(QColor("#313244")));
+            painter.setPen(Qt::NoPen);
+            painter.drawRoundedRect(16, 16, 480, 480, 64, 64);
+            painter.setPen(QPen(QColor("#cdd6f4"), 4));
+            QFont font("Outfit", 90, QFont::Bold);
+            painter.setFont(font);
+            painter.drawText(QRect(16, 16, 480, 480), Qt::AlignCenter, "🎵");
+        }
+
+        int screenH = QGuiApplication::primaryScreen()->geometry().height();
+        int size = qMin(600, screenH - 250);
+        m_fullscreenAudioLabel->setPixmap(cover.scaled(size, size, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        layout->addWidget(m_fullscreenAudioLabel);
+
+        m_fullscreenTextLabel = new QLabel(m_fullscreenWidget);
+        m_fullscreenTextLabel->setAlignment(Qt::AlignCenter);
+        m_fullscreenTextLabel->setStyleSheet("color: #cdd6f4; font-size: 24px; font-weight: bold; padding: 20px;");
+        
+        FileMetadata meta = MetadataExtractor::extract(activePath);
+        QString displayTitle = !meta.title.isEmpty() ? meta.title : QFileInfo(activePath).completeBaseName();
+        QString displayArtist = !meta.artist.isEmpty() ? meta.artist : "Unknown Artist";
+        m_fullscreenTextLabel->setText(QString("%1\n%2").arg(displayTitle).arg(displayArtist));
+        layout->addWidget(m_fullscreenTextLabel);
+    }
+
+    m_fullscreenWidget->showFullScreen();
+}
+
+void PreviewPanel::exitFullscreen() {
+    if (!m_fullscreenWidget) return;
+
+    m_player->setVideoOutput(m_videoWidget);
+
+    m_fullscreenWidget->close();
+    m_fullscreenWidget->deleteLater();
+    m_fullscreenWidget = nullptr;
+    m_fullscreenVideoWidget = nullptr;
+    m_fullscreenAudioLabel = nullptr;
+    m_fullscreenTextLabel = nullptr;
 }

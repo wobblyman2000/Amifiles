@@ -32,6 +32,20 @@ private:
     bool m_coverArtVisible = true;
 };
 
+class FullscreenWidget : public QWidget {
+    Q_OBJECT
+public:
+    explicit FullscreenWidget(QWidget* parent = nullptr);
+    ~FullscreenWidget() override = default;
+
+signals:
+    void exitRequested();
+
+protected:
+    void keyPressEvent(class QKeyEvent* event) override;
+    void mouseDoubleClickEvent(class QMouseEvent* event) override;
+};
+
 class PreviewPanel : public QWidget {
     Q_OBJECT
 public:
@@ -49,6 +63,7 @@ public:
 
 protected:
     void resizeEvent(QResizeEvent* event) override;
+    bool eventFilter(QObject* watched, class QEvent* event) override;
 
 private slots:
     void onSaveText();
@@ -63,6 +78,8 @@ private slots:
     void onSliderMoved(int value);
     void onMediaMetadataChanged();
     void onMediaStatusChanged(QMediaPlayer::MediaStatus status);
+    void toggleFullscreen();
+    void exitFullscreen();
 
 private:
     void setupUI();
@@ -114,12 +131,19 @@ private:
     QSlider* m_sliderProgress = nullptr;
     QLabel* m_lblProgressTime = nullptr;
     QSlider* m_sliderVolume = nullptr;
+    QPushButton* m_btnFullscreen = nullptr;
 
     // Bottom half: Tabbed view for Metadata and Playlist Queue
     class QTabWidget* m_bottomTab = nullptr;
     QWidget* m_metadataContainer = nullptr;
     QTableWidget* m_metadataTable = nullptr;
     class QListWidget* m_playlistList = nullptr;
+
+    // Fullscreen support
+    FullscreenWidget* m_fullscreenWidget = nullptr;
+    QVideoWidget* m_fullscreenVideoWidget = nullptr;
+    QLabel* m_fullscreenAudioLabel = nullptr;
+    QLabel* m_fullscreenTextLabel = nullptr;
 
 private slots:
     void onPrevTrack();
