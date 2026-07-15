@@ -36,7 +36,7 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
     installEventFilter(this);
 
     // Create HUD Overlay Panel
-    m_hudWidget = new QWidget(nullptr, Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::WindowDoesNotAcceptFocus | Qt::BypassWindowManagerHint);
+    m_hudWidget = new QWidget(this, Qt::ToolTip | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::WindowDoesNotAcceptFocus);
     m_hudWidget->setAttribute(Qt::WA_StyledBackground, true);
     m_hudWidget->setObjectName("hudPanel");
     m_hudWidget->setFocusPolicy(Qt::NoFocus);
@@ -128,24 +128,11 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
     showHud();
 }
 
-FullscreenWidget::~FullscreenWidget() {
-    if (m_hudWidget) {
-        m_hudWidget->close();
-        delete m_hudWidget;
-    }
-}
-
 void FullscreenWidget::resizeEvent(QResizeEvent* event) {
     QWidget::resizeEvent(event);
-    QScreen* scr = window()->screen();
-    if (!scr) scr = QGuiApplication::primaryScreen();
-    QRect screenGeom = scr->geometry();
-
-    int hudW = qMin(screenGeom.width() - 40, 850);
-    int x = screenGeom.x() + (screenGeom.width() - hudW) / 2;
-    int y = screenGeom.y() + screenGeom.height() - 80;
-
-    m_hudWidget->setGeometry(x, y, hudW, 50);
+    int hudW = qMin(width() - 40, 850);
+    QPoint globalPos = mapToGlobal(QPoint((width() - hudW) / 2, height() - 80));
+    m_hudWidget->setGeometry(globalPos.x(), globalPos.y(), hudW, 50);
     m_hudWidget->raise();
 }
 
@@ -179,15 +166,9 @@ void FullscreenWidget::updateProgress(qint64 position, qint64 duration) {
 }
 
 void FullscreenWidget::showHud() {
-    QScreen* scr = window()->screen();
-    if (!scr) scr = QGuiApplication::primaryScreen();
-    QRect screenGeom = scr->geometry();
-
-    int hudW = qMin(screenGeom.width() - 40, 850);
-    int x = screenGeom.x() + (screenGeom.width() - hudW) / 2;
-    int y = screenGeom.y() + screenGeom.height() - 80;
-
-    m_hudWidget->setGeometry(x, y, hudW, 50);
+    int hudW = qMin(width() - 40, 850);
+    QPoint globalPos = mapToGlobal(QPoint((width() - hudW) / 2, height() - 80));
+    m_hudWidget->setGeometry(globalPos.x(), globalPos.y(), hudW, 50);
     m_hudWidget->show();
     m_hudWidget->raise();
     m_hideTimer->start(3000);
