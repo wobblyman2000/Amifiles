@@ -32,6 +32,8 @@ private:
                       bool stripArtwork = false, const QByteArray& newArtworkData = QByteArray(), const QString& mimeType = "image/jpeg");
     bool writeFlacTags(const QString& filePath, const QString& title, const QString& artist, const QString& album, const QString& genre, const QString& year,
                        const QString& albumArtist, const QString& discNumber, bool compilation);
+    bool stripFlacArtwork(const QString& filePath);
+    bool writeFlacArtwork(const QString& filePath, const QByteArray& imgData, const QString& mimeType = "image/jpeg");
     bool writeExifTags(const QString& filePath, const QString& camera, const QString& dateTaken);
 
     QStringList m_filePaths;

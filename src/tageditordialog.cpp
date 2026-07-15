@@ -542,12 +542,6 @@ void TagEditorDialog::onPasteArtwork() {
         return;
     }
 
-    QString tempPath = QDir::tempPath() + "/amifiles_temp_cover.jpg";
-    if (!image.save(tempPath, "JPG")) {
-        QMessageBox::critical(this, "Save Failed", "Could not create temporary artwork image.");
-        return;
-    }
-
     QByteArray imgBytes;
     {
         QBuffer buffer(&imgBytes);
@@ -565,31 +559,11 @@ void TagEditorDialog::onPasteArtwork() {
                                    m_editAlbumArtist->text(), m_editDiscNumber->text(), m_chkCompilation->isChecked(),
                                    true, imgBytes, "image/jpeg");
         } else if (ext == "flac") {
-            QProcess wipeProc;
-            wipeProc.start("metaflac", {"--remove-all-pictures", path});
-            if (!wipeProc.waitForFinished(3000) || wipeProc.exitCode() != 0) {
-                QProcess wipeProc2;
-                wipeProc2.start("exiftool", {"-Picture=", path});
-                wipeProc2.waitForFinished(3000);
-            }
-
-            QProcess proc;
-            proc.start("metaflac", {QString("--import-picture-from=%1").arg(tempPath), path});
-            if (proc.waitForFinished(5000) && proc.exitCode() == 0) {
-                success = true;
-            } else {
-                QProcess proc2;
-                proc2.start("exiftool", {QString("-Picture<=%1").arg(tempPath), path});
-                if (proc2.waitForFinished(5000) && proc2.exitCode() == 0) {
-                    success = true;
-                }
-            }
+            success = writeFlacArtwork(path, imgBytes, "image/jpeg");
         }
 
         if (success) successCount++;
     }
-
-    QFile::remove(tempPath);
 
     if (successCount > 0) {
         QMessageBox::information(this, "Artwork Pasted", QString("Successfully embedded artwork into %1 file(s).").arg(successCount));
@@ -760,17 +734,7 @@ void TagEditorDialog::onDeleteArtwork() {
                                    m_editAlbumArtist->text(), m_editDiscNumber->text(), m_chkCompilation->isChecked(),
                                    true);
         } else if (ext == "flac") {
-            QProcess proc;
-            proc.start("metaflac", {"--remove-all-pictures", path});
-            if (proc.waitForFinished(5000) && proc.exitCode() == 0) {
-                success = true;
-            } else {
-                QProcess proc2;
-                proc2.start("exiftool", {"-Picture=", path});
-                if (proc2.waitForFinished(5000) && proc2.exitCode() == 0) {
-                    success = true;
-                }
-            }
+            success = stripFlacArtwork(path);
         }
 
         if (success) successCount++;
@@ -780,6 +744,190 @@ void TagEditorDialog::onDeleteArtwork() {
         QMessageBox::information(this, "Artwork Deleted", QString("Successfully removed all artwork from %1 file(s).").arg(successCount));
         loadCommonTags();
     } else {
-        QMessageBox::warning(this, "Delete Failed", "Could not remove artwork. Make sure exiftool or metaflac is installed.");
+        QMessageBox::warning(this, "Delete Failed", "Could not remove artwork. Make sure the files are not write-protected.");
     }
+}
+
+bool TagEditorDialog::stripFlacArtwork(const QString& filePath) {
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly)) return false;
+    QByteArray fileData = file.readAll();
+    file.close();
+
+    if (fileData.size() < 4 || strncmp(fileData.constData(), "fLaC", 4) != 0) {
+        return false;
+    }
+
+    QByteArray newFileData;
+    newFileData.append("fLaC", 4);
+
+    int offset = 4;
+    bool isLast = false;
+
+    struct Block {
+        char header[4];
+        QByteArray payload;
+        int type;
+        bool last;
+    };
+
+    QList<Block> keptBlocks;
+
+    while (!isLast && offset + 4 <= fileData.size()) {
+        char header[4];
+        memcpy(header, fileData.constData() + offset, 4);
+
+        isLast = (header[0] & 0x80) != 0;
+        int blockType = header[0] & 0x7F;
+        int length = ((unsigned char)header[1] << 16) |
+                     ((unsigned char)header[2] << 8)  |
+                     (unsigned char)header[3];
+
+        offset += 4;
+        if (offset + length > fileData.size()) return false;
+
+        QByteArray payload = fileData.mid(offset, length);
+        offset += length;
+
+        if (blockType != 6) { // Skip PICTURE
+            Block b;
+            memcpy(b.header, header, 4);
+            b.payload = payload;
+            b.type = blockType;
+            b.last = isLast;
+            keptBlocks.append(b);
+        }
+    }
+
+    if (keptBlocks.isEmpty()) return false;
+
+    // Ensure the last block is marked as last
+    for (int i = 0; i < keptBlocks.size(); ++i) {
+        keptBlocks[i].header[0] &= 0x7F;
+    }
+    keptBlocks.last().header[0] |= 0x80;
+
+    for (const Block& b : keptBlocks) {
+        newFileData.append(b.header, 4);
+        newFileData.append(b.payload);
+    }
+
+    if (offset < fileData.size()) {
+        newFileData.append(fileData.constData() + offset, fileData.size() - offset);
+    }
+
+    if (!file.open(QIODevice::WriteOnly)) return false;
+    file.write(newFileData);
+    file.close();
+    return true;
+}
+
+bool TagEditorDialog::writeFlacArtwork(const QString& filePath, const QByteArray& imgData, const QString& mimeType) {
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly)) return false;
+    QByteArray fileData = file.readAll();
+    file.close();
+
+    if (fileData.size() < 4 || strncmp(fileData.constData(), "fLaC", 4) != 0) {
+        return false;
+    }
+
+    QByteArray newFileData;
+    newFileData.append("fLaC", 4);
+
+    int offset = 4;
+    bool isLast = false;
+
+    struct Block {
+        char header[4];
+        QByteArray payload;
+        int type;
+        bool last;
+    };
+
+    QList<Block> keptBlocks;
+
+    while (!isLast && offset + 4 <= fileData.size()) {
+        char header[4];
+        memcpy(header, fileData.constData() + offset, 4);
+
+        isLast = (header[0] & 0x80) != 0;
+        int blockType = header[0] & 0x7F;
+        int length = ((unsigned char)header[1] << 16) |
+                     ((unsigned char)header[2] << 8)  |
+                     (unsigned char)header[3];
+
+        offset += 4;
+        if (offset + length > fileData.size()) return false;
+
+        QByteArray payload = fileData.mid(offset, length);
+        offset += length;
+
+        if (blockType != 6) { // Strip old PICTURE blocks
+            Block b;
+            memcpy(b.header, header, 4);
+            b.payload = payload;
+            b.type = blockType;
+            b.last = isLast;
+            keptBlocks.append(b);
+        }
+    }
+
+    // Build new PICTURE block payload
+    QByteArray picPayload;
+    picPayload.append((char)0); picPayload.append((char)0); picPayload.append((char)0); picPayload.append((char)3);
+
+    QByteArray mimeBytes = mimeType.toLatin1();
+    int mimeLen = mimeBytes.size();
+    picPayload.append((mimeLen >> 24) & 0xFF);
+    picPayload.append((mimeLen >> 16) & 0xFF);
+    picPayload.append((mimeLen >> 8) & 0xFF);
+    picPayload.append(mimeLen & 0xFF);
+    picPayload.append(mimeBytes);
+
+    picPayload.append((char)0); picPayload.append((char)0); picPayload.append((char)0); picPayload.append((char)0);
+
+    picPayload.append((char)0); picPayload.append((char)0); picPayload.append((char)0); picPayload.append((char)0);
+    picPayload.append((char)0); picPayload.append((char)0); picPayload.append((char)0); picPayload.append((char)0);
+    picPayload.append((char)0); picPayload.append((char)0); picPayload.append((char)0); picPayload.append((char)0);
+    picPayload.append((char)0); picPayload.append((char)0); picPayload.append((char)0); picPayload.append((char)0);
+
+    int imgLen = imgData.size();
+    picPayload.append((imgLen >> 24) & 0xFF);
+    picPayload.append((imgLen >> 16) & 0xFF);
+    picPayload.append((imgLen >> 8) & 0xFF);
+    picPayload.append(imgLen & 0xFF);
+    picPayload.append(imgData);
+
+    Block picBlock;
+    picBlock.type = 6;
+    picBlock.payload = picPayload;
+    picBlock.last = false;
+
+    int picLen = picPayload.size();
+    picBlock.header[0] = 6;
+    picBlock.header[1] = (picLen >> 16) & 0xFF;
+    picBlock.header[2] = (picLen >> 8) & 0xFF;
+    picBlock.header[3] = picLen & 0xFF;
+
+    keptBlocks.insert(keptBlocks.size(), picBlock);
+
+    for (int i = 0; i < keptBlocks.size(); ++i) {
+        keptBlocks[i].header[0] &= 0x7F;
+    }
+    keptBlocks.last().header[0] |= 0x80;
+
+    for (const Block& b : keptBlocks) {
+        newFileData.append(b.header, 4);
+        newFileData.append(b.payload);
+    }
+
+    if (offset < fileData.size()) {
+        newFileData.append(fileData.constData() + offset, fileData.size() - offset);
+    }
+
+    if (!file.open(QIODevice::WriteOnly)) return false;
+    file.write(newFileData);
+    file.close();
+    return true;
 }
