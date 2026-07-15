@@ -80,6 +80,7 @@ private slots:
     void onMutePreview(bool checked);
     void onToggleArchiveNav(bool checked);
     void onToggleCasingOverlays(bool checked);
+    void onToggleAudioCoverArt(bool checked);
     void onSaveSearchPreset();
     void updateSearchPresetsMenu();
     void onSearchPresetTriggered();
@@ -165,6 +166,7 @@ private:
     QAction* m_actToggleDrivesToolbar = nullptr;
     QAction* m_actToggleConsole = nullptr;
     QAction* m_actToggleFlatView = nullptr;
+    QAction* m_actShowAudioCoverArt = nullptr;
     QAction* m_actCopyToSibling = nullptr;
     QAction* m_actMoveToSibling = nullptr;
 

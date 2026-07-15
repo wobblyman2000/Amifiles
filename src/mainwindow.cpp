@@ -330,6 +330,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     bool casingOverlays = settings.value("preferences/casing_overlays", true).toBool();
     m_actToggleCasingOverlays->setChecked(casingOverlays);
 
+    bool showAudioCover = settings.value("preview/show_audio_cover_art", true).toBool();
+    m_actShowAudioCoverArt->setChecked(showAudioCover);
+
     bool consoleVisible = settings.value("console/visible", true).toBool();
     m_actToggleConsole->setChecked(consoleVisible);
     if (m_bottomTabWidget) {
@@ -567,6 +570,12 @@ void MainWindow::setupActions() {
     m_actToggleConsole->setToolTip("Toggle command script output console window");
     connect(m_actToggleConsole, &QAction::toggled, this, &MainWindow::onToggleConsole);
 
+    m_actShowAudioCoverArt = new QAction("Show Audio Cover Art in Preview", this);
+    m_actShowAudioCoverArt->setCheckable(true);
+    m_actShowAudioCoverArt->setChecked(true);
+    m_actShowAudioCoverArt->setToolTip("Toggle displaying audio album art background inside the preview panel");
+    connect(m_actShowAudioCoverArt, &QAction::toggled, this, &MainWindow::onToggleAudioCoverArt);
+
     // Toggle Flat View Action
     m_actToggleFlatView = new QAction("Flat View (Recursion Mode)", this);
     m_actToggleFlatView->setCheckable(true);
@@ -677,6 +686,7 @@ void MainWindow::setupMenus() {
     m_menuView->addSeparator();
     m_menuView->addAction(m_actToggleArchiveNav);
     m_menuView->addAction(m_actToggleCasingOverlays);
+    m_menuView->addAction(m_actShowAudioCoverArt);
     
     QMenu* menuFilterToggles = m_menuView->addMenu("Filter Bars");
     menuFilterToggles->addAction(m_actLeftShowFilterText);
@@ -1260,6 +1270,14 @@ void MainWindow::onToggleCasingOverlays(bool checked) {
     for (int i = 0; i < m_rightTabWidget->count(); ++i) {
         FilePanel* p = qobject_cast<FilePanel*>(m_rightTabWidget->widget(i));
         if (p) p->refresh();
+    }
+}
+
+void MainWindow::onToggleAudioCoverArt(bool checked) {
+    QSettings settings("Amifiles", "Amifiles");
+    settings.setValue("preview/show_audio_cover_art", checked);
+    if (m_previewPanel) {
+        m_previewPanel->setAudioCoverArtVisible(checked);
     }
 }
 

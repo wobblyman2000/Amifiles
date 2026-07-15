@@ -15,6 +15,23 @@
 #include <QPixmap>
 #include "metadataextractor.h"
 
+class AudioPlaceholderWidget : public QWidget {
+    Q_OBJECT
+public:
+    explicit AudioPlaceholderWidget(QWidget* parent = nullptr);
+    void setFilePath(const QString& filePath);
+    void setCoverArtVisible(bool visible);
+    QString filePath() const { return m_filePath; }
+    bool isCoverArtVisible() const { return m_coverArtVisible; }
+
+protected:
+    void paintEvent(QPaintEvent* event) override;
+
+private:
+    QString m_filePath;
+    bool m_coverArtVisible = true;
+};
+
 class PreviewPanel : public QWidget {
     Q_OBJECT
 public:
@@ -28,6 +45,7 @@ public:
     QMediaPlayer* player() const { return m_player; }
     void setMuted(bool muted);
     bool isMuted() const;
+    void setAudioCoverArtVisible(bool visible);
 
 protected:
     void resizeEvent(QResizeEvent* event) override;
@@ -88,7 +106,7 @@ private:
     // Media View
     QWidget* m_mediaView = nullptr;
     QVideoWidget* m_videoWidget = nullptr;
-    QLabel* m_audioPlaceholder = nullptr;
+    AudioPlaceholderWidget* m_audioPlaceholder = nullptr;
     QPushButton* m_btnPlayPause = nullptr;
     QPushButton* m_btnStop = nullptr;
     QSlider* m_sliderProgress = nullptr;

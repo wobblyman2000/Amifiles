@@ -111,11 +111,13 @@ void PreviewPanel::setupUI() {
     m_videoWidget->setStyleSheet("background-color: #000000; border-radius: 4px;");
     m_videoWidget->setMinimumHeight(150);
 
-    m_audioPlaceholder = new QLabel("🎵 Audio Track", m_mediaView);
-    m_audioPlaceholder->setAlignment(Qt::AlignCenter);
-    m_audioPlaceholder->setStyleSheet("color: #cdd6f4; font-size: 16px; font-weight: bold; background-color: #1e1e2e; border-radius: 4px;");
+    m_audioPlaceholder = new AudioPlaceholderWidget(m_mediaView);
     m_audioPlaceholder->setMinimumHeight(150);
     m_audioPlaceholder->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
+
+    QSettings settings("Amifiles", "Amifiles");
+    bool showAudioCover = settings.value("preview/show_audio_cover_art", true).toBool();
+    m_audioPlaceholder->setCoverArtVisible(showAudioCover);
 
     // Media Controls Layout
     QHBoxLayout* mediaCtrlLayout = new QHBoxLayout();
@@ -203,8 +205,9 @@ void PreviewPanel::clearPreview() {
     m_textEdit->clear();
     m_textChanged = false;
     m_textControls->hide();
-    m_audioPlaceholder->setPixmap(QPixmap());
-    m_audioPlaceholder->setText("");
+    if (m_audioPlaceholder) {
+        m_audioPlaceholder->setFilePath("");
+    }
 
     m_stack->setCurrentWidget(m_emptyView);
 
@@ -522,6 +525,12 @@ bool PreviewPanel::isMuted() const {
     return false;
 }
 
+void PreviewPanel::setAudioCoverArtVisible(bool visible) {
+    if (m_audioPlaceholder) {
+        m_audioPlaceholder->setCoverArtVisible(visible);
+    }
+}
+
 void PreviewPanel::playPlaylist(const QStringList& filePaths) {
     m_playlist = filePaths;
     m_playlistIndex = 0;
@@ -558,62 +567,76 @@ void PreviewPanel::onMediaStatusChanged(QMediaPlayer::MediaStatus status) {
 }
 
 void PreviewPanel::updateAudioPlaceholder(const QString& filePath) {
-    if (filePath.isEmpty()) {
-        m_audioPlaceholder->setPixmap(QPixmap());
-        m_audioPlaceholder->setText("");
+    if (m_audioPlaceholder) {
+        m_audioPlaceholder->setFilePath(filePath);
+    }
+}
+
+// ================= AudioPlaceholderWidget =================
+
+AudioPlaceholderWidget::AudioPlaceholderWidget(QWidget* parent) : QWidget(parent) {
+    setAttribute(Qt::WA_StyledBackground, true);
+}
+
+void AudioPlaceholderWidget::setFilePath(const QString& filePath) {
+    m_filePath = filePath;
+    update();
+}
+
+void AudioPlaceholderWidget::setCoverArtVisible(bool visible) {
+    m_coverArtVisible = visible;
+    update();
+}
+
+void AudioPlaceholderWidget::paintEvent(QPaintEvent* event) {
+    Q_UNUSED(event);
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing);
+
+    QRect r = rect();
+    painter.fillRect(r, QColor("#1e1e2e"));
+
+    if (m_filePath.isEmpty()) {
+        painter.setPen(QColor("#a6adc8"));
+        painter.drawText(r, Qt::AlignCenter, "Select an audio track to play");
         return;
     }
 
-    QString dirPath = QFileInfo(filePath).absolutePath();
-    QDir dir(dirPath);
-    QStringList artNames = { "folder", "cover", "album", "poster" };
-    QStringList artExts = { "jpg", "jpeg", "png", "webp" };
     QString artPath;
-    for (const QString& name : artNames) {
-        for (const QString& ext : artExts) {
-            QString path = dir.filePath(name + "." + ext);
-            if (QFile::exists(path)) {
-                artPath = path;
-                break;
+    if (m_coverArtVisible) {
+        QString dirPath = QFileInfo(m_filePath).absolutePath();
+        QDir dir(dirPath);
+        QStringList artNames = { "folder", "cover", "album", "poster" };
+        QStringList artExts = { "jpg", "jpeg", "png", "webp" };
+        for (const QString& name : artNames) {
+            for (const QString& ext : artExts) {
+                QString path = dir.filePath(name + "." + ext);
+                if (QFile::exists(path)) {
+                    artPath = path;
+                    break;
+                }
             }
+            if (!artPath.isEmpty()) break;
         }
-        if (!artPath.isEmpty()) break;
     }
-
-    QSize size = m_audioPlaceholder->size();
-    if (size.width() < 50) size.setWidth(400);
-    if (size.height() < 50) size.setHeight(300);
-
-    QPixmap pixmap(size);
-    pixmap.fill(Qt::transparent);
-    QPainter painter(&pixmap);
-    painter.setRenderHint(QPainter::Antialiasing);
 
     if (!artPath.isEmpty()) {
         QPixmap cover(artPath);
         if (!cover.isNull()) {
-            painter.fillRect(pixmap.rect(), QColor("#1e1e2e"));
-            QPixmap scaledCover = cover.scaled(QSize(220, 220), Qt::KeepAspectRatio, Qt::SmoothTransformation);
-            int x = (size.width() - scaledCover.width()) / 2;
-            int y = (size.height() - scaledCover.height()) / 2;
+            QPixmap scaledCover = cover.scaled(r.size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+            int x = (r.width() - scaledCover.width()) / 2;
+            int y = (r.height() - scaledCover.height()) / 2;
             painter.drawPixmap(x, y, scaledCover);
-            painter.fillRect(pixmap.rect(), QColor(30, 30, 46, 180));
-        } else {
-            painter.fillRect(pixmap.rect(), QColor("#1e1e2e"));
+            painter.fillRect(r, QColor(30, 30, 46, 200));
         }
-    } else {
-        painter.fillRect(pixmap.rect(), QColor("#1e1e2e"));
     }
 
     painter.setPen(QColor("#cdd6f4"));
-    QFont font = m_audioPlaceholder->font();
-    font.setPointSize(14);
-    font.setBold(true);
-    painter.setFont(font);
+    QFont f = font();
+    f.setPointSize(12);
+    f.setBold(true);
+    painter.setFont(f);
 
-    QString text = QString("🎵 Playing Audio\n\n%1").arg(QFileInfo(filePath).fileName());
-    painter.drawText(pixmap.rect(), Qt::AlignCenter, text);
-    painter.end();
-
-    m_audioPlaceholder->setPixmap(pixmap);
+    QString text = QString("🎵 Playing Audio\n\n%1").arg(QFileInfo(m_filePath).fileName());
+    painter.drawText(r.adjusted(12, 12, -12, -12), Qt::AlignCenter | Qt::TextWordWrap, text);
 }
