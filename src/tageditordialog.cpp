@@ -13,6 +13,7 @@
 #include <QFileDialog>
 #include <QApplication>
 #include <QDir>
+#include <QBuffer>
 
 TagEditorDialog::TagEditorDialog(const QStringList& filePaths, QWidget* parent)
     : QDialog(parent), m_filePaths(filePaths) {
@@ -304,21 +305,24 @@ void TagEditorDialog::onSaveClicked() {
 
 // Native ID3v2.3 MP3 tag writing helper
 bool TagEditorDialog::writeMp3Tags(const QString& filePath, const QString& title, const QString& artist, const QString& album, const QString& genre, const QString& year,
-                                   const QString& albumArtist, const QString& discNumber, bool compilation) {
+                                   const QString& albumArtist, const QString& discNumber, bool compilation,
+                                   bool stripArtwork, const QByteArray& newArtworkData, const QString& mimeType) {
     QFile file(filePath);
     if (!file.open(QIODevice::ReadOnly)) return false;
 
     QByteArray fileData = file.readAll();
     file.close();
 
-    // Check for existing ID3v2 tag
+    // Check for existing ID3v2 tag and extract its payload
     int skipOffset = 0;
+    QByteArray oldTagData;
     if (fileData.startsWith("ID3")) {
         if (fileData.size() >= 10) {
             int size = ((fileData[6] & 0x7F) << 21) |
                        ((fileData[7] & 0x7F) << 14) |
                        ((fileData[8] & 0x7F) << 7)  |
                         (fileData[9] & 0x7F);
+            oldTagData = fileData.mid(10, size);
             skipOffset = 10 + size;
         }
     }
@@ -358,6 +362,80 @@ bool TagEditorDialog::writeMp3Tags(const QString& filePath, const QString& title
         frames.append(createFrame("TCMP", "1"));
     }
 
+    // Parse and copy non-text frames from the old tag
+    if (!oldTagData.isEmpty()) {
+        int offset = 0;
+        while (offset + 10 < oldTagData.size()) {
+            const char* frameHeader = oldTagData.constData() + offset;
+            bool validFrameId = true;
+            for (int i = 0; i < 4; ++i) {
+                char c = frameHeader[i];
+                if ((c < 'A' || c > 'Z') && (c < '0' || c > '9')) {
+                    validFrameId = false;
+                    break;
+                }
+            }
+            if (!validFrameId) break;
+
+            QString frameId = QString::fromLatin1(frameHeader, 4);
+
+            int frameSize = ((unsigned char)frameHeader[4] << 24) |
+                            ((unsigned char)frameHeader[5] << 16) |
+                            ((unsigned char)frameHeader[6] << 8)  |
+                            (unsigned char)frameHeader[7];
+
+            if (frameSize <= 0 || offset + 10 + frameSize > oldTagData.size()) {
+                break;
+            }
+
+            // Skip frames that we are overwriting
+            bool shouldPreserve = true;
+            if (frameId == "TIT2" || frameId == "TPE1" || frameId == "TALB" ||
+                frameId == "TCON" || frameId == "TYER" || frameId == "TDRC" ||
+                frameId == "TPE2" || frameId == "TPOS" || frameId == "TCMP") {
+                shouldPreserve = false;
+            }
+
+            // Skip APIC frames if we are stripping artwork or adding new artwork
+            if (frameId == "APIC" && (stripArtwork || !newArtworkData.isEmpty())) {
+                shouldPreserve = false;
+            }
+
+            if (shouldPreserve) {
+                frames.append(oldTagData.mid(offset, 10 + frameSize));
+            }
+
+            offset += 10 + frameSize;
+        }
+    }
+
+    // Append new artwork if provided
+    if (!newArtworkData.isEmpty()) {
+        QByteArray payload;
+        payload.append((char)0); // Text encoding: Latin1
+        payload.append(mimeType.toLatin1());
+        payload.append((char)0); // Null terminator
+        payload.append((char)3); // Cover (front)
+        payload.append((char)0); // Description: empty null-terminated
+        payload.append(newArtworkData);
+
+        QByteArray apicFrame;
+        apicFrame.append("APIC", 4);
+
+        int size = payload.size();
+        apicFrame.append((size >> 24) & 0xFF);
+        apicFrame.append((size >> 16) & 0xFF);
+        apicFrame.append((size >> 8) & 0xFF);
+        apicFrame.append(size & 0xFF);
+
+        apicFrame.append((char)0); // Flags
+        apicFrame.append((char)0);
+
+        apicFrame.append(payload);
+
+        frames.append(apicFrame);
+    }
+
     if (frames.isEmpty()) return false;
 
     // Header size = sum of all frame bytes
@@ -368,7 +446,6 @@ bool TagEditorDialog::writeMp3Tags(const QString& filePath, const QString& title
     tagHeader.append((char)0); // Revision
     tagHeader.append((char)0); // Flags
 
-    // Write tag size as a 32-bit syncsafe integer
     tagHeader.append((tagSize >> 21) & 0x7F);
     tagHeader.append((tagSize >> 14) & 0x7F);
     tagHeader.append((tagSize >> 7) & 0x7F);
@@ -471,21 +548,22 @@ void TagEditorDialog::onPasteArtwork() {
         return;
     }
 
+    QByteArray imgBytes;
+    {
+        QBuffer buffer(&imgBytes);
+        buffer.open(QIODevice::WriteOnly);
+        image.save(&buffer, "JPEG");
+    }
+
     int successCount = 0;
     for (const QString& path : m_filePaths) {
         QString ext = QFileInfo(path).suffix().toLower();
         bool success = false;
 
         if (ext == "mp3") {
-            QProcess wipeProc;
-            wipeProc.start("exiftool", {"-Picture=", path});
-            wipeProc.waitForFinished(3000);
-
-            QProcess proc;
-            proc.start("exiftool", {QString("-Picture<=%1").arg(tempPath), path});
-            if (proc.waitForFinished(5000) && proc.exitCode() == 0) {
-                success = true;
-            }
+            success = writeMp3Tags(path, m_editTitle->text(), m_editArtist->text(), m_editAlbum->text(), m_editGenre->text(), m_editYear->text(),
+                                   m_editAlbumArtist->text(), m_editDiscNumber->text(), m_chkCompilation->isChecked(),
+                                   true, imgBytes, "image/jpeg");
         } else if (ext == "flac") {
             QProcess wipeProc;
             wipeProc.start("metaflac", {"--remove-all-pictures", path});
@@ -678,11 +756,9 @@ void TagEditorDialog::onDeleteArtwork() {
         bool success = false;
 
         if (ext == "mp3") {
-            QProcess proc;
-            proc.start("exiftool", {"-Picture=", path});
-            if (proc.waitForFinished(5000) && proc.exitCode() == 0) {
-                success = true;
-            }
+            success = writeMp3Tags(path, m_editTitle->text(), m_editArtist->text(), m_editAlbum->text(), m_editGenre->text(), m_editYear->text(),
+                                   m_editAlbumArtist->text(), m_editDiscNumber->text(), m_chkCompilation->isChecked(),
+                                   true);
         } else if (ext == "flac") {
             QProcess proc;
             proc.start("metaflac", {"--remove-all-pictures", path});

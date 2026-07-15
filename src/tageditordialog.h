@@ -28,7 +28,8 @@ private:
     class QPixmap loadEmbeddedArtwork(const QString& filePath);
     class QPixmap loadEmbeddedArtworkAtIndex(const QString& filePath, const QString& tag);
     bool writeMp3Tags(const QString& filePath, const QString& title, const QString& artist, const QString& album, const QString& genre, const QString& year,
-                      const QString& albumArtist, const QString& discNumber, bool compilation);
+                      const QString& albumArtist, const QString& discNumber, bool compilation,
+                      bool stripArtwork = false, const QByteArray& newArtworkData = QByteArray(), const QString& mimeType = "image/jpeg");
     bool writeFlacTags(const QString& filePath, const QString& title, const QString& artist, const QString& album, const QString& genre, const QString& year,
                        const QString& albumArtist, const QString& discNumber, bool compilation);
     bool writeExifTags(const QString& filePath, const QString& camera, const QString& dateTaken);
