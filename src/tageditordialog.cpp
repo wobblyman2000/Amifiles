@@ -68,11 +68,35 @@ void TagEditorDialog::setupUI() {
     QHBoxLayout* artworkLayout = new QHBoxLayout(artworkGroup);
     artworkLayout->setSpacing(12);
 
+    QVBoxLayout* artworkLeftLayout = new QVBoxLayout();
+    artworkLeftLayout->setSpacing(6);
+
     m_lblArtworkPreview = new QLabel(this);
     m_lblArtworkPreview->setFixedSize(120, 120);
     m_lblArtworkPreview->setStyleSheet("border: 1px solid #45475a; border-radius: 6px; background-color: #1e1e2e; color: #a6adc8;");
     m_lblArtworkPreview->setAlignment(Qt::AlignCenter);
-    artworkLayout->addWidget(m_lblArtworkPreview);
+    artworkLeftLayout->addWidget(m_lblArtworkPreview);
+
+    QHBoxLayout* navLayout = new QHBoxLayout();
+    navLayout->setSpacing(4);
+
+    m_btnPrevArtwork = new QPushButton("◀", this);
+    m_btnPrevArtwork->setFixedSize(28, 24);
+    connect(m_btnPrevArtwork, &QPushButton::clicked, this, &TagEditorDialog::onPrevArtwork);
+    navLayout->addWidget(m_btnPrevArtwork);
+
+    m_lblArtworkIndex = new QLabel("0 / 0", this);
+    m_lblArtworkIndex->setAlignment(Qt::AlignCenter);
+    m_lblArtworkIndex->setStyleSheet("font-size: 11px; color: #a6adc8;");
+    navLayout->addWidget(m_lblArtworkIndex, 1);
+
+    m_btnNextArtwork = new QPushButton("▶", this);
+    m_btnNextArtwork->setFixedSize(28, 24);
+    connect(m_btnNextArtwork, &QPushButton::clicked, this, &TagEditorDialog::onNextArtwork);
+    navLayout->addWidget(m_btnNextArtwork);
+
+    artworkLeftLayout->addLayout(navLayout);
+    artworkLayout->addLayout(artworkLeftLayout);
 
     QVBoxLayout* artworkControlsLayout = new QVBoxLayout();
     artworkControlsLayout->setSpacing(8);
@@ -90,6 +114,11 @@ void TagEditorDialog::setupUI() {
     m_btnExtractArtwork->setStyleSheet("QPushButton { min-height: 28px; }");
     connect(m_btnExtractArtwork, &QPushButton::clicked, this, &TagEditorDialog::onExtractArtwork);
     artworkControlsLayout->addWidget(m_btnExtractArtwork);
+
+    m_btnDeleteArtwork = new QPushButton("Delete All Artwork", this);
+    m_btnDeleteArtwork->setStyleSheet("QPushButton { min-height: 28px; background-color: #f38ba8; color: #11111b; } QPushButton:hover { background-color: #eba0ac; }");
+    connect(m_btnDeleteArtwork, &QPushButton::clicked, this, &TagEditorDialog::onDeleteArtwork);
+    artworkControlsLayout->addWidget(m_btnDeleteArtwork);
 
     artworkControlsLayout->addStretch(1);
     artworkLayout->addLayout(artworkControlsLayout, 1);
@@ -214,27 +243,31 @@ void TagEditorDialog::loadCommonTags() {
         m_editDateTaken->setText(dateTaken);
     }
 
-    if (m_lblArtworkStatus) {
-        if (m_filePaths.size() > 1) {
+    if (m_filePaths.size() > 1) {
+        if (m_lblArtworkStatus) {
             m_lblArtworkStatus->setText("Embedded Artwork: <Mixed>");
-            if (m_lblArtworkPreview) {
-                m_lblArtworkPreview->setText("Multiple Files");
-            }
-        } else {
-            m_lblArtworkStatus->setText(QString("Embedded Artwork: %1").arg(hasArtwork ? "Yes" : "No"));
-            if (m_lblArtworkPreview) {
-                if (hasArtwork) {
-                    QPixmap pix = loadEmbeddedArtwork(m_filePaths.first());
-                    if (!pix.isNull()) {
-                        m_lblArtworkPreview->setPixmap(pix.scaled(120, 120, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-                    } else {
-                        m_lblArtworkPreview->setText("No Image");
-                    }
-                } else {
-                    m_lblArtworkPreview->setText("No Artwork");
-                }
+        }
+        if (m_lblArtworkPreview) {
+            m_lblArtworkPreview->setText("Multiple Files");
+        }
+        m_availableArtworkTags.clear();
+        m_currentArtworkIndex = 0;
+        if (m_btnPrevArtwork) m_btnPrevArtwork->setEnabled(false);
+        if (m_btnNextArtwork) m_btnNextArtwork->setEnabled(false);
+        if (m_lblArtworkIndex) m_lblArtworkIndex->setText("0 / 0");
+    } else {
+        QString firstFile = m_filePaths.first();
+        m_availableArtworkTags = getEmbeddedArtworkTags(firstFile);
+        m_currentArtworkIndex = 0;
+        
+        if (m_lblArtworkStatus) {
+            if (!m_availableArtworkTags.isEmpty()) {
+                m_lblArtworkStatus->setText(QString("Embedded Artwork: Yes (%1)").arg(m_availableArtworkTags.size()));
+            } else {
+                m_lblArtworkStatus->setText("Embedded Artwork: No");
             }
         }
+        updateArtworkDisplay();
     }
 }
 
@@ -444,12 +477,24 @@ void TagEditorDialog::onPasteArtwork() {
         bool success = false;
 
         if (ext == "mp3") {
+            QProcess wipeProc;
+            wipeProc.start("exiftool", {"-Picture=", path});
+            wipeProc.waitForFinished(3000);
+
             QProcess proc;
             proc.start("exiftool", {QString("-Picture<=%1").arg(tempPath), path});
             if (proc.waitForFinished(5000) && proc.exitCode() == 0) {
                 success = true;
             }
         } else if (ext == "flac") {
+            QProcess wipeProc;
+            wipeProc.start("metaflac", {"--remove-all-pictures", path});
+            if (!wipeProc.waitForFinished(3000) || wipeProc.exitCode() != 0) {
+                QProcess wipeProc2;
+                wipeProc2.start("exiftool", {"-Picture=", path});
+                wipeProc2.waitForFinished(3000);
+            }
+
             QProcess proc;
             proc.start("metaflac", {QString("--import-picture-from=%1").arg(tempPath), path});
             if (proc.waitForFinished(5000) && proc.exitCode() == 0) {
@@ -479,14 +524,21 @@ void TagEditorDialog::onPasteArtwork() {
 void TagEditorDialog::onExtractArtwork() {
     if (m_filePaths.isEmpty()) return;
 
+    if (m_availableArtworkTags.isEmpty()) {
+        QMessageBox::warning(this, "Extraction Failed", "No embedded artwork found to extract.");
+        return;
+    }
+
     QString firstFile = m_filePaths.first();
     QString defaultDir = QFileInfo(firstFile).absolutePath();
     QString defaultPath = defaultDir + "/cover.jpg";
     QString savePath = QFileDialog::getSaveFileName(this, "Extract Embedded Artwork", defaultPath, "JPEG Images (*.jpg);;All Files (*)");
     if (savePath.isEmpty()) return;
 
+    QString tag = m_availableArtworkTags.at(m_currentArtworkIndex);
+
     QProcess proc;
-    proc.start("exiftool", {"-Picture", "-b", firstFile});
+    proc.start("exiftool", {"-" + tag, "-b", firstFile});
     if (proc.waitForFinished(5000)) {
         QByteArray imgData = proc.readAllStandardOutput();
         if (!imgData.isEmpty()) {
@@ -516,4 +568,142 @@ QPixmap TagEditorDialog::loadEmbeddedArtwork(const QString& filePath) {
         }
     }
     return QPixmap();
+}
+
+QPixmap TagEditorDialog::loadEmbeddedArtworkAtIndex(const QString& filePath, const QString& tag) {
+    QProcess proc;
+    proc.start("exiftool", {"-" + tag, "-b", filePath});
+    if (proc.waitForFinished(5000)) {
+        QByteArray imgData = proc.readAllStandardOutput();
+        if (!imgData.isEmpty()) {
+            QPixmap pix;
+            if (pix.loadFromData(imgData)) {
+                return pix;
+            }
+        }
+    }
+    return QPixmap();
+}
+
+QStringList TagEditorDialog::getEmbeddedArtworkTags(const QString& filePath) {
+    QStringList tags;
+    QStringList queryArgs;
+    queryArgs << "-a" << "-s";
+    for (int i = 1; i <= 10; ++i) {
+        if (i == 1) queryArgs << "-Picture";
+        else queryArgs << QString("-Picture%1").arg(i);
+    }
+    queryArgs << filePath;
+
+    QProcess proc;
+    proc.start("exiftool", queryArgs);
+    if (proc.waitForFinished(5000)) {
+        QString output = QString::fromUtf8(proc.readAllStandardOutput());
+        QStringList lines = output.split('\n', Qt::SkipEmptyParts);
+        for (const QString& line : lines) {
+            int colonIdx = line.indexOf(':');
+            if (colonIdx != -1) {
+                QString key = line.left(colonIdx).trimmed();
+                if (key.startsWith("Picture", Qt::CaseInsensitive)) {
+                    tags << key;
+                }
+            }
+        }
+    }
+    return tags;
+}
+
+void TagEditorDialog::updateArtworkDisplay() {
+    if (m_availableArtworkTags.isEmpty()) {
+        if (m_lblArtworkPreview) m_lblArtworkPreview->setText("No Artwork");
+        if (m_lblArtworkIndex) m_lblArtworkIndex->setText("0 / 0");
+        if (m_btnPrevArtwork) m_btnPrevArtwork->setEnabled(false);
+        if (m_btnNextArtwork) m_btnNextArtwork->setEnabled(false);
+        return;
+    }
+
+    if (m_currentArtworkIndex < 0) m_currentArtworkIndex = 0;
+    if (m_currentArtworkIndex >= m_availableArtworkTags.size()) {
+        m_currentArtworkIndex = m_availableArtworkTags.size() - 1;
+    }
+
+    QString tag = m_availableArtworkTags.at(m_currentArtworkIndex);
+    QPixmap pix = loadEmbeddedArtworkAtIndex(m_filePaths.first(), tag);
+
+    if (m_lblArtworkPreview) {
+        if (!pix.isNull()) {
+            m_lblArtworkPreview->setPixmap(pix.scaled(120, 120, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        } else {
+            m_lblArtworkPreview->setText("No Image");
+        }
+    }
+
+    if (m_lblArtworkIndex) {
+        m_lblArtworkIndex->setText(QString("%1 / %2").arg(m_currentArtworkIndex + 1).arg(m_availableArtworkTags.size()));
+    }
+
+    if (m_btnPrevArtwork) {
+        m_btnPrevArtwork->setEnabled(m_currentArtworkIndex > 0);
+    }
+    if (m_btnNextArtwork) {
+        m_btnNextArtwork->setEnabled(m_currentArtworkIndex < m_availableArtworkTags.size() - 1);
+    }
+}
+
+void TagEditorDialog::onPrevArtwork() {
+    if (m_currentArtworkIndex > 0) {
+        m_currentArtworkIndex--;
+        updateArtworkDisplay();
+    }
+}
+
+void TagEditorDialog::onNextArtwork() {
+    if (m_currentArtworkIndex < m_availableArtworkTags.size() - 1) {
+        m_currentArtworkIndex++;
+        updateArtworkDisplay();
+    }
+}
+
+void TagEditorDialog::onDeleteArtwork() {
+    if (m_filePaths.isEmpty()) return;
+
+    QMessageBox::StandardButton reply = QMessageBox::question(this, "Confirm Deletion",
+        "Are you sure you want to delete ALL embedded artwork from the selected file(s)?",
+        QMessageBox::Yes | QMessageBox::No);
+    if (reply != QMessageBox::Yes) return;
+
+    int successCount = 0;
+    for (const QString& path : m_filePaths) {
+        QString ext = QFileInfo(path).suffix().toLower();
+        bool success = false;
+
+        if (ext == "mp3") {
+            QProcess proc;
+            proc.start("exiftool", {"-Picture=", path});
+            if (proc.waitForFinished(5000) && proc.exitCode() == 0) {
+                success = true;
+            }
+        } else if (ext == "flac") {
+            QProcess proc;
+            proc.start("metaflac", {"--remove-all-pictures", path});
+            if (proc.waitForFinished(5000) && proc.exitCode() == 0) {
+                success = true;
+            } else {
+                QProcess proc2;
+                proc2.start("exiftool", {"-Picture=", path});
+                if (proc2.waitForFinished(5000) && proc2.exitCode() == 0) {
+                    success = true;
+                }
+            }
+        }
+
+        if (success) successCount++;
+    }
+
+    if (successCount > 0) {
+        QMessageBox::information(this, "Artwork Deleted", QString("Successfully removed all artwork from %1 file(s).").arg(successCount));
+        loadCommonTags();
+    } else {
+        QMessageBox::warning(this, "Delete Failed", "Could not remove artwork. Make sure exiftool or metaflac is installed.");
+    }
 }

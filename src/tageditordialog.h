@@ -16,11 +16,17 @@ private slots:
     void onSaveClicked();
     void onPasteArtwork();
     void onExtractArtwork();
+    void onDeleteArtwork();
+    void onPrevArtwork();
+    void onNextArtwork();
 
 private:
     void setupUI();
     void loadCommonTags();
+    void updateArtworkDisplay();
+    QStringList getEmbeddedArtworkTags(const QString& filePath);
     class QPixmap loadEmbeddedArtwork(const QString& filePath);
+    class QPixmap loadEmbeddedArtworkAtIndex(const QString& filePath, const QString& tag);
     bool writeMp3Tags(const QString& filePath, const QString& title, const QString& artist, const QString& album, const QString& genre, const QString& year,
                       const QString& albumArtist, const QString& discNumber, bool compilation);
     bool writeFlacTags(const QString& filePath, const QString& title, const QString& artist, const QString& album, const QString& genre, const QString& year,
@@ -43,6 +49,13 @@ private:
     QLabel* m_lblArtworkPreview = nullptr;
     QPushButton* m_btnPasteArtwork = nullptr;
     QPushButton* m_btnExtractArtwork = nullptr;
+    QPushButton* m_btnDeleteArtwork = nullptr;
+    QPushButton* m_btnPrevArtwork = nullptr;
+    QPushButton* m_btnNextArtwork = nullptr;
+    QLabel* m_lblArtworkIndex = nullptr;
+
+    int m_currentArtworkIndex = 0;
+    QStringList m_availableArtworkTags;
 
     // Image metadata edits
     QLineEdit* m_editCamera = nullptr;
