@@ -36,9 +36,10 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
     installEventFilter(this);
 
     // Create HUD Overlay Panel
-    m_hudWidget = new QWidget(this);
+    m_hudWidget = new QWidget(this, Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::WindowDoesNotAcceptFocus);
     m_hudWidget->setAttribute(Qt::WA_StyledBackground, true);
     m_hudWidget->setObjectName("hudPanel");
+    m_hudWidget->setFocusPolicy(Qt::NoFocus);
     m_hudWidget->setStyleSheet(
         "QWidget#hudPanel { background-color: rgba(30, 30, 46, 220); border: 1px solid rgba(69, 71, 90, 150); border-radius: 12px; }"
         "QLabel { color: #cdd6f4; font-size: 12px; font-weight: bold; background: transparent; border: none; }"
@@ -59,25 +60,30 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
     QPushButton* btnPrev = new QPushButton(m_hudWidget);
     btnPrev->setIcon(style->standardIcon(QStyle::SP_MediaSkipBackward));
     btnPrev->setToolTip("Previous");
+    btnPrev->setFocusPolicy(Qt::NoFocus);
     connect(btnPrev, &QPushButton::clicked, this, &FullscreenWidget::prevRequested);
 
     m_btnPlayPause = new QPushButton(m_hudWidget);
     m_btnPlayPause->setIcon(style->standardIcon(QStyle::SP_MediaPlay));
     m_btnPlayPause->setToolTip("Play/Pause");
+    m_btnPlayPause->setFocusPolicy(Qt::NoFocus);
     connect(m_btnPlayPause, &QPushButton::clicked, this, &FullscreenWidget::onHudPlayPause);
 
     QPushButton* btnStop = new QPushButton(m_hudWidget);
     btnStop->setIcon(style->standardIcon(QStyle::SP_MediaStop));
     btnStop->setToolTip("Stop");
+    btnStop->setFocusPolicy(Qt::NoFocus);
     connect(btnStop, &QPushButton::clicked, this, &FullscreenWidget::stopRequested);
 
     QPushButton* btnNext = new QPushButton(m_hudWidget);
     btnNext->setIcon(style->standardIcon(QStyle::SP_MediaSkipForward));
     btnNext->setToolTip("Next");
+    btnNext->setFocusPolicy(Qt::NoFocus);
     connect(btnNext, &QPushButton::clicked, this, &FullscreenWidget::nextRequested);
 
     m_sliderProgress = new QSlider(Qt::Horizontal, m_hudWidget);
     m_sliderProgress->setRange(0, 100);
+    m_sliderProgress->setFocusPolicy(Qt::NoFocus);
     connect(m_sliderProgress, &QSlider::sliderMoved, this, &FullscreenWidget::onHudSliderMoved);
 
     m_lblTime = new QLabel("00:00 / 00:00", m_hudWidget);
@@ -88,11 +94,13 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
     m_sliderVolume->setRange(0, 100);
     m_sliderVolume->setValue(70);
     m_sliderVolume->setMaximumWidth(80);
+    m_sliderVolume->setFocusPolicy(Qt::NoFocus);
     connect(m_sliderVolume, &QSlider::valueChanged, this, &FullscreenWidget::onHudVolumeChanged);
 
     QPushButton* btnExit = new QPushButton(m_hudWidget);
     btnExit->setIcon(style->standardIcon(QStyle::SP_TitleBarNormalButton));
     btnExit->setToolTip("Exit Fullscreen");
+    btnExit->setFocusPolicy(Qt::NoFocus);
     connect(btnExit, &QPushButton::clicked, this, &FullscreenWidget::exitRequested);
 
     hudLayout->addWidget(btnPrev);
@@ -123,7 +131,8 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
 void FullscreenWidget::resizeEvent(QResizeEvent* event) {
     QWidget::resizeEvent(event);
     int hudW = qMin(width() - 40, 850);
-    m_hudWidget->setGeometry((width() - hudW) / 2, height() - 80, hudW, 50);
+    QPoint globalPos = mapToGlobal(QPoint((width() - hudW) / 2, height() - 80));
+    m_hudWidget->setGeometry(globalPos.x(), globalPos.y(), hudW, 50);
     m_hudWidget->raise();
 }
 
@@ -158,7 +167,8 @@ void FullscreenWidget::updateProgress(qint64 position, qint64 duration) {
 
 void FullscreenWidget::showHud() {
     int hudW = qMin(width() - 40, 850);
-    m_hudWidget->setGeometry((width() - hudW) / 2, height() - 80, hudW, 50);
+    QPoint globalPos = mapToGlobal(QPoint((width() - hudW) / 2, height() - 80));
+    m_hudWidget->setGeometry(globalPos.x(), globalPos.y(), hudW, 50);
     m_hudWidget->show();
     m_hudWidget->raise();
     setCursor(Qt::ArrowCursor);
@@ -1047,6 +1057,7 @@ void PreviewPanel::toggleFullscreen() {
     m_fullscreenWidget->setMediaState(isVideo, m_player, m_audioOutput);
     m_fullscreenWidget->updateProgress(m_player->position(), m_player->duration());
     m_fullscreenWidget->showFullScreen();
+    m_fullscreenWidget->setFocus();
 }
 
 void PreviewPanel::exitFullscreen() {
