@@ -19,6 +19,7 @@ private:
     void setupUI();
     void loadCommonTags();
     bool writeMp3Tags(const QString& filePath, const QString& title, const QString& artist, const QString& album, const QString& genre, const QString& year);
+    bool writeFlacTags(const QString& filePath, const QString& title, const QString& artist, const QString& album, const QString& genre, const QString& year);
     bool writeExifTags(const QString& filePath, const QString& camera, const QString& dateTaken);
 
     QStringList m_filePaths;

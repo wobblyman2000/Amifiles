@@ -160,6 +160,9 @@ void TagEditorDialog::onSaveClicked() {
         if (ext == "mp3") {
             // Write MP3 ID3v2 tags
             success = writeMp3Tags(path, m_editTitle->text(), m_editArtist->text(), m_editAlbum->text(), m_editGenre->text(), m_editYear->text());
+        } else if (ext == "flac") {
+            // Write FLAC Vorbis comments
+            success = writeFlacTags(path, m_editTitle->text(), m_editArtist->text(), m_editAlbum->text(), m_editGenre->text(), m_editYear->text());
         } else if (ext == "jpg" || ext == "jpeg" || ext == "png") {
             // Write JPEG/PNG EXIF tags
             success = writeExifTags(path, m_editCamera->text(), m_editDateTaken->text());
@@ -172,7 +175,7 @@ void TagEditorDialog::onSaveClicked() {
         QMessageBox::information(this, "Tags Saved", QString("Successfully updated %1 file(s).").arg(successCount));
         accept();
     } else {
-        QMessageBox::warning(this, "Save Failed", "Could not write metadata. Tag writing is supported for MP3 and JPEG EXIF.");
+        QMessageBox::warning(this, "Save Failed", "Could not write metadata. Tag writing is supported for MP3, FLAC, and JPEG EXIF.");
         reject();
     }
 }
@@ -283,5 +286,37 @@ bool TagEditorDialog::writeExifTags(const QString& filePath, const QString& came
         }
     }
 
+    return false;
+}
+
+bool TagEditorDialog::writeFlacTags(const QString& filePath, const QString& title, const QString& artist, const QString& album, const QString& genre, const QString& year) {
+    QProcess proc;
+    QStringList args;
+    args << "--remove-tag=TITLE" << "--remove-tag=ARTIST" << "--remove-tag=ALBUM" << "--remove-tag=GENRE" << "--remove-tag=DATE";
+    if (!title.isEmpty()) args << QString("--set-tag=TITLE=%1").arg(title);
+    if (!artist.isEmpty()) args << QString("--set-tag=ARTIST=%1").arg(artist);
+    if (!album.isEmpty()) args << QString("--set-tag=ALBUM=%1").arg(album);
+    if (!genre.isEmpty()) args << QString("--set-tag=GENRE=%1").arg(genre);
+    if (!year.isEmpty()) args << QString("--set-tag=DATE=%1").arg(year);
+    args << filePath;
+
+    proc.start("metaflac", args);
+    if (proc.waitForFinished(3000) && proc.exitCode() == 0) {
+        return true;
+    }
+    
+    QProcess proc2;
+    QStringList args2;
+    if (!title.isEmpty()) args2 << QString("-Title=%1").arg(title);
+    if (!artist.isEmpty()) args2 << QString("-Artist=%1").arg(artist);
+    if (!album.isEmpty()) args2 << QString("-Album=%1").arg(album);
+    if (!genre.isEmpty()) args2 << QString("-Genre=%1").arg(genre);
+    if (!year.isEmpty()) args2 << QString("-Date=%1").arg(year);
+    args2 << filePath;
+
+    proc2.start("exiftool", args2);
+    if (proc2.waitForFinished(3000) && proc2.exitCode() == 0) {
+        return true;
+    }
     return false;
 }

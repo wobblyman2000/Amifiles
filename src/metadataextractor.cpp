@@ -275,7 +275,84 @@ static QString decodeID3v2Text(const QByteArray& data) {
     return result.trimmed();
 }
 
+static void parseFlacMetadata(const QString& filePath, FileMetadata& meta) {
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly)) return;
+
+    char sig[4];
+    if (file.read(sig, 4) != 4 || strncmp(sig, "fLaC", 4) != 0) {
+        file.close();
+        return;
+    }
+
+    bool isLast = false;
+    while (!isLast && !file.atEnd()) {
+        char header[4];
+        if (file.read(header, 4) != 4) break;
+
+        isLast = (header[0] & 0x80) != 0;
+        int blockType = header[0] & 0x7F;
+        int length = ((unsigned char)header[1] << 16) |
+                     ((unsigned char)header[2] << 8)  |
+                     (unsigned char)header[3];
+
+        if (length <= 0) break;
+
+        QByteArray payload = file.read(length);
+        if (payload.size() != length) break;
+
+        if (blockType == 4) { // VORBIS_COMMENT
+            int offset = 0;
+            if (offset + 4 > length) break;
+            
+            quint32 vendorLen = (unsigned char)payload[offset] |
+                                ((unsigned char)payload[offset+1] << 8) |
+                                ((unsigned char)payload[offset+2] << 16) |
+                                ((unsigned char)payload[offset+3] << 24);
+            offset += 4 + vendorLen;
+            if (offset + 4 > length) break;
+
+            quint32 numComments = (unsigned char)payload[offset] |
+                                  ((unsigned char)payload[offset+1] << 8) |
+                                  ((unsigned char)payload[offset+2] << 16) |
+                                  ((unsigned char)payload[offset+3] << 24);
+            offset += 4;
+
+            for (quint32 i = 0; i < numComments; ++i) {
+                if (offset + 4 > length) break;
+                quint32 commentLen = (unsigned char)payload[offset] |
+                                     ((unsigned char)payload[offset+1] << 8) |
+                                     ((unsigned char)payload[offset+2] << 16) |
+                                     ((unsigned char)payload[offset+3] << 24);
+                offset += 4;
+
+                if (offset + commentLen > (quint32)length) break;
+                QString commentStr = QString::fromUtf8(payload.constData() + offset, commentLen);
+                offset += commentLen;
+
+                int eqIdx = commentStr.indexOf('=');
+                if (eqIdx != -1) {
+                    QString key = commentStr.left(eqIdx).toUpper();
+                    QString val = commentStr.mid(eqIdx + 1);
+                    if (key == "TITLE") meta.title = val;
+                    else if (key == "ARTIST") meta.artist = val;
+                    else if (key == "ALBUM") meta.album = val;
+                    else if (key == "GENRE") meta.genre = val;
+                    else if (key == "DATE") meta.year = val;
+                    else if (key == "TRACKNUMBER") meta.track = val;
+                }
+            }
+        }
+    }
+    file.close();
+}
+
 void MetadataExtractor::extractAudioInfo(const QString& filePath, FileMetadata& meta) {
+    if (filePath.endsWith(".flac", Qt::CaseInsensitive)) {
+        parseFlacMetadata(filePath, meta);
+        return;
+    }
+
     QFile file(filePath);
     if (!file.open(QIODevice::ReadOnly)) {
         return;
