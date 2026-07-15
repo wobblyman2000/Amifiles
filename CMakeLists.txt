@@ -9,7 +9,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Multimedia MultimediaWidgets Svg)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Multimedia MultimediaWidgets Svg Network)
 
 add_executable(Amifiles
     src/main.cpp
@@ -54,6 +54,8 @@ add_executable(Amifiles
     src/diffdialog.cpp
     src/tageditordialog.h
     src/tageditordialog.cpp
+    src/metadatafetcherdialog.h
+    src/metadatafetcherdialog.cpp
     src/terminalpanel.h
     src/terminalpanel.cpp
     src/sunburstchart.h
@@ -69,6 +71,7 @@ target_link_libraries(Amifiles PRIVATE
     Qt6::Multimedia
     Qt6::MultimediaWidgets
     Qt6::Svg
+    Qt6::Network
     util
 )
 

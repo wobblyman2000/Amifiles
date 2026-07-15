@@ -156,6 +156,13 @@ void TagEditorDialog::setupUI() {
     QHBoxLayout* btnLayout = new QHBoxLayout();
     btnLayout->addStretch(1);
 
+    if (hasAudio) {
+        QPushButton* btnAutoFetch = new QPushButton("Auto-Fetch Online", this);
+        btnAutoFetch->setStyleSheet("QPushButton { background-color: #89b4fa; color: #11111b; } QPushButton:hover { background-color: #b4befe; }");
+        connect(btnAutoFetch, &QPushButton::clicked, this, &TagEditorDialog::onAutoFetchClicked);
+        btnLayout->addWidget(btnAutoFetch);
+    }
+
     QPushButton* btnSave = new QPushButton("Save Tags", this);
     btnSave->setStyleSheet("QPushButton { background-color: #a6e3a1; color: #11111b; } QPushButton:hover { background-color: #94e2d5; }");
     connect(btnSave, &QPushButton::clicked, this, &TagEditorDialog::onSaveClicked);
@@ -274,18 +281,46 @@ void TagEditorDialog::loadCommonTags() {
 
 void TagEditorDialog::onSaveClicked() {
     int successCount = 0;
-    for (const QString& path : m_filePaths) {
+    for (int idx = 0; idx < m_filePaths.size(); ++idx) {
+        QString path = m_filePaths[idx];
         QString ext = QFileInfo(path).suffix().toLower();
         bool success = false;
 
+        QString title, artist, album, year, trackNum, trackCount;
+        if (m_fetchedMetadataMap.contains(idx)) {
+            FetchedTrack track = m_fetchedMetadataMap[idx];
+            title = track.title;
+            artist = track.artist.isEmpty() ? m_editArtist->text() : track.artist;
+            album = track.album.isEmpty() ? m_editAlbum->text() : track.album;
+            year = track.year.isEmpty() ? m_editYear->text() : track.year;
+            trackNum = QString::number(track.trackNumber);
+            trackCount = QString::number(track.trackCount);
+        } else {
+            title = m_editTitle->text();
+            artist = m_editArtist->text();
+            album = m_editAlbum->text();
+            year = m_editYear->text();
+        }
+
+        QString genre = m_editGenre->text();
+        QString albumArtist = m_editAlbumArtist->text();
+        QString discNumber = m_editDiscNumber->text();
+        bool compilation = m_chkCompilation->isChecked();
+
         if (ext == "mp3") {
             // Write MP3 ID3v2 tags
-            success = writeMp3Tags(path, m_editTitle->text(), m_editArtist->text(), m_editAlbum->text(), m_editGenre->text(), m_editYear->text(),
-                                   m_editAlbumArtist->text(), m_editDiscNumber->text(), m_chkCompilation->isChecked());
+            success = writeMp3Tags(path, title, artist, album, genre, year,
+                                   albumArtist, discNumber, compilation,
+                                   !m_fetchedArtworkData.isEmpty(), m_fetchedArtworkData, m_fetchedArtworkMimeType,
+                                   trackNum);
         } else if (ext == "flac") {
             // Write FLAC Vorbis comments
-            success = writeFlacTags(path, m_editTitle->text(), m_editArtist->text(), m_editAlbum->text(), m_editGenre->text(), m_editYear->text(),
-                                    m_editAlbumArtist->text(), m_editDiscNumber->text(), m_chkCompilation->isChecked());
+            success = writeFlacTags(path, title, artist, album, genre, year,
+                                    albumArtist, discNumber, compilation,
+                                    trackNum, trackCount);
+            if (success && !m_fetchedArtworkData.isEmpty()) {
+                writeFlacArtwork(path, m_fetchedArtworkData, m_fetchedArtworkMimeType);
+            }
         } else if (ext == "jpg" || ext == "jpeg" || ext == "png") {
             // Write JPEG/PNG EXIF tags
             success = writeExifTags(path, m_editCamera->text(), m_editDateTaken->text());
@@ -306,7 +341,8 @@ void TagEditorDialog::onSaveClicked() {
 // Native ID3v2.3 MP3 tag writing helper
 bool TagEditorDialog::writeMp3Tags(const QString& filePath, const QString& title, const QString& artist, const QString& album, const QString& genre, const QString& year,
                                    const QString& albumArtist, const QString& discNumber, bool compilation,
-                                   bool stripArtwork, const QByteArray& newArtworkData, const QString& mimeType) {
+                                   bool stripArtwork, const QByteArray& newArtworkData, const QString& mimeType,
+                                   const QString& trackNumber) {
     QFile file(filePath);
     if (!file.open(QIODevice::ReadOnly)) return false;
 
@@ -358,6 +394,7 @@ bool TagEditorDialog::writeMp3Tags(const QString& filePath, const QString& title
     frames.append(createFrame("TYER", year));
     frames.append(createFrame("TPE2", albumArtist));
     frames.append(createFrame("TPOS", discNumber));
+    frames.append(createFrame("TRCK", trackNumber));
     if (compilation) {
         frames.append(createFrame("TCMP", "1"));
     }
@@ -392,7 +429,8 @@ bool TagEditorDialog::writeMp3Tags(const QString& filePath, const QString& title
             bool shouldPreserve = true;
             if (frameId == "TIT2" || frameId == "TPE1" || frameId == "TALB" ||
                 frameId == "TCON" || frameId == "TYER" || frameId == "TDRC" ||
-                frameId == "TPE2" || frameId == "TPOS" || frameId == "TCMP") {
+                frameId == "TPE2" || frameId == "TPOS" || frameId == "TCMP" ||
+                frameId == "TRCK") {
                 shouldPreserve = false;
             }
 
@@ -495,11 +533,13 @@ bool TagEditorDialog::writeExifTags(const QString& filePath, const QString& came
 }
 
 bool TagEditorDialog::writeFlacTags(const QString& filePath, const QString& title, const QString& artist, const QString& album, const QString& genre, const QString& year,
-                                   const QString& albumArtist, const QString& discNumber, bool compilation) {
+                                   const QString& albumArtist, const QString& discNumber, bool compilation,
+                                   const QString& trackNumber, const QString& trackTotal) {
     QProcess proc;
     QStringList args;
     args << "--remove-tag=TITLE" << "--remove-tag=ARTIST" << "--remove-tag=ALBUM" << "--remove-tag=GENRE" << "--remove-tag=DATE"
-         << "--remove-tag=ALBUMARTIST" << "--remove-tag=DISCNUMBER" << "--remove-tag=COMPILATION";
+         << "--remove-tag=ALBUMARTIST" << "--remove-tag=DISCNUMBER" << "--remove-tag=COMPILATION"
+         << "--remove-tag=TRACKNUMBER" << "--remove-tag=TRACKTOTAL";
     if (!title.isEmpty()) args << QString("--set-tag=TITLE=%1").arg(title);
     if (!artist.isEmpty()) args << QString("--set-tag=ARTIST=%1").arg(artist);
     if (!album.isEmpty()) args << QString("--set-tag=ALBUM=%1").arg(album);
@@ -507,6 +547,8 @@ bool TagEditorDialog::writeFlacTags(const QString& filePath, const QString& titl
     if (!year.isEmpty()) args << QString("--set-tag=DATE=%1").arg(year);
     if (!albumArtist.isEmpty()) args << QString("--set-tag=ALBUMARTIST=%1").arg(albumArtist);
     if (!discNumber.isEmpty()) args << QString("--set-tag=DISCNUMBER=%1").arg(discNumber);
+    if (!trackNumber.isEmpty()) args << QString("--set-tag=TRACKNUMBER=%1").arg(trackNumber);
+    if (!trackTotal.isEmpty()) args << QString("--set-tag=TRACKTOTAL=%1").arg(trackTotal);
     args << QString("--set-tag=COMPILATION=%1").arg(compilation ? "1" : "0");
     args << filePath;
 
@@ -524,6 +566,13 @@ bool TagEditorDialog::writeFlacTags(const QString& filePath, const QString& titl
     if (!year.isEmpty()) args2 << QString("-Date=%1").arg(year);
     if (!albumArtist.isEmpty()) args2 << QString("-Band=%1").arg(albumArtist);
     if (!discNumber.isEmpty()) args2 << QString("-PartOfSet=%1").arg(discNumber);
+    if (!trackNumber.isEmpty()) {
+        if (!trackTotal.isEmpty()) {
+            args2 << QString("-Track=%1/%2").arg(trackNumber).arg(trackTotal);
+        } else {
+            args2 << QString("-Track=%1").arg(trackNumber);
+        }
+    }
     args2 << QString("-Compilation=%1").arg(compilation ? "1" : "0");
     args2 << filePath;
 
@@ -930,4 +979,49 @@ bool TagEditorDialog::writeFlacArtwork(const QString& filePath, const QByteArray
     file.write(newFileData);
     file.close();
     return true;
+}
+
+void TagEditorDialog::onAutoFetchClicked() {
+    MetadataFetcherDialog dlg(m_filePaths, this);
+    if (dlg.exec() == QDialog::Accepted) {
+        auto results = dlg.getResults();
+
+        // Cache the fetched artwork
+        m_fetchedArtworkData = dlg.getArtworkData();
+        m_fetchedArtworkMimeType = dlg.getArtworkMimeType();
+
+        // Update the artwork preview layout in TagEditorDialog if artwork was fetched
+        if (!m_fetchedArtworkData.isEmpty()) {
+            QPixmap pixmap;
+            if (pixmap.loadFromData(m_fetchedArtworkData)) {
+                m_lblArtworkPreview->setPixmap(pixmap.scaled(m_lblArtworkPreview->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+                if (m_lblArtworkStatus) {
+                    m_lblArtworkStatus->setText("Artwork: Fetched (pending save)");
+                }
+            }
+        }
+
+        // Update the LineEdits with common/single values
+        if (m_filePaths.size() == 1) {
+            FetchedTrack track = results.value(0);
+            m_editTitle->setText(track.title);
+            m_editArtist->setText(track.artist);
+            m_editAlbum->setText(track.album);
+            m_editYear->setText(track.year);
+            if (!track.genre.isEmpty()) {
+                m_editGenre->setText(track.genre);
+            }
+        } else {
+            FetchedTrack firstTrack = results.value(0);
+            m_editArtist->setText(firstTrack.artist);
+            m_editAlbum->setText(firstTrack.album);
+            m_editYear->setText(firstTrack.year);
+            if (!firstTrack.genre.isEmpty()) {
+                m_editGenre->setText(firstTrack.genre);
+            }
+        }
+
+        // Store the full map of results so onSaveClicked can write track-specific tags
+        m_fetchedMetadataMap = results;
+    }
 }

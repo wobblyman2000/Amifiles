@@ -5,6 +5,7 @@
 #include <QLineEdit>
 #include <QLabel>
 #include <QPushButton>
+#include "metadatafetcherdialog.h"
 
 class TagEditorDialog : public QDialog {
     Q_OBJECT
@@ -19,6 +20,7 @@ private slots:
     void onDeleteArtwork();
     void onPrevArtwork();
     void onNextArtwork();
+    void onAutoFetchClicked();
 
 private:
     void setupUI();
@@ -29,9 +31,11 @@ private:
     class QPixmap loadEmbeddedArtworkAtIndex(const QString& filePath, const QString& tag);
     bool writeMp3Tags(const QString& filePath, const QString& title, const QString& artist, const QString& album, const QString& genre, const QString& year,
                       const QString& albumArtist, const QString& discNumber, bool compilation,
-                      bool stripArtwork = false, const QByteArray& newArtworkData = QByteArray(), const QString& mimeType = "image/jpeg");
+                      bool stripArtwork = false, const QByteArray& newArtworkData = QByteArray(), const QString& mimeType = "image/jpeg",
+                      const QString& trackNumber = QString());
     bool writeFlacTags(const QString& filePath, const QString& title, const QString& artist, const QString& album, const QString& genre, const QString& year,
-                       const QString& albumArtist, const QString& discNumber, bool compilation);
+                       const QString& albumArtist, const QString& discNumber, bool compilation,
+                       const QString& trackNumber = QString(), const QString& trackTotal = QString());
     bool stripFlacArtwork(const QString& filePath);
     bool writeFlacArtwork(const QString& filePath, const QByteArray& imgData, const QString& mimeType = "image/jpeg");
     bool writeExifTags(const QString& filePath, const QString& camera, const QString& dateTaken);
@@ -59,6 +63,10 @@ private:
 
     int m_currentArtworkIndex = 0;
     QStringList m_availableArtworkTags;
+
+    QByteArray m_fetchedArtworkData;
+    QString m_fetchedArtworkMimeType;
+    QMap<int, FetchedTrack> m_fetchedMetadataMap;
 
     // Image metadata edits
     QLineEdit* m_editCamera = nullptr;
