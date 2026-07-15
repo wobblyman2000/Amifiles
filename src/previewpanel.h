@@ -107,6 +107,7 @@ private slots:
     void onSliderMoved(int value);
     void onMediaMetadataChanged();
     void onMediaStatusChanged(QMediaPlayer::MediaStatus status);
+    void onPlaybackStateChanged(QMediaPlayer::PlaybackState state);
     void toggleFullscreen();
     void exitFullscreen();
 

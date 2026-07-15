@@ -171,7 +171,6 @@ void FullscreenWidget::showHud() {
     m_hudWidget->setGeometry(globalPos.x(), globalPos.y(), hudW, 50);
     m_hudWidget->show();
     m_hudWidget->raise();
-    setCursor(Qt::ArrowCursor);
     m_hideTimer->start(3000);
 }
 
@@ -185,7 +184,6 @@ void FullscreenWidget::onPollMouse() {
 
 void FullscreenWidget::onHideHud() {
     m_hudWidget->hide();
-    setCursor(Qt::BlankCursor);
 }
 
 void FullscreenWidget::onHudPlayPause() {
@@ -255,6 +253,7 @@ PreviewPanel::PreviewPanel(QWidget* parent) : QWidget(parent) {
     connect(m_player, &QMediaPlayer::durationChanged, this, &PreviewPanel::onDurationChanged);
     connect(m_player, &QMediaPlayer::metaDataChanged, this, &PreviewPanel::onMediaMetadataChanged);
     connect(m_player, &QMediaPlayer::mediaStatusChanged, this, &PreviewPanel::onMediaStatusChanged);
+    connect(m_player, &QMediaPlayer::playbackStateChanged, this, &PreviewPanel::onPlaybackStateChanged);
 
     clearPreview();
 }
@@ -649,20 +648,23 @@ void PreviewPanel::onTextChanged() {
 void PreviewPanel::onPlayPause() {
     if (m_player->playbackState() == QMediaPlayer::PlayingState) {
         m_player->pause();
-        m_btnPlayPause->setIcon(style()->standardIcon(QStyle::SP_MediaPlay));
     } else {
         m_player->play();
-        m_btnPlayPause->setIcon(style()->standardIcon(QStyle::SP_MediaPause));
-    }
-    if (m_fullscreenWidget) {
-        m_fullscreenWidget->setMediaState(m_videoWidget->isVisible(), m_player, m_audioOutput);
     }
 }
 
 void PreviewPanel::onStop() {
     m_player->stop();
-    m_btnPlayPause->setIcon(style()->standardIcon(QStyle::SP_MediaPlay));
     m_sliderProgress->setValue(0);
+}
+
+void PreviewPanel::onPlaybackStateChanged(QMediaPlayer::PlaybackState state) {
+    QStyle* style = QApplication::style();
+    if (state == QMediaPlayer::PlayingState) {
+        m_btnPlayPause->setIcon(style->standardIcon(QStyle::SP_MediaPause));
+    } else {
+        m_btnPlayPause->setIcon(style->standardIcon(QStyle::SP_MediaPlay));
+    }
     if (m_fullscreenWidget) {
         m_fullscreenWidget->setMediaState(m_videoWidget->isVisible(), m_player, m_audioOutput);
     }
