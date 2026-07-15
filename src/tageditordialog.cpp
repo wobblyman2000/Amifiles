@@ -17,7 +17,7 @@
 TagEditorDialog::TagEditorDialog(const QStringList& filePaths, QWidget* parent)
     : QDialog(parent), m_filePaths(filePaths) {
     setWindowTitle("Batch Metadata Tag Editor");
-    resize(480, 360);
+    resize(580, 520);
     setStyleSheet("QDialog { background-color: #1e1e2e; color: #cdd6f4; }"
                   "QGroupBox { border: 1px solid #45475a; border-radius: 6px; margin-top: 10px; color: #89b4fa; font-weight: bold; padding-top: 10px; }"
                   "QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top center; padding: 0 6px; }"
@@ -66,19 +66,33 @@ void TagEditorDialog::setupUI() {
     // Group 1.5: Album Artwork Group
     QGroupBox* artworkGroup = new QGroupBox("Album Artwork", this);
     QHBoxLayout* artworkLayout = new QHBoxLayout(artworkGroup);
-    artworkLayout->setSpacing(8);
+    artworkLayout->setSpacing(12);
+
+    m_lblArtworkPreview = new QLabel(this);
+    m_lblArtworkPreview->setFixedSize(120, 120);
+    m_lblArtworkPreview->setStyleSheet("border: 1px solid #45475a; border-radius: 6px; background-color: #1e1e2e; color: #a6adc8;");
+    m_lblArtworkPreview->setAlignment(Qt::AlignCenter);
+    artworkLayout->addWidget(m_lblArtworkPreview);
+
+    QVBoxLayout* artworkControlsLayout = new QVBoxLayout();
+    artworkControlsLayout->setSpacing(8);
 
     m_lblArtworkStatus = new QLabel("Artwork: Checking...", this);
     m_lblArtworkStatus->setStyleSheet("font-weight: bold; color: #a6adc8;");
-    artworkLayout->addWidget(m_lblArtworkStatus, 1);
+    artworkControlsLayout->addWidget(m_lblArtworkStatus);
 
     m_btnPasteArtwork = new QPushButton("Paste from Clipboard", this);
+    m_btnPasteArtwork->setStyleSheet("QPushButton { min-height: 28px; }");
     connect(m_btnPasteArtwork, &QPushButton::clicked, this, &TagEditorDialog::onPasteArtwork);
-    artworkLayout->addWidget(m_btnPasteArtwork);
+    artworkControlsLayout->addWidget(m_btnPasteArtwork);
 
     m_btnExtractArtwork = new QPushButton("Extract to Folder", this);
+    m_btnExtractArtwork->setStyleSheet("QPushButton { min-height: 28px; }");
     connect(m_btnExtractArtwork, &QPushButton::clicked, this, &TagEditorDialog::onExtractArtwork);
-    artworkLayout->addWidget(m_btnExtractArtwork);
+    artworkControlsLayout->addWidget(m_btnExtractArtwork);
+
+    artworkControlsLayout->addStretch(1);
+    artworkLayout->addLayout(artworkControlsLayout, 1);
 
     mainLayout->addWidget(artworkGroup);
 
@@ -203,8 +217,23 @@ void TagEditorDialog::loadCommonTags() {
     if (m_lblArtworkStatus) {
         if (m_filePaths.size() > 1) {
             m_lblArtworkStatus->setText("Embedded Artwork: <Mixed>");
+            if (m_lblArtworkPreview) {
+                m_lblArtworkPreview->setText("Multiple Files");
+            }
         } else {
             m_lblArtworkStatus->setText(QString("Embedded Artwork: %1").arg(hasArtwork ? "Yes" : "No"));
+            if (m_lblArtworkPreview) {
+                if (hasArtwork) {
+                    QPixmap pix = loadEmbeddedArtwork(m_filePaths.first());
+                    if (!pix.isNull()) {
+                        m_lblArtworkPreview->setPixmap(pix.scaled(120, 120, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+                    } else {
+                        m_lblArtworkPreview->setText("No Image");
+                    }
+                } else {
+                    m_lblArtworkPreview->setText("No Artwork");
+                }
+            }
         }
     }
 }
@@ -472,4 +501,19 @@ void TagEditorDialog::onExtractArtwork() {
     }
 
     QMessageBox::warning(this, "Extraction Failed", "No embedded artwork found or exiftool is not installed.");
+}
+
+QPixmap TagEditorDialog::loadEmbeddedArtwork(const QString& filePath) {
+    QProcess proc;
+    proc.start("exiftool", {"-Picture", "-b", filePath});
+    if (proc.waitForFinished(5000)) {
+        QByteArray imgData = proc.readAllStandardOutput();
+        if (!imgData.isEmpty()) {
+            QPixmap pix;
+            if (pix.loadFromData(imgData)) {
+                return pix;
+            }
+        }
+    }
+    return QPixmap();
 }

@@ -20,6 +20,7 @@ private slots:
 private:
     void setupUI();
     void loadCommonTags();
+    class QPixmap loadEmbeddedArtwork(const QString& filePath);
     bool writeMp3Tags(const QString& filePath, const QString& title, const QString& artist, const QString& album, const QString& genre, const QString& year,
                       const QString& albumArtist, const QString& discNumber, bool compilation);
     bool writeFlacTags(const QString& filePath, const QString& title, const QString& artist, const QString& album, const QString& genre, const QString& year,
@@ -39,6 +40,7 @@ private:
 
     // Artwork controls
     QLabel* m_lblArtworkStatus = nullptr;
+    QLabel* m_lblArtworkPreview = nullptr;
     QPushButton* m_btnPasteArtwork = nullptr;
     QPushButton* m_btnExtractArtwork = nullptr;
 
