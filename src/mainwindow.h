@@ -8,6 +8,8 @@
 #include <QList>
 #include <QToolBar>
 #include <QTabWidget>
+#include <QMap>
+#include <QKeySequence>
 #include "filepanel.h"
 #include "previewpanel.h"
 
@@ -98,6 +100,10 @@ private slots:
     void onCloseTabAction();
     void onShowHelpAction();
     void onSpaceAnalyzerAction();
+    void onKeybindingsEditorAction();
+    void onQuickFilterSidebarClicked(class QListWidgetItem* item);
+    void onCalculateChecksum();
+    void onSecureShred();
 
 public:
     QTabWidget* leftTabWidget() const { return m_leftTabWidget; }
@@ -129,7 +135,9 @@ private:
 
     // View Splitter and Panels
     QSplitter* m_splitter = nullptr;
+    QTabWidget* m_sidebarTabWidget = nullptr;
     QListWidget* m_favoritesSidebar = nullptr;
+    QListWidget* m_filtersSidebar = nullptr;
     QTabWidget* m_leftTabWidget = nullptr;
     QTabWidget* m_rightTabWidget = nullptr;
     PreviewPanel* m_previewPanel = nullptr;
@@ -186,12 +194,23 @@ private:
     QAction* m_actCloseTab = nullptr;
     QAction* m_actShowHelp = nullptr;
     QAction* m_actSpaceAnalyzer = nullptr;
+    QAction* m_actKeybindings = nullptr;
+    QAction* m_actCalculateChecksum = nullptr;
+    QAction* m_actSecureShred = nullptr;
 
     // Dynamic Toolbars
     QToolBar* m_tbFile = nullptr;
     QToolBar* m_tbView = nullptr;
     QToolBar* m_customToolBar = nullptr;
     QToolBar* m_tbDrives = nullptr;
+
+    // Keybindings mapping & management
+    QMap<QString, QKeySequence> m_keybindings;
+    QMap<QString, QAction*> m_keybindableActions;
+    void loadKeybindings();
+    void saveKeybindings();
+    void applyKeybindings();
+    void registerKeybindableAction(const QString& id, QAction* action);
 };
 
 #endif // MAINWINDOW_H

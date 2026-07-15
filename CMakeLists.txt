@@ -58,6 +58,12 @@ add_executable(Amifiles
     src/metadatafetcherdialog.cpp
     src/terminalpanel.h
     src/terminalpanel.cpp
+    src/keybindingseditor.h
+    src/keybindingseditor.cpp
+    src/checksumdialog.h
+    src/checksumdialog.cpp
+    src/shreddialog.h
+    src/shreddialog.cpp
     src/sunburstchart.h
     src/sunburstchart.cpp
     src/archivedialog.h

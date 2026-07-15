@@ -9,6 +9,9 @@
 #include "helpdialog.h"
 #include "spaceanalyzer.h"
 #include "terminalpanel.h"
+#include "keybindingseditor.h"
+#include "checksumdialog.h"
+#include "shreddialog.h"
 #include <QMenuBar>
 #include <QStorageInfo>
 #include <QToolBar>
@@ -296,6 +299,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     // Initialize layout components
     setupCentralWidget();
     setupActions();
+    loadKeybindings();
+    applyKeybindings();
     setupMenus();
     setupToolbars();
 
@@ -323,7 +328,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 
     bool favoritesSidebarVisible = settings.value("favorites/sidebar_visible", false).toBool();
     m_actToggleFavoritesSidebar->setChecked(favoritesSidebarVisible);
-    m_favoritesSidebar->setVisible(favoritesSidebarVisible);
+    m_sidebarTabWidget->setVisible(favoritesSidebarVisible);
 
     bool previewMuted = settings.value("preview/muted", false).toBool();
     m_actMutePreview->setChecked(previewMuted);
@@ -378,15 +383,39 @@ void MainWindow::setupCentralWidget() {
     m_splitter = new QSplitter(Qt::Horizontal, this);
     m_splitter->setHandleWidth(4);
 
-    m_favoritesSidebar = new QListWidget(this);
+    m_sidebarTabWidget = new QTabWidget(this);
+    m_sidebarTabWidget->setStyleSheet(
+        "QTabWidget::pane { border: 1px solid #313244; background-color: #1e1e2e; border-radius: 6px; }"
+        "QTabBar::tab { background-color: #181825; color: #a6adc8; padding: 6px 10px; border-top-left-radius: 4px; border-top-right-radius: 4px; }"
+        "QTabBar::tab:selected { background-color: #313244; color: #cdd6f4; }"
+    );
+
+    m_favoritesSidebar = new QListWidget(m_sidebarTabWidget);
     m_favoritesSidebar->setStyleSheet(
-        "QListWidget { background-color: #181825; color: #cdd6f4; border: 1px solid #313244; border-radius: 6px; padding: 4px; }"
+        "QListWidget { background-color: #181825; color: #cdd6f4; border: none; padding: 4px; }"
         "QListWidget::item { padding: 6px 8px; border-radius: 4px; color: #cdd6f4; }"
         "QListWidget::item:hover { background-color: #313244; color: #f5c2e7; }"
         "QListWidget::item:selected { background-color: #89b4fa; color: #11111b; font-weight: bold; }"
     );
     m_favoritesSidebar->setFocusPolicy(Qt::NoFocus);
     connect(m_favoritesSidebar, &QListWidget::itemDoubleClicked, this, &MainWindow::onFavoritesSidebarDoubleClicked);
+
+    m_filtersSidebar = new QListWidget(m_sidebarTabWidget);
+    m_filtersSidebar->setStyleSheet(m_favoritesSidebar->styleSheet());
+    m_filtersSidebar->setFocusPolicy(Qt::NoFocus);
+
+    // Add preset quick filters
+    m_filtersSidebar->addItem("Show All Files");
+    m_filtersSidebar->addItem("Large Files (> 100 MB)");
+    m_filtersSidebar->addItem("Medium Files (1 - 100 MB)");
+    m_filtersSidebar->addItem("Small Files (< 1 MB)");
+    m_filtersSidebar->addItem("Modified Today");
+    m_filtersSidebar->addItem("Modified This Week");
+    m_filtersSidebar->addItem("Modified This Month");
+    connect(m_filtersSidebar, &QListWidget::itemClicked, this, &MainWindow::onQuickFilterSidebarClicked);
+
+    m_sidebarTabWidget->addTab(m_favoritesSidebar, "Bookmarks");
+    m_sidebarTabWidget->addTab(m_filtersSidebar, "Filters");
 
     m_leftTabWidget = new QTabWidget(this);
     m_leftTabWidget->setTabsClosable(true);
@@ -409,7 +438,7 @@ void MainWindow::setupCentralWidget() {
     createTab(m_leftTabWidget, QDir::homePath());
     createTab(m_rightTabWidget, QDir::homePath());
 
-    m_splitter->addWidget(m_favoritesSidebar);
+    m_splitter->addWidget(m_sidebarTabWidget);
     m_splitter->addWidget(m_leftTabWidget);
     m_splitter->addWidget(m_rightTabWidget);
     m_splitter->addWidget(m_previewPanel);
@@ -680,6 +709,39 @@ void MainWindow::setupActions() {
     addAction(m_actCloseTab);
     addAction(m_actShowHelp);
     addAction(m_actSpaceAnalyzer);
+
+    m_actKeybindings = new QAction("Keyboard Shortcuts...", this);
+    m_actKeybindings->setToolTip("Configure custom keyboard shortcuts");
+    connect(m_actKeybindings, &QAction::triggered, this, &MainWindow::onKeybindingsEditorAction);
+    addAction(m_actKeybindings);
+
+    m_actCalculateChecksum = new QAction("Calculate Checksum Hash...", this);
+    m_actCalculateChecksum->setToolTip("Calculate MD5/SHA-1/SHA-256 hash for a file");
+    connect(m_actCalculateChecksum, &QAction::triggered, this, &MainWindow::onCalculateChecksum);
+    addAction(m_actCalculateChecksum);
+
+    m_actSecureShred = new QAction("Secure Shred files...", this);
+    m_actSecureShred->setToolTip("Securely shred and delete files permanently");
+    connect(m_actSecureShred, &QAction::triggered, this, &MainWindow::onSecureShred);
+    addAction(m_actSecureShred);
+
+    // Register action mapping for custom keybindings
+    registerKeybindableAction("copy", m_actCopy);
+    registerKeybindableAction("cut", m_actCut);
+    registerKeybindableAction("paste", m_actPaste);
+    registerKeybindableAction("delete", m_actDelete);
+    registerKeybindableAction("rename", m_actRename);
+    registerKeybindableAction("new_folder", m_actNewFolder);
+    registerKeybindableAction("properties", m_actProperties);
+    registerKeybindableAction("refresh", m_actRefresh);
+    registerKeybindableAction("toggle_dual_pane", m_actToggleDualPane);
+    registerKeybindableAction("toggle_preview", m_actTogglePreview);
+    registerKeybindableAction("mute_preview", m_actMutePreview);
+    registerKeybindableAction("toggle_flat_view", m_actToggleFlatView);
+    registerKeybindableAction("compare_sync", m_actCompareSync);
+    registerKeybindableAction("space_analyzer", m_actSpaceAnalyzer);
+    registerKeybindableAction("dup_finder", m_actDuplicateFinder);
+    registerKeybindableAction("help", m_actShowHelp);
 }
 
 void MainWindow::setupMenus() {
@@ -702,6 +764,8 @@ void MainWindow::setupMenus() {
     m_menuEdit->addAction(m_actDelete);
     m_menuEdit->addAction(m_actRename);
     m_menuEdit->addAction(m_actBulkRename);
+    m_menuEdit->addSeparator();
+    m_menuEdit->addAction(m_actKeybindings);
 
     m_menuView = menuBar()->addMenu("View");
     m_menuView->addAction(m_actToggleDualPane);
@@ -734,6 +798,9 @@ void MainWindow::setupMenus() {
     m_menuTools->addAction(m_actCompareSync);
     m_menuTools->addAction(m_actDuplicateFinder);
     m_menuTools->addAction(m_actSpaceAnalyzer);
+    m_menuTools->addSeparator();
+    m_menuTools->addAction(m_actCalculateChecksum);
+    m_menuTools->addAction(m_actSecureShred);
 
     m_menuSearch = menuBar()->addMenu("Search");
     m_menuSearch->addAction("Save Current Search as Preset...", this, &MainWindow::onSaveSearchPreset);
@@ -1894,8 +1961,8 @@ void MainWindow::onSpaceAnalyzerAction() {
 }
 
 void MainWindow::onToggleFavoritesSidebar(bool checked) {
-    if (m_favoritesSidebar) {
-        m_favoritesSidebar->setVisible(checked);
+    if (m_sidebarTabWidget) {
+        m_sidebarTabWidget->setVisible(checked);
         QSettings settings("Amifiles", "Amifiles");
         settings.setValue("favorites/sidebar_visible", checked);
     }
@@ -1929,6 +1996,122 @@ void MainWindow::refreshFavoritesSidebar() {
         item->setData(Qt::UserRole, path);
         item->setIcon(QApplication::style()->standardIcon(QStyle::SP_DirIcon));
         m_favoritesSidebar->addItem(item);
+    }
+}
+
+void MainWindow::onQuickFilterSidebarClicked(QListWidgetItem* item) {
+    if (!item) return;
+    if (!m_activePanel || !m_activePanel->proxyModel()) return;
+
+    QString text = item->text();
+    FileFilterProxyModel* model = m_activePanel->proxyModel();
+
+    if (text == "Show All Files") {
+        model->clearAdvancedFilters();
+    } else if (text == "Large Files (> 100 MB)") {
+        model->setSizeFilter(100ULL * 1024 * 1024, -1);
+    } else if (text == "Medium Files (1 - 100 MB)") {
+        model->setSizeFilter(1024 * 1024, 100ULL * 1024 * 1024);
+    } else if (text == "Small Files (< 1 MB)") {
+        model->setSizeFilter(0, 1024 * 1024 - 1);
+    } else if (text == "Modified Today") {
+        QDateTime todayStart(QDate::currentDate(), QTime(0, 0, 0));
+        model->setDateFilter(todayStart, QDateTime());
+    } else if (text == "Modified This Week") {
+        QDateTime weekStart(QDate::currentDate().addDays(-7), QTime(0, 0, 0));
+        model->setDateFilter(weekStart, QDateTime());
+    } else if (text == "Modified This Month") {
+        QDateTime monthStart(QDate::currentDate().addMonths(-1), QTime(0, 0, 0));
+        model->setDateFilter(monthStart, QDateTime());
+    }
+}
+
+void MainWindow::registerKeybindableAction(const QString& id, QAction* action) {
+    if (action) {
+        m_keybindableActions[id] = action;
+    }
+}
+
+void MainWindow::loadKeybindings() {
+    // Initialize default keybindings mapping
+    m_keybindings["copy"] = QKeySequence::Copy;
+    m_keybindings["cut"] = QKeySequence::Cut;
+    m_keybindings["paste"] = QKeySequence::Paste;
+    m_keybindings["delete"] = QKeySequence::Delete;
+    m_keybindings["rename"] = QKeySequence(Qt::Key_F2);
+    m_keybindings["new_folder"] = QKeySequence("Ctrl+N");
+    m_keybindings["properties"] = QKeySequence("Alt+Return");
+    m_keybindings["refresh"] = QKeySequence(Qt::Key_F5);
+    m_keybindings["toggle_dual_pane"] = QKeySequence("Ctrl+D");
+    m_keybindings["toggle_preview"] = QKeySequence("Ctrl+P");
+    m_keybindings["mute_preview"] = QKeySequence("Ctrl+M");
+    m_keybindings["toggle_flat_view"] = QKeySequence("Ctrl+F");
+    m_keybindings["compare_sync"] = QKeySequence("Ctrl+S");
+    m_keybindings["space_analyzer"] = QKeySequence("Ctrl+L");
+    m_keybindings["dup_finder"] = QKeySequence("Ctrl+U");
+    m_keybindings["help"] = QKeySequence(Qt::Key_F1);
+
+    QSettings settings("Amifiles", "Amifiles");
+    settings.beginGroup("Keybindings");
+    for (const QString& id : m_keybindings.keys()) {
+        if (settings.contains(id)) {
+            m_keybindings[id] = QKeySequence(settings.value(id).toString());
+        }
+    }
+    settings.endGroup();
+}
+
+void MainWindow::saveKeybindings() {
+    QSettings settings("Amifiles", "Amifiles");
+    settings.beginGroup("Keybindings");
+    for (auto it = m_keybindings.begin(); it != m_keybindings.end(); ++it) {
+        settings.setValue(it.key(), it.value().toString());
+    }
+    settings.endGroup();
+}
+
+void MainWindow::applyKeybindings() {
+    for (auto it = m_keybindings.begin(); it != m_keybindings.end(); ++it) {
+        QAction* act = m_keybindableActions.value(it.key());
+        if (act) {
+            act->setShortcut(it.value());
+        }
+    }
+}
+
+void MainWindow::onKeybindingsEditorAction() {
+    KeybindingsEditorDialog dlg(m_keybindings, this);
+    if (dlg.exec() == QDialog::Accepted) {
+        m_keybindings = dlg.getNewBindings();
+        saveKeybindings();
+        applyKeybindings();
+        statusBar()->showMessage("Keyboard shortcuts updated.", 3000);
+    }
+}
+
+void MainWindow::onCalculateChecksum() {
+    QString activePath;
+    if (m_activePanel) {
+        QStringList paths = m_activePanel->selectedPaths();
+        if (!paths.isEmpty() && QFileInfo(paths.first()).isFile()) {
+            activePath = paths.first();
+        }
+    }
+    ChecksumDialog dlg(activePath, this);
+    dlg.exec();
+}
+
+void MainWindow::onSecureShred() {
+    if (!m_activePanel) return;
+    QStringList paths = m_activePanel->selectedPaths();
+    if (paths.isEmpty()) {
+        QMessageBox::information(this, "Secure Shredder", "Please select one or more files/folders in the file view panel first.");
+        return;
+    }
+
+    ShredDialog dlg(paths, this);
+    if (dlg.exec() == QDialog::Accepted) {
+        m_activePanel->refresh();
     }
 }
 

@@ -22,6 +22,8 @@
 #include <QDesktopServices>
 #include <QUrl>
 #include <QMenu>
+#include "checksumdialog.h"
+#include "shreddialog.h"
 #include <QMessageBox>
 #include <QCheckBox>
 #include <QInputDialog>
@@ -1274,6 +1276,9 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     QAction* actCreateArchive = menu.addAction("Create Archive...");
     QAction* actExtractArchive = menu.addAction("Extract Archive...");
     menu.addSeparator();
+    QAction* actCalculateChecksum = menu.addAction("Calculate Checksum Hash...");
+    QAction* actSecureShred = menu.addAction(style->standardIcon(QStyle::SP_TrashIcon), "Secure Shred (Delete Permanently)...");
+    menu.addSeparator();
     QAction* actProp = menu.addAction(style->standardIcon(QStyle::SP_MessageBoxInformation), "Properties");
 
     bool hasSelection = index.isValid();
@@ -1281,6 +1286,8 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     actCopy->setEnabled(hasSelection);
     actCut->setEnabled(hasSelection);
     actDelete->setEnabled(hasSelection);
+    actCalculateChecksum->setEnabled(hasSelection && QFileInfo(selectedPath).isFile());
+    actSecureShred->setEnabled(hasSelection);
     actRename->setEnabled(hasSelection);
     actBulkRename->setEnabled(hasSelection);
 
@@ -1399,6 +1406,14 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         }
     } else if (selected == actExtractArchive) {
         ArchiveDialog dlg(ArchiveDialog::ModeExtract, curSelected.first(), m_currentPath, this);
+        if (dlg.exec() == QDialog::Accepted) {
+            refresh();
+        }
+    } else if (selected == actCalculateChecksum) {
+        ChecksumDialog dlg(selectedPath, this);
+        dlg.exec();
+    } else if (selected == actSecureShred) {
+        ShredDialog dlg(curSelected, this);
         if (dlg.exec() == QDialog::Accepted) {
             refresh();
         }

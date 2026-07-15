@@ -62,6 +62,26 @@ public:
         invalidate();
     }
 
+    void setSizeFilter(qint64 minSize, qint64 maxSize) {
+        m_minSize = minSize;
+        m_maxSize = maxSize;
+        invalidate();
+    }
+
+    void setDateFilter(const QDateTime& minDate, const QDateTime& maxDate) {
+        m_minDate = minDate;
+        m_maxDate = maxDate;
+        invalidate();
+    }
+
+    void clearAdvancedFilters() {
+        m_minSize = -1;
+        m_maxSize = -1;
+        m_minDate = QDateTime();
+        m_maxDate = QDateTime();
+        invalidate();
+    }
+
     void setAgeColoringEnabled(bool enabled) {
         m_ageColoringEnabled = enabled;
         emit layoutChanged();
@@ -364,6 +384,24 @@ protected:
         QString fileName = fileModel->fileName(index);
         bool isDir = fileModel->isDir(index);
 
+        if (!isDir) {
+            qint64 size = fileModel->size(index);
+            if (m_minSize != -1 && size < m_minSize) {
+                return false;
+            }
+            if (m_maxSize != -1 && size > m_maxSize) {
+                return false;
+            }
+
+            QDateTime modDate = fileModel->lastModified(index);
+            if (m_minDate.isValid() && modDate < m_minDate) {
+                return false;
+            }
+            if (m_maxDate.isValid() && modDate > m_maxDate) {
+                return false;
+            }
+        }
+
         // 3. Apply Text Filter (case-insensitive substring contains check)
         if (!m_filterText.isEmpty()) {
             if (!fileName.contains(m_filterText, Qt::CaseInsensitive)) {
@@ -418,6 +456,10 @@ private:
     QString m_filterText;
     QString m_currentPath;
     bool m_ageColoringEnabled = true; // Enabled by default
+    qint64 m_minSize = -1;
+    qint64 m_maxSize = -1;
+    QDateTime m_minDate;
+    QDateTime m_maxDate;
     mutable QHash<QString, QPair<QString, int>> m_casingCache;
     mutable QHash<QString, QIcon> m_iconCache;
 };
