@@ -38,12 +38,38 @@ public:
     explicit FullscreenWidget(QWidget* parent = nullptr);
     ~FullscreenWidget() override = default;
 
+    void setMediaState(bool isVideo, class QMediaPlayer* player, class QAudioOutput* audioOutput);
+    void updateProgress(qint64 position, qint64 duration);
+
 signals:
     void exitRequested();
+    void prevRequested();
+    void playPauseRequested();
+    void stopRequested();
+    void nextRequested();
 
 protected:
     void keyPressEvent(class QKeyEvent* event) override;
     void mouseDoubleClickEvent(class QMouseEvent* event) override;
+    bool eventFilter(QObject* watched, class QEvent* event) override;
+    void resizeEvent(class QResizeEvent* event) override;
+
+private slots:
+    void onHideHud();
+    void onHudPlayPause();
+    void onHudSliderMoved(int val);
+    void onHudVolumeChanged(int val);
+
+private:
+    void showHud();
+
+    class QWidget* m_hudWidget = nullptr;
+    class QPushButton* m_btnPlayPause = nullptr;
+    class QSlider* m_sliderProgress = nullptr;
+    class QLabel* m_lblTime = nullptr;
+    class QSlider* m_sliderVolume = nullptr;
+    class QTimer* m_hideTimer = nullptr;
+    class QMediaPlayer* m_player = nullptr;
 };
 
 class PreviewPanel : public QWidget {

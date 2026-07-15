@@ -21,6 +21,7 @@
 #include <QTabWidget>
 #include <QListWidget>
 #include <QProcess>
+#include <QTimer>
 #include <QLinearGradient>
 #include <QPolygon>
 #include <QSizePolicy>
@@ -30,11 +31,173 @@
 
 FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window | Qt::FramelessWindowHint) {
     setStyleSheet("background-color: #000000;");
+    setMouseTracking(true);
+    installEventFilter(this);
+
+    // Create HUD Overlay Panel
+    m_hudWidget = new QWidget(this);
+    m_hudWidget->setObjectName("hudPanel");
+    m_hudWidget->setStyleSheet(
+        "QWidget#hudPanel { background-color: rgba(30, 30, 46, 220); border: 1px solid rgba(69, 71, 90, 150); border-radius: 12px; }"
+        "QLabel { color: #cdd6f4; font-size: 12px; font-weight: bold; background: transparent; border: none; }"
+        "QPushButton { border: none; background-color: transparent; color: #cdd6f4; padding: 4px; border-radius: 4px; }"
+        "QPushButton:hover { background-color: rgba(137, 180, 250, 60); }"
+        "QSlider::groove:horizontal { border: none; height: 6px; background: #313244; border-radius: 3px; }"
+        "QSlider::sub-page:horizontal { background: #89b4fa; border-radius: 3px; }"
+        "QSlider::handle:horizontal { background: #cdd6f4; width: 14px; margin-top: -4px; margin-bottom: -4px; border-radius: 7px; }"
+    );
+
+    QHBoxLayout* hudLayout = new QHBoxLayout(m_hudWidget);
+    hudLayout->setContentsMargins(15, 10, 15, 10);
+    hudLayout->setSpacing(10);
+
+    QStyle* style = QApplication::style();
+
+    // HUD buttons
+    QPushButton* btnPrev = new QPushButton(m_hudWidget);
+    btnPrev->setIcon(style->standardIcon(QStyle::SP_MediaSkipBackward));
+    btnPrev->setToolTip("Previous");
+    connect(btnPrev, &QPushButton::clicked, this, &FullscreenWidget::prevRequested);
+
+    m_btnPlayPause = new QPushButton(m_hudWidget);
+    m_btnPlayPause->setIcon(style->standardIcon(QStyle::SP_MediaPlay));
+    m_btnPlayPause->setToolTip("Play/Pause");
+    connect(m_btnPlayPause, &QPushButton::clicked, this, &FullscreenWidget::onHudPlayPause);
+
+    QPushButton* btnStop = new QPushButton(m_hudWidget);
+    btnStop->setIcon(style->standardIcon(QStyle::SP_MediaStop));
+    btnStop->setToolTip("Stop");
+    connect(btnStop, &QPushButton::clicked, this, &FullscreenWidget::stopRequested);
+
+    QPushButton* btnNext = new QPushButton(m_hudWidget);
+    btnNext->setIcon(style->standardIcon(QStyle::SP_MediaSkipForward));
+    btnNext->setToolTip("Next");
+    connect(btnNext, &QPushButton::clicked, this, &FullscreenWidget::nextRequested);
+
+    m_sliderProgress = new QSlider(Qt::Horizontal, m_hudWidget);
+    m_sliderProgress->setRange(0, 100);
+    connect(m_sliderProgress, &QSlider::sliderMoved, this, &FullscreenWidget::onHudSliderMoved);
+
+    m_lblTime = new QLabel("00:00 / 00:00", m_hudWidget);
+
+    QLabel* lblVol = new QLabel("🔊", m_hudWidget);
+
+    m_sliderVolume = new QSlider(Qt::Horizontal, m_hudWidget);
+    m_sliderVolume->setRange(0, 100);
+    m_sliderVolume->setValue(70);
+    m_sliderVolume->setMaximumWidth(80);
+    connect(m_sliderVolume, &QSlider::valueChanged, this, &FullscreenWidget::onHudVolumeChanged);
+
+    QPushButton* btnExit = new QPushButton(m_hudWidget);
+    btnExit->setIcon(style->standardIcon(QStyle::SP_TitleBarNormalButton));
+    btnExit->setToolTip("Exit Fullscreen");
+    connect(btnExit, &QPushButton::clicked, this, &FullscreenWidget::exitRequested);
+
+    hudLayout->addWidget(btnPrev);
+    hudLayout->addWidget(m_btnPlayPause);
+    hudLayout->addWidget(btnStop);
+    hudLayout->addWidget(btnNext);
+    hudLayout->addWidget(m_sliderProgress, 1);
+    hudLayout->addWidget(m_lblTime);
+    hudLayout->addWidget(lblVol);
+    hudLayout->addWidget(m_sliderVolume);
+    hudLayout->addWidget(btnExit);
+
+    // Position HUD at the bottom center of the screen
+    m_hudWidget->resize(800, 50);
+
+    // Auto-hide Timer (3 seconds)
+    m_hideTimer = new QTimer(this);
+    connect(m_hideTimer, &QTimer::timeout, this, &FullscreenWidget::onHideHud);
+
+    showHud();
+}
+
+void FullscreenWidget::resizeEvent(QResizeEvent* event) {
+    QWidget::resizeEvent(event);
+    int hudW = qMin(width() - 40, 850);
+    m_hudWidget->setGeometry((width() - hudW) / 2, height() - 70, hudW, 50);
+}
+
+void FullscreenWidget::setMediaState(bool isVideo, QMediaPlayer* player, QAudioOutput* audioOutput) {
+    m_player = player;
+    if (m_player) {
+        if (m_player->playbackState() == QMediaPlayer::PlayingState) {
+            m_btnPlayPause->setIcon(QApplication::style()->standardIcon(QStyle::SP_MediaPause));
+        } else {
+            m_btnPlayPause->setIcon(QApplication::style()->standardIcon(QStyle::SP_MediaPlay));
+        }
+    }
+    if (audioOutput) {
+        m_sliderVolume->setValue(qRound(audioOutput->volume() * 100));
+    }
+}
+
+static QString formatTime(qint64 ms) {
+    qint64 secs = ms / 1000;
+    qint64 mins = secs / 60;
+    secs = secs % 60;
+    return QString("%1:%2").arg(mins, 2, 10, QChar('0')).arg(secs, 2, 10, QChar('0'));
+}
+
+void FullscreenWidget::updateProgress(qint64 position, qint64 duration) {
+    if (duration > 0) {
+        m_sliderProgress->setRange(0, duration);
+        m_sliderProgress->setValue(position);
+        m_lblTime->setText(QString("%1 / %2").arg(formatTime(position)).arg(formatTime(duration)));
+    }
+}
+
+void FullscreenWidget::showHud() {
+    m_hudWidget->show();
+    setCursor(Qt::ArrowCursor);
+    m_hideTimer->start(3000);
+}
+
+void FullscreenWidget::onHideHud() {
+    m_hudWidget->hide();
+    setCursor(Qt::BlankCursor);
+}
+
+void FullscreenWidget::onHudPlayPause() {
+    emit playPauseRequested();
+    if (m_player) {
+        if (m_player->playbackState() == QMediaPlayer::PlayingState) {
+            m_btnPlayPause->setIcon(QApplication::style()->standardIcon(QStyle::SP_MediaPlay));
+        } else {
+            m_btnPlayPause->setIcon(QApplication::style()->standardIcon(QStyle::SP_MediaPause));
+        }
+    }
+}
+
+void FullscreenWidget::onHudSliderMoved(int val) {
+    if (m_player) {
+        m_player->setPosition(val);
+    }
+}
+
+void FullscreenWidget::onHudVolumeChanged(int val) {
+    if (m_player) {
+        QAudioOutput* out = m_player->audioOutput();
+        if (out) {
+            out->setVolume(val / 100.0f);
+        }
+    }
+}
+
+bool FullscreenWidget::eventFilter(QObject* watched, QEvent* event) {
+    if (event->type() == QEvent::MouseMove) {
+        showHud();
+    }
+    return QWidget::eventFilter(watched, event);
 }
 
 void FullscreenWidget::keyPressEvent(QKeyEvent* event) {
-    if (event->key() == Qt::Key_Escape || event->key() == Qt::Key_F || event->key() == Qt::Key_Space) {
+    showHud();
+    if (event->key() == Qt::Key_Escape || event->key() == Qt::Key_F) {
         emit exitRequested();
+    } else if (event->key() == Qt::Key_Space) {
+        emit playPauseRequested();
     } else {
         QWidget::keyPressEvent(event);
     }
@@ -325,6 +488,11 @@ void PreviewPanel::previewFile(const QString& filePath) {
     // Load and show metadata
     FileMetadata meta = MetadataExtractor::extract(filePath);
     updateMetadataDisplay(meta);
+
+    if (m_fullscreenWidget) {
+        exitFullscreen();
+        toggleFullscreen();
+    }
 }
 
 void PreviewPanel::previewFolderArt(const QString& artPath, const QString& folderPath) {
@@ -457,12 +625,18 @@ void PreviewPanel::onPlayPause() {
         m_player->play();
         m_btnPlayPause->setIcon(style()->standardIcon(QStyle::SP_MediaPause));
     }
+    if (m_fullscreenWidget) {
+        m_fullscreenWidget->setMediaState(m_videoWidget->isVisible(), m_player, m_audioOutput);
+    }
 }
 
 void PreviewPanel::onStop() {
     m_player->stop();
     m_btnPlayPause->setIcon(style()->standardIcon(QStyle::SP_MediaPlay));
     m_sliderProgress->setValue(0);
+    if (m_fullscreenWidget) {
+        m_fullscreenWidget->setMediaState(m_videoWidget->isVisible(), m_player, m_audioOutput);
+    }
 }
 
 void PreviewPanel::onPositionChanged(qint64 position) {
@@ -472,6 +646,9 @@ void PreviewPanel::onPositionChanged(qint64 position) {
     m_lblProgressTime->setText(QString("%1 / %2")
                                .arg(formatDuration(position))
                                .arg(formatDuration(m_player->duration())));
+    if (m_fullscreenWidget) {
+        m_fullscreenWidget->updateProgress(position, m_player->duration());
+    }
 }
 
 void PreviewPanel::onDurationChanged(qint64 duration) {
@@ -479,6 +656,9 @@ void PreviewPanel::onDurationChanged(qint64 duration) {
     m_lblProgressTime->setText(QString("%1 / %2")
                                .arg(formatDuration(m_player->position()))
                                .arg(formatDuration(duration)));
+    if (m_fullscreenWidget) {
+        m_fullscreenWidget->updateProgress(m_player->position(), duration);
+    }
 }
 
 void PreviewPanel::onVolumeChanged(int value) {
@@ -767,6 +947,10 @@ void PreviewPanel::toggleFullscreen() {
     // Create the borderless fullscreen widget
     m_fullscreenWidget = new FullscreenWidget();
     connect(m_fullscreenWidget, &FullscreenWidget::exitRequested, this, &PreviewPanel::exitFullscreen);
+    connect(m_fullscreenWidget, &FullscreenWidget::prevRequested, this, &PreviewPanel::onPrevTrack);
+    connect(m_fullscreenWidget, &FullscreenWidget::playPauseRequested, this, &PreviewPanel::onPlayPause);
+    connect(m_fullscreenWidget, &FullscreenWidget::stopRequested, this, &PreviewPanel::onStop);
+    connect(m_fullscreenWidget, &FullscreenWidget::nextRequested, this, &PreviewPanel::onNextTrack);
 
     QVBoxLayout* layout = new QVBoxLayout(m_fullscreenWidget);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -777,6 +961,7 @@ void PreviewPanel::toggleFullscreen() {
         layout->addWidget(m_fullscreenVideoWidget);
 
         m_player->setVideoOutput(m_fullscreenVideoWidget);
+        m_fullscreenVideoWidget->installEventFilter(m_fullscreenWidget);
     } else {
         m_fullscreenAudioLabel = new QLabel(m_fullscreenWidget);
         m_fullscreenAudioLabel->setAlignment(Qt::AlignCenter);
@@ -832,8 +1017,13 @@ void PreviewPanel::toggleFullscreen() {
         QString displayArtist = !meta.artist.isEmpty() ? meta.artist : "Unknown Artist";
         m_fullscreenTextLabel->setText(QString("%1\n%2").arg(displayTitle).arg(displayArtist));
         layout->addWidget(m_fullscreenTextLabel);
+
+        m_fullscreenAudioLabel->installEventFilter(m_fullscreenWidget);
+        m_fullscreenTextLabel->installEventFilter(m_fullscreenWidget);
     }
 
+    m_fullscreenWidget->setMediaState(isVideo, m_player, m_audioOutput);
+    m_fullscreenWidget->updateProgress(m_player->position(), m_player->duration());
     m_fullscreenWidget->showFullScreen();
 }
 
