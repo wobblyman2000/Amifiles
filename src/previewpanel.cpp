@@ -36,6 +36,7 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
 
     // Create HUD Overlay Panel
     m_hudWidget = new QWidget(this);
+    m_hudWidget->setAttribute(Qt::WA_StyledBackground, true);
     m_hudWidget->setObjectName("hudPanel");
     m_hudWidget->setStyleSheet(
         "QWidget#hudPanel { background-color: rgba(30, 30, 46, 220); border: 1px solid rgba(69, 71, 90, 150); border-radius: 12px; }"
@@ -110,6 +111,11 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
     m_hideTimer = new QTimer(this);
     connect(m_hideTimer, &QTimer::timeout, this, &FullscreenWidget::onHideHud);
 
+    m_lastMousePos = QCursor::pos();
+    m_mousePollTimer = new QTimer(this);
+    connect(m_mousePollTimer, &QTimer::timeout, this, &FullscreenWidget::onPollMouse);
+    m_mousePollTimer->start(200);
+
     showHud();
 }
 
@@ -154,6 +160,14 @@ void FullscreenWidget::showHud() {
     m_hudWidget->raise();
     setCursor(Qt::ArrowCursor);
     m_hideTimer->start(3000);
+}
+
+void FullscreenWidget::onPollMouse() {
+    QPoint curPos = QCursor::pos();
+    if (curPos != m_lastMousePos) {
+        m_lastMousePos = curPos;
+        showHud();
+    }
 }
 
 void FullscreenWidget::onHideHud() {

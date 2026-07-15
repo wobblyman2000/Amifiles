@@ -59,6 +59,7 @@ private slots:
     void onHudPlayPause();
     void onHudSliderMoved(int val);
     void onHudVolumeChanged(int val);
+    void onPollMouse();
 
 private:
     void showHud();
@@ -69,6 +70,8 @@ private:
     class QLabel* m_lblTime = nullptr;
     class QSlider* m_sliderVolume = nullptr;
     class QTimer* m_hideTimer = nullptr;
+    class QTimer* m_mousePollTimer = nullptr;
+    QPoint m_lastMousePos;
     class QMediaPlayer* m_player = nullptr;
 };
 
