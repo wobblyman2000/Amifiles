@@ -410,10 +410,6 @@ void PreviewPanel::setupUI() {
     bool showAudioCover = settings.value("preview/show_audio_cover_art", true).toBool();
     m_audioPlaceholder->setCoverArtVisible(showAudioCover);
 
-    // Media Controls Layout
-    QHBoxLayout* mediaCtrlLayout = new QHBoxLayout();
-    mediaCtrlLayout->setSpacing(4);
-
     QStyle* style = QApplication::style();
 
     m_btnPrevTrack = new QPushButton(this);
@@ -484,22 +480,29 @@ void PreviewPanel::setupUI() {
     m_audioOutput->setVolume(0.7f);
     connect(m_sliderVolume, &QSlider::valueChanged, this, &PreviewPanel::onVolumeChanged);
 
-    mediaCtrlLayout->addWidget(m_btnPrevTrack);
-    mediaCtrlLayout->addWidget(m_btnPlayPause);
-    mediaCtrlLayout->addWidget(m_btnStop);
-    mediaCtrlLayout->addWidget(m_btnNextTrack);
-    mediaCtrlLayout->addWidget(m_btnFullscreen);
-    mediaCtrlLayout->addWidget(m_btnShuffle);
-    mediaCtrlLayout->addWidget(m_btnRepeat);
-    mediaCtrlLayout->addWidget(m_btnSubtitles);
-    mediaCtrlLayout->addWidget(m_sliderProgress);
-    mediaCtrlLayout->addWidget(m_lblProgressTime);
-    mediaCtrlLayout->addWidget(lblVol);
-    mediaCtrlLayout->addWidget(m_sliderVolume);
+    QHBoxLayout* progressLayout = new QHBoxLayout();
+    progressLayout->setSpacing(6);
+    progressLayout->addWidget(m_sliderProgress, 1);
+    progressLayout->addWidget(m_lblProgressTime);
+
+    QHBoxLayout* controlsLayout = new QHBoxLayout();
+    controlsLayout->setSpacing(4);
+    controlsLayout->addWidget(m_btnPrevTrack);
+    controlsLayout->addWidget(m_btnPlayPause);
+    controlsLayout->addWidget(m_btnStop);
+    controlsLayout->addWidget(m_btnNextTrack);
+    controlsLayout->addWidget(m_btnFullscreen);
+    controlsLayout->addWidget(m_btnShuffle);
+    controlsLayout->addWidget(m_btnRepeat);
+    controlsLayout->addWidget(m_btnSubtitles);
+    controlsLayout->addStretch(1);
+    controlsLayout->addWidget(lblVol);
+    controlsLayout->addWidget(m_sliderVolume);
 
     mediaLayout->addWidget(m_videoWidget, 1);
     mediaLayout->addWidget(m_audioPlaceholder, 1);
-    mediaLayout->addLayout(mediaCtrlLayout);
+    mediaLayout->addLayout(progressLayout);
+    mediaLayout->addLayout(controlsLayout);
     m_stack->addWidget(m_mediaView);
 
     // 5. Bottom Tabbed Area
