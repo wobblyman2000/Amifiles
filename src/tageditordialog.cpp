@@ -8,6 +8,11 @@
 #include <QMessageBox>
 #include <QProcess>
 #include <QGroupBox>
+#include <QCheckBox>
+#include <QClipboard>
+#include <QFileDialog>
+#include <QApplication>
+#include <QDir>
 
 TagEditorDialog::TagEditorDialog(const QStringList& filePaths, QWidget* parent)
     : QDialog(parent), m_filePaths(filePaths) {
@@ -43,14 +48,39 @@ void TagEditorDialog::setupUI() {
     m_editAlbum = new QLineEdit(this);
     m_editGenre = new QLineEdit(this);
     m_editYear = new QLineEdit(this);
+    m_editAlbumArtist = new QLineEdit(this);
+    m_editDiscNumber = new QLineEdit(this);
+    m_chkCompilation = new QCheckBox(this);
 
     audioForm->addRow("Title:", m_editTitle);
     audioForm->addRow("Artist:", m_editArtist);
+    audioForm->addRow("Album Artist:", m_editAlbumArtist);
     audioForm->addRow("Album:", m_editAlbum);
     audioForm->addRow("Genre:", m_editGenre);
     audioForm->addRow("Year:", m_editYear);
+    audioForm->addRow("Disc Number:", m_editDiscNumber);
+    audioForm->addRow("Compilation:", m_chkCompilation);
 
     mainLayout->addWidget(audioGroup);
+
+    // Group 1.5: Album Artwork Group
+    QGroupBox* artworkGroup = new QGroupBox("Album Artwork", this);
+    QHBoxLayout* artworkLayout = new QHBoxLayout(artworkGroup);
+    artworkLayout->setSpacing(8);
+
+    m_lblArtworkStatus = new QLabel("Artwork: Checking...", this);
+    m_lblArtworkStatus->setStyleSheet("font-weight: bold; color: #a6adc8;");
+    artworkLayout->addWidget(m_lblArtworkStatus, 1);
+
+    m_btnPasteArtwork = new QPushButton("Paste from Clipboard", this);
+    connect(m_btnPasteArtwork, &QPushButton::clicked, this, &TagEditorDialog::onPasteArtwork);
+    artworkLayout->addWidget(m_btnPasteArtwork);
+
+    m_btnExtractArtwork = new QPushButton("Extract to Folder", this);
+    connect(m_btnExtractArtwork, &QPushButton::clicked, this, &TagEditorDialog::onExtractArtwork);
+    artworkLayout->addWidget(m_btnExtractArtwork);
+
+    mainLayout->addWidget(artworkGroup);
 
     // Group 2: Image EXIF Metadata
     QGroupBox* exifGroup = new QGroupBox("Image EXIF Tags (JPEG / PNG)", this);
@@ -75,6 +105,7 @@ void TagEditorDialog::setupUI() {
     }
 
     audioGroup->setVisible(hasAudio || (!hasAudio && !hasImages));
+    artworkGroup->setVisible(hasAudio);
     exifGroup->setVisible(hasImages);
 
     // Bottom layout buttons
@@ -106,6 +137,10 @@ void TagEditorDialog::loadCommonTags() {
     QString year = firstMeta.year;
     QString camera = firstMeta.cameraModel;
     QString dateTaken = firstMeta.dateTaken;
+    QString albumArtist = firstMeta.albumArtist;
+    QString discNumber = firstMeta.discNumber;
+    bool compilation = firstMeta.compilation;
+    bool hasArtwork = firstMeta.hasEmbeddedArtwork;
 
     // Check if other files match, else set to placeholder
     for (int i = 1; i < m_filePaths.size(); ++i) {
@@ -117,6 +152,10 @@ void TagEditorDialog::loadCommonTags() {
         if (meta.year != year) year = "";
         if (meta.cameraModel != camera) camera = "";
         if (meta.dateTaken != dateTaken) dateTaken = "";
+        if (meta.albumArtist != albumArtist) albumArtist = "";
+        if (meta.discNumber != discNumber) discNumber = "";
+        if (meta.compilation != compilation) compilation = false;
+        if (meta.hasEmbeddedArtwork != hasArtwork) hasArtwork = false;
     }
 
     if (m_filePaths.size() > 1) {
@@ -135,6 +174,14 @@ void TagEditorDialog::loadCommonTags() {
         if (year.isEmpty()) m_editYear->setPlaceholderText("<Multiple Values>");
         else m_editYear->setText(year);
 
+        if (albumArtist.isEmpty()) m_editAlbumArtist->setPlaceholderText("<Multiple Values>");
+        else m_editAlbumArtist->setText(albumArtist);
+
+        if (discNumber.isEmpty()) m_editDiscNumber->setPlaceholderText("<Multiple Values>");
+        else m_editDiscNumber->setText(discNumber);
+
+        m_chkCompilation->setChecked(compilation);
+
         if (camera.isEmpty()) m_editCamera->setPlaceholderText("<Multiple Values>");
         else m_editCamera->setText(camera);
 
@@ -146,8 +193,19 @@ void TagEditorDialog::loadCommonTags() {
         m_editAlbum->setText(album);
         m_editGenre->setText(genre);
         m_editYear->setText(year);
+        m_editAlbumArtist->setText(albumArtist);
+        m_editDiscNumber->setText(discNumber);
+        m_chkCompilation->setChecked(compilation);
         m_editCamera->setText(camera);
         m_editDateTaken->setText(dateTaken);
+    }
+
+    if (m_lblArtworkStatus) {
+        if (m_filePaths.size() > 1) {
+            m_lblArtworkStatus->setText("Embedded Artwork: <Mixed>");
+        } else {
+            m_lblArtworkStatus->setText(QString("Embedded Artwork: %1").arg(hasArtwork ? "Yes" : "No"));
+        }
     }
 }
 
@@ -159,10 +217,12 @@ void TagEditorDialog::onSaveClicked() {
 
         if (ext == "mp3") {
             // Write MP3 ID3v2 tags
-            success = writeMp3Tags(path, m_editTitle->text(), m_editArtist->text(), m_editAlbum->text(), m_editGenre->text(), m_editYear->text());
+            success = writeMp3Tags(path, m_editTitle->text(), m_editArtist->text(), m_editAlbum->text(), m_editGenre->text(), m_editYear->text(),
+                                   m_editAlbumArtist->text(), m_editDiscNumber->text(), m_chkCompilation->isChecked());
         } else if (ext == "flac") {
             // Write FLAC Vorbis comments
-            success = writeFlacTags(path, m_editTitle->text(), m_editArtist->text(), m_editAlbum->text(), m_editGenre->text(), m_editYear->text());
+            success = writeFlacTags(path, m_editTitle->text(), m_editArtist->text(), m_editAlbum->text(), m_editGenre->text(), m_editYear->text(),
+                                    m_editAlbumArtist->text(), m_editDiscNumber->text(), m_chkCompilation->isChecked());
         } else if (ext == "jpg" || ext == "jpeg" || ext == "png") {
             // Write JPEG/PNG EXIF tags
             success = writeExifTags(path, m_editCamera->text(), m_editDateTaken->text());
@@ -181,7 +241,8 @@ void TagEditorDialog::onSaveClicked() {
 }
 
 // Native ID3v2.3 MP3 tag writing helper
-bool TagEditorDialog::writeMp3Tags(const QString& filePath, const QString& title, const QString& artist, const QString& album, const QString& genre, const QString& year) {
+bool TagEditorDialog::writeMp3Tags(const QString& filePath, const QString& title, const QString& artist, const QString& album, const QString& genre, const QString& year,
+                                   const QString& albumArtist, const QString& discNumber, bool compilation) {
     QFile file(filePath);
     if (!file.open(QIODevice::ReadOnly)) return false;
 
@@ -229,6 +290,11 @@ bool TagEditorDialog::writeMp3Tags(const QString& filePath, const QString& title
     frames.append(createFrame("TALB", album));
     frames.append(createFrame("TCON", genre));
     frames.append(createFrame("TYER", year));
+    frames.append(createFrame("TPE2", albumArtist));
+    frames.append(createFrame("TPOS", discNumber));
+    if (compilation) {
+        frames.append(createFrame("TCMP", "1"));
+    }
 
     if (frames.isEmpty()) return false;
 
@@ -289,15 +355,20 @@ bool TagEditorDialog::writeExifTags(const QString& filePath, const QString& came
     return false;
 }
 
-bool TagEditorDialog::writeFlacTags(const QString& filePath, const QString& title, const QString& artist, const QString& album, const QString& genre, const QString& year) {
+bool TagEditorDialog::writeFlacTags(const QString& filePath, const QString& title, const QString& artist, const QString& album, const QString& genre, const QString& year,
+                                   const QString& albumArtist, const QString& discNumber, bool compilation) {
     QProcess proc;
     QStringList args;
-    args << "--remove-tag=TITLE" << "--remove-tag=ARTIST" << "--remove-tag=ALBUM" << "--remove-tag=GENRE" << "--remove-tag=DATE";
+    args << "--remove-tag=TITLE" << "--remove-tag=ARTIST" << "--remove-tag=ALBUM" << "--remove-tag=GENRE" << "--remove-tag=DATE"
+         << "--remove-tag=ALBUMARTIST" << "--remove-tag=DISCNUMBER" << "--remove-tag=COMPILATION";
     if (!title.isEmpty()) args << QString("--set-tag=TITLE=%1").arg(title);
     if (!artist.isEmpty()) args << QString("--set-tag=ARTIST=%1").arg(artist);
     if (!album.isEmpty()) args << QString("--set-tag=ALBUM=%1").arg(album);
     if (!genre.isEmpty()) args << QString("--set-tag=GENRE=%1").arg(genre);
     if (!year.isEmpty()) args << QString("--set-tag=DATE=%1").arg(year);
+    if (!albumArtist.isEmpty()) args << QString("--set-tag=ALBUMARTIST=%1").arg(albumArtist);
+    if (!discNumber.isEmpty()) args << QString("--set-tag=DISCNUMBER=%1").arg(discNumber);
+    args << QString("--set-tag=COMPILATION=%1").arg(compilation ? "1" : "0");
     args << filePath;
 
     proc.start("metaflac", args);
@@ -312,6 +383,9 @@ bool TagEditorDialog::writeFlacTags(const QString& filePath, const QString& titl
     if (!album.isEmpty()) args2 << QString("-Album=%1").arg(album);
     if (!genre.isEmpty()) args2 << QString("-Genre=%1").arg(genre);
     if (!year.isEmpty()) args2 << QString("-Date=%1").arg(year);
+    if (!albumArtist.isEmpty()) args2 << QString("-Band=%1").arg(albumArtist);
+    if (!discNumber.isEmpty()) args2 << QString("-PartOfSet=%1").arg(discNumber);
+    args2 << QString("-Compilation=%1").arg(compilation ? "1" : "0");
     args2 << filePath;
 
     proc2.start("exiftool", args2);
@@ -319,4 +393,83 @@ bool TagEditorDialog::writeFlacTags(const QString& filePath, const QString& titl
         return true;
     }
     return false;
+}
+
+void TagEditorDialog::onPasteArtwork() {
+    QClipboard* clipboard = QApplication::clipboard();
+    QImage image = clipboard->image();
+    if (image.isNull()) {
+        QMessageBox::warning(this, "Paste Failed", "No image found in the clipboard. Copy an image first!");
+        return;
+    }
+
+    QString tempPath = QDir::tempPath() + "/amifiles_temp_cover.jpg";
+    if (!image.save(tempPath, "JPG")) {
+        QMessageBox::critical(this, "Save Failed", "Could not create temporary artwork image.");
+        return;
+    }
+
+    int successCount = 0;
+    for (const QString& path : m_filePaths) {
+        QString ext = QFileInfo(path).suffix().toLower();
+        bool success = false;
+
+        if (ext == "mp3") {
+            QProcess proc;
+            proc.start("exiftool", {QString("-Picture<=%1").arg(tempPath), path});
+            if (proc.waitForFinished(5000) && proc.exitCode() == 0) {
+                success = true;
+            }
+        } else if (ext == "flac") {
+            QProcess proc;
+            proc.start("metaflac", {QString("--import-picture-from=%1").arg(tempPath), path});
+            if (proc.waitForFinished(5000) && proc.exitCode() == 0) {
+                success = true;
+            } else {
+                QProcess proc2;
+                proc2.start("exiftool", {QString("-Picture<=%1").arg(tempPath), path});
+                if (proc2.waitForFinished(5000) && proc2.exitCode() == 0) {
+                    success = true;
+                }
+            }
+        }
+
+        if (success) successCount++;
+    }
+
+    QFile::remove(tempPath);
+
+    if (successCount > 0) {
+        QMessageBox::information(this, "Artwork Pasted", QString("Successfully embedded artwork into %1 file(s).").arg(successCount));
+        loadCommonTags();
+    } else {
+        QMessageBox::warning(this, "Paste Failed", "Could not embed artwork. Make sure exiftool or metaflac is installed.");
+    }
+}
+
+void TagEditorDialog::onExtractArtwork() {
+    if (m_filePaths.isEmpty()) return;
+
+    QString firstFile = m_filePaths.first();
+    QString defaultDir = QFileInfo(firstFile).absolutePath();
+    QString defaultPath = defaultDir + "/cover.jpg";
+    QString savePath = QFileDialog::getSaveFileName(this, "Extract Embedded Artwork", defaultPath, "JPEG Images (*.jpg);;All Files (*)");
+    if (savePath.isEmpty()) return;
+
+    QProcess proc;
+    proc.start("exiftool", {"-Picture", "-b", firstFile});
+    if (proc.waitForFinished(5000)) {
+        QByteArray imgData = proc.readAllStandardOutput();
+        if (!imgData.isEmpty()) {
+            QFile outFile(savePath);
+            if (outFile.open(QIODevice::WriteOnly)) {
+                outFile.write(imgData);
+                outFile.close();
+                QMessageBox::information(this, "Extraction Successful", "Artwork successfully saved to:\n" + savePath);
+                return;
+            }
+        }
+    }
+
+    QMessageBox::warning(this, "Extraction Failed", "No embedded artwork found or exiftool is not installed.");
 }

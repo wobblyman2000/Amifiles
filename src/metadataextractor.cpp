@@ -340,8 +340,13 @@ static void parseFlacMetadata(const QString& filePath, FileMetadata& meta) {
                     else if (key == "GENRE") meta.genre = val;
                     else if (key == "DATE") meta.year = val;
                     else if (key == "TRACKNUMBER") meta.track = val;
+                    else if (key == "ALBUMARTIST" || key == "ALBUM ARTIST") meta.albumArtist = val;
+                    else if (key == "DISCNUMBER") meta.discNumber = val;
+                    else if (key == "COMPILATION") meta.compilation = (val == "1");
                 }
             }
+        } else if (blockType == 6) {
+            meta.hasEmbeddedArtwork = true;
         }
     }
     file.close();
@@ -419,6 +424,15 @@ void MetadataExtractor::extractAudioInfo(const QString& filePath, FileMetadata& 
                     meta.year = decodeID3v2Text(frameData);
                 } else if (frameId == "TRCK") {
                     meta.track = decodeID3v2Text(frameData);
+                } else if (frameId == "TPE2") {
+                    meta.albumArtist = decodeID3v2Text(frameData);
+                } else if (frameId == "TPOS") {
+                    meta.discNumber = decodeID3v2Text(frameData);
+                } else if (frameId == "TCMP") {
+                    QString val = decodeID3v2Text(frameData);
+                    meta.compilation = (val == "1");
+                } else if (frameId == "APIC") {
+                    meta.hasEmbeddedArtwork = true;
                 }
 
                 offset += 10 + frameSize;
