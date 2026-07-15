@@ -117,6 +117,7 @@ void FullscreenWidget::resizeEvent(QResizeEvent* event) {
     QWidget::resizeEvent(event);
     int hudW = qMin(width() - 40, 850);
     m_hudWidget->setGeometry((width() - hudW) / 2, height() - 70, hudW, 50);
+    m_hudWidget->raise();
 }
 
 void FullscreenWidget::setMediaState(bool isVideo, QMediaPlayer* player, QAudioOutput* audioOutput) {
@@ -150,6 +151,7 @@ void FullscreenWidget::updateProgress(qint64 position, qint64 duration) {
 
 void FullscreenWidget::showHud() {
     m_hudWidget->show();
+    m_hudWidget->raise();
     setCursor(Qt::ArrowCursor);
     m_hideTimer->start(3000);
 }
@@ -961,6 +963,7 @@ void PreviewPanel::toggleFullscreen() {
         layout->addWidget(m_fullscreenVideoWidget);
 
         m_player->setVideoOutput(m_fullscreenVideoWidget);
+        m_fullscreenVideoWidget->setMouseTracking(true);
         m_fullscreenVideoWidget->installEventFilter(m_fullscreenWidget);
     } else {
         m_fullscreenAudioLabel = new QLabel(m_fullscreenWidget);
@@ -1018,6 +1021,8 @@ void PreviewPanel::toggleFullscreen() {
         m_fullscreenTextLabel->setText(QString("%1\n%2").arg(displayTitle).arg(displayArtist));
         layout->addWidget(m_fullscreenTextLabel);
 
+        m_fullscreenAudioLabel->setMouseTracking(true);
+        m_fullscreenTextLabel->setMouseTracking(true);
         m_fullscreenAudioLabel->installEventFilter(m_fullscreenWidget);
         m_fullscreenTextLabel->installEventFilter(m_fullscreenWidget);
     }
