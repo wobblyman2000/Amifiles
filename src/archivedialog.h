@@ -46,6 +46,8 @@ private:
     QLabel* m_lblStatus = nullptr;
     QLineEdit* m_txtTargetName = nullptr;
     QComboBox* m_comboFormat = nullptr;
+    class QCheckBox* m_chkPassword = nullptr;
+    QLineEdit* m_txtPassword = nullptr;
     QProgressBar* m_progressBar = nullptr;
     QPushButton* m_btnAction = nullptr;
     QPushButton* m_btnCancel = nullptr;

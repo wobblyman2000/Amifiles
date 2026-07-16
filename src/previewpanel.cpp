@@ -1,5 +1,8 @@
 #include "previewpanel.h"
 #include <QVBoxLayout>
+#include "imageeditordialog.h"
+#include "hexeditorwidget.h"
+#include "pdfviewerwidget.h"
 #include <QHBoxLayout>
 #include <QComboBox>
 #include <QCheckBox>
@@ -393,6 +396,19 @@ void PreviewPanel::setupUI() {
     m_imageScrollArea->setWidget(m_imageLabel);
 
     imageLayout->addWidget(m_imageScrollArea);
+
+    QPushButton* btnEditImage = new QPushButton("Edit Image & Annotate", m_imageView);
+    btnEditImage->setStyleSheet("QPushButton { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 4px; padding: 6px; margin: 4px; font-weight: bold; } QPushButton:hover { background-color: #45475a; }");
+    connect(btnEditImage, &QPushButton::clicked, this, [this]() {
+        if (!m_previewedFilePath.isEmpty()) {
+            ImageEditorDialog dlg(m_previewedFilePath, this);
+            if (dlg.exec() == QDialog::Accepted) {
+                previewFile(m_previewedFilePath);
+            }
+        }
+    });
+    imageLayout->addWidget(btnEditImage);
+
     m_stack->addWidget(m_imageView);
 
     // 4. Media View (Audio / Video)
@@ -513,6 +529,9 @@ void PreviewPanel::setupUI() {
     mediaLayout->addLayout(controlsLayout);
     m_stack->addWidget(m_mediaView);
 
+    m_pdfViewer = new PdfViewerWidget(this);
+    m_stack->addWidget(m_pdfViewer);
+
     // 5. Bottom Tabbed Area
     m_bottomTab = new QTabWidget(this);
     m_bottomTab->setStyleSheet(
@@ -614,6 +633,9 @@ void PreviewPanel::setupUI() {
 
     m_bottomTab->addTab(eqContainer, "Equalizer");
 
+    m_hexViewer = new HexEditorWidget(this);
+    m_bottomTab->addTab(m_hexViewer, "Hex Viewer");
+
     mainLayout->addWidget(m_stack, 2);
     mainLayout->addWidget(m_bottomTab, 1);
 }
@@ -628,6 +650,12 @@ void PreviewPanel::clearPreview() {
     m_textEdit->clear();
     m_textChanged = false;
     m_textControls->hide();
+    if (m_hexViewer) {
+        m_hexViewer->clear();
+    }
+    if (m_pdfViewer) {
+        m_pdfViewer->clear();
+    }
     if (m_audioPlaceholder) {
         m_audioPlaceholder->setFilePath("");
     }
@@ -669,6 +697,11 @@ void PreviewPanel::previewFile(const QString& filePath) {
         showMediaPreview(filePath, false);
     } else if (videoExts.contains(ext)) {
         showMediaPreview(filePath, true);
+    } else if (ext == "pdf") {
+        if (m_pdfViewer) {
+            m_pdfViewer->loadPdf(filePath);
+            m_stack->setCurrentWidget(m_pdfViewer);
+        }
     } else {
         // Unknown binary/other file - just show metadata
         m_stack->setCurrentWidget(m_emptyView);
@@ -677,6 +710,10 @@ void PreviewPanel::previewFile(const QString& filePath) {
     // Load and show metadata
     FileMetadata meta = MetadataExtractor::extract(filePath);
     updateMetadataDisplay(meta);
+
+    if (m_hexViewer) {
+        m_hexViewer->loadFile(filePath);
+    }
 
     if (m_fullscreenWidget) {
         exitFullscreen();

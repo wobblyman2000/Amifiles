@@ -5,6 +5,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QComboBox>
+#include <QCheckBox>
 #include <QProgressBar>
 #include <QPushButton>
 #include <QFileInfo>
@@ -70,8 +71,30 @@ void ArchiveDialog::setupUI() {
         form->addRow("Archive Name:", m_txtTargetName);
 
         m_comboFormat = new QComboBox(this);
-        m_comboFormat->addItems({".zip", ".tar.gz", ".tar.xz", ".tar"});
+        m_comboFormat->addItems({".zip", ".7z", ".tar.gz", ".tar.xz", ".tar"});
         form->addRow("Format:", m_comboFormat);
+
+        m_chkPassword = new QCheckBox("Password Protection", this);
+        m_chkPassword->setStyleSheet("QCheckBox { color: #cdd6f4; }");
+        form->addRow("", m_chkPassword);
+
+        m_txtPassword = new QLineEdit(this);
+        m_txtPassword->setEchoMode(QLineEdit::Password);
+        m_txtPassword->setEnabled(false);
+        form->addRow("Password:", m_txtPassword);
+
+        auto updatePasswordUI = [this]() {
+            QString fmt = m_comboFormat->currentText();
+            bool encryptable = (fmt == ".zip" || fmt == ".7z");
+            m_chkPassword->setEnabled(encryptable);
+            m_txtPassword->setEnabled(encryptable && m_chkPassword->isChecked());
+            if (!encryptable) {
+                m_chkPassword->setChecked(false);
+            }
+        };
+
+        connect(m_comboFormat, &QComboBox::currentTextChanged, this, updatePasswordUI);
+        connect(m_chkPassword, &QCheckBox::toggled, this, updatePasswordUI);
 
         mainLayout->addLayout(form);
     } else {
@@ -83,6 +106,20 @@ void ArchiveDialog::setupUI() {
 
         QLabel* lblDest = new QLabel(QString("Destination: %1").arg(QDir::toNativeSeparators(m_currentDir)), this);
         mainLayout->addWidget(lblDest);
+
+        m_chkPassword = new QCheckBox("Archive is Password Protected", this);
+        m_chkPassword->setStyleSheet("QCheckBox { color: #cdd6f4; }");
+        mainLayout->addWidget(m_chkPassword);
+
+        QHBoxLayout* passRow = new QHBoxLayout();
+        passRow->addWidget(new QLabel("Decryption Password:", this));
+        m_txtPassword = new QLineEdit(this);
+        m_txtPassword->setEchoMode(QLineEdit::Password);
+        m_txtPassword->setEnabled(false);
+        passRow->addWidget(m_txtPassword);
+        mainLayout->addLayout(passRow);
+
+        connect(m_chkPassword, &QCheckBox::toggled, m_txtPassword, &QLineEdit::setEnabled);
     }
 
     m_progressBar = new QProgressBar(this);
@@ -145,10 +182,28 @@ void ArchiveDialog::startExtraction() {
     } else if (ext == "tar") {
         m_process->start("tar", {"-xvf", m_archivePath, "-C", m_currentDir});
     } else if (ext == "zip") {
-        m_process->start("unzip", {"-o", m_archivePath, "-d", m_currentDir});
+        if (m_chkPassword->isChecked() && !m_txtPassword->text().isEmpty()) {
+            m_process->start("unzip", {"-P", m_txtPassword->text(), "-o", m_archivePath, "-d", m_currentDir});
+        } else {
+            m_process->start("unzip", {"-o", m_archivePath, "-d", m_currentDir});
+        }
+    } else if (ext == "7z") {
+        QStringList args;
+        args << "x";
+        if (m_chkPassword->isChecked() && !m_txtPassword->text().isEmpty()) {
+            args << QString("-p%1").arg(m_txtPassword->text());
+        }
+        args << m_archivePath << QString("-o%1").arg(m_currentDir) << "-y";
+        m_process->start("7z", args);
     } else {
-        // Double fallback: try tar first
-        m_process->start("tar", {"-xvf", m_archivePath, "-C", m_currentDir});
+        // Double fallback: try 7z first for unknown format, then tar
+        if (ext == "7z" || ext == "rar") {
+            QStringList args;
+            args << "x" << m_archivePath << QString("-o%1").arg(m_currentDir) << "-y";
+            m_process->start("7z", args);
+        } else {
+            m_process->start("tar", {"-xvf", m_archivePath, "-C", m_currentDir});
+        }
     }
 
     connect(m_process, &QProcess::readyReadStandardOutput, this, &ArchiveDialog::onProcessReadyRead);
@@ -194,8 +249,20 @@ void ArchiveDialog::startCreation() {
 
     if (format == ".zip") {
         QStringList args;
-        args << "-r" << m_archivePath << relativePaths;
+        if (m_chkPassword->isChecked() && !m_txtPassword->text().isEmpty()) {
+            args << "-r" << "-P" << m_txtPassword->text() << m_archivePath << relativePaths;
+        } else {
+            args << "-r" << m_archivePath << relativePaths;
+        }
         m_process->start("zip", args);
+    } else if (format == ".7z") {
+        QStringList args;
+        args << "a";
+        if (m_chkPassword->isChecked() && !m_txtPassword->text().isEmpty()) {
+            args << QString("-p%1").arg(m_txtPassword->text()) << "-mhe=on";
+        }
+        args << m_archivePath << relativePaths;
+        m_process->start("7z", args);
     } else if (format == ".tar.gz") {
         QStringList args;
         args << "-czvf" << m_archivePath << relativePaths;

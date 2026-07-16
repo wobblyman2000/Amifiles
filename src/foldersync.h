@@ -45,6 +45,10 @@ private:
     QProgressBar* m_progress = nullptr;
     QCheckBox* m_chkRecursive = nullptr;
     QComboBox* m_cmbDirection = nullptr;
+    QLabel* m_lblStatMatch = nullptr;
+    QLabel* m_lblStatLeftOnly = nullptr;
+    QLabel* m_lblStatRightOnly = nullptr;
+    QLabel* m_lblStatConflicts = nullptr;
 
     QList<SyncItem> m_syncItems;
 };

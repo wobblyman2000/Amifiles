@@ -195,6 +195,7 @@ private:
     QWidget* m_imageView = nullptr;
     QLabel* m_imageLabel = nullptr;
     QScrollArea* m_imageScrollArea = nullptr;
+    class PdfViewerWidget* m_pdfViewer = nullptr;
 
     // Media View
     QWidget* m_mediaView = nullptr;
@@ -226,6 +227,7 @@ private:
     QWidget* m_metadataContainer = nullptr;
     QTableWidget* m_metadataTable = nullptr;
     class QListWidget* m_playlistList = nullptr;
+    class HexEditorWidget* m_hexViewer = nullptr;
 
     // Fullscreen support
     FullscreenWidget* m_fullscreenWidget = nullptr;

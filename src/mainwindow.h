@@ -105,6 +105,7 @@ private slots:
     void onCalculateChecksum();
     void onSecureShred();
     void onRemoteMount();
+    void onCloudMount();
     void onImageConvert();
     void onProcessManagerAction();
     void onTagsSidebarClicked(class QListWidgetItem* item);
@@ -208,6 +209,7 @@ private:
     QAction* m_actCalculateChecksum = nullptr;
     QAction* m_actSecureShred = nullptr;
     QAction* m_actRemoteMount = nullptr;
+    QAction* m_actCloudMount = nullptr;
     QAction* m_actImageConvert = nullptr;
     QAction* m_actProcessManager = nullptr;
     QAction* m_actEncryptVault = nullptr;

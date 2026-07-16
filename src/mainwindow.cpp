@@ -13,6 +13,7 @@
 #include "checksumdialog.h"
 #include "shreddialog.h"
 #include "remotemountdialog.h"
+#include "cloudmountdialog.h"
 #include "imageconverterdialog.h"
 #include "processmanagerdialog.h"
 #include "vaultdialog.h"
@@ -755,6 +756,11 @@ void MainWindow::setupActions() {
     connect(m_actRemoteMount, &QAction::triggered, this, &MainWindow::onRemoteMount);
     addAction(m_actRemoteMount);
 
+    m_actCloudMount = new QAction("Rclone Cloud Mounts...", this);
+    m_actCloudMount->setToolTip("Configure and mount Google Drive, OneDrive, or Dropbox");
+    connect(m_actCloudMount, &QAction::triggered, this, &MainWindow::onCloudMount);
+    addAction(m_actCloudMount);
+
     m_actImageConvert = new QAction("Batch Image Converter...", this);
     m_actImageConvert->setToolTip("Bulk format conversion and resizing for images");
     connect(m_actImageConvert, &QAction::triggered, this, &MainWindow::onImageConvert);
@@ -853,6 +859,7 @@ void MainWindow::setupMenus() {
     m_menuTools->addAction(m_actCalculateChecksum);
     m_menuTools->addAction(m_actSecureShred);
     m_menuTools->addAction(m_actRemoteMount);
+    m_menuTools->addAction(m_actCloudMount);
     m_menuTools->addAction(m_actImageConvert);
     m_menuTools->addAction(m_actProcessManager);
     m_menuTools->addSeparator();
@@ -2201,6 +2208,13 @@ void MainWindow::onSecureShred() {
 
 void MainWindow::onRemoteMount() {
     RemoteMountDialog dlg(this);
+    if (dlg.exec() == QDialog::Accepted) {
+        updateDrivesList();
+    }
+}
+
+void MainWindow::onCloudMount() {
+    CloudMountDialog dlg(this);
     if (dlg.exec() == QDialog::Accepted) {
         updateDrivesList();
     }

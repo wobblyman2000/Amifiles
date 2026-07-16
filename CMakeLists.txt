@@ -78,6 +78,14 @@ add_executable(Amifiles
     src/sunburstchart.cpp
     src/archivedialog.h
     src/archivedialog.cpp
+    src/imageeditordialog.h
+    src/imageeditordialog.cpp
+    src/hexeditorwidget.h
+    src/hexeditorwidget.cpp
+    src/cloudmountdialog.h
+    src/cloudmountdialog.cpp
+    src/pdfviewerwidget.h
+    src/pdfviewerwidget.cpp
 )
 
 target_link_libraries(Amifiles PRIVATE

@@ -11,18 +11,19 @@
 FolderSyncDialog::FolderSyncDialog(const QString& leftDir, const QString& rightDir, QWidget* parent)
     : QDialog(parent), m_leftDir(leftDir), m_rightDir(rightDir) {
     setWindowTitle("Folder Compare & Sync");
-    resize(750, 480);
+    resize(850, 540);
     setStyleSheet("QDialog { background-color: #1e1e2e; color: #cdd6f4; }"
-                  "QLabel { color: #cdd6f4; }"
-                  "QCheckBox { color: #cdd6f4; }"
-                  "QComboBox { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; padding: 4px; border-radius: 4px; }"
-                  "QTableWidget { background-color: #181825; color: #cdd6f4; gridline-color: #313244; border: 1px solid #313244; }"
-                  "QHeaderView::section { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; padding: 4px; }"
-                  "QPushButton { background-color: #313244; color: #cdd6f4; border-radius: 4px; padding: 6px 12px; border: 1px solid #45475a; }"
-                  "QPushButton:hover { background-color: #45475a; }"
-                  "QPushButton:disabled { background-color: #11111b; color: #585b70; }"
-                  "QProgressBar { border: 1px solid #313244; border-radius: 4px; text-align: center; background-color: #181825; }"
-                  "QProgressBar::chunk { background-color: #a6e3a1; }");
+                   "QLabel { color: #cdd6f4; }"
+                   "QCheckBox { color: #cdd6f4; }"
+                   "QFrame { background-color: #11111b; border: 1px solid #313244; border-radius: 6px; }"
+                   "QComboBox { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; padding: 4px; border-radius: 4px; }"
+                   "QTableWidget { background-color: #181825; color: #cdd6f4; gridline-color: #313244; border: 1px solid #313244; }"
+                   "QHeaderView::section { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; padding: 4px; }"
+                   "QPushButton { background-color: #313244; color: #cdd6f4; border-radius: 4px; padding: 6px 12px; border: 1px solid #45475a; }"
+                   "QPushButton:hover { background-color: #45475a; }"
+                   "QPushButton:disabled { background-color: #11111b; color: #585b70; }"
+                   "QProgressBar { border: 1px solid #313244; border-radius: 4px; text-align: center; background-color: #181825; }"
+                   "QProgressBar::chunk { background-color: #a6e3a1; }");
     setupUI();
 }
 
@@ -35,6 +36,33 @@ void FolderSyncDialog::setupUI() {
     dirsLayout->addWidget(m_lblLeftDir, 1);
     dirsLayout->addWidget(m_lblRightDir, 1);
     mainLayout->addLayout(dirsLayout);
+
+    QHBoxLayout* statsLayout = new QHBoxLayout();
+    statsLayout->setSpacing(10);
+
+    auto createStatCard = [this](const QString& title, QLabel*& lblOut, const QString& color) {
+        QFrame* card = new QFrame(this);
+        card->setStyleSheet(QString("QFrame { border: 1.5px solid %1; border-radius: 6px; padding: 4px; background-color: #11111b; }").arg(color));
+        QVBoxLayout* cardLayout = new QVBoxLayout(card);
+        cardLayout->setContentsMargins(8, 4, 8, 4);
+        cardLayout->setSpacing(2);
+
+        QLabel* lblTitle = new QLabel(title, this);
+        lblTitle->setStyleSheet("font-size: 11px; color: #a6adc8; font-weight: bold; border: none; background: transparent;");
+        lblOut = new QLabel("0", this);
+        lblOut->setStyleSheet("font-size: 18px; color: #ffffff; font-weight: bold; border: none; background: transparent;");
+
+        cardLayout->addWidget(lblTitle);
+        cardLayout->addWidget(lblOut);
+        return card;
+    };
+
+    statsLayout->addWidget(createStatCard("MATCHES", m_lblStatMatch, "#a6e3a1"));
+    statsLayout->addWidget(createStatCard("LEFT ONLY", m_lblStatLeftOnly, "#f9e2af"));
+    statsLayout->addWidget(createStatCard("RIGHT ONLY", m_lblStatRightOnly, "#f9e2af"));
+    statsLayout->addWidget(createStatCard("CONFLICTS / MISMATCH", m_lblStatConflicts, "#f38ba8"));
+
+    mainLayout->addLayout(statsLayout);
 
     QHBoxLayout* optsLayout = new QHBoxLayout();
     m_chkRecursive = new QCheckBox("Recursive Comparison", this);
@@ -98,6 +126,11 @@ void FolderSyncDialog::onCompareFinished(const QList<SyncItem>& items) {
     m_syncItems = items;
     m_table->setRowCount(items.size());
 
+    int countMatch = 0;
+    int countLeftOnly = 0;
+    int countRightOnly = 0;
+    int countConflicts = 0;
+
     for (int i = 0; i < items.size(); ++i) {
         const SyncItem& item = items.at(i);
         
@@ -119,20 +152,51 @@ void FolderSyncDialog::onCompareFinished(const QList<SyncItem>& items) {
         }
         QTableWidgetItem* itemRight = new QTableWidgetItem(rightDetails);
 
-        QTableWidgetItem* itemStatus = new QTableWidgetItem(item.status);
+        QString statusText = item.status;
+        QColor statusColor = QColor("#cdd6f4");
+
         if (item.status == "Match") {
-            itemStatus->setForeground(QBrush(QColor("#a6e3a1")));
-        } else if (item.status == "Left Only" || item.status == "Right Only") {
-            itemStatus->setForeground(QBrush(QColor("#f9e2af")));
+            statusText = "✔ Match";
+            statusColor = QColor("#a6e3a1");
+            countMatch++;
+        } else if (item.status == "Left Only") {
+            statusText = "➔ Left Only";
+            statusColor = QColor("#f9e2af");
+            countLeftOnly++;
+        } else if (item.status == "Right Only") {
+            statusText = "◀ Right Only";
+            statusColor = QColor("#f9e2af");
+            countRightOnly++;
+        } else if (item.status == "Left Newer") {
+            statusText = "☀ Left Newer";
+            statusColor = QColor("#fab387");
+            countConflicts++;
+        } else if (item.status == "Right Newer") {
+            statusText = "☀ Right Newer";
+            statusColor = QColor("#fab387");
+            countConflicts++;
+        } else if (item.status == "Size Mismatch") {
+            statusText = "✖ Mismatch";
+            statusColor = QColor("#f38ba8");
+            countConflicts++;
         } else {
-            itemStatus->setForeground(QBrush(QColor("#f38ba8")));
+            countConflicts++;
         }
+
+        QTableWidgetItem* itemStatus = new QTableWidgetItem(statusText);
+        itemStatus->setForeground(QBrush(statusColor));
+        itemStatus->setFont(QFont("", -1, QFont::Bold));
 
         m_table->setItem(i, 0, itemPath);
         m_table->setItem(i, 1, itemLeft);
         m_table->setItem(i, 2, itemRight);
         m_table->setItem(i, 3, itemStatus);
     }
+
+    if (m_lblStatMatch) m_lblStatMatch->setText(QString::number(countMatch));
+    if (m_lblStatLeftOnly) m_lblStatLeftOnly->setText(QString::number(countLeftOnly));
+    if (m_lblStatRightOnly) m_lblStatRightOnly->setText(QString::number(countRightOnly));
+    if (m_lblStatConflicts) m_lblStatConflicts->setText(QString::number(countConflicts));
 
     m_btnCompare->setEnabled(true);
     m_btnSync->setEnabled(!items.isEmpty());
