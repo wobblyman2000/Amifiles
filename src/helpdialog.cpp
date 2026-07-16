@@ -161,7 +161,7 @@ void HelpDialog::onSectionChanged(int index) {
                     "<p>An intelligent media preview panel displays context-aware summaries of highlighted items in the right-side dock.</p>"
                     "<h3>Supported Preview Formats</h3>"
                     "<ul>"
-                    "<li><b>Audio/Video Player:</b> Embeds a media player. Integrates controls for play/pause/mute and volume. Synchronizes tracks with a mini player in the main status bar when the preview panel is collapsed.</li>"
+                    "<li><b>Audio/Video Player:</b> Embeds a media player. Integrates controls for play/pause/mute and volume. Drag and drop folders or files directly into the preview panel to automatically extract and play all playable media tracks. Synchronizes tracks with a mini player in the main status bar when the preview panel is collapsed.</li>"
                     "<li><b>CC Subtitles Selector:</b> Click the <b>CC</b> button to dynamically load video subtitle tracks and toggle or switch subtitles.</li>"
                     "<li><b>Playlist Playback Modes:</b> Toggle <b>Shuffle (🔀)</b> to randomize track selections. Cycle <b>Repeat (🔁)</b> to cycle between Repeat Off, Repeat One track (🔂), and Repeat All playlist. Right-click any track inside the Playlist Queue to show options to <b>Play Selected Track</b>, <b>Remove Selected Track</b>, <b>Stop &amp; Clear Current Track</b>, or <b>Clear Entire Queue</b>.</li>"
                     "<li><b>DVD/CD Case Overlays:</b> If a folder contains cover art matching audio files, Amifiles wraps the cover in a high-fidelity CD case overlay.</li>"
