@@ -209,7 +209,19 @@ void HelpDialog::onSectionChanged(int index) {
                     "<h3>Secure File Shredder</h3>"
                     "<p>Securely overwrites file data blocks using a DoD 5220.22-M 3-pass overwrite protocol before unlinking, preventing standard data recovery software from restoring shredded data.</p>"
                     "<h3>Embedded System Console &amp; Shell</h3>"
-                    "<p>The bottom panel captures stdout, stderr, and execution messages from custom toolbar buttons in real-time, letting you debug shell scripts or review output immediately.</p>";
+                    "<p>The bottom panel captures stdout, stderr, and execution messages from custom toolbar buttons in real-time, letting you debug shell scripts or review output immediately.</p>"
+                    "<h3>Interactive Image Editor &amp; Annotator</h3>"
+                    "<p>Edit images directly from the preview pane! Support cropping, 90-degree rotations, color palettes, and markup drawings (Freehand Pen, Rectangles, Lines, Text annotations).</p>"
+                    "<h3>Password-Protected Archive Manager</h3>"
+                    "<p>Compress and extract ZIP and <code>.7z</code> folders with password protection using secure back-end command pipelines.</p>"
+                    "<h3>Hex Editor &amp; Binary Viewer</h3>"
+                    "<p>Inspect binary files up to 64KB showing color-coded offset addresses, hex bytes, and printable ASCII text directly in the bottom tabs.</p>"
+                    "<h3>Rclone Cloud VFS mounts</h3>"
+                    "<p>Mount Google Drive, OneDrive, SFTP, FTP, and Dropbox dynamically using standard <code>rclone</code> and FUSE mounts. Remotes populate the drive bar automatically.</p>"
+                    "<h3>Portable PDF Viewer</h3>"
+                    "<p>View PDF documents asynchronously page-by-page via the <code>pdftoppm</code> engine, supporting full zoom and pagination controls.</p>"
+                    "<h3>Customizable File Age Rules &amp; Badges</h3>"
+                    "<p>Define custom color and emoji rules (e.g., <code>🔥</code> for &lt;24h, <code>❄️</code> for &gt;1 year) using the <b>Configure File Age Styles</b> option under the <b>View</b> menu. These rules are managed via the <code>AgeColorRule</code> structure (defined in <code>src/filepanel.h</code>) containing fields for operator (<code>&lt;=</code> or <code>&gt;=</code>), days threshold, text color, and emoji icon.</p>";
             break;
 
         case 7: // Keyboard Shortcuts
