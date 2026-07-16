@@ -568,7 +568,9 @@ void PreviewPanel::setupUI() {
         "QListWidget::item { padding: 4px 8px; }"
         "QListWidget::item:selected { background-color: #313244; color: #a6e3a1; }"
     );
+    m_playlistList->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(m_playlistList, &QListWidget::itemDoubleClicked, this, &PreviewPanel::onPlaylistItemDoubleClicked);
+    connect(m_playlistList, &QListWidget::customContextMenuRequested, this, &PreviewPanel::showPlaylistContextMenu);
     m_bottomTab->addTab(m_playlistList, "Playlist Queue");
 
     // Tab 3: Equalizer Container
@@ -1189,6 +1191,91 @@ void PreviewPanel::onPlaylistItemDoubleClicked(QListWidgetItem* item) {
         m_metadataTable->insertRow(r);
         m_metadataTable->setItem(r, 0, new QTableWidgetItem("Playlist Status"));
         m_metadataTable->setItem(r, 1, new QTableWidgetItem(QString("Playing track %1 of %2").arg(m_playlistIndex + 1).arg(m_playlist.size())));
+    }
+}
+
+void PreviewPanel::showPlaylistContextMenu(const QPoint& pos) {
+    QListWidgetItem* item = m_playlistList->itemAt(pos);
+    QMenu menu(this);
+    menu.setStyleSheet(
+        "QMenu { background-color: #1e1e2e; border: 1px solid #313244; color: #cdd6f4; }"
+        "QMenu::item:selected { background-color: #313244; color: #89b4fa; }"
+    );
+
+    QAction* actPlay = menu.addAction("▶ Play Selected Track");
+    QAction* actRemove = menu.addAction("✖ Remove Selected Track");
+    menu.addSeparator();
+    QAction* actClearCurrent = menu.addAction("⏹ Stop & Clear Current Track");
+    QAction* actClearQueue = menu.addAction("🗑 Clear Entire Queue");
+
+    // Enable/disable actions
+    actPlay->setEnabled(item != nullptr);
+    actRemove->setEnabled(item != nullptr);
+    actClearQueue->setEnabled(!m_playlist.isEmpty());
+    actClearCurrent->setEnabled(!m_currentAudioPath.isEmpty() || m_player->playbackState() != QMediaPlayer::StoppedState);
+
+    QAction* selected = menu.exec(m_playlistList->mapToGlobal(pos));
+    if (!selected) return;
+
+    if (selected == actPlay && item) {
+        onPlaylistItemDoubleClicked(item);
+    } else if (selected == actRemove && item) {
+        int row = m_playlistList->row(item);
+        if (row >= 0 && row < m_playlist.size()) {
+            m_playlist.removeAt(row);
+            delete m_playlistList->takeItem(row);
+            
+            // Adjust index if we removed an item before or at the current playing track
+            if (row == m_playlistIndex) {
+                // If it was the playing track, stop playback and play next or clear
+                if (m_playlist.isEmpty()) {
+                    clearPreview();
+                } else {
+                    if (m_playlistIndex >= m_playlist.size()) {
+                        m_playlistIndex = m_playlist.size() - 1;
+                    }
+                    previewFile(m_playlist[m_playlistIndex]);
+                    m_playlistList->setCurrentRow(m_playlistIndex);
+                }
+            } else if (row < m_playlistIndex) {
+                m_playlistIndex--;
+            }
+            
+            // Update playlist status in metadata table if still active
+            for (int r = 0; r < m_metadataTable->rowCount(); ++r) {
+                QTableWidgetItem* keyItem = m_metadataTable->item(r, 0);
+                if (keyItem && keyItem->text() == "Playlist Status") {
+                    if (m_playlist.isEmpty()) {
+                        m_metadataTable->removeRow(r);
+                    } else {
+                        m_metadataTable->setItem(r, 1, new QTableWidgetItem(
+                            QString("Playing track %1 of %2").arg(m_playlistIndex + 1).arg(m_playlist.size())
+                        ));
+                    }
+                    break;
+                }
+            }
+        }
+    } else if (selected == actClearCurrent) {
+        m_player->stop();
+        m_currentAudioPath.clear();
+        m_audioPlaceholder->setFilePath("");
+        if (m_visualizer) m_visualizer->setPlaying(false);
+    } else if (selected == actClearQueue) {
+        m_player->stop();
+        clearPreview();
+        m_playlist.clear();
+        m_playlistIndex = -1;
+        m_playlistList->clear();
+        
+        // Remove Playlist Status from metadata table
+        for (int r = 0; r < m_metadataTable->rowCount(); ++r) {
+            QTableWidgetItem* keyItem = m_metadataTable->item(r, 0);
+            if (keyItem && keyItem->text() == "Playlist Status") {
+                m_metadataTable->removeRow(r);
+                break;
+            }
+        }
     }
 }
 

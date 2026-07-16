@@ -154,6 +154,7 @@ private slots:
     void onRepeatClicked();
     void onEqPresetChanged(int index);
     void onEqSlidersChanged();
+    void showPlaylistContextMenu(const QPoint& pos);
 
 private:
     void setupUI();
