@@ -1,4 +1,8 @@
 #include "customfilesystemmodel.h"
+#include "tagmanager.h"
+#include <QPainter>
+#include <QIcon>
+#include <QPixmap>
 
 CustomFileSystemModel::CustomFileSystemModel(QObject* parent)
     : QFileSystemModel(parent) {}
@@ -32,6 +36,34 @@ QVariant CustomFileSystemModel::headerData(int section, Qt::Orientation orientat
 QVariant CustomFileSystemModel::data(const QModelIndex& index, int role) const {
     if (!index.isValid()) return QVariant();
     int col = index.column();
+
+    if (col == 0) {
+        QString filePath = fileInfo(index).absoluteFilePath();
+        if (role == Qt::DecorationRole) {
+            QString colorName = TagManager::instance().getFileColor(filePath);
+            if (!colorName.isEmpty()) {
+                QColor colVal = TagManager::instance().getColorValue(colorName);
+                QIcon baseIcon = QFileSystemModel::data(index, role).value<QIcon>();
+                QPixmap pix = baseIcon.pixmap(16, 16);
+                if (!pix.isNull()) {
+                    QPainter painter(&pix);
+                    painter.setRenderHint(QPainter::Antialiasing);
+                    painter.setBrush(colVal);
+                    painter.setPen(Qt::NoPen);
+                    painter.drawEllipse(10, 10, 6, 6);
+                    painter.end();
+                    return QIcon(pix);
+                }
+            }
+        } else if (role == Qt::DisplayRole) {
+            QString baseName = QFileSystemModel::data(index, role).toString();
+            QStringList tags = TagManager::instance().getFileTags(filePath);
+            if (!tags.isEmpty()) {
+                return QString("%1 [%2]").arg(baseName).arg(tags.join(", "));
+            }
+        }
+    }
+
     if (col >= 4 && role == Qt::DisplayRole) {
         QString filePath = fileInfo(index).absoluteFilePath();
         FileMetadata meta = getMetadata(filePath);

@@ -1,0 +1,40 @@
+#ifndef TAGMANAGER_H
+#define TAGMANAGER_H
+
+#include <QObject>
+#include <QStringList>
+#include <QMap>
+#include <QColor>
+
+struct FileTagInfo {
+    QString colorName; // "red", "orange", "yellow", "green", "blue", "purple" or empty
+    QStringList tags;
+};
+
+class TagManager : public QObject {
+    Q_OBJECT
+public:
+    static TagManager& instance();
+
+    void setFileColor(const QString& filePath, const QString& colorName);
+    QString getFileColor(const QString& filePath) const;
+    QColor getColorValue(const QString& colorName) const;
+
+    void setFileTags(const QString& filePath, const QStringList& tags);
+    QStringList getFileTags(const QString& filePath) const;
+
+    QStringList getAllTags() const;
+    QStringList getFilesWithTag(const QString& tag) const;
+
+private:
+    explicit TagManager(QObject* parent = nullptr);
+    ~TagManager() override = default;
+
+    void loadDatabase();
+    void saveDatabase();
+
+    QString m_dbPath;
+    QMap<QString, FileTagInfo> m_db;
+};
+
+#endif // TAGMANAGER_H

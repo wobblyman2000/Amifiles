@@ -86,6 +86,29 @@ public:
     QPushButton* hudRepeatButton() const { return m_btnRepeat; }
 };
 
+class SpectrumVisualizerWidget : public QWidget {
+    Q_OBJECT
+public:
+    explicit SpectrumVisualizerWidget(QWidget* parent = nullptr);
+    void setPlaying(bool playing);
+    void setBoost(double bass, double mid, double treble);
+
+protected:
+    void paintEvent(QPaintEvent* event) override;
+
+private slots:
+    void onAnimate();
+
+private:
+    QTimer* m_timer = nullptr;
+    bool m_playing = false;
+    double m_bassBoost = 1.0;
+    double m_midBoost = 1.0;
+    double m_trebleBoost = 1.0;
+    QVector<double> m_barHeights;
+    QVector<double> m_targetHeights;
+};
+
 class PreviewPanel : public QWidget {
     Q_OBJECT
 public:
@@ -124,6 +147,8 @@ private slots:
     void onSubtitleMenuRequested();
     void onShuffleToggled();
     void onRepeatClicked();
+    void onEqPresetChanged(int index);
+    void onEqSlidersChanged();
 
 private:
     void setupUI();
@@ -181,6 +206,13 @@ private:
     QPushButton* m_btnSubtitles = nullptr;
     QPushButton* m_btnShuffle = nullptr;
     QPushButton* m_btnRepeat = nullptr;
+
+    // EQ and Visualizer Elements
+    SpectrumVisualizerWidget* m_visualizer = nullptr;
+    class QComboBox* m_comboEqPreset = nullptr;
+    QSlider* m_sliderBass = nullptr;
+    QSlider* m_sliderMid = nullptr;
+    QSlider* m_sliderTreble = nullptr;
 
     // Bottom half: Tabbed view for Metadata and Playlist Queue
     class QTabWidget* m_bottomTab = nullptr;

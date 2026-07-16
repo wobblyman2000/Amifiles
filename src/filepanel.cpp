@@ -24,6 +24,8 @@
 #include <QMenu>
 #include "checksumdialog.h"
 #include "shreddialog.h"
+#include "imageconverterdialog.h"
+#include "vaultdialog.h"
 #include <QMessageBox>
 #include <QCheckBox>
 #include <QInputDialog>
@@ -1213,6 +1215,7 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     QAction* actNewFolder = menu.addAction(style->standardIcon(QStyle::SP_FileDialogNewFolder), "New Folder");
     menu.addSeparator();
     
+    QStringList curSelected = selectedPaths();
     QString selectedPath;
     bool isFolder = false;
     bool isFavorite = false;
@@ -1271,13 +1274,49 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     menu.addSeparator();
     QAction* actCompareSelected = menu.addAction("Compare Selected Files");
     QAction* actCompareSibling = menu.addAction("Compare with Sibling Pane File");
-    QAction* actEditTags = menu.addAction("Edit Tags...");
+    QAction* actEditTags = menu.addAction("Edit Audio Tags...");
     menu.addSeparator();
+
+    QMenu* menuColorLabel = menu.addMenu("Color Label");
+    QAction* actNone = menuColorLabel->addAction("None");
+    QAction* actRed = menuColorLabel->addAction("Red");
+    QAction* actOrange = menuColorLabel->addAction("Orange");
+    QAction* actYellow = menuColorLabel->addAction("Yellow");
+    QAction* actGreen = menuColorLabel->addAction("Green");
+    QAction* actBlue = menuColorLabel->addAction("Blue");
+    QAction* actPurple = menuColorLabel->addAction("Purple");
+
+    QAction* actFileTags = menu.addAction("File Tags...");
+    menu.addSeparator();
+
+    QAction* actEncryptVault = nullptr;
+    QAction* actDecryptVault = nullptr;
+    if (index.isValid()) {
+        if (QFileInfo(selectedPath).suffix().toLower() == "vault") {
+            actDecryptVault = menu.addAction("Decrypt Secure Vault...");
+        } else {
+            actEncryptVault = menu.addAction("Encrypt into Secure Vault...");
+        }
+    }
+
     QAction* actCreateArchive = menu.addAction("Create Archive...");
     QAction* actExtractArchive = menu.addAction("Extract Archive...");
     menu.addSeparator();
     QAction* actCalculateChecksum = menu.addAction("Calculate Checksum Hash...");
     QAction* actSecureShred = menu.addAction(style->standardIcon(QStyle::SP_TrashIcon), "Secure Shred (Delete Permanently)...");
+    
+    QStringList imageExts = { "jpg", "jpeg", "png", "webp", "bmp" };
+    QStringList selectedImages;
+    for (const QString& sPath : curSelected) {
+        if (imageExts.contains(QFileInfo(sPath).suffix().toLower())) {
+            selectedImages.append(sPath);
+        }
+    }
+    QAction* actImageConvert = nullptr;
+    if (!selectedImages.isEmpty()) {
+        actImageConvert = menu.addAction("Batch Convert/Resize Images...");
+    }
+
     menu.addSeparator();
     QAction* actProp = menu.addAction(style->standardIcon(QStyle::SP_MessageBoxInformation), "Properties");
 
@@ -1290,8 +1329,9 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     actSecureShred->setEnabled(hasSelection);
     actRename->setEnabled(hasSelection);
     actBulkRename->setEnabled(hasSelection);
+    menuColorLabel->setEnabled(hasSelection);
+    actFileTags->setEnabled(hasSelection);
 
-    QStringList curSelected = selectedPaths();
     bool canCompareSelected = (curSelected.size() == 2 && QFileInfo(curSelected[0]).isFile() && QFileInfo(curSelected[1]).isFile());
     actCompareSelected->setEnabled(canCompareSelected);
 
@@ -1409,6 +1449,16 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         if (dlg.exec() == QDialog::Accepted) {
             refresh();
         }
+    } else if (selected == actEncryptVault) {
+        VaultDialog dlg(true, selectedPath, this);
+        if (dlg.exec() == QDialog::Accepted) {
+            refresh();
+        }
+    } else if (selected == actDecryptVault) {
+        VaultDialog dlg(false, selectedPath, this);
+        if (dlg.exec() == QDialog::Accepted) {
+            refresh();
+        }
     } else if (selected == actCalculateChecksum) {
         ChecksumDialog dlg(selectedPath, this);
         dlg.exec();
@@ -1416,6 +1466,57 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         ShredDialog dlg(curSelected, this);
         if (dlg.exec() == QDialog::Accepted) {
             refresh();
+        }
+    } else if (selected == actImageConvert) {
+        ImageConverterDialog dlg(selectedImages, this);
+        if (dlg.exec() == QDialog::Accepted) {
+            refresh();
+        }
+    } else if (selected == actNone) {
+        for (const QString& path : curSelected) TagManager::instance().setFileColor(path, "");
+        refresh();
+    } else if (selected == actRed) {
+        for (const QString& path : curSelected) TagManager::instance().setFileColor(path, "red");
+        refresh();
+    } else if (selected == actOrange) {
+        for (const QString& path : curSelected) TagManager::instance().setFileColor(path, "orange");
+        refresh();
+    } else if (selected == actYellow) {
+        for (const QString& path : curSelected) TagManager::instance().setFileColor(path, "yellow");
+        refresh();
+    } else if (selected == actGreen) {
+        for (const QString& path : curSelected) TagManager::instance().setFileColor(path, "green");
+        refresh();
+    } else if (selected == actBlue) {
+        for (const QString& path : curSelected) TagManager::instance().setFileColor(path, "blue");
+        refresh();
+    } else if (selected == actPurple) {
+        for (const QString& path : curSelected) TagManager::instance().setFileColor(path, "purple");
+        refresh();
+    } else if (selected == actFileTags) {
+        QStringList initialTags = TagManager::instance().getFileTags(selectedPath);
+        bool ok;
+        QString text = QInputDialog::getText(this, "Edit File Tags",
+                                            "Enter tags (comma-separated):",
+                                            QLineEdit::Normal,
+                                            initialTags.join(", "), &ok);
+        if (ok) {
+            QStringList tags;
+            for (const QString& rawTag : text.split(",")) {
+                QString clean = rawTag.trimmed();
+                if (!clean.isEmpty()) tags.append(clean);
+            }
+            for (const QString& path : curSelected) {
+                TagManager::instance().setFileTags(path, tags);
+            }
+            refresh();
+            QWidget* p = parentWidget();
+            while (p && !p->inherits("MainWindow")) {
+                p = p->parentWidget();
+            }
+            if (p) {
+                QMetaObject::invokeMethod(p, "refreshTagsSidebar");
+            }
         }
     } else if (selected == actProp) {
         onShowProperties();

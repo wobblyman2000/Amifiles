@@ -12,6 +12,10 @@
 #include "keybindingseditor.h"
 #include "checksumdialog.h"
 #include "shreddialog.h"
+#include "remotemountdialog.h"
+#include "imageconverterdialog.h"
+#include "processmanagerdialog.h"
+#include "vaultdialog.h"
 #include <QMenuBar>
 #include <QStorageInfo>
 #include <QToolBar>
@@ -414,8 +418,16 @@ void MainWindow::setupCentralWidget() {
     m_filtersSidebar->addItem("Modified This Month");
     connect(m_filtersSidebar, &QListWidget::itemClicked, this, &MainWindow::onQuickFilterSidebarClicked);
 
+    m_tagsSidebar = new QListWidget(m_sidebarTabWidget);
+    m_tagsSidebar->setStyleSheet(m_favoritesSidebar->styleSheet());
+    m_tagsSidebar->setFocusPolicy(Qt::NoFocus);
+    connect(m_tagsSidebar, &QListWidget::itemClicked, this, &MainWindow::onTagsSidebarClicked);
+
     m_sidebarTabWidget->addTab(m_favoritesSidebar, "Bookmarks");
     m_sidebarTabWidget->addTab(m_filtersSidebar, "Filters");
+    m_sidebarTabWidget->addTab(m_tagsSidebar, "Tags");
+
+    refreshTagsSidebar();
 
     m_leftTabWidget = new QTabWidget(this);
     m_leftTabWidget->setTabsClosable(true);
@@ -725,6 +737,31 @@ void MainWindow::setupActions() {
     connect(m_actSecureShred, &QAction::triggered, this, &MainWindow::onSecureShred);
     addAction(m_actSecureShred);
 
+    m_actRemoteMount = new QAction("Mount Remote Share...", this);
+    m_actRemoteMount->setToolTip("Mount SFTP/FTP/Samba directory locally");
+    connect(m_actRemoteMount, &QAction::triggered, this, &MainWindow::onRemoteMount);
+    addAction(m_actRemoteMount);
+
+    m_actImageConvert = new QAction("Batch Image Converter...", this);
+    m_actImageConvert->setToolTip("Bulk format conversion and resizing for images");
+    connect(m_actImageConvert, &QAction::triggered, this, &MainWindow::onImageConvert);
+    addAction(m_actImageConvert);
+
+    m_actProcessManager = new QAction("System Monitor...", this);
+    m_actProcessManager->setToolTip("Monitor CPU/Memory and manage running processes");
+    connect(m_actProcessManager, &QAction::triggered, this, &MainWindow::onProcessManagerAction);
+    addAction(m_actProcessManager);
+
+    m_actEncryptVault = new QAction("Encrypt into Vault...", this);
+    m_actEncryptVault->setToolTip("Secure password-lock directories/files using AES-256");
+    connect(m_actEncryptVault, &QAction::triggered, this, &MainWindow::onEncryptVault);
+    addAction(m_actEncryptVault);
+
+    m_actDecryptVault = new QAction("Decrypt Vault...", this);
+    m_actDecryptVault->setToolTip("Unlock password-protected secure vaults");
+    connect(m_actDecryptVault, &QAction::triggered, this, &MainWindow::onDecryptVault);
+    addAction(m_actDecryptVault);
+
     // Register action mapping for custom keybindings
     registerKeybindableAction("copy", m_actCopy);
     registerKeybindableAction("cut", m_actCut);
@@ -801,6 +838,12 @@ void MainWindow::setupMenus() {
     m_menuTools->addSeparator();
     m_menuTools->addAction(m_actCalculateChecksum);
     m_menuTools->addAction(m_actSecureShred);
+    m_menuTools->addAction(m_actRemoteMount);
+    m_menuTools->addAction(m_actImageConvert);
+    m_menuTools->addAction(m_actProcessManager);
+    m_menuTools->addSeparator();
+    m_menuTools->addAction(m_actEncryptVault);
+    m_menuTools->addAction(m_actDecryptVault);
 
     m_menuSearch = menuBar()->addMenu("Search");
     m_menuSearch->addAction("Save Current Search as Preset...", this, &MainWindow::onSaveSearchPreset);
@@ -1316,6 +1359,22 @@ void MainWindow::updateDrivesList() {
         addDriveOption(name, path, QStyle::SP_DriveHDIcon);
         addedPaths.append(path);
     }
+
+    // 3. Add remote mounts from settings
+    QSettings settings("Amifiles", "Amifiles");
+    settings.beginGroup("RemoteMounts");
+    QStringList keys = settings.allKeys();
+    if (!keys.isEmpty()) {
+        m_menuDrives->addSeparator();
+        m_tbDrives->addSeparator();
+        for (const QString& label : keys) {
+            QString mountedPath = settings.value(label).toString();
+            if (QDir(mountedPath).exists()) {
+                addShortcutOption(label, mountedPath, "folder-remote", QStyle::SP_DirLinkIcon);
+            }
+        }
+    }
+    settings.endGroup();
 }
 
 void MainWindow::onToggleDrivesMenu(bool checked) {
@@ -2111,6 +2170,95 @@ void MainWindow::onSecureShred() {
 
     ShredDialog dlg(paths, this);
     if (dlg.exec() == QDialog::Accepted) {
+        m_activePanel->refresh();
+    }
+}
+
+void MainWindow::onRemoteMount() {
+    RemoteMountDialog dlg(this);
+    if (dlg.exec() == QDialog::Accepted) {
+        updateDrivesList();
+    }
+}
+
+void MainWindow::onImageConvert() {
+    if (!m_activePanel) return;
+    QStringList paths = m_activePanel->selectedPaths();
+    QStringList imageExts = { "jpg", "jpeg", "png", "webp", "bmp" };
+    QStringList selectedImages;
+    for (const QString& path : paths) {
+        if (imageExts.contains(QFileInfo(path).suffix().toLower())) {
+            selectedImages.append(path);
+        }
+    }
+
+    if (selectedImages.isEmpty()) {
+        QMessageBox::information(this, "Batch Image Converter", "Please select one or more images (JPEG, PNG, WEBP, BMP) in the active panel first.");
+        return;
+    }
+
+    ImageConverterDialog dlg(selectedImages, this);
+    if (dlg.exec() == QDialog::Accepted) {
+        m_activePanel->refresh();
+    }
+}
+
+void MainWindow::onTagsSidebarClicked(QListWidgetItem* item) {
+    if (!item) return;
+    if (!m_activePanel || !m_activePanel->proxyModel()) return;
+
+    QString text = item->text();
+    FileFilterProxyModel* model = m_activePanel->proxyModel();
+
+    if (text == "Clear Tag Filter") {
+        model->clearAdvancedFilters();
+    } else {
+        model->setTagFilter(text);
+    }
+}
+
+void MainWindow::refreshTagsSidebar() {
+    if (!m_tagsSidebar) return;
+    m_tagsSidebar->clear();
+
+    m_tagsSidebar->addItem("Clear Tag Filter");
+
+    QStringList allTags = TagManager::instance().getAllTags();
+    for (const QString& tag : allTags) {
+        QListWidgetItem* item = new QListWidgetItem(m_tagsSidebar);
+        item->setText(tag);
+        item->setIcon(QApplication::style()->standardIcon(QStyle::SP_DirLinkIcon));
+        m_tagsSidebar->addItem(item);
+    }
+}
+
+void MainWindow::onProcessManagerAction() {
+    ProcessManagerDialog dlg(this);
+    dlg.exec();
+}
+
+void MainWindow::onEncryptVault() {
+    QString activePath;
+    if (m_activePanel) {
+        QStringList paths = m_activePanel->selectedPaths();
+        if (!paths.isEmpty()) activePath = paths.first();
+    }
+    VaultDialog dlg(true, activePath, this);
+    if (dlg.exec() == QDialog::Accepted && m_activePanel) {
+        m_activePanel->refresh();
+    }
+}
+
+void MainWindow::onDecryptVault() {
+    QString activePath;
+    if (m_activePanel) {
+        QStringList paths = m_activePanel->selectedPaths();
+        if (!paths.isEmpty() && QFileInfo(paths.first()).suffix().toLower() == "vault") {
+            activePath = paths.first();
+        }
+    }
+    VaultDialog dlg(false, activePath, this);
+    if (dlg.exec() == QDialog::Accepted && m_activePanel) {
         m_activePanel->refresh();
     }
 }

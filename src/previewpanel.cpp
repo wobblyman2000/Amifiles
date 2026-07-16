@@ -1,6 +1,7 @@
 #include "previewpanel.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
+#include <QComboBox>
 #include <QFile>
 #include <QTextStream>
 #include <QImageReader>
@@ -499,8 +500,13 @@ void PreviewPanel::setupUI() {
     controlsLayout->addWidget(lblVol);
     controlsLayout->addWidget(m_sliderVolume);
 
+    m_visualizer = new SpectrumVisualizerWidget(m_mediaView);
+    m_visualizer->setMinimumHeight(80);
+    m_visualizer->setVisible(false);
+
     mediaLayout->addWidget(m_videoWidget, 1);
     mediaLayout->addWidget(m_audioPlaceholder, 1);
+    mediaLayout->addWidget(m_visualizer, 0);
     mediaLayout->addLayout(progressLayout);
     mediaLayout->addLayout(controlsLayout);
     m_stack->addWidget(m_mediaView);
@@ -543,6 +549,59 @@ void PreviewPanel::setupUI() {
     );
     connect(m_playlistList, &QListWidget::itemDoubleClicked, this, &PreviewPanel::onPlaylistItemDoubleClicked);
     m_bottomTab->addTab(m_playlistList, "Playlist Queue");
+
+    // Tab 3: Equalizer Container
+    QWidget* eqContainer = new QWidget(this);
+    QVBoxLayout* eqLayout = new QVBoxLayout(eqContainer);
+    eqLayout->setContentsMargins(8, 8, 8, 8);
+    eqLayout->setSpacing(8);
+
+    QHBoxLayout* presetRow = new QHBoxLayout();
+    presetRow->addWidget(new QLabel("Preset:", this));
+    m_comboEqPreset = new QComboBox(this);
+    m_comboEqPreset->addItems({"Flat", "Bass Boost", "Treble Boost", "Classical", "Rock"});
+    m_comboEqPreset->setStyleSheet("QComboBox { background-color: #11111b; color: #cdd6f4; border: 1px solid #313244; padding: 4px; }");
+    connect(m_comboEqPreset, &QComboBox::currentIndexChanged, this, &PreviewPanel::onEqPresetChanged);
+    presetRow->addWidget(m_comboEqPreset, 1);
+    eqLayout->addLayout(presetRow);
+
+    QHBoxLayout* slidersRow = new QHBoxLayout();
+    slidersRow->setSpacing(16);
+
+    auto createEqSlider = [this](const QString& labelText, QSlider*& sliderOut) {
+        QVBoxLayout* col = new QVBoxLayout();
+        col->setSpacing(4);
+
+        sliderOut = new QSlider(Qt::Vertical, this);
+        sliderOut->setRange(1, 100);
+        sliderOut->setValue(50);
+        sliderOut->setMinimumHeight(60);
+        connect(sliderOut, &QSlider::valueChanged, this, &PreviewPanel::onEqSlidersChanged);
+
+        QLabel* valLbl = new QLabel("0 dB", this);
+        valLbl->setAlignment(Qt::AlignCenter);
+        valLbl->setStyleSheet("font-size: 10px; color: #a6adc8;");
+        connect(sliderOut, &QSlider::valueChanged, this, [valLbl](int val) {
+            int db = (val - 50) / 4;
+            valLbl->setText(QString("%1%2 dB").arg(db >= 0 ? "+" : "").arg(db));
+        });
+
+        QLabel* nameLbl = new QLabel(labelText, this);
+        nameLbl->setAlignment(Qt::AlignCenter);
+        nameLbl->setStyleSheet("font-size: 11px; font-weight: bold; color: #cdd6f4;");
+
+        col->addWidget(sliderOut, 1, Qt::AlignHCenter);
+        col->addWidget(valLbl, 0, Qt::AlignHCenter);
+        col->addWidget(nameLbl, 0, Qt::AlignHCenter);
+        return col;
+    };
+
+    slidersRow->addLayout(createEqSlider("Bass", m_sliderBass));
+    slidersRow->addLayout(createEqSlider("Mid", m_sliderMid));
+    slidersRow->addLayout(createEqSlider("Treble", m_sliderTreble));
+    eqLayout->addLayout(slidersRow);
+
+    m_bottomTab->addTab(eqContainer, "Equalizer");
 
     mainLayout->addWidget(m_stack, 2);
     mainLayout->addWidget(m_bottomTab, 1);
@@ -667,6 +726,7 @@ void PreviewPanel::showImagePreview(const QString& filePath) {
 void PreviewPanel::showMediaPreview(const QString& filePath, bool isVideo) {
     m_videoWidget->setVisible(isVideo);
     m_audioPlaceholder->setVisible(!isVideo);
+    m_visualizer->setVisible(!isVideo);
 
     if (!isVideo) {
         m_currentAudioPath = filePath;
@@ -753,8 +813,10 @@ void PreviewPanel::onPlaybackStateChanged(QMediaPlayer::PlaybackState state) {
     QStyle* style = QApplication::style();
     if (state == QMediaPlayer::PlayingState) {
         m_btnPlayPause->setIcon(style->standardIcon(QStyle::SP_MediaPause));
+        if (m_visualizer) m_visualizer->setPlaying(true);
     } else {
         m_btnPlayPause->setIcon(style->standardIcon(QStyle::SP_MediaPlay));
+        if (m_visualizer) m_visualizer->setPlaying(false);
     }
     if (m_fullscreenWidget) {
         m_fullscreenWidget->setMediaState(m_videoWidget->isVisible(), m_player, m_audioOutput);
@@ -1277,4 +1339,105 @@ void PreviewPanel::exitFullscreen() {
     m_fullscreenVideoWidget = nullptr;
     m_fullscreenAudioLabel = nullptr;
     m_fullscreenTextLabel = nullptr;
+}
+
+#include <QRandomGenerator>
+#include <QTimer>
+
+SpectrumVisualizerWidget::SpectrumVisualizerWidget(QWidget* parent)
+    : QWidget(parent), m_barHeights(15, 0.0), m_targetHeights(15, 0.0) {
+    setMinimumHeight(80);
+    m_timer = new QTimer(this);
+    connect(m_timer, &QTimer::timeout, this, &SpectrumVisualizerWidget::onAnimate);
+    m_timer->start(50);
+}
+
+void SpectrumVisualizerWidget::setPlaying(bool playing) {
+    m_playing = playing;
+}
+
+void SpectrumVisualizerWidget::setBoost(double bass, double mid, double treble) {
+    m_bassBoost = bass;
+    m_midBoost = mid;
+    m_trebleBoost = treble;
+}
+
+void SpectrumVisualizerWidget::onAnimate() {
+    for (int i = 0; i < 15; ++i) {
+        if (m_playing) {
+            double boost = 1.0;
+            if (i < 5) boost = m_bassBoost;
+            else if (i < 10) boost = m_midBoost;
+            else boost = m_trebleBoost;
+
+            m_targetHeights[i] = QRandomGenerator::global()->bounded(10, 95) * boost;
+            if (m_targetHeights[i] > 100.0) m_targetHeights[i] = 100.0;
+        } else {
+            m_targetHeights[i] = 0.0;
+        }
+
+        m_barHeights[i] = m_barHeights[i] * 0.6 + m_targetHeights[i] * 0.4;
+    }
+    update();
+}
+
+void SpectrumVisualizerWidget::paintEvent(QPaintEvent*) {
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing);
+
+    painter.fillRect(rect(), QColor("#11111b"));
+
+    int numBars = 15;
+    double spacing = 4.0;
+    double totalSpacing = spacing * (numBars + 1);
+    double barW = (width() - totalSpacing) / numBars;
+
+    QLinearGradient grad(0, height(), 0, 0);
+    grad.setColorAt(0.0, QColor("#89b4fa"));
+    grad.setColorAt(0.5, QColor("#cba6f7"));
+    grad.setColorAt(1.0, QColor("#f38ba8"));
+
+    for (int i = 0; i < numBars; ++i) {
+        double barH = (m_barHeights[i] / 100.0) * (height() - 8.0);
+        if (barH < 2.0) barH = 2.0;
+
+        double x = spacing + i * (barW + spacing);
+        double y = height() - barH - 4.0;
+
+        painter.fillRect(QRectF(x, y, barW, barH), grad);
+    }
+}
+
+void PreviewPanel::onEqPresetChanged(int index) {
+    if (index == 0) {
+        m_sliderBass->setValue(50);
+        m_sliderMid->setValue(50);
+        m_sliderTreble->setValue(50);
+    } else if (index == 1) {
+        m_sliderBass->setValue(90);
+        m_sliderMid->setValue(50);
+        m_sliderTreble->setValue(40);
+    } else if (index == 2) {
+        m_sliderBass->setValue(30);
+        m_sliderMid->setValue(50);
+        m_sliderTreble->setValue(90);
+    } else if (index == 3) {
+        m_sliderBass->setValue(70);
+        m_sliderMid->setValue(40);
+        m_sliderTreble->setValue(70);
+    } else if (index == 4) {
+        m_sliderBass->setValue(85);
+        m_sliderMid->setValue(65);
+        m_sliderTreble->setValue(80);
+    }
+    onEqSlidersChanged();
+}
+
+void PreviewPanel::onEqSlidersChanged() {
+    double bass = m_sliderBass->value() / 50.0;
+    double mid = m_sliderMid->value() / 50.0;
+    double treble = m_sliderTreble->value() / 50.0;
+    if (m_visualizer) {
+        m_visualizer->setBoost(bass, mid, treble);
+    }
 }

@@ -8,6 +8,7 @@
 #include <QThread>
 #include <QFileSystemModel>
 #include <QSortFilterProxyModel>
+#include "tagmanager.h"
 #include <QTreeView>
 #include <QListView>
 #include <QStackedWidget>
@@ -74,11 +75,17 @@ public:
         invalidate();
     }
 
+    void setTagFilter(const QString& tag) {
+        m_filterTag = tag;
+        invalidate();
+    }
+
     void clearAdvancedFilters() {
         m_minSize = -1;
         m_maxSize = -1;
         m_minDate = QDateTime();
         m_maxDate = QDateTime();
+        m_filterTag = QString();
         invalidate();
     }
 
@@ -402,6 +409,17 @@ protected:
             }
         }
 
+        // 2.5. Apply Tag Filter
+        if (!m_filterTag.isEmpty()) {
+            if (isDir) {
+                // Keep directories navigable
+            } else {
+                if (!TagManager::instance().getFileTags(filePath).contains(m_filterTag, Qt::CaseInsensitive)) {
+                    return false;
+                }
+            }
+        }
+
         // 3. Apply Text Filter (case-insensitive substring contains check)
         if (!m_filterText.isEmpty()) {
             if (!fileName.contains(m_filterText, Qt::CaseInsensitive)) {
@@ -460,6 +478,7 @@ private:
     qint64 m_maxSize = -1;
     QDateTime m_minDate;
     QDateTime m_maxDate;
+    QString m_filterTag;
     mutable QHash<QString, QPair<QString, int>> m_casingCache;
     mutable QHash<QString, QIcon> m_iconCache;
 };

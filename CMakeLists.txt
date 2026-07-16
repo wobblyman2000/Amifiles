@@ -64,6 +64,16 @@ add_executable(Amifiles
     src/checksumdialog.cpp
     src/shreddialog.h
     src/shreddialog.cpp
+    src/remotemountdialog.h
+    src/remotemountdialog.cpp
+    src/imageconverterdialog.h
+    src/imageconverterdialog.cpp
+    src/tagmanager.h
+    src/tagmanager.cpp
+    src/processmanagerdialog.h
+    src/processmanagerdialog.cpp
+    src/vaultdialog.h
+    src/vaultdialog.cpp
     src/sunburstchart.h
     src/sunburstchart.cpp
     src/archivedialog.h

@@ -104,6 +104,13 @@ private slots:
     void onQuickFilterSidebarClicked(class QListWidgetItem* item);
     void onCalculateChecksum();
     void onSecureShred();
+    void onRemoteMount();
+    void onImageConvert();
+    void onProcessManagerAction();
+    void onTagsSidebarClicked(class QListWidgetItem* item);
+    void onEncryptVault();
+    void onDecryptVault();
+    Q_INVOKABLE void refreshTagsSidebar();
 
 public:
     QTabWidget* leftTabWidget() const { return m_leftTabWidget; }
@@ -138,6 +145,7 @@ private:
     QTabWidget* m_sidebarTabWidget = nullptr;
     QListWidget* m_favoritesSidebar = nullptr;
     QListWidget* m_filtersSidebar = nullptr;
+    QListWidget* m_tagsSidebar = nullptr;
     QTabWidget* m_leftTabWidget = nullptr;
     QTabWidget* m_rightTabWidget = nullptr;
     PreviewPanel* m_previewPanel = nullptr;
@@ -197,6 +205,11 @@ private:
     QAction* m_actKeybindings = nullptr;
     QAction* m_actCalculateChecksum = nullptr;
     QAction* m_actSecureShred = nullptr;
+    QAction* m_actRemoteMount = nullptr;
+    QAction* m_actImageConvert = nullptr;
+    QAction* m_actProcessManager = nullptr;
+    QAction* m_actEncryptVault = nullptr;
+    QAction* m_actDecryptVault = nullptr;
 
     // Dynamic Toolbars
     QToolBar* m_tbFile = nullptr;
