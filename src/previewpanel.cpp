@@ -687,10 +687,32 @@ void PreviewPanel::clearPreview() {
 }
 
 void PreviewPanel::previewFile(const QString& filePath) {
-    if (!m_playlist.isEmpty() && m_playlistIndex >= 0 && m_playlistIndex < m_playlist.size()) {
-        if (m_playlist[m_playlistIndex] != filePath) {
-            m_playlist.clear();
-            m_playlistIndex = -1;
+    if (!m_playlist.isEmpty()) {
+        int idx = m_playlist.indexOf(filePath);
+        if (idx != -1) {
+            m_playlistIndex = idx;
+            if (m_playlistList) {
+                m_playlistList->setCurrentRow(m_playlistIndex);
+            }
+        } else {
+            QFileInfo fileInfo(filePath);
+            QString ext = fileInfo.suffix().toLower();
+            QStringList audioExts = { "mp3", "wav", "flac", "ogg", "m4a" };
+            QStringList videoExts = { "mp4", "avi", "mkv", "mov", "webm" };
+            if (audioExts.contains(ext) || videoExts.contains(ext)) {
+                m_playlist.clear();
+                m_playlistIndex = -1;
+                if (m_playlistList) {
+                    m_playlistList->clear();
+                }
+                for (int r = 0; r < m_metadataTable->rowCount(); ++r) {
+                    QTableWidgetItem* keyItem = m_metadataTable->item(r, 0);
+                    if (keyItem && keyItem->text() == "Playlist Status") {
+                        m_metadataTable->removeRow(r);
+                        break;
+                    }
+                }
+            }
         }
     }
     clearPreview();
