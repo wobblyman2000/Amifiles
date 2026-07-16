@@ -86,6 +86,8 @@ add_executable(Amifiles
     src/cloudmountdialog.cpp
     src/pdfviewerwidget.h
     src/pdfviewerwidget.cpp
+    src/agestylingdialog.h
+    src/agestylingdialog.cpp
 )
 
 target_link_libraries(Amifiles PRIVATE

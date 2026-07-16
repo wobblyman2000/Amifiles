@@ -15,6 +15,7 @@
 #include "remotemountdialog.h"
 #include "cloudmountdialog.h"
 #include "imageconverterdialog.h"
+#include "agestylingdialog.h"
 #include "processmanagerdialog.h"
 #include "vaultdialog.h"
 #include <QMenuBar>
@@ -599,11 +600,15 @@ void MainWindow::setupActions() {
     connect(m_actMutePreview, &QAction::toggled, this, &MainWindow::onMutePreview);
 
     // Age Coloring Highlights Toggle Action
-    m_actToggleAgeColoring = new QAction("Age Highlight (Red <24h, Blue <7d)", this);
+    m_actToggleAgeColoring = new QAction("Enable File Age Overlay", this);
     m_actToggleAgeColoring->setCheckable(true);
     m_actToggleAgeColoring->setChecked(true);
-    m_actToggleAgeColoring->setToolTip("Highlight files by creation/modified age: Red if < 24h, Blue if < 7 days");
+    m_actToggleAgeColoring->setToolTip("Highlight files by customized age color & emoji rules");
     connect(m_actToggleAgeColoring, &QAction::toggled, this, &MainWindow::onToggleAgeColoring);
+
+    m_actConfigureAgeStyling = new QAction("Configure File Age Styles...", this);
+    m_actConfigureAgeStyling->setToolTip("Set custom time thresholds, text colors, and emoji badges for file age");
+    connect(m_actConfigureAgeStyling, &QAction::triggered, this, &MainWindow::onConfigureAgeStyling);
 
     m_actToggleArchiveNav = new QAction("Enable Archive Navigation", this);
     m_actToggleArchiveNav->setCheckable(true);
@@ -828,6 +833,7 @@ void MainWindow::setupMenus() {
     m_menuView->addAction(m_actTogglePreview);
     m_menuView->addAction(m_actMutePreview);
     m_menuView->addAction(m_actToggleAgeColoring);
+    m_menuView->addAction(m_actConfigureAgeStyling);
     m_menuView->addAction(m_actToggleDrivesMenu);
     m_menuView->addAction(m_actToggleDrivesToolbar);
     m_menuView->addAction(m_actToggleFavoritesSidebar);
@@ -1096,6 +1102,26 @@ void MainWindow::onToggleAgeColoring(bool checked) {
         if (panel) {
             panel->proxyModel()->setAgeColoringEnabled(checked);
             panel->refresh();
+        }
+    }
+}
+
+void MainWindow::onConfigureAgeStyling() {
+    AgeStylingDialog dlg(this);
+    if (dlg.exec() == QDialog::Accepted) {
+        for (int i = 0; i < m_leftTabWidget->count(); ++i) {
+            FilePanel* panel = qobject_cast<FilePanel*>(m_leftTabWidget->widget(i));
+            if (panel) {
+                panel->proxyModel()->loadAgeRules();
+                panel->refresh();
+            }
+        }
+        for (int i = 0; i < m_rightTabWidget->count(); ++i) {
+            FilePanel* panel = qobject_cast<FilePanel*>(m_rightTabWidget->widget(i));
+            if (panel) {
+                panel->proxyModel()->loadAgeRules();
+                panel->refresh();
+            }
         }
     }
 }

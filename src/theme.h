@@ -118,7 +118,6 @@ const QString Stylesheet = R"(
     }
     QTreeView::item, QListView::item {
         padding: 4px;
-        color: #cdd6f4;
     }
     QTreeView::item {
         border-bottom: 1px solid #1e1e2e;

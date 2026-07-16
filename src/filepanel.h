@@ -17,6 +17,7 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QToolButton>
+#include <QSettings>
 #include <QStringList>
 #include <QModelIndex>
 #include <QFileInfo>
@@ -39,12 +40,60 @@ class ArchiveModel;
 class SearchWorker;
 
 // Custom filter proxy model to support prefix/substring matching and file type categories
+struct AgeColorRule {
+    QString op;     // "<=" or ">="
+    int days;
+    QString color;  // Hex code or "None"
+    QString icon;   // Emoji/prefix string or "None"
+    QString name;   // Friendly name
+};
+
 class FileFilterProxyModel : public QSortFilterProxyModel {
 
 public:
     enum FilterType { FilterAll, FilterAudio, FilterVideos, FilterPictures, FilterDocs, FilterArchive };
 
     explicit FileFilterProxyModel(QObject* parent = nullptr) : QSortFilterProxyModel(parent) {}
+
+    static QList<AgeColorRule> defaultRules() {
+        return {
+            {"<=", 1, "#ff5555", "🔥", "New (< 24h)"},
+            {"<=", 7, "#89b4fa", "⚡", "Recent (< 1 week)"},
+            {"<=", 30, "#a6e3a1", "🟢", "Active (< 1 month)"},
+            {">=", 365, "#6c7086", "❄️", "Stale (> 1 year)"}
+        };
+    }
+
+    void loadAgeRules() {
+        m_ageRules.clear();
+        QSettings settings("Amifiles", "Amifiles");
+        QStringList list = settings.value("preferences/age_rules").toStringList();
+        if (list.isEmpty()) {
+            m_ageRules = defaultRules();
+        } else {
+            for (const QString& ruleStr : list) {
+                QStringList parts = ruleStr.split(';');
+                if (parts.size() >= 5) {
+                    AgeColorRule r;
+                    r.op = parts[0];
+                    r.days = parts[1].toInt();
+                    r.color = parts[2];
+                    r.icon = parts[3];
+                    r.name = parts[4];
+                    m_ageRules.append(r);
+                }
+            }
+        }
+    }
+
+    static void saveRules(const QList<AgeColorRule>& rules) {
+        QSettings settings("Amifiles", "Amifiles");
+        QStringList list;
+        for (const auto& r : rules) {
+            list << QString("%1;%2;%3;%4;%5").arg(r.op).arg(r.days).arg(r.color).arg(r.icon).arg(r.name);
+        }
+        settings.setValue("preferences/age_rules", list);
+    }
 
     void setCurrentPath(const QString& path) {
         m_currentPath = QDir::cleanPath(path);
@@ -100,8 +149,12 @@ public:
         invalidate();
     }
 
-    // Overriding data() to support dynamic file age text coloring
+    // Overriding data() to support dynamic file age text coloring and icon badges
     QVariant data(const QModelIndex& index, int role) const override {
+        if (m_ageRules.isEmpty()) {
+            const_cast<FileFilterProxyModel*>(this)->loadAgeRules();
+        }
+
         if (role == Qt::ForegroundRole && m_ageColoringEnabled) {
             QModelIndex srcIndex = mapToSource(index);
             QFileSystemModel* fileModel = qobject_cast<QFileSystemModel*>(sourceModel());
@@ -111,10 +164,43 @@ public:
                 QDateTime now = QDateTime::currentDateTime();
                 qint64 secs = lastMod.secsTo(now);
                 if (secs >= 0) {
-                    if (secs <= 24 * 3600) {
-                        return QBrush(QColor("#ff5555")); // Red for <24h
-                    } else if (secs <= 7 * 24 * 3600) {
-                        return QBrush(QColor("#89b4fa")); // Blue for 24h - 7d
+                    double days = secs / (24.0 * 3600.0);
+                    for (const auto& rule : m_ageRules) {
+                        bool matches = false;
+                        if (rule.op == "<=") {
+                            matches = (days <= rule.days);
+                        } else if (rule.op == ">=") {
+                            matches = (days >= rule.days);
+                        }
+                        if (matches && !rule.color.isEmpty() && rule.color != "None") {
+                            return QBrush(QColor(rule.color));
+                        }
+                    }
+                }
+            }
+        }
+
+        if (role == Qt::DisplayRole && index.column() == 0 && m_ageColoringEnabled) {
+            QModelIndex srcIndex = mapToSource(index);
+            QFileSystemModel* fileModel = qobject_cast<QFileSystemModel*>(sourceModel());
+            if (fileModel) {
+                QFileInfo info = fileModel->fileInfo(srcIndex);
+                QDateTime lastMod = info.lastModified();
+                QDateTime now = QDateTime::currentDateTime();
+                qint64 secs = lastMod.secsTo(now);
+                if (secs >= 0) {
+                    double days = secs / (24.0 * 3600.0);
+                    for (const auto& rule : m_ageRules) {
+                        bool matches = false;
+                        if (rule.op == "<=") {
+                            matches = (days <= rule.days);
+                        } else if (rule.op == ">=") {
+                            matches = (days >= rule.days);
+                        }
+                        if (matches && !rule.icon.isEmpty() && rule.icon != "None") {
+                            QString originalName = QSortFilterProxyModel::data(index, role).toString();
+                            return rule.icon + " " + originalName;
+                        }
                     }
                 }
             }
@@ -481,6 +567,7 @@ private:
     QString m_filterTag;
     mutable QHash<QString, QPair<QString, int>> m_casingCache;
     mutable QHash<QString, QIcon> m_iconCache;
+    mutable QList<AgeColorRule> m_ageRules;
 };
 
 class FilePanel : public QWidget {

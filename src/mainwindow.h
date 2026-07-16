@@ -112,6 +112,7 @@ private slots:
     void onEncryptVault();
     void onDecryptVault();
     void onToggleSpectrum(bool checked);
+    void onConfigureAgeStyling();
     Q_INVOKABLE void refreshTagsSidebar();
 
 public:
@@ -185,6 +186,7 @@ private:
     QAction* m_actTogglePreview = nullptr;
     QAction* m_actMutePreview = nullptr;
     QAction* m_actToggleAgeColoring = nullptr;
+    QAction* m_actConfigureAgeStyling = nullptr;
     QAction* m_actToggleArchiveNav = nullptr;
     QAction* m_actToggleCasingOverlays = nullptr;
     QAction* m_actToggleDrivesMenu = nullptr;
