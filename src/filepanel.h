@@ -55,6 +55,13 @@ public:
 
     explicit FileFilterProxyModel(QObject* parent = nullptr) : QSortFilterProxyModel(parent) {}
 
+    void setZoomIconSize(int size) {
+        if (m_zoomIconSize != size) {
+            m_zoomIconSize = size;
+            clearCasingCache();
+        }
+    }
+
     static QList<AgeColorRule> defaultRules() {
         return {
             {"<=", 1, "#ff5555", "🔥", "New (< 24h)"},
@@ -568,6 +575,7 @@ private:
     mutable QHash<QString, QPair<QString, int>> m_casingCache;
     mutable QHash<QString, QIcon> m_iconCache;
     mutable QList<AgeColorRule> m_ageRules;
+    int m_zoomIconSize = 24;
 };
 
 class FilePanel : public QWidget {

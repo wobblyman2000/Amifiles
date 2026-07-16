@@ -1690,6 +1690,9 @@ void FilePanel::onZoomChanged(int value) {
     
     m_treeView->setIconSize(QSize(size, size));
     m_listView->setIconSize(QSize(size, size));
+    if (m_proxyModel) {
+        m_proxyModel->setZoomIconSize(size);
+    }
     
     updateStyles();
 
@@ -1713,6 +1716,9 @@ void FilePanel::syncZoom(int value) {
     
     m_treeView->setIconSize(QSize(size, size));
     m_listView->setIconSize(QSize(size, size));
+    if (m_proxyModel) {
+        m_proxyModel->setZoomIconSize(size);
+    }
     
     updateStyles();
 

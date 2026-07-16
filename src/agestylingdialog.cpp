@@ -150,11 +150,32 @@ void AgeStylingDialog::populateTable() {
         colorItem->setFlags(colorItem->flags() & ~Qt::ItemIsEditable); // Non-editable text, click triggers dialog
         m_table->setItem(i, 3, colorItem);
 
-        // 5. Icon/Emoji Prefix
-        QLineEdit* iconEdit = new QLineEdit(this);
-        iconEdit->setText(r.icon);
-        iconEdit->setStyleSheet("QLineEdit { background: transparent; border: none; color: #cdd6f4; }");
-        m_table->setCellWidget(i, 4, iconEdit);
+        // 5. Icon/Emoji Prefix ComboBox
+        QComboBox* iconCombo = new QComboBox(this);
+        iconCombo->addItem("None", "");
+        iconCombo->addItem("🔥 Hot / New", "🔥");
+        iconCombo->addItem("⚡ Recent", "⚡");
+        iconCombo->addItem("🟢 Active", "🟢");
+        iconCombo->addItem("❄️ Stale", "❄️");
+        iconCombo->addItem("🆕 New", "🆕");
+        iconCombo->addItem("⚠️ Alert", "⚠️");
+        iconCombo->addItem("⭐ Favorite", "⭐");
+        iconCombo->addItem("📌 Pinned", "📌");
+        iconCombo->addItem("🕒 Old", "🕒");
+        iconCombo->addItem("📁 Folder", "📁");
+        iconCombo->addItem("📄 File", "📄");
+        iconCombo->setStyleSheet("QComboBox { background-color: #11111b; color: #cdd6f4; border: 1px solid #313244; }");
+
+        int idx = iconCombo->findData(r.icon);
+        if (idx >= 0) {
+            iconCombo->setCurrentIndex(idx);
+        } else if (!r.icon.isEmpty()) {
+            iconCombo->addItem(r.icon, r.icon);
+            iconCombo->setCurrentIndex(iconCombo->count() - 1);
+        } else {
+            iconCombo->setCurrentIndex(0);
+        }
+        m_table->setCellWidget(i, 4, iconCombo);
     }
 }
 
@@ -222,8 +243,8 @@ void AgeStylingDialog::onSave() {
         QTableWidgetItem* colorItem = m_table->item(i, 3);
         r.color = colorItem ? colorItem->text().trimmed() : "None";
 
-        QLineEdit* iconEdit = qobject_cast<QLineEdit*>(m_table->cellWidget(i, 4));
-        r.icon = iconEdit ? iconEdit->text().trimmed() : "";
+        QComboBox* iconCombo = qobject_cast<QComboBox*>(m_table->cellWidget(i, 4));
+        r.icon = iconCombo ? iconCombo->currentData().toString() : "";
 
         updatedRules.append(r);
     }
