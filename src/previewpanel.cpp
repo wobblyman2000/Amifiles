@@ -2,6 +2,7 @@
 #include <QVBoxLayout>
 #include <QPainterPath>
 #include "imageeditordialog.h"
+#include "fullscreenimageviewer.h"
 #include "hexeditorwidget.h"
 #include "pdfviewerwidget.h"
 #include <QHBoxLayout>
@@ -343,6 +344,11 @@ bool PreviewPanel::eventFilter(QObject* watched, QEvent* event) {
             toggleFullscreen();
             return true;
         }
+    } else if (watched == m_imageLabel) {
+        if (event->type() == QEvent::MouseButtonDblClick) {
+            openFullscreenImage();
+            return true;
+        }
     }
     return QWidget::eventFilter(watched, event);
 }
@@ -399,6 +405,7 @@ void PreviewPanel::setupUI() {
 
     m_imageLabel = new QLabel(m_imageScrollArea);
     m_imageLabel->setAlignment(Qt::AlignCenter);
+    m_imageLabel->installEventFilter(this);
     m_imageScrollArea->setWidget(m_imageLabel);
 
     imageLayout->addWidget(m_imageScrollArea);
@@ -812,6 +819,37 @@ void PreviewPanel::showImagePreview(const QString& filePath) {
     m_originalPixmap.load(filePath);
     scaleImage();
     m_stack->setCurrentWidget(m_imageView);
+}
+
+void PreviewPanel::openFullscreenImage() {
+    if (m_previewedFilePath.isEmpty()) return;
+
+    QString dirPath = QFileInfo(m_previewedFilePath).absolutePath();
+    QDir dir(dirPath);
+    QStringList filters;
+    filters << "*.png" << "*.jpg" << "*.jpeg" << "*.gif" << "*.bmp" << "*.webp" << "*.svg";
+    QStringList files = dir.entryList(filters, QDir::Files, QDir::Name);
+
+    QStringList absoluteFiles;
+    int startIndex = -1;
+    for (int i = 0; i < files.size(); ++i) {
+        QString absPath = dir.absoluteFilePath(files[i]);
+        absoluteFiles.append(absPath);
+        if (absPath == m_previewedFilePath) {
+            startIndex = i;
+        }
+    }
+
+    if (startIndex != -1) {
+        FullscreenImageViewer* viewer = new FullscreenImageViewer(absoluteFiles, startIndex, this);
+        connect(viewer, &QDialog::finished, this, [this, viewer](int) {
+            QString lastFile = viewer->currentFilePath();
+            if (!lastFile.isEmpty() && QFile::exists(lastFile)) {
+                previewFile(lastFile);
+            }
+        });
+        viewer->exec();
+    }
 }
 
 void PreviewPanel::showMediaPreview(const QString& filePath, bool isVideo) {

@@ -98,6 +98,8 @@ add_executable(Amifiles
     src/syncscheduler.cpp
     src/schedulerdialog.h
     src/schedulerdialog.cpp
+    src/fullscreenimageviewer.h
+    src/fullscreenimageviewer.cpp
 )
 
 target_link_libraries(Amifiles PRIVATE

@@ -218,6 +218,8 @@ void HelpDialog::onSectionChanged(int index) {
                     "<p>The bottom panel captures stdout, stderr, and execution messages from custom toolbar buttons in real-time, letting you debug shell scripts or review output immediately.</p>"
                     "<h3>Interactive Image Editor &amp; Annotator</h3>"
                     "<p>Edit images directly from the preview pane! Support cropping, 90-degree rotations, color palettes, and markup drawings (Freehand Pen, Rectangles, Lines, Text annotations).</p>"
+                    "<h3>Fullscreen Interactive Image Viewer</h3>"
+                    "<p>Double-click any image in the preview pane to launch it in a borderless fullscreen gallery viewer. Cycle through all images in the active directory using the <b>Arrow keys</b> (or <b>A / D</b>). Supports rotation (<b>R</b>), horizontal flipping (<b>F</b>), auto-cycling slideshows (<b>Space</b>), a shortcut help card (<b>H</b>), and exit (<b>Esc / Q</b>).</p>"
                     "<h3>Password-Protected Archive Manager</h3>"
                     "<p>Compress and extract ZIP and <code>.7z</code> folders with password protection using secure back-end command pipelines.</p>"
                     "<h3>Hex Editor &amp; Binary Viewer</h3>"

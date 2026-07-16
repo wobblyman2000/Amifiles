@@ -179,6 +179,7 @@ private:
     void updateAudioPlaceholder(const QString& filePath);
     
     QString formatDuration(qint64 ms);
+    void openFullscreenImage();
 
     QString m_previewedFilePath;
     QString m_currentAudioPath;
