@@ -150,6 +150,7 @@ private:
     void saveFolderRules();
     void applyFolderRules(const QString& path);
     QString detectFolderCategory(const QString& path);
+    void adjustSplitterSizes();
 
     // State Tracking
     FilePanel* m_activePanel = nullptr;

@@ -1074,22 +1074,7 @@ void MainWindow::onToggleDualPane(bool checked) {
         onPanelActivated(leftPanel());
     }
 
-    if (m_splitter) {
-        int totalWidth = m_splitter->width();
-        if (checked) {
-            if (m_showPreview) {
-                m_splitter->setSizes({totalWidth / 3, totalWidth / 3, totalWidth / 3});
-            } else {
-                m_splitter->setSizes({totalWidth / 2, totalWidth / 2, 0});
-            }
-        } else {
-            if (m_showPreview) {
-                m_splitter->setSizes({totalWidth / 2, 0, totalWidth / 2});
-            } else {
-                m_splitter->setSizes({totalWidth, 0, 0});
-            }
-        }
-    }
+    adjustSplitterSizes();
 }
 
 void MainWindow::onTogglePreview(bool checked) {
@@ -1099,23 +1084,7 @@ void MainWindow::onTogglePreview(bool checked) {
         m_previewPanel->player()->pause();
     }
 
-    if (m_splitter) {
-        int totalWidth = m_splitter->width();
-        if (checked) {
-            if (m_isDualPane) {
-                m_splitter->setSizes({totalWidth / 3, totalWidth / 3, totalWidth / 3});
-            } else {
-                m_splitter->setSizes({totalWidth / 2, 0, totalWidth / 2});
-            }
-        } else {
-            if (m_isDualPane) {
-                m_splitter->setSizes({totalWidth / 2, totalWidth / 2, 0});
-            } else {
-                m_splitter->setSizes({totalWidth, 0, 0});
-            }
-        }
-    }
-
+    adjustSplitterSizes();
     updateMiniPlayer();
 }
 
@@ -2139,6 +2108,7 @@ void MainWindow::onToggleFavoritesSidebar(bool checked) {
         m_sidebarTabWidget->setVisible(checked);
         QSettings settings("Amifiles", "Amifiles");
         settings.setValue("favorites/sidebar_visible", checked);
+        adjustSplitterSizes();
     }
 }
 
@@ -2541,6 +2511,27 @@ void MainWindow::onConfigureFolderLayouts() {
             applyFolderRules(m_activePanel->currentPath());
         }
     }
+}
+
+void MainWindow::adjustSplitterSizes() {
+    if (!m_splitter) return;
+
+    int totalWidth = m_splitter->width();
+    bool sidebarVisible = m_sidebarTabWidget && m_sidebarTabWidget->isVisible();
+    bool rightVisible = m_isDualPane;
+    bool previewVisible = m_showPreview;
+
+    int sidebarWidth = sidebarVisible ? 180 : 0;
+    int remainingWidth = qMax(100, totalWidth - sidebarWidth);
+    int paneCount = 1 + (rightVisible ? 1 : 0) + (previewVisible ? 1 : 0);
+    int paneWidth = remainingWidth / paneCount;
+
+    int s0 = sidebarWidth;
+    int s1 = paneWidth;
+    int s2 = rightVisible ? paneWidth : 0;
+    int s3 = previewVisible ? paneWidth : 0;
+
+    m_splitter->setSizes({s0, s1, s2, s3});
 }
 
 #include "mainwindow.moc"
