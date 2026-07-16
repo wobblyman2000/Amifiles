@@ -349,6 +349,12 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     bool showAudioCover = settings.value("preview/show_audio_cover_art", true).toBool();
     m_actShowAudioCoverArt->setChecked(showAudioCover);
 
+    bool showSpectrum = settings.value("preview/show_spectrum_visualizer", true).toBool();
+    m_actToggleSpectrum->setChecked(showSpectrum);
+    if (m_previewPanel) {
+        m_previewPanel->setSpectrumVisualizerVisible(showSpectrum);
+    }
+
     bool consoleVisible = settings.value("console/visible", true).toBool();
     m_actToggleConsole->setChecked(consoleVisible);
     if (m_bottomTabWidget) {
@@ -445,6 +451,7 @@ void MainWindow::setupCentralWidget() {
     m_rightTabWidget->setStyleSheet(m_leftTabWidget->styleSheet());
 
     m_previewPanel = new PreviewPanel(this);
+    connect(m_previewPanel, &PreviewPanel::spectrumVisualizerToggled, this, &MainWindow::onToggleSpectrum);
 
     // Add first tabs
     createTab(m_leftTabWidget, QDir::homePath());
@@ -645,6 +652,12 @@ void MainWindow::setupActions() {
     m_actShowAudioCoverArt->setToolTip("Toggle displaying audio album art background inside the preview panel");
     connect(m_actShowAudioCoverArt, &QAction::toggled, this, &MainWindow::onToggleAudioCoverArt);
 
+    m_actToggleSpectrum = new QAction("Show Spectrum Visualizer in Preview", this);
+    m_actToggleSpectrum->setCheckable(true);
+    m_actToggleSpectrum->setChecked(true);
+    m_actToggleSpectrum->setToolTip("Toggle displaying the bouncy retro spectrum visualizer on music playback");
+    connect(m_actToggleSpectrum, &QAction::toggled, this, &MainWindow::onToggleSpectrum);
+
     // Toggle Flat View Action
     m_actToggleFlatView = new QAction("Flat View (Recursion Mode)", this);
     m_actToggleFlatView->setCheckable(true);
@@ -818,6 +831,7 @@ void MainWindow::setupMenus() {
     m_menuView->addAction(m_actToggleArchiveNav);
     m_menuView->addAction(m_actToggleCasingOverlays);
     m_menuView->addAction(m_actShowAudioCoverArt);
+    m_menuView->addAction(m_actToggleSpectrum);
     
     QMenu* menuFilterToggles = m_menuView->addMenu("Filter Bars");
     menuFilterToggles->addAction(m_actLeftShowFilterText);
@@ -1434,6 +1448,17 @@ void MainWindow::onToggleAudioCoverArt(bool checked) {
     settings.setValue("preview/show_audio_cover_art", checked);
     if (m_previewPanel) {
         m_previewPanel->setAudioCoverArtVisible(checked);
+    }
+}
+
+void MainWindow::onToggleSpectrum(bool checked) {
+    QSettings settings("Amifiles", "Amifiles");
+    settings.setValue("preview/show_spectrum_visualizer", checked);
+    if (m_actToggleSpectrum && m_actToggleSpectrum->isChecked() != checked) {
+        m_actToggleSpectrum->setChecked(checked);
+    }
+    if (m_previewPanel) {
+        m_previewPanel->setSpectrumVisualizerVisible(checked);
     }
 }
 

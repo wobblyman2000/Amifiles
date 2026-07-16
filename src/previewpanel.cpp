@@ -2,6 +2,7 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QComboBox>
+#include <QCheckBox>
 #include <QFile>
 #include <QTextStream>
 #include <QImageReader>
@@ -410,6 +411,7 @@ void PreviewPanel::setupUI() {
     QSettings settings("Amifiles", "Amifiles");
     bool showAudioCover = settings.value("preview/show_audio_cover_art", true).toBool();
     m_audioPlaceholder->setCoverArtVisible(showAudioCover);
+    m_spectrumVisualizerEnabled = settings.value("preview/show_spectrum_visualizer", true).toBool();
 
     QStyle* style = QApplication::style();
 
@@ -555,6 +557,15 @@ void PreviewPanel::setupUI() {
     QVBoxLayout* eqLayout = new QVBoxLayout(eqContainer);
     eqLayout->setContentsMargins(8, 8, 8, 8);
     eqLayout->setSpacing(8);
+
+    m_chkShowVisualizer = new QCheckBox("Show Spectrum Visualizer", this);
+    m_chkShowVisualizer->setChecked(m_spectrumVisualizerEnabled);
+    m_chkShowVisualizer->setStyleSheet("QCheckBox { color: #cdd6f4; font-weight: bold; }");
+    connect(m_chkShowVisualizer, &QCheckBox::toggled, this, [this](bool checked) {
+        setSpectrumVisualizerVisible(checked);
+        emit spectrumVisualizerToggled(checked);
+    });
+    eqLayout->addWidget(m_chkShowVisualizer);
 
     QHBoxLayout* presetRow = new QHBoxLayout();
     presetRow->addWidget(new QLabel("Preset:", this));
@@ -726,7 +737,7 @@ void PreviewPanel::showImagePreview(const QString& filePath) {
 void PreviewPanel::showMediaPreview(const QString& filePath, bool isVideo) {
     m_videoWidget->setVisible(isVideo);
     m_audioPlaceholder->setVisible(!isVideo);
-    m_visualizer->setVisible(!isVideo);
+    m_visualizer->setVisible(!isVideo && m_spectrumVisualizerEnabled);
 
     if (!isVideo) {
         m_currentAudioPath = filePath;
@@ -1439,5 +1450,16 @@ void PreviewPanel::onEqSlidersChanged() {
     double treble = m_sliderTreble->value() / 50.0;
     if (m_visualizer) {
         m_visualizer->setBoost(bass, mid, treble);
+    }
+}
+
+void PreviewPanel::setSpectrumVisualizerVisible(bool visible) {
+    m_spectrumVisualizerEnabled = visible;
+    if (m_chkShowVisualizer && m_chkShowVisualizer->isChecked() != visible) {
+        m_chkShowVisualizer->setChecked(visible);
+    }
+    if (m_visualizer) {
+        bool shouldBeVisible = visible && (m_stack->currentWidget() == m_mediaView) && !m_videoWidget->isVisible();
+        m_visualizer->setVisible(shouldBeVisible);
     }
 }

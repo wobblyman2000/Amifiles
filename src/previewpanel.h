@@ -123,6 +123,10 @@ public:
     void setMuted(bool muted);
     bool isMuted() const;
     void setAudioCoverArtVisible(bool visible);
+    void setSpectrumVisualizerVisible(bool visible);
+
+signals:
+    void spectrumVisualizerToggled(bool checked);
 
 protected:
     void resizeEvent(QResizeEvent* event) override;
@@ -213,6 +217,8 @@ private:
     QSlider* m_sliderBass = nullptr;
     QSlider* m_sliderMid = nullptr;
     QSlider* m_sliderTreble = nullptr;
+    bool m_spectrumVisualizerEnabled = true;
+    class QCheckBox* m_chkShowVisualizer = nullptr;
 
     // Bottom half: Tabbed view for Metadata and Playlist Queue
     class QTabWidget* m_bottomTab = nullptr;

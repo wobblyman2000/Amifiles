@@ -110,6 +110,7 @@ private slots:
     void onTagsSidebarClicked(class QListWidgetItem* item);
     void onEncryptVault();
     void onDecryptVault();
+    void onToggleSpectrum(bool checked);
     Q_INVOKABLE void refreshTagsSidebar();
 
 public:
@@ -190,6 +191,7 @@ private:
     QAction* m_actToggleConsole = nullptr;
     QAction* m_actToggleFlatView = nullptr;
     QAction* m_actShowAudioCoverArt = nullptr;
+    QAction* m_actToggleSpectrum = nullptr;
     QAction* m_actCopyToSibling = nullptr;
     QAction* m_actMoveToSibling = nullptr;
 
