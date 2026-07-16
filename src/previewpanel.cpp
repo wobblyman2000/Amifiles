@@ -18,6 +18,10 @@
 #include <QApplication>
 #include <QDateTime>
 #include <QSettings>
+#include <QDragEnterEvent>
+#include <QDropEvent>
+#include <QMimeData>
+#include <QDirIterator>
 #include <QBrush>
 #include <QColor>
 #include <QFont>
@@ -310,6 +314,7 @@ PreviewPanel::PreviewPanel(QWidget* parent) : QWidget(parent) {
     m_audioOutput = new QAudioOutput(this);
 
     setupUI();
+    setAcceptDrops(true);
 
     m_player->setAudioOutput(m_audioOutput);
     m_player->setVideoOutput(m_videoWidget);
@@ -822,6 +827,56 @@ void PreviewPanel::resizeEvent(QResizeEvent* event) {
     }
     if (!m_currentAudioPath.isEmpty()) {
         updateAudioPlaceholder(m_currentAudioPath);
+    }
+}
+
+void PreviewPanel::dragEnterEvent(QDragEnterEvent* event) {
+    if (event->mimeData()->hasUrls()) {
+        event->acceptProposedAction();
+    }
+}
+
+void PreviewPanel::dragMoveEvent(QDragMoveEvent* event) {
+    if (event->mimeData()->hasUrls()) {
+        event->acceptProposedAction();
+    }
+}
+
+void PreviewPanel::dropEvent(QDropEvent* event) {
+    if (!event->mimeData()->hasUrls()) return;
+
+    QStringList playableFiles;
+    QStringList audioExts = { "mp3", "wav", "flac", "ogg", "m4a" };
+    QStringList videoExts = { "mp4", "avi", "mkv", "mov", "webm" };
+    QStringList allMedia = audioExts + videoExts;
+
+    for (const QUrl& url : event->mimeData()->urls()) {
+        QString path = url.toLocalFile();
+        if (path.isEmpty()) continue;
+
+        QFileInfo info(path);
+        if (info.isDir()) {
+            QDirIterator it(path, QDir::Files, QDirIterator::Subdirectories);
+            while (it.hasNext()) {
+                QString file = it.next();
+                QString ext = QFileInfo(file).suffix().toLower();
+                if (allMedia.contains(ext)) {
+                    playableFiles.append(file);
+                }
+            }
+        } else {
+            QString ext = info.suffix().toLower();
+            if (allMedia.contains(ext)) {
+                playableFiles.append(path);
+            }
+        }
+    }
+
+    std::sort(playableFiles.begin(), playableFiles.end());
+
+    if (!playableFiles.isEmpty()) {
+        event->acceptProposedAction();
+        playPlaylist(playableFiles);
     }
 }
 

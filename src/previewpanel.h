@@ -132,6 +132,9 @@ signals:
 protected:
     void resizeEvent(QResizeEvent* event) override;
     bool eventFilter(QObject* watched, class QEvent* event) override;
+    void dragEnterEvent(class QDragEnterEvent* event) override;
+    void dragMoveEvent(class QDragMoveEvent* event) override;
+    void dropEvent(class QDropEvent* event) override;
 
 private slots:
     void onSaveText();
