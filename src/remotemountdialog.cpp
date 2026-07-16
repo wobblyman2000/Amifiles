@@ -18,7 +18,7 @@ RemoteMountDialog::RemoteMountDialog(QWidget* parent) : QDialog(parent) {
 
 void RemoteMountDialog::setupUI() {
     setWindowTitle("Mount Remote Share");
-    resize(680, 380);
+    resize(720, 390);
     setStyleSheet(
         "QDialog { background-color: #1e1e2e; color: #cdd6f4; }"
         "QLabel { color: #cdd6f4; }"
@@ -44,11 +44,9 @@ void RemoteMountDialog::setupUI() {
 
     m_listAddresses = new QListWidget(this);
     m_listAddresses->setFocusPolicy(Qt::NoFocus);
+    m_listAddresses->setMinimumWidth(220);
     connect(m_listAddresses, &QListWidget::currentRowChanged, this, &RemoteMountDialog::onAddressSelected);
     leftCol->addWidget(m_listAddresses, 1);
-
-    QHBoxLayout* leftButtons = new QHBoxLayout();
-    leftButtons->setSpacing(8);
 
     m_btnSaveAddress = new QPushButton("Save Bookmark", this);
     m_btnSaveAddress->setStyleSheet(
@@ -56,17 +54,16 @@ void RemoteMountDialog::setupUI() {
         "QPushButton:hover { background-color: #b4befe; }"
     );
     connect(m_btnSaveAddress, &QPushButton::clicked, this, &RemoteMountDialog::onSaveAddress);
-    leftButtons->addWidget(m_btnSaveAddress, 1);
+    leftCol->addWidget(m_btnSaveAddress);
 
-    m_btnDeleteAddress = new QPushButton("Delete", this);
+    m_btnDeleteAddress = new QPushButton("Delete Bookmark", this);
     m_btnDeleteAddress->setStyleSheet(
         "QPushButton { background-color: #313244; color: #cdd6f4; border-radius: 4px; padding: 6px 12px; }"
         "QPushButton:hover { background-color: #f38ba8; color: #11111b; }"
     );
     connect(m_btnDeleteAddress, &QPushButton::clicked, this, &RemoteMountDialog::onDeleteAddress);
-    leftButtons->addWidget(m_btnDeleteAddress, 0);
+    leftCol->addWidget(m_btnDeleteAddress);
 
-    leftCol->addLayout(leftButtons);
     horizontalLayout->addLayout(leftCol, 1);
 
     // RIGHT COLUMN: Connection Fields

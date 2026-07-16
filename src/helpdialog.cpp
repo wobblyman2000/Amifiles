@@ -6,7 +6,7 @@
 
 HelpDialog::HelpDialog(QWidget* parent) : QDialog(parent) {
     setWindowTitle("Amifiles User Manual & Guide");
-    resize(750, 520);
+    resize(860, 580);
     setStyleSheet("QDialog { background-color: #1e1e2e; color: #cdd6f4; }"
                   "QLabel { color: #cdd6f4; }"
                   "QListWidget { background-color: #181825; border: 1px solid #313244; color: #cdd6f4; border-radius: 4px; padding: 4px; }"
@@ -33,7 +33,7 @@ void HelpDialog::setupUI() {
 
     // Sidebar navigation
     m_sidebar = new QListWidget(this);
-    m_sidebar->setFixedWidth(180);
+    m_sidebar->setFixedWidth(220);
     m_sidebar->addItems({
         "1. Welcome & Overview",
         "2. Layout & Tabs",
