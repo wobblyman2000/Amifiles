@@ -169,6 +169,7 @@ void HelpDialog::onSectionChanged(int index) {
                     "<li><b>Audio/Video Player:</b> Embeds a media player. Integrates controls for play/pause/mute and volume. Drag and drop folders or files directly into the preview panel to automatically extract and play all playable media tracks. Synchronizes tracks with a mini player in the main status bar when the preview panel is collapsed.</li>"
                     "<li><b>CC Subtitles Selector:</b> Click the <b>CC</b> button to dynamically load video subtitle tracks and toggle or switch subtitles.</li>"
                     "<li><b>Playlist Playback Modes:</b> Toggle <b>Shuffle (🔀)</b> to randomize track selections. Cycle <b>Repeat (🔁)</b> to cycle between Repeat Off, Repeat One track (🔂), and Repeat All playlist. Right-click any track inside the Playlist Queue to show options to <b>Play Selected Track</b>, <b>Remove Selected Track</b>, <b>Stop &amp; Clear Current Track</b>, or <b>Clear Entire Queue</b>.</li>"
+                    "<li><b>Interactive Audio Visualizers:</b> Toggle between retro spectrum bars, circular radial bars, or a real-time oscilloscope waveform graph inside the Equalizer tab.</li>"
                     "<li><b>DVD/CD Case Overlays:</b> If a folder contains cover art matching audio files, Amifiles wraps the cover in a high-fidelity CD case overlay.</li>"
                     "<li><b>Text Editor:</b> Preview text/code files inside an interactive editor. Make changes and click <b>Save</b> to write updates back to disk immediately.</li>"
                     "</ul>";
@@ -176,7 +177,7 @@ void HelpDialog::onSectionChanged(int index) {
 
         case 5: // Custom Script Buttons
             html += "<h2>6. Custom Script Buttons</h2>"
-                    "<p>Right-click the custom toolbar to edit, add, or delete script buttons. These buttons can run terminal scripts or invoke internal file manager functions.</p>"
+                    "<p>Right-click the custom toolbar to edit, add, delete, or import/export script buttons. These buttons can run terminal scripts or invoke internal file manager functions. Import and export custom buttons to/from JSON settings files to backup or share your custom buttons.</p>"
                     "<h3>1. Shell Script Mode</h3>"
                     "<p>Run any bash commands, including interactive GUI dialogs like <code>zenity</code>. You can write macros directly in your script which are replaced before run:</p>"
                     "<ul>"
@@ -226,7 +227,13 @@ void HelpDialog::onSectionChanged(int index) {
                     "<h3>Portable PDF Viewer</h3>"
                     "<p>View PDF documents asynchronously page-by-page via the <code>pdftoppm</code> engine, supporting full zoom and pagination controls.</p>"
                     "<h3>Customizable File Age Rules &amp; Badges</h3>"
-                    "<p>Define custom color and emoji rules (e.g., <code>🔥</code> for &lt;24h, <code>❄️</code> for &gt;1 year) using the <b>Configure File Age Styles</b> option under the <b>View</b> menu. These rules are managed via the <code>AgeColorRule</code> structure (defined in <code>src/filepanel.h</code>) containing fields for operator (<code>&lt;=</code> or <code>&gt;=</code>), days threshold, text color, and emoji icon.</p>";
+                    "<p>Define custom color and emoji rules (e.g., <code>🔥</code> for &lt;24h, <code>❄️</code> for &gt;1 year) using the <b>Configure File Age Styles</b> option under the <b>View</b> menu. These rules are managed via the <code>AgeColorRule</code> structure (defined in <code>src/filepanel.h</code>) containing fields for operator (<code>&lt;=</code> or <code>&gt;=</code>), days threshold, text color, and emoji icon.</p>"
+                    "<h3>Dynamic Favorites Bookmarks</h3>"
+                    "<p>Define rule patterns to dynamically auto-bookmark matching folders. Rules evaluate wildcard path patterns, active folder tags, or recent file update hours dynamically, appending matches directly to the sidebar bookmarks list and Favorites menu. Configure under the <b>Favorites -> Configure Dynamic Bookmarks...</b> option.</p>"
+                    "<h3>Disk Space TreeMap Analyzer</h3>"
+                    "<p>Overhaul the Disk Space Analyzer to display a squarified TreeMap visualizer showing folder size distributions as nested, color-coded, labeled blocks. Hover over any block to inspect file details, or toggle to the traditional circular Sunburst view immediately.</p>"
+                    "<h3>Background Backup &amp; Sync Scheduler</h3>"
+                    "<p>Establish periodic background mirror or copy synchronization jobs between directories (local or mounted remote/cloud paths). Define custom schedules (every 5 mins to 24 hrs). Runs asynchronously in thread workers and raises completion notifications in the status bar. Access via <b>Tools -> Configure Backup Schedule...</b>.</p>";
             break;
 
         case 7: // Keyboard Shortcuts

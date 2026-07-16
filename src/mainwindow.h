@@ -117,6 +117,9 @@ private slots:
     void onRemoteMount();
     void onCloudMount();
     void onImageConvert();
+    void onConfigureDynamicBookmarks();
+    void onImportCustomButtons();
+    void onExportCustomButtons();
     void onProcessManagerAction();
     void onTagsSidebarClicked(class QListWidgetItem* item);
     void onEncryptVault();
@@ -126,6 +129,7 @@ private slots:
     void onSaveLayoutNow();
     void onResetLayout();
     void onConfigureFolderLayouts();
+    void onConfigureBackupSchedule();
     Q_INVOKABLE void refreshTagsSidebar();
 
 public:
@@ -219,6 +223,7 @@ private:
     QAction* m_actSaveLayoutNow = nullptr;
     QAction* m_actResetLayout = nullptr;
     QAction* m_actConfigureFolderLayouts = nullptr;
+    QAction* m_actConfigureBackupSchedule = nullptr;
     QAction* m_actCopyToSibling = nullptr;
     QAction* m_actMoveToSibling = nullptr;
 

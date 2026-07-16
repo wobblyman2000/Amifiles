@@ -78,6 +78,16 @@ KeybindingsEditorDialog::KeybindingsEditorDialog(const QMap<QString, QKeySequenc
     m_actionLabels["space_analyzer"] = "Visual Space Analyzer";
     m_actionLabels["dup_finder"] = "Duplicate File Finder";
     m_actionLabels["help"] = "Help Manual";
+    m_actionLabels["remote_mount"] = "SFTP/FTP Remote Mount";
+    m_actionLabels["cloud_mount"] = "Rclone Cloud Mount";
+    m_actionLabels["batch_images"] = "Batch Image Converter";
+    m_actionLabels["process_manager"] = "Process Manager";
+    m_actionLabels["vault_encrypt"] = "Vault Encrypt File";
+    m_actionLabels["vault_decrypt"] = "Vault Decrypt File";
+    m_actionLabels["shred"] = "Secure Shred File";
+    m_actionLabels["checksum"] = "Calculate Checksum Hash";
+    m_actionLabels["configure_layouts"] = "Configure Folder Layouts";
+    m_actionLabels["configure_age_styles"] = "Configure Age Styles";
 
     // Set defaults values
     m_defaults["copy"] = QKeySequence::Copy;
@@ -96,6 +106,16 @@ KeybindingsEditorDialog::KeybindingsEditorDialog(const QMap<QString, QKeySequenc
     m_defaults["space_analyzer"] = QKeySequence("Ctrl+K");
     m_defaults["dup_finder"] = QKeySequence("Ctrl+J");
     m_defaults["help"] = QKeySequence(Qt::Key_F1);
+    m_defaults["remote_mount"] = QKeySequence("Ctrl+R");
+    m_defaults["cloud_mount"] = QKeySequence("Ctrl+Shift+G");
+    m_defaults["batch_images"] = QKeySequence("Ctrl+I");
+    m_defaults["process_manager"] = QKeySequence("Ctrl+Alt+P");
+    m_defaults["vault_encrypt"] = QKeySequence("Ctrl+Shift+E");
+    m_defaults["vault_decrypt"] = QKeySequence("Ctrl+Shift+D");
+    m_defaults["shred"] = QKeySequence("Shift+Delete");
+    m_defaults["checksum"] = QKeySequence("Ctrl+H");
+    m_defaults["configure_layouts"] = QKeySequence("Ctrl+Shift+L");
+    m_defaults["configure_age_styles"] = QKeySequence("Ctrl+Shift+A");
 
     setupUI();
     populateTable();

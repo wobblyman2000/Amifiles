@@ -90,6 +90,14 @@ add_executable(Amifiles
     src/agestylingdialog.cpp
     src/folderlayoutdialog.h
     src/folderlayoutdialog.cpp
+    src/dynamicfavoritesdialog.h
+    src/dynamicfavoritesdialog.cpp
+    src/treemapchartwidget.h
+    src/treemapchartwidget.cpp
+    src/syncscheduler.h
+    src/syncscheduler.cpp
+    src/schedulerdialog.h
+    src/schedulerdialog.cpp
 )
 
 target_link_libraries(Amifiles PRIVATE

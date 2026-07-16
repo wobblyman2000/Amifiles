@@ -1,5 +1,6 @@
 #include "spaceanalyzer.h"
 #include "sunburstchart.h"
+#include "treemapchartwidget.h"
 #include <QStackedWidget>
 #include <QDir>
 #include <QDirIterator>
@@ -125,7 +126,7 @@ void SpaceAnalyzerDialog::setupUI() {
     connect(m_btnBack, &QPushButton::clicked, this, &SpaceAnalyzerDialog::onBackClicked);
     navLayout->addWidget(m_btnBack);
 
-    m_btnToggleView = new QPushButton("Switch to Chart", this);
+    m_btnToggleView = new QPushButton("Switch to Sunburst", this);
     connect(m_btnToggleView, &QPushButton::clicked, this, &SpaceAnalyzerDialog::onToggleViewMode);
     navLayout->addWidget(m_btnToggleView);
 
@@ -164,7 +165,13 @@ void SpaceAnalyzerDialog::setupUI() {
     // Chart View visualizer
     m_chart = new SunburstChartWidget(this);
     connect(m_chart, &SunburstChartWidget::itemClicked, this, &SpaceAnalyzerDialog::onChartItemClicked);
+    connect(m_chart, &SunburstChartWidget::hoveredItemChanged, this, &SpaceAnalyzerDialog::onChartHoveredItemChanged);
     m_viewStack->addWidget(m_chart);
+
+    m_treemap = new TreeMapChartWidget(this);
+    connect(m_treemap, &TreeMapChartWidget::itemClicked, this, &SpaceAnalyzerDialog::onChartItemClicked);
+    connect(m_treemap, &TreeMapChartWidget::hoveredItemChanged, this, &SpaceAnalyzerDialog::onChartHoveredItemChanged);
+    m_viewStack->addWidget(m_treemap);
 
     mainLayout->addWidget(m_viewStack);
 
@@ -198,6 +205,7 @@ void SpaceAnalyzerDialog::startScan(const QString& path) {
     m_pathEdit->setText(m_currentPath);
     m_tree->clear();
     if (m_chart) m_chart->setEntries(QList<SpaceEntry>(), 0);
+    if (m_treemap) m_treemap->setEntries(QList<SpaceEntry>(), 0);
     m_btnBack->setEnabled(!m_history.isEmpty());
     m_btnNavigate->setEnabled(false);
 
@@ -271,6 +279,9 @@ void SpaceAnalyzerDialog::onScanFinished(const QList<SpaceEntry>& entries, qint6
     if (m_chart) {
         m_chart->setEntries(sortedEntries, totalSize);
     }
+    if (m_treemap) {
+        m_treemap->setEntries(sortedEntries, totalSize);
+    }
 }
 
 void SpaceAnalyzerDialog::onItemDoubleClicked(QTreeWidgetItem* item, int column) {
@@ -325,10 +336,24 @@ void SpaceAnalyzerDialog::onToggleViewMode() {
     int current = m_viewStack->currentIndex();
     if (current == 0) {
         m_viewStack->setCurrentIndex(1);
+        m_btnToggleView->setText("Switch to TreeMap");
+    } else if (current == 1) {
+        m_viewStack->setCurrentIndex(2);
         m_btnToggleView->setText("Switch to List");
     } else {
         m_viewStack->setCurrentIndex(0);
-        m_btnToggleView->setText("Switch to Chart");
+        m_btnToggleView->setText("Switch to Sunburst");
+    }
+}
+
+void SpaceAnalyzerDialog::onChartHoveredItemChanged(const QString& name, qint64 size, double percentage) {
+    if (name.isEmpty()) {
+        m_statusLabel->setText(QString("Analyzing: %1").arg(m_currentPath));
+    } else {
+        m_statusLabel->setText(QString("Hovered: %1 - %2 (%3%)")
+                               .arg(name)
+                               .arg(formatBytes(size))
+                               .arg(QString::number(percentage, 'f', 1)));
     }
 }
 

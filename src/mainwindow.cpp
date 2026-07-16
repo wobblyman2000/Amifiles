@@ -2,6 +2,7 @@
 #include "copyqueue.h"
 #include "theme.h"
 #include "favoritesmanager.h"
+#include "syncscheduler.h"
 #include "bulkrename.h"
 #include "consolepanel.h"
 #include "foldersync.h"
@@ -20,6 +21,9 @@
 #include "vaultdialog.h"
 #include <QMenuBar>
 #include <QStorageInfo>
+#include <QJsonDocument>
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QToolBar>
 #include <QStandardPaths>
 #include <QApplication>
@@ -316,6 +320,17 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     connect(&FavoritesManager::instance(), &FavoritesManager::favoritesChanged,
             this, &MainWindow::refreshFavoritesSidebar);
     updateFavoritesMenu();
+
+    // Start background sync scheduler and link notifications
+    connect(&SyncScheduler::instance(), &SyncScheduler::syncStarted, this, [this](const QString& jobName) {
+        statusBar()->showMessage(QString("Backup Sync '%1' started...").arg(jobName), 4000);
+    });
+    connect(&SyncScheduler::instance(), &SyncScheduler::syncFinished, this, [this](const QString& jobName, bool success) {
+        statusBar()->showMessage(QString("Backup Sync '%1' completed: %2")
+                                 .arg(jobName)
+                                 .arg(success ? "SUCCESS" : "FAILED"), 5000);
+    });
+    SyncScheduler::instance().start();
 
     // Load custom buttons & build custom toolbar
     loadCustomButtons();
@@ -707,6 +722,10 @@ void MainWindow::setupActions() {
     m_actConfigureFolderLayouts->setToolTip("Define custom view modes and toolbars for specific folders or media categories");
     connect(m_actConfigureFolderLayouts, &QAction::triggered, this, &MainWindow::onConfigureFolderLayouts);
 
+    m_actConfigureBackupSchedule = new QAction("Configure Backup Schedule...", this);
+    m_actConfigureBackupSchedule->setToolTip("Define automated copy and sync backup schedules for directories");
+    connect(m_actConfigureBackupSchedule, &QAction::triggered, this, &MainWindow::onConfigureBackupSchedule);
+
     // Toggle Flat View Action
     m_actToggleFlatView = new QAction("Flat View (Recursion Mode)", this);
     m_actToggleFlatView->setCheckable(true);
@@ -846,6 +865,16 @@ void MainWindow::setupActions() {
     registerKeybindableAction("space_analyzer", m_actSpaceAnalyzer);
     registerKeybindableAction("dup_finder", m_actDuplicateFinder);
     registerKeybindableAction("help", m_actShowHelp);
+    registerKeybindableAction("remote_mount", m_actRemoteMount);
+    registerKeybindableAction("cloud_mount", m_actCloudMount);
+    registerKeybindableAction("batch_images", m_actImageConvert);
+    registerKeybindableAction("process_manager", m_actProcessManager);
+    registerKeybindableAction("vault_encrypt", m_actEncryptVault);
+    registerKeybindableAction("vault_decrypt", m_actDecryptVault);
+    registerKeybindableAction("shred", m_actSecureShred);
+    registerKeybindableAction("checksum", m_actCalculateChecksum);
+    registerKeybindableAction("configure_layouts", m_actConfigureFolderLayouts);
+    registerKeybindableAction("configure_age_styles", m_actConfigureAgeStyling);
 }
 
 void MainWindow::setupMenus() {
@@ -918,6 +947,7 @@ void MainWindow::setupMenus() {
     m_menuTools->addAction(m_actImageConvert);
     m_menuTools->addAction(m_actProcessManager);
     m_menuTools->addAction(m_actConfigureFolderLayouts);
+    m_menuTools->addAction(m_actConfigureBackupSchedule);
     m_menuTools->addSeparator();
     m_menuTools->addAction(m_actEncryptVault);
     m_menuTools->addAction(m_actDecryptVault);
@@ -1273,6 +1303,8 @@ void MainWindow::updateFavoritesMenu() {
         }
     });
 
+    m_menuFavorites->addAction("Configure Dynamic Bookmarks...", this, &MainWindow::onConfigureDynamicBookmarks);
+
     QStringList favs = FavoritesManager::instance().getFavorites();
     QMenu* menuRemove = m_menuFavorites->addMenu("Remove from Favorites...");
     if (favs.isEmpty()) {
@@ -1294,6 +1326,22 @@ void MainWindow::updateFavoritesMenu() {
         actNone->setEnabled(false);
     } else {
         for (const QString& path : favs) {
+            QAction* actFav = m_menuFavorites->addAction(QDir::toNativeSeparators(path));
+            actFav->setData(path);
+            connect(actFav, &QAction::triggered, this, &MainWindow::onFavoriteTriggered);
+        }
+    }
+
+    m_menuFavorites->addSeparator();
+    QAction* actHeader = m_menuFavorites->addAction("⭐ Dynamic Bookmarks:");
+    actHeader->setEnabled(false);
+    
+    QStringList dynamicPaths = FavoritesManager::instance().getEvaluatedDynamicPaths();
+    if (dynamicPaths.isEmpty()) {
+        QAction* actNone = m_menuFavorites->addAction("(No Dynamic Matches)");
+        actNone->setEnabled(false);
+    } else {
+        for (const QString& path : dynamicPaths) {
             QAction* actFav = m_menuFavorites->addAction(QDir::toNativeSeparators(path));
             actFav->setData(path);
             connect(actFav, &QAction::triggered, this, &MainWindow::onFavoriteTriggered);
@@ -1847,9 +1895,19 @@ void MainWindow::onCustomToolBarContextMenu(const QPoint& pos) {
         }
     } else {
         QAction* actAdd = menu.addAction("Add Custom Button...");
+        menu.addSeparator();
+        QAction* actImport = menu.addAction("Import Custom Buttons...");
+        QAction* actExport = menu.addAction("Export Custom Buttons...");
+
         QAction* selected = menu.exec(m_customToolBar->mapToGlobal(pos));
+        if (!selected) return;
+
         if (selected == actAdd) {
             onAddCustomButton();
+        } else if (selected == actImport) {
+            onImportCustomButtons();
+        } else if (selected == actExport) {
+            onExportCustomButtons();
         }
     }
 }
@@ -2141,6 +2199,31 @@ void MainWindow::refreshFavoritesSidebar() {
         item->setIcon(QApplication::style()->standardIcon(QStyle::SP_DirIcon));
         m_favoritesSidebar->addItem(item);
     }
+
+    QStringList dynamicPaths = FavoritesManager::instance().getEvaluatedDynamicPaths();
+    if (!dynamicPaths.isEmpty()) {
+        QListWidgetItem* separatorItem = new QListWidgetItem(m_favoritesSidebar);
+        separatorItem->setText("── Dynamic Bookmarks ──");
+        separatorItem->setFlags(Qt::NoItemFlags);
+        separatorItem->setTextAlignment(Qt::AlignCenter);
+        separatorItem->setForeground(QBrush(QColor("#f5c2e7")));
+        m_favoritesSidebar->addItem(separatorItem);
+
+        for (const QString& path : dynamicPaths) {
+            QFileInfo info(path);
+            QString folderName = info.fileName();
+            if (folderName.isEmpty()) {
+                folderName = path;
+            }
+
+            QListWidgetItem* item = new QListWidgetItem(m_favoritesSidebar);
+            item->setText(folderName);
+            item->setToolTip(path);
+            item->setData(Qt::UserRole, path);
+            item->setIcon(QApplication::style()->standardIcon(QStyle::SP_FileDialogListView));
+            m_favoritesSidebar->addItem(item);
+        }
+    }
 }
 
 void MainWindow::onQuickFilterSidebarClicked(QListWidgetItem* item) {
@@ -2191,9 +2274,19 @@ void MainWindow::loadKeybindings() {
     m_keybindings["mute_preview"] = QKeySequence("Ctrl+M");
     m_keybindings["toggle_flat_view"] = QKeySequence("Ctrl+F");
     m_keybindings["compare_sync"] = QKeySequence("Ctrl+S");
-    m_keybindings["space_analyzer"] = QKeySequence("Ctrl+L");
-    m_keybindings["dup_finder"] = QKeySequence("Ctrl+U");
+    m_keybindings["space_analyzer"] = QKeySequence("Ctrl+K");
+    m_keybindings["dup_finder"] = QKeySequence("Ctrl+J");
     m_keybindings["help"] = QKeySequence(Qt::Key_F1);
+    m_keybindings["remote_mount"] = QKeySequence("Ctrl+R");
+    m_keybindings["cloud_mount"] = QKeySequence("Ctrl+Shift+G");
+    m_keybindings["batch_images"] = QKeySequence("Ctrl+I");
+    m_keybindings["process_manager"] = QKeySequence("Ctrl+Alt+P");
+    m_keybindings["vault_encrypt"] = QKeySequence("Ctrl+Shift+E");
+    m_keybindings["vault_decrypt"] = QKeySequence("Ctrl+Shift+D");
+    m_keybindings["shred"] = QKeySequence("Shift+Delete");
+    m_keybindings["checksum"] = QKeySequence("Ctrl+H");
+    m_keybindings["configure_layouts"] = QKeySequence("Ctrl+Shift+L");
+    m_keybindings["configure_age_styles"] = QKeySequence("Ctrl+Shift+A");
 
     QSettings settings("Amifiles", "Amifiles");
     settings.beginGroup("Keybindings");
@@ -2532,6 +2625,112 @@ void MainWindow::adjustSplitterSizes() {
     int s3 = previewVisible ? paneWidth : 0;
 
     m_splitter->setSizes({s0, s1, s2, s3});
+}
+
+#include "dynamicfavoritesdialog.h"
+
+void MainWindow::onConfigureDynamicBookmarks() {
+    DynamicFavoritesDialog dlg(this);
+    dlg.exec();
+}
+
+void MainWindow::onExportCustomButtons() {
+    QString fileName = QFileDialog::getSaveFileName(this, "Export Custom Buttons", QString(), "JSON Files (*.json)");
+    if (fileName.isEmpty()) return;
+
+    QJsonArray arr;
+    for (const auto& btn : m_customButtons) {
+        QJsonObject obj;
+        obj["name"] = btn.name;
+        obj["script"] = btn.script;
+        obj["icon"] = btn.icon;
+        arr.append(obj);
+    }
+
+    QJsonDocument doc(arr);
+    QFile file(fileName);
+    if (file.open(QIODevice::WriteOnly)) {
+        file.write(doc.toJson());
+        file.close();
+        statusBar()->showMessage("Custom script buttons exported successfully.", 3000);
+    } else {
+        QMessageBox::critical(this, "Error", "Could not save custom script buttons file.");
+    }
+}
+
+void MainWindow::onImportCustomButtons() {
+    QString fileName = QFileDialog::getOpenFileName(this, "Import Custom Buttons", QString(), "JSON Files (*.json)");
+    if (fileName.isEmpty()) return;
+
+    QFile file(fileName);
+    if (!file.open(QIODevice::ReadOnly)) {
+        QMessageBox::critical(this, "Error", "Could not open selected buttons file.");
+        return;
+    }
+
+    QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+    file.close();
+
+    if (!doc.isArray()) {
+        QMessageBox::critical(this, "Error", "Selected file has an invalid format.");
+        return;
+    }
+
+    QJsonArray arr = doc.array();
+    QList<CustomButton> importedList;
+    for (int i = 0; i < arr.size(); ++i) {
+        QJsonObject obj = arr[i].toObject();
+        QString name = obj["name"].toString();
+        QString script = obj["script"].toString();
+        QString icon = obj["icon"].toString();
+        if (!name.isEmpty() && !script.isEmpty()) {
+            importedList.append(CustomButton{name, script, icon});
+        }
+    }
+
+    if (importedList.isEmpty()) {
+        QMessageBox::warning(this, "Empty Import", "No valid custom script buttons found in file.");
+        return;
+    }
+
+    QMessageBox msgBox(this);
+    msgBox.setWindowTitle("Import Options");
+    msgBox.setText(QString("Found %1 custom script buttons to import. Select how you want to apply them:").arg(importedList.size()));
+    QPushButton* btnOverwrite = msgBox.addButton("Overwrite Existing", QMessageBox::ActionRole);
+    QPushButton* btnMerge = msgBox.addButton("Merge / Append", QMessageBox::ActionRole);
+    QPushButton* btnCancel = msgBox.addButton("Cancel", QMessageBox::RejectRole);
+    
+    msgBox.exec();
+
+    if (msgBox.clickedButton() == btnCancel) return;
+
+    if (msgBox.clickedButton() == btnOverwrite) {
+        m_customButtons = importedList;
+    } else if (msgBox.clickedButton() == btnMerge) {
+        for (const auto& btn : importedList) {
+            bool duplicate = false;
+            for (const auto& existing : m_customButtons) {
+                if (existing.name == btn.name) {
+                    duplicate = true;
+                    break;
+                }
+              }
+              if (!duplicate) {
+                  m_customButtons.append(btn);
+              }
+          }
+      }
+
+      saveCustomButtons();
+      rebuildCustomToolBar();
+      statusBar()->showMessage("Custom script buttons imported successfully.", 3000);
+}
+
+#include "schedulerdialog.h"
+
+void MainWindow::onConfigureBackupSchedule() {
+    SchedulerDialog dlg(this);
+    dlg.exec();
 }
 
 #include "mainwindow.moc"

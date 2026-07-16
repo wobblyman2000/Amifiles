@@ -59,6 +59,7 @@ private slots:
     void onBackClicked();
     void onNavigateClicked();
     void onChartItemClicked(const QString& path, bool isDir);
+    void onChartHoveredItemChanged(const QString& name, qint64 size, double percentage);
     void onToggleViewMode();
 
 private:
@@ -78,6 +79,7 @@ private:
     QProgressBar* m_scanProgress = nullptr;
     QTreeWidget* m_tree = nullptr;
     class SunburstChartWidget* m_chart = nullptr;
+    class TreeMapChartWidget* m_treemap = nullptr;
     class QStackedWidget* m_viewStack = nullptr;
     QPushButton* m_btnBack = nullptr;
     QPushButton* m_btnNavigate = nullptr;

@@ -90,9 +90,17 @@ public:
 class SpectrumVisualizerWidget : public QWidget {
     Q_OBJECT
 public:
+    enum VisualizerMode {
+        VisualizerBars = 0,
+        VisualizerRadial = 1,
+        VisualizerWaveform = 2
+    };
+
     explicit SpectrumVisualizerWidget(QWidget* parent = nullptr);
     void setPlaying(bool playing);
     void setBoost(double bass, double mid, double treble);
+    void setVisualizerMode(VisualizerMode mode);
+    VisualizerMode visualizerMode() const { return m_mode; }
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -106,8 +114,10 @@ private:
     double m_bassBoost = 1.0;
     double m_midBoost = 1.0;
     double m_trebleBoost = 1.0;
+    VisualizerMode m_mode = VisualizerBars;
     QVector<double> m_barHeights;
     QVector<double> m_targetHeights;
+    QList<double> m_waveformHistory;
 };
 
 class PreviewPanel : public QWidget {

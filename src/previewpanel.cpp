@@ -1,5 +1,6 @@
 #include "previewpanel.h"
 #include <QVBoxLayout>
+#include <QPainterPath>
 #include "imageeditordialog.h"
 #include "hexeditorwidget.h"
 #include "pdfviewerwidget.h"
@@ -601,6 +602,19 @@ void PreviewPanel::setupUI() {
     connect(m_comboEqPreset, &QComboBox::currentIndexChanged, this, &PreviewPanel::onEqPresetChanged);
     presetRow->addWidget(m_comboEqPreset, 1);
     eqLayout->addLayout(presetRow);
+
+    QHBoxLayout* visModeRow = new QHBoxLayout();
+    visModeRow->addWidget(new QLabel("Visualizer Mode:", this));
+    QComboBox* comboVisMode = new QComboBox(this);
+    comboVisMode->addItems({"Retro Bars", "Radial Circular", "Oscilloscope Waveform"});
+    comboVisMode->setStyleSheet("QComboBox { background-color: #11111b; color: #cdd6f4; border: 1px solid #313244; padding: 4px; }");
+    connect(comboVisMode, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int idx) {
+        if (m_visualizer) {
+            m_visualizer->setVisualizerMode(static_cast<SpectrumVisualizerWidget::VisualizerMode>(idx));
+        }
+    });
+    visModeRow->addWidget(comboVisMode, 1);
+    eqLayout->addLayout(visModeRow);
 
     QHBoxLayout* slidersRow = new QHBoxLayout();
     slidersRow->setSpacing(16);
@@ -1612,7 +1626,13 @@ void SpectrumVisualizerWidget::setBoost(double bass, double mid, double treble) 
     m_trebleBoost = treble;
 }
 
+void SpectrumVisualizerWidget::setVisualizerMode(VisualizerMode mode) {
+    m_mode = mode;
+    update();
+}
+
 void SpectrumVisualizerWidget::onAnimate() {
+    double averageHeight = 0.0;
     for (int i = 0; i < 15; ++i) {
         if (m_playing) {
             double boost = 1.0;
@@ -1627,7 +1647,21 @@ void SpectrumVisualizerWidget::onAnimate() {
         }
 
         m_barHeights[i] = m_barHeights[i] * 0.6 + m_targetHeights[i] * 0.4;
+        averageHeight += m_barHeights[i];
     }
+    averageHeight /= 15.0;
+
+    double value = 0.0;
+    if (m_playing) {
+        static double phase = 0.0;
+        phase += 0.4;
+        value = (qSin(phase) * 0.6 + (QRandomGenerator::global()->bounded(100) / 100.0 - 0.5) * 0.4) * averageHeight;
+    }
+    m_waveformHistory.append(value);
+    while (m_waveformHistory.size() > 80) {
+        m_waveformHistory.removeFirst();
+    }
+
     update();
 }
 
@@ -1637,24 +1671,81 @@ void SpectrumVisualizerWidget::paintEvent(QPaintEvent*) {
 
     painter.fillRect(rect(), QColor("#11111b"));
 
-    int numBars = 15;
-    double spacing = 4.0;
-    double totalSpacing = spacing * (numBars + 1);
-    double barW = (width() - totalSpacing) / numBars;
+    if (m_mode == VisualizerBars) {
+        int numBars = 15;
+        double spacing = 4.0;
+        double totalSpacing = spacing * (numBars + 1);
+        double barW = (width() - totalSpacing) / numBars;
 
-    QLinearGradient grad(0, height(), 0, 0);
-    grad.setColorAt(0.0, QColor("#89b4fa"));
-    grad.setColorAt(0.5, QColor("#cba6f7"));
-    grad.setColorAt(1.0, QColor("#f38ba8"));
+        QLinearGradient grad(0, height(), 0, 0);
+        grad.setColorAt(0.0, QColor("#89b4fa"));
+        grad.setColorAt(0.5, QColor("#cba6f7"));
+        grad.setColorAt(1.0, QColor("#f38ba8"));
 
-    for (int i = 0; i < numBars; ++i) {
-        double barH = (m_barHeights[i] / 100.0) * (height() - 8.0);
-        if (barH < 2.0) barH = 2.0;
+        for (int i = 0; i < numBars; ++i) {
+            double barH = (m_barHeights[i] / 100.0) * (height() - 8.0);
+            if (barH < 2.0) barH = 2.0;
 
-        double x = spacing + i * (barW + spacing);
-        double y = height() - barH - 4.0;
+            double x = spacing + i * (barW + spacing);
+            double y = height() - barH - 4.0;
 
-        painter.fillRect(QRectF(x, y, barW, barH), grad);
+            painter.fillRect(QRectF(x, y, barW, barH), grad);
+        }
+    } else if (m_mode == VisualizerRadial) {
+        double centerX = width() / 2.0;
+        double centerY = height() / 2.0;
+        double radius = qMin(width(), height()) / 4.0;
+
+        QConicalGradient grad(centerX, centerY, 0);
+        grad.setColorAt(0.0, QColor("#89b4fa"));
+        grad.setColorAt(0.33, QColor("#cba6f7"));
+        grad.setColorAt(0.66, QColor("#f38ba8"));
+        grad.setColorAt(1.0, QColor("#89b4fa"));
+        painter.setPen(QPen(grad, 4, Qt::SolidLine, Qt::RoundCap));
+
+        int numBars = 15;
+        for (int i = 0; i < numBars; ++i) {
+            double angle = (2.0 * M_PI / numBars) * i;
+            double barLen = (m_barHeights[i] / 100.0) * (radius * 1.5);
+            if (barLen < 2.0) barLen = 2.0;
+
+            double startX = centerX + radius * qCos(angle);
+            double startY = centerY + radius * qSin(angle);
+            double endX = centerX + (radius + barLen) * qCos(angle);
+            double endY = centerY + (radius + barLen) * qSin(angle);
+
+            painter.drawLine(QPointF(startX, startY), QPointF(endX, endY));
+        }
+
+        painter.setBrush(QColor("#181825"));
+        painter.setPen(QPen(QColor("#313244"), 2));
+        painter.drawEllipse(QPointF(centerX, centerY), radius, radius);
+    } else if (m_mode == VisualizerWaveform) {
+        if (m_waveformHistory.isEmpty()) return;
+
+        QPainterPath path;
+        double step = (double)width() / 80.0;
+        double centerY = height() / 2.0;
+
+        painter.setPen(QPen(QColor("#181825"), 1, Qt::DashLine));
+        painter.drawLine(0, centerY, width(), centerY);
+
+        QLinearGradient grad(0, 0, width(), 0);
+        grad.setColorAt(0.0, QColor("#89b4fa"));
+        grad.setColorAt(0.5, QColor("#a6e3a1"));
+        grad.setColorAt(1.0, QColor("#f38ba8"));
+        painter.setPen(QPen(grad, 2, Qt::SolidLine, Qt::RoundCap));
+
+        for (int i = 0; i < m_waveformHistory.size(); ++i) {
+            double x = i * step;
+            double y = centerY - (m_waveformHistory[i] / 100.0) * (height() / 2.0 - 4.0);
+            if (i == 0) {
+                path.moveTo(x, y);
+            } else {
+                path.lineTo(x, y);
+            }
+        }
+        painter.drawPath(path);
     }
 }
 
