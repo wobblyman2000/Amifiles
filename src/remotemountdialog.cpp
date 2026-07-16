@@ -18,21 +18,63 @@ RemoteMountDialog::RemoteMountDialog(QWidget* parent) : QDialog(parent) {
 
 void RemoteMountDialog::setupUI() {
     setWindowTitle("Mount Remote Share");
-    resize(420, 320);
+    resize(680, 380);
     setStyleSheet(
         "QDialog { background-color: #1e1e2e; color: #cdd6f4; }"
         "QLabel { color: #cdd6f4; }"
         "QLineEdit { background-color: #181825; color: #cdd6f4; border: 1px solid #313244; border-radius: 4px; padding: 6px; }"
         "QComboBox { background-color: #181825; color: #cdd6f4; border: 1px solid #313244; border-radius: 4px; padding: 6px; }"
         "QSpinBox { background-color: #181825; color: #cdd6f4; border: 1px solid #313244; border-radius: 4px; padding: 6px; }"
+        "QListWidget { background-color: #181825; color: #cdd6f4; border: 1px solid #313244; border-radius: 4px; padding: 4px; }"
+        "QListWidget::item { padding: 6px 8px; border-radius: 4px; color: #cdd6f4; }"
+        "QListWidget::item:hover { background-color: #313244; color: #f5c2e7; }"
+        "QListWidget::item:selected { background-color: #89b4fa; color: #11111b; font-weight: bold; }"
     );
 
-    QVBoxLayout* mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(16, 16, 16, 16);
-    mainLayout->setSpacing(12);
+    QHBoxLayout* horizontalLayout = new QHBoxLayout(this);
+    horizontalLayout->setContentsMargins(16, 16, 16, 16);
+    horizontalLayout->setSpacing(16);
+
+    // LEFT COLUMN: Address Book Bookmarks
+    QVBoxLayout* leftCol = new QVBoxLayout();
+    leftCol->setSpacing(8);
+    
+    QLabel* lblBookmarks = new QLabel("<b>Address Book</b>", this);
+    leftCol->addWidget(lblBookmarks);
+
+    m_listAddresses = new QListWidget(this);
+    m_listAddresses->setFocusPolicy(Qt::NoFocus);
+    connect(m_listAddresses, &QListWidget::currentRowChanged, this, &RemoteMountDialog::onAddressSelected);
+    leftCol->addWidget(m_listAddresses, 1);
+
+    QHBoxLayout* leftButtons = new QHBoxLayout();
+    leftButtons->setSpacing(8);
+
+    m_btnSaveAddress = new QPushButton("Save Bookmark", this);
+    m_btnSaveAddress->setStyleSheet(
+        "QPushButton { background-color: #f5c2e7; color: #11111b; font-weight: bold; border-radius: 4px; padding: 6px 12px; }"
+        "QPushButton:hover { background-color: #b4befe; }"
+    );
+    connect(m_btnSaveAddress, &QPushButton::clicked, this, &RemoteMountDialog::onSaveAddress);
+    leftButtons->addWidget(m_btnSaveAddress, 1);
+
+    m_btnDeleteAddress = new QPushButton("Delete", this);
+    m_btnDeleteAddress->setStyleSheet(
+        "QPushButton { background-color: #313244; color: #cdd6f4; border-radius: 4px; padding: 6px 12px; }"
+        "QPushButton:hover { background-color: #f38ba8; color: #11111b; }"
+    );
+    connect(m_btnDeleteAddress, &QPushButton::clicked, this, &RemoteMountDialog::onDeleteAddress);
+    leftButtons->addWidget(m_btnDeleteAddress, 0);
+
+    leftCol->addLayout(leftButtons);
+    horizontalLayout->addLayout(leftCol, 1);
+
+    // RIGHT COLUMN: Connection Fields
+    QVBoxLayout* rightCol = new QVBoxLayout();
+    rightCol->setSpacing(12);
 
     QGridLayout* grid = new QGridLayout();
-    grid->setSpacing(10);
+    grid->setSpacing(8);
 
     // Type
     grid->addWidget(new QLabel("Protocol:", this), 0, 0);
@@ -76,10 +118,10 @@ void RemoteMountDialog::setupUI() {
     // Name (custom label)
     grid->addWidget(new QLabel("Display Label:", this), 6, 0);
     m_editName = new QLineEdit(this);
-    m_editName->setPlaceholderText("e.g. WorkServer");
+    m_editName->setPlaceholderText("e.g. WorkServer (Required to save)");
     grid->addWidget(m_editName, 6, 1);
 
-    mainLayout->addLayout(grid);
+    rightCol->addLayout(grid);
 
     // Action buttons
     QHBoxLayout* btnLayout = new QHBoxLayout();
@@ -100,7 +142,11 @@ void RemoteMountDialog::setupUI() {
     btnLayout->addStretch();
     btnLayout->addWidget(m_btnMount);
     btnLayout->addWidget(m_btnCancel);
-    mainLayout->addLayout(btnLayout);
+    rightCol->addLayout(btnLayout);
+
+    horizontalLayout->addLayout(rightCol, 2);
+
+    loadAddresses();
 }
 
 void RemoteMountDialog::onTypeChanged(int index) {
@@ -213,4 +259,90 @@ void RemoteMountDialog::onMount() {
 
 void RemoteMountDialog::onCancel() {
     reject();
+}
+
+void RemoteMountDialog::onSaveAddress() {
+    QString label = m_editName->text().trimmed();
+    if (label.isEmpty()) {
+        QMessageBox::warning(this, "Label Required", "Please enter a Display Label before saving.");
+        return;
+    }
+
+    QSettings settings("Amifiles", "Amifiles");
+    settings.beginGroup("RemoteAddresses");
+    settings.beginGroup(label);
+    settings.setValue("protocol", m_comboType->currentIndex());
+    settings.setValue("host", m_editHost->text().trimmed());
+    settings.setValue("port", m_spinPort->value());
+    settings.setValue("user", m_editUser->text().trimmed());
+    settings.setValue("password", m_editPassword->text());
+    settings.setValue("path", m_editPath->text().trimmed());
+    settings.endGroup();
+    settings.endGroup();
+
+    loadAddresses();
+
+    // Select the saved address in list
+    for (int i = 0; i < m_listAddresses->count(); ++i) {
+        if (m_listAddresses->item(i)->text() == label) {
+            m_listAddresses->setCurrentRow(i);
+            break;
+        }
+    }
+}
+
+void RemoteMountDialog::onDeleteAddress() {
+    int curRow = m_listAddresses->currentRow();
+    if (curRow < 0) return;
+
+    QString label = m_listAddresses->currentItem()->text();
+    if (QMessageBox::question(this, "Delete Bookmark", QString("Are you sure you want to delete '%1' from the Address Book?").arg(label)) == QMessageBox::Yes) {
+        QSettings settings("Amifiles", "Amifiles");
+        settings.beginGroup("RemoteAddresses");
+        settings.remove(label);
+        settings.endGroup();
+
+        loadAddresses();
+
+        // Clear details
+        m_editName->clear();
+        m_editHost->clear();
+        m_editUser->clear();
+        m_editPassword->clear();
+        m_editPath->setText("/");
+        m_comboType->setCurrentIndex(0);
+        m_spinPort->setValue(22);
+    }
+}
+
+void RemoteMountDialog::onAddressSelected(int row) {
+    if (row < 0 || !m_listAddresses->item(row)) return;
+
+    QString label = m_listAddresses->item(row)->text();
+
+    QSettings settings("Amifiles", "Amifiles");
+    settings.beginGroup("RemoteAddresses");
+    settings.beginGroup(label);
+    m_comboType->setCurrentIndex(settings.value("protocol", 0).toInt());
+    m_editHost->setText(settings.value("host").toString());
+    m_spinPort->setValue(settings.value("port", 22).toInt());
+    m_editUser->setText(settings.value("user").toString());
+    m_editPassword->setText(settings.value("password").toString());
+    m_editPath->setText(settings.value("path", "/").toString());
+    m_editName->setText(label);
+    settings.endGroup();
+    settings.endGroup();
+}
+
+void RemoteMountDialog::loadAddresses() {
+    m_listAddresses->clear();
+
+    QSettings settings("Amifiles", "Amifiles");
+    settings.beginGroup("RemoteAddresses");
+    QStringList groups = settings.childGroups();
+    settings.endGroup();
+
+    for (const QString& label : groups) {
+        m_listAddresses->addItem(label);
+    }
 }

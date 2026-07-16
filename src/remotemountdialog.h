@@ -7,6 +7,8 @@
 #include <QSpinBox>
 #include <QPushButton>
 
+#include <QListWidget>
+
 class RemoteMountDialog : public QDialog {
     Q_OBJECT
 public:
@@ -17,9 +19,17 @@ private slots:
     void onTypeChanged(int index);
     void onMount();
     void onCancel();
+    void onSaveAddress();
+    void onDeleteAddress();
+    void onAddressSelected(int row);
 
 private:
     void setupUI();
+    void loadAddresses();
+
+    QListWidget* m_listAddresses = nullptr;
+    QPushButton* m_btnSaveAddress = nullptr;
+    QPushButton* m_btnDeleteAddress = nullptr;
 
     QComboBox* m_comboType = nullptr;
     QLineEdit* m_editHost = nullptr;
