@@ -386,6 +386,28 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 
     // Default active panel is Left
     onPanelActivated(leftPanel());
+
+    // Restore window layout geometry & state
+    bool autoSaveLayout = settings.value("layout/auto_save", true).toBool();
+    if (m_actAutoSaveLayout) {
+        m_actAutoSaveLayout->setChecked(autoSaveLayout);
+    }
+    if (autoSaveLayout || settings.contains("window/geometry")) {
+        QByteArray geom = settings.value("window/geometry").toByteArray();
+        QByteArray state = settings.value("window/state").toByteArray();
+        if (!geom.isEmpty()) {
+            restoreGeometry(geom);
+        }
+        if (!state.isEmpty()) {
+            restoreState(state);
+        }
+    }
+
+    // Load and apply folder layout rules
+    loadFolderRules();
+    if (m_activePanel) {
+        applyFolderRules(m_activePanel->currentPath());
+    }
 }
 
 void MainWindow::setupCentralWidget() {
@@ -664,6 +686,27 @@ void MainWindow::setupActions() {
     m_actToggleSpectrum->setToolTip("Toggle displaying the bouncy retro spectrum visualizer on music playback");
     connect(m_actToggleSpectrum, &QAction::toggled, this, &MainWindow::onToggleSpectrum);
 
+    m_actAutoSaveLayout = new QAction("Auto-save Layout on Close", this);
+    m_actAutoSaveLayout->setCheckable(true);
+    m_actAutoSaveLayout->setChecked(true);
+    m_actAutoSaveLayout->setToolTip("Automatically persist toolbar positions and window dimensions when closing");
+    connect(m_actAutoSaveLayout, &QAction::toggled, this, [](bool checked) {
+        QSettings settings("Amifiles", "Amifiles");
+        settings.setValue("layout/auto_save", checked);
+    });
+
+    m_actSaveLayoutNow = new QAction("Save Current Layout Now", this);
+    m_actSaveLayoutNow->setToolTip("Manually save toolbar positions and window dimensions");
+    connect(m_actSaveLayoutNow, &QAction::triggered, this, &MainWindow::onSaveLayoutNow);
+
+    m_actResetLayout = new QAction("Reset Layout to Defaults", this);
+    m_actResetLayout->setToolTip("Restore all toolbars and panels to their factory positions");
+    connect(m_actResetLayout, &QAction::triggered, this, &MainWindow::onResetLayout);
+
+    m_actConfigureFolderLayouts = new QAction("Configure Folder-Specific Layouts...", this);
+    m_actConfigureFolderLayouts->setToolTip("Define custom view modes and toolbars for specific folders or media categories");
+    connect(m_actConfigureFolderLayouts, &QAction::triggered, this, &MainWindow::onConfigureFolderLayouts);
+
     // Toggle Flat View Action
     m_actToggleFlatView = new QAction("Flat View (Recursion Mode)", this);
     m_actToggleFlatView->setCheckable(true);
@@ -845,6 +888,12 @@ void MainWindow::setupMenus() {
     m_menuView->addAction(m_actShowAudioCoverArt);
     m_menuView->addAction(m_actToggleSpectrum);
     
+    m_menuView->addSeparator();
+    QMenu* menuSaveLayout = m_menuView->addMenu("Save Layout");
+    menuSaveLayout->addAction(m_actAutoSaveLayout);
+    menuSaveLayout->addAction(m_actSaveLayoutNow);
+    menuSaveLayout->addAction(m_actResetLayout);
+    
     QMenu* menuFilterToggles = m_menuView->addMenu("Filter Bars");
     menuFilterToggles->addAction(m_actLeftShowFilterText);
     menuFilterToggles->addAction(m_actLeftShowCategoryButtons);
@@ -868,6 +917,7 @@ void MainWindow::setupMenus() {
     m_menuTools->addAction(m_actCloudMount);
     m_menuTools->addAction(m_actImageConvert);
     m_menuTools->addAction(m_actProcessManager);
+    m_menuTools->addAction(m_actConfigureFolderLayouts);
     m_menuTools->addSeparator();
     m_menuTools->addAction(m_actEncryptVault);
     m_menuTools->addAction(m_actDecryptVault);
@@ -981,6 +1031,9 @@ void MainWindow::onPanelActivated(FilePanel* panel) {
             m_actToggleFlatView->setChecked(m_activePanel->isFlatViewEnabled());
             m_actToggleFlatView->blockSignals(false);
         }
+        if (m_activePanel) {
+            applyFolderRules(m_activePanel->currentPath());
+        }
     }
 }
 
@@ -1010,6 +1063,7 @@ void MainWindow::onPathChanged(const QString& path) {
     if (m_terminalPanel) {
         m_terminalPanel->syncDirectory(path);
     }
+    applyFolderRules(path);
 }
 
 void MainWindow::onToggleDualPane(bool checked) {
@@ -1623,6 +1677,9 @@ void MainWindow::rebuildCustomToolBar() {
 
     // Populate buttons loaded from settings
     for (int i = 0; i < m_customButtons.size(); ++i) {
+        if (!m_activeToolbarFilter.isEmpty() && !m_activeToolbarFilter.contains(m_customButtons[i].name)) {
+            continue;
+        }
         QIcon qicon;
         QString iconPath = m_customButtons[i].icon;
         if (!iconPath.isEmpty()) {
@@ -2325,6 +2382,164 @@ void MainWindow::onDecryptVault() {
     VaultDialog dlg(false, activePath, this);
     if (dlg.exec() == QDialog::Accepted && m_activePanel) {
         m_activePanel->refresh();
+    }
+}
+
+void MainWindow::closeEvent(QCloseEvent* event) {
+    QSettings settings("Amifiles", "Amifiles");
+    if (m_actAutoSaveLayout && m_actAutoSaveLayout->isChecked()) {
+        settings.setValue("window/geometry", saveGeometry());
+        settings.setValue("window/state", saveState());
+    }
+    QMainWindow::closeEvent(event);
+}
+
+void MainWindow::onSaveLayoutNow() {
+    QSettings settings("Amifiles", "Amifiles");
+    settings.setValue("window/geometry", saveGeometry());
+    settings.setValue("window/state", saveState());
+    QMessageBox::information(this, "Save Layout", "Current layout (toolbar positions and window size) saved successfully!");
+}
+
+void MainWindow::onResetLayout() {
+    QSettings settings("Amifiles", "Amifiles");
+    settings.remove("window/geometry");
+    settings.remove("window/state");
+    
+    addToolBar(Qt::TopToolBarArea, m_tbFile);
+    addToolBar(Qt::TopToolBarArea, m_tbView);
+    addToolBar(Qt::TopToolBarArea, m_customToolBar);
+    addToolBar(Qt::TopToolBarArea, m_tbDrives);
+    
+    m_tbFile->setVisible(true);
+    m_tbView->setVisible(true);
+    m_customToolBar->setVisible(true);
+    m_tbDrives->setVisible(true);
+    
+    QMessageBox::information(this, "Reset Layout", "Window layout reset to default. Please restart Amifiles to apply full default geometry.");
+}
+
+void MainWindow::loadFolderRules() {
+    m_folderRules.clear();
+    QSettings settings("Amifiles", "Amifiles");
+    QStringList serialized = settings.value("folder_layout_rules").toStringList();
+    for (const QString& s : serialized) {
+        QStringList parts = s.split(';');
+        if (parts.size() >= 4) {
+            FolderLayoutRule r;
+            r.ruleType = parts[0];
+            r.value = parts[1];
+            r.viewMode = parts[2];
+            r.customButtons = parts[3].isEmpty() ? QStringList() : parts[3].split(',');
+            m_folderRules.append(r);
+        }
+    }
+}
+
+void MainWindow::saveFolderRules() {
+    QSettings settings("Amifiles", "Amifiles");
+    QStringList serialized;
+    for (const auto& r : m_folderRules) {
+        QString buttonsJoined = r.customButtons.join(',');
+        serialized.append(QString("%1;%2;%3;%4")
+                          .arg(r.ruleType)
+                          .arg(r.value)
+                          .arg(r.viewMode)
+                          .arg(buttonsJoined));
+    }
+    settings.setValue("folder_layout_rules", serialized);
+}
+
+void MainWindow::applyFolderRules(const QString& path) {
+    if (!m_activePanel) return;
+
+    FolderLayoutRule matchedRule;
+    bool foundMatch = false;
+
+    // 1. Exact Path matching
+    for (const auto& r : m_folderRules) {
+        if (r.ruleType == "Path" && r.value == path) {
+            matchedRule = r;
+            foundMatch = true;
+            break;
+        }
+    }
+
+    // 2. Category matching
+    if (!foundMatch) {
+        QString category = detectFolderCategory(path);
+        if (!category.isEmpty()) {
+            for (const auto& r : m_folderRules) {
+                if (r.ruleType == "Category" && r.value == category) {
+                    matchedRule = r;
+                    foundMatch = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (foundMatch) {
+        if (matchedRule.viewMode == "List") {
+            m_activePanel->setViewModeGrid(false);
+        } else if (matchedRule.viewMode == "Grid") {
+            m_activePanel->setViewModeGrid(true);
+        }
+        
+        m_activeToolbarFilter = matchedRule.customButtons;
+        rebuildCustomToolBar();
+    } else {
+        if (!m_activeToolbarFilter.isEmpty()) {
+            m_activeToolbarFilter.clear();
+            rebuildCustomToolBar();
+        }
+    }
+}
+
+QString MainWindow::detectFolderCategory(const QString& path) {
+    QDir dir(path);
+    if (!dir.exists()) return "";
+    
+    QFileInfoList list = dir.entryInfoList(QDir::Files);
+    int musicCount = 0;
+    int videoCount = 0;
+    int imageCount = 0;
+    int docCount = 0;
+    
+    QStringList musicExt = {"mp3", "wav", "flac", "ogg", "m4a"};
+    QStringList videoExt = {"mp4", "avi", "mkv", "mov", "webm"};
+    QStringList imageExt = {"jpg", "jpeg", "png", "webp", "bmp", "gif"};
+    QStringList docExt   = {"txt", "pdf", "doc", "docx", "odt", "rtf", "html", "cpp", "h"};
+    
+    int limit = qMin(list.size(), 50);
+    for (int i = 0; i < limit; ++i) {
+        QString ext = list[i].suffix().toLower();
+        if (musicExt.contains(ext)) musicCount++;
+        else if (videoExt.contains(ext)) videoCount++;
+        else if (imageExt.contains(ext)) imageCount++;
+        else if (docExt.contains(ext)) docCount++;
+    }
+    
+    int maxVal = qMax(qMax(musicCount, videoCount), qMax(imageCount, docCount));
+    if (maxVal > 0) {
+        if (maxVal == musicCount) return "Music";
+        if (maxVal == videoCount) return "Videos";
+        if (maxVal == imageCount) return "Images";
+        if (maxVal == docCount) return "Documents";
+    }
+    return "";
+}
+
+#include "folderlayoutdialog.h"
+
+void MainWindow::onConfigureFolderLayouts() {
+    FolderLayoutDialog dlg(m_folderRules, m_customButtons, this);
+    if (dlg.exec() == QDialog::Accepted) {
+        m_folderRules = dlg.rules();
+        saveFolderRules();
+        if (m_activePanel) {
+            applyFolderRules(m_activePanel->currentPath());
+        }
     }
 }
 

@@ -88,6 +88,8 @@ add_executable(Amifiles
     src/pdfviewerwidget.cpp
     src/agestylingdialog.h
     src/agestylingdialog.cpp
+    src/folderlayoutdialog.h
+    src/folderlayoutdialog.cpp
 )
 
 target_link_libraries(Amifiles PRIVATE

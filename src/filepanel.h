@@ -622,6 +622,13 @@ public:
     void syncFilterText(const QString& text);
     void syncFilterType(FileFilterProxyModel::FilterType type);
     void syncZoom(int value);
+    void setViewModeGrid(bool grid) {
+        if (grid && m_viewStack && m_viewStack->currentWidget() == m_treeView) {
+            onToggleViewMode();
+        } else if (!grid && m_viewStack && m_viewStack->currentWidget() == m_listView) {
+            onToggleViewMode();
+        }
+    }
 
     // Flat View Support
     void setFlatViewEnabled(bool enabled);

@@ -19,6 +19,13 @@ struct CustomButton {
     QString icon;
 };
 
+struct FolderLayoutRule {
+    QString ruleType; // "Path" or "Category"
+    QString value;    // Exact path or Category name (Music, Video, Documents, Images)
+    QString viewMode; // "Default", "List", "Grid"
+    QStringList customButtons; // Button names subset
+};
+
 class MiniMediaControls;
 class ConsolePanel;
 class QListWidget;
@@ -29,6 +36,9 @@ class MainWindow : public QMainWindow {
 public:
     explicit MainWindow(QWidget* parent = nullptr);
     ~MainWindow() override;
+
+protected:
+    void closeEvent(class QCloseEvent* event) override;
 
 private slots:
     // Event Routing Slots
@@ -113,6 +123,9 @@ private slots:
     void onDecryptVault();
     void onToggleSpectrum(bool checked);
     void onConfigureAgeStyling();
+    void onSaveLayoutNow();
+    void onResetLayout();
+    void onConfigureFolderLayouts();
     Q_INVOKABLE void refreshTagsSidebar();
 
 public:
@@ -133,6 +146,10 @@ private:
     void loadCustomButtons();
     void saveCustomButtons();
     void rebuildCustomToolBar();
+    void loadFolderRules();
+    void saveFolderRules();
+    void applyFolderRules(const QString& path);
+    QString detectFolderCategory(const QString& path);
 
     // State Tracking
     FilePanel* m_activePanel = nullptr;
@@ -142,6 +159,8 @@ private:
 
     // Custom Buttons List
     QList<CustomButton> m_customButtons;
+    QList<FolderLayoutRule> m_folderRules;
+    QStringList m_activeToolbarFilter;
 
     // View Splitter and Panels
     QSplitter* m_splitter = nullptr;
@@ -195,6 +214,10 @@ private:
     QAction* m_actToggleFlatView = nullptr;
     QAction* m_actShowAudioCoverArt = nullptr;
     QAction* m_actToggleSpectrum = nullptr;
+    QAction* m_actAutoSaveLayout = nullptr;
+    QAction* m_actSaveLayoutNow = nullptr;
+    QAction* m_actResetLayout = nullptr;
+    QAction* m_actConfigureFolderLayouts = nullptr;
     QAction* m_actCopyToSibling = nullptr;
     QAction* m_actMoveToSibling = nullptr;
 
