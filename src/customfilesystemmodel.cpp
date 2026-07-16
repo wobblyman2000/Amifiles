@@ -44,15 +44,28 @@ QVariant CustomFileSystemModel::data(const QModelIndex& index, int role) const {
             if (!colorName.isEmpty()) {
                 QColor colVal = TagManager::instance().getColorValue(colorName);
                 QIcon baseIcon = QFileSystemModel::data(index, role).value<QIcon>();
-                QPixmap pix = baseIcon.pixmap(16, 16);
-                if (!pix.isNull()) {
-                    QPainter painter(&pix);
-                    painter.setRenderHint(QPainter::Antialiasing);
-                    painter.setBrush(colVal);
-                    painter.setPen(Qt::NoPen);
-                    painter.drawEllipse(10, 10, 6, 6);
-                    painter.end();
-                    return QIcon(pix);
+                QIcon iconResult;
+                QList<int> targetSizes = {16, 24, 32, 48, 64, 96, 128};
+                for (int sz : targetSizes) {
+                    QPixmap pix = baseIcon.pixmap(sz, sz);
+                    if (!pix.isNull()) {
+                        QPainter painter(&pix);
+                        painter.setRenderHint(QPainter::Antialiasing);
+                        painter.setBrush(colVal);
+                        painter.setPen(Qt::NoPen);
+                        
+                        int dotSize = qMax(4, qRound(sz * 0.3));
+                        int padding = qMax(1, qRound(sz * 0.05));
+                        int x = sz - dotSize - padding;
+                        int y = sz - dotSize - padding;
+                        
+                        painter.drawEllipse(x, y, dotSize, dotSize);
+                        painter.end();
+                        iconResult.addPixmap(pix);
+                    }
+                }
+                if (!iconResult.isNull()) {
+                    return iconResult;
                 }
             }
         } else if (role == Qt::DisplayRole) {
