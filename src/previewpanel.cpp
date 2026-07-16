@@ -1212,22 +1212,44 @@ void AudioPlaceholderWidget::paintEvent(QPaintEvent* event) {
     if (!artPath.isEmpty()) {
         QPixmap cover(artPath);
         if (!cover.isNull()) {
-            QPixmap scaledCover = cover.scaled(r.size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
-            int x = (r.width() - scaledCover.width()) / 2;
-            int y = (r.height() - scaledCover.height()) / 2;
-            painter.drawPixmap(x, y, scaledCover);
-            painter.fillRect(r, QColor(30, 30, 46, 200));
+            // 1. Draw blurred/tinted ambient background filling the whole widget
+            QPixmap bgCover = cover.scaled(r.size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+            int bgX = (r.width() - bgCover.width()) / 2;
+            int bgY = (r.height() - bgCover.height()) / 2;
+            painter.drawPixmap(bgX, bgY, bgCover);
+            painter.fillRect(r, QColor(24, 24, 37, 215));
+
+            // 2. Draw crisp centered foreground cover art preserving its aspect ratio (no clipping!)
+            QRect fgRect = r.adjusted(16, 16, -16, -50);
+            if (fgRect.width() > 10 && fgRect.height() > 10) {
+                QPixmap fgCover = cover.scaled(fgRect.size(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+                int fgX = fgRect.left() + (fgRect.width() - fgCover.width()) / 2;
+                int fgY = fgRect.top() + (fgRect.height() - fgCover.height()) / 2;
+                painter.drawPixmap(fgX, fgY, fgCover);
+
+                // Subtle border
+                painter.setPen(QPen(QColor("#45475a"), 1));
+                painter.drawRect(fgX, fgY, fgCover.width(), fgCover.height());
+            }
         }
     }
 
+    // 3. Draw text details (either centered fallback if no art, or bottom-aligned if art is present)
     painter.setPen(QColor("#cdd6f4"));
     QFont f = font();
-    f.setPointSize(12);
     f.setBold(true);
-    painter.setFont(f);
-
-    QString text = QString("🎵 Playing Audio\n\n%1").arg(QFileInfo(m_filePath).fileName());
-    painter.drawText(r.adjusted(12, 12, -12, -12), Qt::AlignCenter | Qt::TextWordWrap, text);
+    
+    if (!artPath.isEmpty()) {
+        f.setPointSize(10);
+        painter.setFont(f);
+        QRect textRect(12, r.height() - 42, r.width() - 24, 36);
+        painter.drawText(textRect, Qt::AlignCenter | Qt::TextWordWrap, QFileInfo(m_filePath).fileName());
+    } else {
+        f.setPointSize(12);
+        painter.setFont(f);
+        QString text = QString("🎵 Playing Audio\n\n%1").arg(QFileInfo(m_filePath).fileName());
+        painter.drawText(r.adjusted(12, 12, -12, -12), Qt::AlignCenter | Qt::TextWordWrap, text);
+    }
 }
 
 void PreviewPanel::toggleFullscreen() {
