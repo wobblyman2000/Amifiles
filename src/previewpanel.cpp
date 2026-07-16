@@ -846,11 +846,13 @@ void PreviewPanel::showMediaPreview(const QString& filePath, bool isVideo) {
 
 void PreviewPanel::scaleImage() {
     if (m_originalPixmap.isNull()) return;
-    
-    // Scale image to fit the container scroll viewport size (minus standard margins)
+
     QSize viewSize = m_imageScrollArea->size();
-    if (viewSize.width() < 50) viewSize.setWidth(200);
-    if (viewSize.height() < 50) viewSize.setHeight(200);
+    if (viewSize.width() < 100 || viewSize.height() < 100) {
+        viewSize = m_stack->size();
+    }
+    if (viewSize.width() < 50) viewSize.setWidth(400);
+    if (viewSize.height() < 50) viewSize.setHeight(400);
 
     QPixmap scaled = m_originalPixmap.scaled(viewSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
     m_imageLabel->setPixmap(scaled);
