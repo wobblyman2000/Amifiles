@@ -29,6 +29,7 @@ protected:
 
 private:
     QString m_filePath;
+    FileMetadata m_metadata;
     bool m_coverArtVisible = true;
 };
 

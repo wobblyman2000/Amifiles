@@ -1169,6 +1169,7 @@ AudioPlaceholderWidget::AudioPlaceholderWidget(QWidget* parent) : QWidget(parent
 
 void AudioPlaceholderWidget::setFilePath(const QString& filePath) {
     m_filePath = filePath;
+    m_metadata = MetadataExtractor::extract(filePath);
     update();
 }
 
@@ -1212,8 +1213,8 @@ void AudioPlaceholderWidget::paintEvent(QPaintEvent* event) {
     if (!artPath.isEmpty()) {
         QPixmap cover(artPath);
         if (!cover.isNull()) {
-            // Draw single centered cover art (preserving aspect ratio)
-            QRect fgRect = r.adjusted(16, 40, -16, -50);
+            // Draw cover art filling the widget area (preserving aspect ratio)
+            QRect fgRect = r.adjusted(12, 12, -12, -12);
             if (fgRect.width() > 10 && fgRect.height() > 10) {
                 QPixmap fgCover = cover.scaled(fgRect.size(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
                 int fgX = fgRect.left() + (fgRect.width() - fgCover.width()) / 2;
@@ -1226,30 +1227,66 @@ void AudioPlaceholderWidget::paintEvent(QPaintEvent* event) {
             }
         }
 
-        // Draw top header
+        // Draw semi-transparent HUD overlay card on top of the artwork
+        QRect hudRect(12, r.height() - 75, r.width() - 24, 63);
+        if (hudRect.height() > 20 && hudRect.width() > 50) {
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(QBrush(QColor(17, 17, 27, 210)));
+            painter.drawRoundedRect(hudRect, 6, 6);
+
+            QString displayTitle = !m_metadata.title.isEmpty() ? m_metadata.title : QFileInfo(m_filePath).completeBaseName();
+            QString displayArtist = !m_metadata.artist.isEmpty() ? m_metadata.artist : "Unknown Artist";
+            QString displayAlbum = m_metadata.album;
+
+            // Draw Title (Line 1)
+            painter.setPen(QColor("#cdd6f4"));
+            QFont fTitle = font();
+            fTitle.setPointSize(10);
+            fTitle.setBold(true);
+            painter.setFont(fTitle);
+            painter.drawText(QRect(hudRect.left() + 8, hudRect.top() + 8, hudRect.width() - 16, 20), Qt::AlignLeft | Qt::AlignVCenter | Qt::ElideRight, displayTitle);
+
+            // Draw Artist & Album (Line 2)
+            painter.setPen(QColor("#a6adc8"));
+            QFont fDetails = font();
+            fDetails.setPointSize(8);
+            fDetails.setBold(false);
+            painter.setFont(fDetails);
+            QString detailsText = displayArtist;
+            if (!displayAlbum.isEmpty()) {
+                detailsText += " — " + displayAlbum;
+            }
+            painter.drawText(QRect(hudRect.left() + 8, hudRect.top() + 32, hudRect.width() - 16, 18), Qt::AlignLeft | Qt::AlignVCenter | Qt::ElideRight, detailsText);
+        }
+    } else {
+        // Fallback when no cover art exists - display tags in center
+        QString displayTitle = !m_metadata.title.isEmpty() ? m_metadata.title : QFileInfo(m_filePath).completeBaseName();
+        QString displayArtist = !m_metadata.artist.isEmpty() ? m_metadata.artist : "Unknown Artist";
+        QString displayAlbum = m_metadata.album;
+
         painter.setPen(QColor("#a6adc8"));
         QFont fHead = font();
         fHead.setPointSize(10);
         fHead.setBold(true);
         painter.setFont(fHead);
-        painter.drawText(QRect(10, 10, r.width() - 20, 25), Qt::AlignCenter, "🎵 Playing Audio");
+        painter.drawText(QRect(10, 40, r.width() - 20, 25), Qt::AlignCenter, "🎵 Playing Audio");
 
-        // Draw bottom track name
         painter.setPen(QColor("#cdd6f4"));
-        QFont fTrack = font();
-        fTrack.setPointSize(9);
-        fTrack.setBold(true);
-        painter.setFont(fTrack);
-        painter.drawText(QRect(10, r.height() - 40, r.width() - 20, 30), Qt::AlignCenter | Qt::ElideRight, QFileInfo(m_filePath).fileName());
-    } else {
-        // Fallback when no cover art exists
-        painter.setPen(QColor("#cdd6f4"));
-        QFont f = font();
-        f.setPointSize(12);
-        f.setBold(true);
-        painter.setFont(f);
-        QString text = QString("🎵 Playing Audio\n\n%1").arg(QFileInfo(m_filePath).fileName());
-        painter.drawText(r.adjusted(12, 12, -12, -12), Qt::AlignCenter | Qt::TextWordWrap, text);
+        QFont fTitle = font();
+        fTitle.setPointSize(14);
+        fTitle.setBold(true);
+        painter.setFont(fTitle);
+        painter.drawText(QRect(10, r.height() / 2 - 30, r.width() - 20, 35), Qt::AlignCenter | Qt::ElideRight, displayTitle);
+
+        painter.setPen(QColor("#a6adc8"));
+        QFont fDetails = font();
+        fDetails.setPointSize(10);
+        painter.setFont(fDetails);
+        QString detailsText = displayArtist;
+        if (!displayAlbum.isEmpty()) {
+            detailsText += " — " + displayAlbum;
+        }
+        painter.drawText(QRect(10, r.height() / 2 + 10, r.width() - 20, 25), Qt::AlignCenter | Qt::ElideRight, detailsText);
     }
 }
 
