@@ -124,6 +124,7 @@ private slots:
     void onToggleAgeColoring(bool checked);
     void onToggleCenterOps(bool checked);
     void onPreviewDockContextMenu(const QPoint& pos);
+    void onClonePathRequested(const QString& path);
     
     // Command Routing to Active File Panel
     void onCopyAction();
@@ -318,6 +319,7 @@ private:
     QAction* m_actConfigureBackupSchedule = nullptr;
     QAction* m_actCopyToSibling = nullptr;
     QAction* m_actMoveToSibling = nullptr;
+    QAction* m_actClonePathToSibling = nullptr;
 
     QAction* m_actLeftShowFilterText = nullptr;
     QAction* m_actLeftShowCategoryButtons = nullptr;

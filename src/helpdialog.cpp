@@ -478,6 +478,7 @@ void HelpDialog::onSectionChanged(int index) {
                     "<tr><td><b>Close Tab</b></td><td><code>Ctrl+W</code></td><td>Close the active folder tab</td></tr>"
                     "<tr><td><b>Copy to Sibling</b></td><td><code>F5</code></td><td>Copy selection to opposite panel directory</td></tr>"
                     "<tr><td><b>Move to Sibling</b></td><td><code>F6</code></td><td>Move selection to opposite panel directory</td></tr>"
+                    "<tr><td><b>Clone Path to Sibling</b></td><td><code>F9</code></td><td>Navigate opposite panel to active panel directory</td></tr>"
                     "<tr><td><b>Rename Item</b></td><td><code>F2</code></td><td>Rename the selected file/folder</td></tr>"
                     "<tr><td><b>Refresh Directory</b></td><td><code>Ctrl+R</code> (or <code>F5</code>)</td><td>Force reload active directory contents</td></tr>"
                     "<tr><td><b>Command Palette</b></td><td><code>Ctrl+Shift+P</code></td><td>Launch the Spotlight action overlay</td></tr>"

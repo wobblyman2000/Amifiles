@@ -648,6 +648,7 @@ signals:
     void playlistPlayRequested(const QStringList& filePaths);
     void zoomChanged(int value);
     void sigStartSearch(const QString& query, const QString& path);
+    void clonePathRequested(const QString& path);
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
@@ -661,6 +662,7 @@ public slots:
 private slots:
     void onPathEntered();
     void onFavoriteClicked();
+    void onClonePathClicked();
     void onFilterChanged(const QString& filterText);
     void onFilterTypeChanged();
     void onSelectionChanged();
@@ -704,6 +706,7 @@ private:
     QLineEdit* m_pathEdit = nullptr;
     QToolButton* m_btnGo = nullptr;
     QToolButton* m_btnFavorite = nullptr;
+    QToolButton* m_btnClonePath = nullptr;
     QToolButton* m_btnFlatView = nullptr;
     QToolButton* m_btnViewMode = nullptr; // keep single instance
     QHeaderView* m_header = nullptr;

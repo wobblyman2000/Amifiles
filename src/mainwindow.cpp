@@ -548,6 +548,15 @@ void MainWindow::setupActions() {
     m_actMoveToSibling->setToolTip("Move selected items to the opposite panel (F6)");
     connect(m_actMoveToSibling, &QAction::triggered, this, &MainWindow::onMoveToSiblingAction);
 
+    m_actClonePathToSibling = new QAction(style->standardIcon(QStyle::SP_FileDialogContentsView), "Clone Path to Sibling", this);
+    m_actClonePathToSibling->setShortcut(QKeySequence(Qt::Key_F9));
+    m_actClonePathToSibling->setToolTip("Navigate the opposite panel to the active panel's directory (F9)");
+    connect(m_actClonePathToSibling, &QAction::triggered, this, [this]() {
+        if (m_activePanel) {
+            onClonePathRequested(m_activePanel->currentPath());
+        }
+    });
+
     m_actCompareSync = new QAction(style->standardIcon(QStyle::SP_DialogYesButton), "Compare & Sync Folders...", this);
     m_actCompareSync->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_G));
     m_actCompareSync->setToolTip("Compare left and right folder contents and synchronize them");
@@ -916,6 +925,7 @@ void MainWindow::setupMenus() {
     m_menuEdit->addAction(m_actPaste);
     m_menuEdit->addAction(m_actCopyToSibling);
     m_menuEdit->addAction(m_actMoveToSibling);
+    m_menuEdit->addAction(m_actClonePathToSibling);
     m_menuEdit->addSeparator();
     m_menuEdit->addAction(m_actDelete);
     m_menuEdit->addAction(m_actRename);
@@ -2139,6 +2149,7 @@ FilePanel* MainWindow::createTab(QTabWidget* tabWidget, const QString& path) {
     connect(panel, &FilePanel::fileSelected, this, &MainWindow::onFileSelected);
     connect(panel, &FilePanel::folderArtDetected, this, &MainWindow::onFolderArtDetected);
     connect(panel, &FilePanel::pathChanged, this, &MainWindow::onPathChanged);
+    connect(panel, &FilePanel::clonePathRequested, this, &MainWindow::onClonePathRequested);
     connect(panel, &FilePanel::playlistPlayRequested, this, [this](const QStringList& paths) {
         if (m_previewPanel) m_previewPanel->playPlaylist(paths);
     });
@@ -3556,6 +3567,22 @@ void MainWindow::onPreviewDockContextMenu(const QPoint& pos) {
         m_previewDock->setFloating(true);
     } else if (selected == actClose) {
         m_previewDock->setVisible(false);
+    }
+}
+
+void MainWindow::onClonePathRequested(const QString& path) {
+    FilePanel* senderPanel = qobject_cast<FilePanel*>(sender());
+    if (!senderPanel) return;
+
+    FilePanel* targetPanel = nullptr;
+    if (leftPanel() == senderPanel) {
+        targetPanel = rightPanel();
+    } else if (rightPanel() == senderPanel) {
+        targetPanel = leftPanel();
+    }
+
+    if (targetPanel) {
+        targetPanel->setPath(path);
     }
 }
 

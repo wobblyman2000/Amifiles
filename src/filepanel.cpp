@@ -133,6 +133,11 @@ void FilePanel::setupUI() {
     connect(m_btnFavorite, &QToolButton::clicked, this, &FilePanel::onFavoriteClicked);
     connect(m_btnFavorite, &QToolButton::customContextMenuRequested, this, &FilePanel::onFavoriteButtonContextMenu);
 
+    m_btnClonePath = new QToolButton(this);
+    m_btnClonePath->setIcon(style->standardIcon(QStyle::SP_FileDialogContentsView));
+    m_btnClonePath->setToolTip("Clone current path to opposite sibling panel");
+    connect(m_btnClonePath, &QToolButton::clicked, this, &FilePanel::onClonePathClicked);
+
     m_btnFlatView = new QToolButton(this);
     m_btnFlatView->setText("Flat View");
     m_btnFlatView->setCheckable(true);
@@ -158,6 +163,7 @@ void FilePanel::setupUI() {
     navLayout->addWidget(m_pathEdit, 1);
     navLayout->addWidget(m_btnGo);
     navLayout->addWidget(m_btnFavorite);
+    navLayout->addWidget(m_btnClonePath);
     navLayout->addWidget(m_btnFlatView);
     navLayout->addWidget(m_comboViewMode);
 
@@ -816,6 +822,10 @@ void FilePanel::onFavoriteClicked() {
         fm.addFavorite(m_currentPath);
     }
     updateFavoritesUI();
+}
+
+void FilePanel::onClonePathClicked() {
+    emit clonePathRequested(m_currentPath);
 }
 
 void FilePanel::updateFavoritesUI() {
