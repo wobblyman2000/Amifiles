@@ -360,8 +360,24 @@ void MainWindow::setupCentralWidget() {
     m_previewPanel = new PreviewPanel(this);
     connect(m_previewPanel, &PreviewPanel::spectrumVisualizerToggled, this, &MainWindow::onToggleSpectrum);
     connect(m_previewPanel, &PreviewPanel::tagsChanged, this, [this](const QString&) {
-        if (leftPanel()) leftPanel()->refresh();
-        if (rightPanel()) rightPanel()->refresh();
+        // Refresh active panel to show modified tags
+        if (m_activePanel) m_activePanel->refresh();
+    });
+
+    m_previewDock = new QDockWidget("File Preview Panel", this);
+    m_previewDock->setObjectName("previewDockWidget");
+    m_previewDock->setWidget(m_previewPanel);
+    m_previewDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea | Qt::TopDockWidgetArea | Qt::BottomDockWidgetArea);
+    m_previewDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetClosable);
+    addDockWidget(Qt::RightDockWidgetArea, m_previewDock);
+
+    connect(m_previewDock, &QDockWidget::visibilityChanged, this, [this](bool visible) {
+        m_showPreview = visible;
+        m_actTogglePreview->setChecked(visible);
+        if (!visible && m_previewPanel && m_previewPanel->player()) {
+            m_previewPanel->player()->pause();
+        }
+        updateMiniPlayer();
     });
 
     // Add first tabs
@@ -374,9 +390,8 @@ void MainWindow::setupCentralWidget() {
 
     m_splitter->addWidget(m_sidebarTabWidget);
     m_splitter->addWidget(m_dualSplitter);
-    m_splitter->addWidget(m_previewPanel);
 
-    m_splitter->setSizes({160, 800, 240});
+    m_splitter->setSizes({160, 1040});
 
     m_bottomTabWidget = new QTabWidget(this);
     m_bottomTabWidget->setTabPosition(QTabWidget::South);
@@ -1022,14 +1037,9 @@ void MainWindow::onToggleDualPane(bool checked) {
 }
 
 void MainWindow::onTogglePreview(bool checked) {
-    m_showPreview = checked;
-    m_previewPanel->setVisible(checked);
-    if (!checked && m_previewPanel && m_previewPanel->player()) {
-        m_previewPanel->player()->pause();
+    if (m_previewDock) {
+        m_previewDock->setVisible(checked);
     }
-
-    adjustSplitterSizes();
-    updateMiniPlayer();
 }
 
 void MainWindow::updateMiniPlayer() {
@@ -2663,20 +2673,11 @@ void MainWindow::adjustSplitterSizes() {
 
     int totalWidth = m_splitter->width();
     bool sidebarVisible = m_sidebarTabWidget && m_sidebarTabWidget->isVisible();
-    bool rightVisible = m_isDualPane;
-    bool previewVisible = m_showPreview;
 
     int sidebarWidth = sidebarVisible ? 180 : 0;
-    int remainingWidth = qMax(100, totalWidth - sidebarWidth);
-    int paneCount = 1 + (rightVisible ? 1 : 0) + (previewVisible ? 1 : 0);
-    int paneWidth = remainingWidth / paneCount;
+    int mainWidth = qMax(100, totalWidth - sidebarWidth);
 
-    int s0 = sidebarWidth;
-    int s1 = paneWidth;
-    int s2 = rightVisible ? paneWidth : 0;
-    int s3 = previewVisible ? paneWidth : 0;
-
-    m_splitter->setSizes({s0, s1, s2, s3});
+    m_splitter->setSizes({sidebarWidth, mainWidth});
 }
 
 #include "dynamicfavoritesdialog.h"

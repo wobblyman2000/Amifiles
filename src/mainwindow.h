@@ -8,6 +8,7 @@
 #include <QList>
 #include <QToolBar>
 #include <QTabWidget>
+#include <QDockWidget>
 #include <QMap>
 #include <QKeySequence>
 #include "filepanel.h"
@@ -255,6 +256,7 @@ private:
     QTabWidget* m_leftTabWidget = nullptr;
     QTabWidget* m_rightTabWidget = nullptr;
     PreviewPanel* m_previewPanel = nullptr;
+    QDockWidget* m_previewDock = nullptr;
     MiniMediaControls* m_miniMediaControls = nullptr;
     ConsolePanel* m_consolePanel = nullptr;
     class TerminalPanel* m_terminalPanel = nullptr;
