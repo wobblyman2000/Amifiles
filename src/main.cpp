@@ -1,4 +1,5 @@
 #include "mainwindow.h"
+#include "version.h"
 #include <QApplication>
 #include <QIcon>
 #include <QPixmap>
@@ -80,7 +81,7 @@ int main(int argc, char *argv[]) {
     // Set metadata for QSettings to use by default
     app.setApplicationName("Amifiles");
     app.setOrganizationName("Amifiles");
-    app.setApplicationVersion("1.0");
+    app.setApplicationVersion(AMIFILES_VERSION_STRING);
 
     app.setWindowIcon(createApplicationIcon());
 

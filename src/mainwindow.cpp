@@ -24,6 +24,7 @@
 #include "vaultdialog.h"
 #include "preferencesdialog.h"
 #include "iconpickerdialog.h"
+#include "version.h"
 #include <QMenuBar>
 #include <QStorageInfo>
 #include <QJsonDocument>
@@ -963,7 +964,7 @@ void MainWindow::setupMenus() {
     m_menuHelp->addSeparator();
     m_menuHelp->addAction("About Amifiles", this, [this]() {
         QMessageBox::about(this, "About Amifiles", 
-                           "<h3>Amifiles v1.0</h3>"
+                           "<h3>Amifiles v" AMIFILES_VERSION_STRING "</h3>"
                            "<p>A modern Directory Opus clone for Linux.</p>"
                            "<p>Supports dual-pane browsing, real-time filtering, "
                            "dynamic toolbars, text quick edits, folder artwork detection, "

@@ -1,5 +1,6 @@
 #include "metadatafetcherdialog.h"
 #include "metadataextractor.h"
+#include "version.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
@@ -174,7 +175,7 @@ void MetadataFetcherDialog::onSearch() {
     url.setQuery(query);
 
     QNetworkRequest req(url);
-    req.setRawHeader("User-Agent", "Amifiles/1.0 ( dave@example.com )");
+    req.setRawHeader("User-Agent", "Amifiles/" AMIFILES_VERSION_STRING " ( dave@example.com )");
     QNetworkReply* reply = m_networkManager->get(req);
     connect(reply, &QNetworkReply::finished, this, [this, reply]() { onSearchFinished(reply); });
 }
@@ -246,14 +247,14 @@ void MetadataFetcherDialog::onReleaseSelected() {
     url.setQuery(query);
 
     QNetworkRequest req(url);
-    req.setRawHeader("User-Agent", "Amifiles/1.0 ( dave@example.com )");
+    req.setRawHeader("User-Agent", "Amifiles/" AMIFILES_VERSION_STRING " ( dave@example.com )");
     QNetworkReply* reply = m_networkManager->get(req);
     connect(reply, &QNetworkReply::finished, this, [this, reply]() { onReleaseDetailsFinished(reply); });
 
     // Fetch cover art info
     QUrl coverUrl(QString("https://coverartarchive.org/release/%1").arg(mbid));
     QNetworkRequest coverReq(coverUrl);
-    coverReq.setRawHeader("User-Agent", "Amifiles/1.0 ( dave@example.com )");
+    coverReq.setRawHeader("User-Agent", "Amifiles/" AMIFILES_VERSION_STRING " ( dave@example.com )");
     QNetworkReply* coverReply = m_networkManager->get(coverReq);
     connect(coverReply, &QNetworkReply::finished, this, [this, coverReply]() { onCoverArtFinished(coverReply); });
 }
@@ -322,7 +323,7 @@ void MetadataFetcherDialog::onCoverArtFinished(QNetworkReply* reply) {
         if (!imgUrl.isEmpty()) {
             QNetworkRequest imgReq;
             imgReq.setUrl(QUrl(imgUrl));
-            imgReq.setRawHeader("User-Agent", "Amifiles/1.0 ( dave@example.com )");
+            imgReq.setRawHeader("User-Agent", "Amifiles/" AMIFILES_VERSION_STRING " ( dave@example.com )");
             QNetworkReply* imgReply = m_networkManager->get(imgReq);
             connect(imgReply, &QNetworkReply::finished, this, [this, imgReply]() { onDownloadArtworkFinished(imgReply); });
         } else {

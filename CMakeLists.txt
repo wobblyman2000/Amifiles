@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.16)
-project(Amifiles VERSION 1.0 LANGUAGES CXX)
+project(Amifiles VERSION 1.2.0 LANGUAGES CXX)
+
+configure_file(
+    "${PROJECT_SOURCE_DIR}/src/version.h.in"
+    "${PROJECT_BINARY_DIR}/src/version.h"
+)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -147,6 +152,10 @@ target_link_libraries(Amifiles PRIVATE
     Qt6::Svg
     Qt6::Network
     util
+)
+
+target_include_directories(Amifiles PRIVATE
+    "${PROJECT_BINARY_DIR}/src"
 )
 
 install(TARGETS Amifiles DESTINATION bin)
