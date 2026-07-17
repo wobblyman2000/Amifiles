@@ -376,6 +376,9 @@ void MainWindow::setupCentralWidget() {
     m_previewDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetClosable);
     addDockWidget(Qt::RightDockWidgetArea, m_previewDock);
 
+    m_previewDock->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_previewDock, &QDockWidget::customContextMenuRequested, this, &MainWindow::onPreviewDockContextMenu);
+
     connect(m_previewDock, &QDockWidget::visibilityChanged, this, [this](bool visible) {
         m_showPreview = visible;
         m_actTogglePreview->setChecked(visible);
@@ -3520,6 +3523,40 @@ void MainWindow::onToggleCenterOps(bool checked) {
     }
     QSettings settings("Amifiles", "Amifiles");
     settings.setValue("layout/center_ops_visible", checked);
+}
+
+void MainWindow::onPreviewDockContextMenu(const QPoint& pos) {
+    if (!m_previewDock) return;
+    QMenu menu(this);
+    menu.setStyleSheet(
+        "QMenu { background-color: #11111b; color: #cdd6f4; border: 1px solid #313244; border-radius: 4px; padding: 4px; }"
+        "QMenu::item { padding: 4px 20px 4px 20px; border-radius: 2px; }"
+        "QMenu::item:selected { background-color: #313244; color: #a6e3a1; }"
+    );
+
+    QAction* actDockRight = menu.addAction("Dock to Right Side");
+    QAction* actDockLeft = menu.addAction("Dock to Left Side");
+    QAction* actFloat = menu.addAction("Float Window");
+    QAction* actClose = menu.addAction("Hide Preview Panel");
+
+    actFloat->setEnabled(!m_previewDock->isFloating());
+    actDockRight->setEnabled(m_previewDock->isFloating() || dockWidgetArea(m_previewDock) != Qt::RightDockWidgetArea);
+    actDockLeft->setEnabled(m_previewDock->isFloating() || dockWidgetArea(m_previewDock) != Qt::LeftDockWidgetArea);
+
+    QAction* selected = menu.exec(m_previewDock->mapToGlobal(pos));
+    if (selected == actDockRight) {
+        m_previewDock->setFloating(false);
+        addDockWidget(Qt::RightDockWidgetArea, m_previewDock);
+        m_previewDock->show();
+    } else if (selected == actDockLeft) {
+        m_previewDock->setFloating(false);
+        addDockWidget(Qt::LeftDockWidgetArea, m_previewDock);
+        m_previewDock->show();
+    } else if (selected == actFloat) {
+        m_previewDock->setFloating(true);
+    } else if (selected == actClose) {
+        m_previewDock->setVisible(false);
+    }
 }
 
 #include "mainwindow.moc"

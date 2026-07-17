@@ -297,7 +297,12 @@ void HelpDialog::onSectionChanged(int index) {
                     "<li>Inspect file sizes, dimensions, permissions, audio ID3 parameters, and EXIF parameters.</li>"
                     "<li>Type tag strings (comma-separated) in the tags line edit.</li>"
                     "<li>Select a color dot badge to associate with the file, and click **Apply**. The list views render tags and color dots instantly.</li>"
-                    "</ol>";
+                    "</ol>"
+                    "<h3>Docking &amp; Floating Panel Controls</h3>"
+                    "<ul>"
+                    "<li><b>Double-Click SNAP:</b> Double-click the title bar of the floating preview panel to snap it back to its last docked position instantly.</li>"
+                    "<li><b>Helper Context Menu:</b> Right-click anywhere on the Preview Panel or its title bar to open a context menu. Select <b>Dock to Right Side</b>, <b>Dock to Left Side</b>, <b>Float Window</b>, or <b>Hide Preview Panel</b> to position it with one click.</li>"
+                    "</ul>";
             break;
 
         case 5: // Custom Script Buttons

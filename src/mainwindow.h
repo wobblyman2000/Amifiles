@@ -123,6 +123,7 @@ private slots:
     void onTogglePreview(bool checked);
     void onToggleAgeColoring(bool checked);
     void onToggleCenterOps(bool checked);
+    void onPreviewDockContextMenu(const QPoint& pos);
     
     // Command Routing to Active File Panel
     void onCopyAction();
