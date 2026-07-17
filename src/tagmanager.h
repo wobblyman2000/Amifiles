@@ -12,6 +12,7 @@ struct FileTagInfo {
     QStringList tags;
     int rating = 0; // 0 to 5
     QString comment;
+    QMap<QString, QString> customAttributes;
 };
 
 class TagManager : public QObject {
@@ -30,6 +31,9 @@ public:
     int getFileRating(const QString& filePath) const;
     void setFileComment(const QString& filePath, const QString& comment);
     QString getFileComment(const QString& filePath) const;
+
+    void setCustomAttribute(const QString& filePath, const QString& key, const QString& val);
+    QString getCustomAttribute(const QString& filePath, const QString& key) const;
 
     QStringList getAllTags() const;
     QStringList getFilesWithTag(const QString& tag) const;

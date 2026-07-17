@@ -147,6 +147,10 @@ add_executable(Amifiles
     src/themestudiodialog.cpp
     src/smartcollectiondialog.h
     src/smartcollectiondialog.cpp
+    src/columnscustomizerdialog.h
+    src/columnscustomizerdialog.cpp
+    src/groupproxymodel.h
+    src/groupproxymodel.cpp
 )
 
 target_link_libraries(Amifiles PRIVATE

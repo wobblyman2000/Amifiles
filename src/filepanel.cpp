@@ -7,6 +7,8 @@
 #include "timelineview.h"
 #include "filmstripview.h"
 #include "cardviewdelegate.h"
+#include "groupproxymodel.h"
+#include "columnscustomizerdialog.h"
 #include <QComboBox>
 #include "searchworker.h"
 #include "metadataextractor.h"
@@ -239,6 +241,9 @@ void FilePanel::setupUI() {
     m_proxyModel = new FileFilterProxyModel(this);
     m_proxyModel->setSourceModel(m_fileModel);
 
+    m_groupProxy = new GroupProxyModel(this);
+    m_groupProxy->setSourceModel(m_proxyModel);
+
     m_flatModel = new FlatFileSystemModel(this);
     m_flatProxyModel = new QSortFilterProxyModel(this);
     m_flatProxyModel->setSourceModel(m_flatModel);
@@ -275,8 +280,8 @@ void FilePanel::setupUI() {
     connect(m_filmstripView, &FilmstripView::fileDoubleClicked, this, &FilePanel::onDoubleClickedPath);
     connect(m_filmstripView, &FilmstripView::customContextMenuRequested, this, &FilePanel::onCustomContextMenu);
 
-    m_treeView->setModel(m_proxyModel);
-    m_listView->setModel(m_proxyModel);
+    m_treeView->setModel(m_groupProxy);
+    m_listView->setModel(m_groupProxy);
     m_listView->setSelectionModel(m_treeView->selectionModel()); // sync selections
 
     // Header formatting
@@ -404,6 +409,21 @@ void FilePanel::setupUI() {
     m_zoomSlider->setToolTip("Zoom Display Icons and Text");
     connect(m_zoomSlider, &QSlider::valueChanged, this, &FilePanel::onZoomChanged);
     statusLayout->addWidget(m_zoomSlider);
+
+    m_comboGrouping = new QComboBox(this);
+    m_comboGrouping->addItems({
+        "No Grouping",
+        "Group by Artist",
+        "Group by Album",
+        "Group by Genre",
+        "Group by Type",
+        "Group by Rating",
+        "Group by Custom Text..."
+    });
+    m_comboGrouping->setFixedWidth(145);
+    m_comboGrouping->setToolTip("Group Files in List View");
+    connect(m_comboGrouping, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &FilePanel::onGroupingChanged);
+    statusLayout->addWidget(m_comboGrouping);
 
     QVBoxLayout* bottomLayout = new QVBoxLayout();
     bottomLayout->setContentsMargins(0, 0, 0, 0);
@@ -643,8 +663,7 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
             }
             m_smartViewActive = true;
             m_archiveViewActive = false;
-            m_treeView->setModel(m_smartModel);
-            m_listView->setModel(m_smartModel);
+            m_groupProxy->setSourceModel(m_smartModel);
             m_listView->setSelectionModel(m_treeView->selectionModel());
             if (m_treeView->selectionModel()) {
                 connect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
@@ -681,8 +700,7 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
                 
                 m_archiveViewActive = true;
                 m_smartViewActive = false;
-                m_treeView->setModel(m_archiveModel);
-                m_listView->setModel(m_archiveModel);
+                m_groupProxy->setSourceModel(m_archiveModel);
                 m_listView->setSelectionModel(m_treeView->selectionModel());
 
                 if (m_treeView->selectionModel()) {
@@ -715,8 +733,7 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
         // Restore active view stack widget
         onViewModeChanged(viewModeIndex());
 
-        m_treeView->setModel(m_proxyModel);
-        m_listView->setModel(m_proxyModel);
+        m_groupProxy->setSourceModel(m_proxyModel);
         m_listView->setSelectionModel(m_treeView->selectionModel());
         if (m_treeView->selectionModel()) {
             connect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
@@ -817,8 +834,7 @@ void FilePanel::onNavigateUp() {
                 disconnect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
             }
 
-            m_archiveViewActive = false;
-            m_treeView->setModel(m_proxyModel);
+            m_groupProxy->setSourceModel(m_proxyModel);
 
             if (m_treeView->selectionModel()) {
                 connect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
@@ -1010,8 +1026,7 @@ void FilePanel::onDoubleClicked(const QModelIndex& index) {
                     disconnect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
                 }
                 
-                m_archiveViewActive = true;
-                m_treeView->setModel(m_archiveModel);
+                m_groupProxy->setSourceModel(m_archiveModel);
 
                 if (m_treeView->selectionModel()) {
                     connect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
@@ -1064,9 +1079,17 @@ QStringList FilePanel::selectedPaths() const {
     if (!m_treeView->selectionModel()) return paths;
     QModelIndexList selectedRows = m_treeView->selectionModel()->selectedRows();
     for (const QModelIndex& index : selectedRows) {
+        QModelIndex mappedIndex = index;
+        if (m_groupProxy->isGroupingActive()) {
+            if (index.internalId() > 0 && index.internalId() <= 10000) {
+                continue; // Skip group headers
+            }
+            mappedIndex = m_groupProxy->mapToSource(index);
+        }
+
         if (m_archiveViewActive) {
-            if (!m_archiveModel->isDir(index)) {
-                QString vPath = m_archiveModel->entryPath(index);
+            if (!m_archiveModel->isDir(mappedIndex)) {
+                QString vPath = m_archiveModel->entryPath(mappedIndex);
                 QString tempPath = const_cast<ArchiveModel*>(m_archiveModel)->extractFile(vPath);
                 if (!tempPath.isEmpty()) {
                     paths.append(tempPath);
@@ -1074,18 +1097,15 @@ QStringList FilePanel::selectedPaths() const {
                     paths.append(vPath);
                 }
             } else {
-                paths.append(m_archiveModel->entryPath(index));
+                paths.append(m_archiveModel->entryPath(mappedIndex));
             }
         } else if (m_flatViewEnabled) {
-            QSortFilterProxyModel* proxy = qobject_cast<QSortFilterProxyModel*>(m_treeView->model());
-            if (proxy) {
-                QModelIndex srcIndex = proxy->mapToSource(index);
-                paths.append(m_flatModel->filePath(srcIndex));
-            }
+            QModelIndex srcIndex = m_flatProxyModel->mapToSource(mappedIndex);
+            paths.append(m_flatModel->filePath(srcIndex));
         } else if (m_smartViewActive) {
-            paths.append(m_smartModel->filePath(index));
+            paths.append(m_smartModel->filePath(mappedIndex));
         } else {
-            QModelIndex srcIndex = m_proxyModel->mapToSource(index);
+            QModelIndex srcIndex = m_proxyModel->mapToSource(mappedIndex);
             paths.append(m_fileModel->filePath(srcIndex));
         }
     }
@@ -1856,8 +1876,7 @@ void FilePanel::setFlatViewEnabled(bool enabled) {
     }
 
     if (enabled) {
-        m_treeView->setModel(m_flatProxyModel);
-        m_listView->setModel(m_flatProxyModel);
+        m_groupProxy->setSourceModel(m_flatProxyModel);
         m_listView->setSelectionModel(m_treeView->selectionModel());
         m_flatModel->setRootPath(m_currentPath);
         if (m_categoryWidget) m_categoryWidget->hide();
@@ -1867,8 +1886,7 @@ void FilePanel::setFlatViewEnabled(bool enabled) {
         });
         connect(m_flatModel, &FlatFileSystemModel::scanFinished, this, &FilePanel::updateStatusText);
     } else {
-        m_treeView->setModel(m_proxyModel);
-        m_listView->setModel(m_proxyModel);
+        m_groupProxy->setSourceModel(m_proxyModel);
         m_listView->setSelectionModel(m_treeView->selectionModel());
         if (m_categoryWidget) m_categoryWidget->setVisible(m_categoryButtonsVisible);
     }
@@ -1952,6 +1970,45 @@ void FilePanel::onZoomChanged(int value) {
     emit zoomChanged(value);
 }
 
+void FilePanel::onGroupingChanged(int index) {
+    if (index == 0) {
+        m_groupProxy->setGrouping(false, "");
+        m_treeView->expandAll();
+        return;
+    }
+
+    QString groupType;
+    QString customKey;
+
+    switch (index) {
+        case 1: groupType = "Artist"; break;
+        case 2: groupType = "Album"; break;
+        case 3: groupType = "Genre"; break;
+        case 4: groupType = "Type"; break;
+        case 5: groupType = "Rating"; break;
+        case 6: {
+            bool ok = false;
+            QString text = QInputDialog::getText(this, "Group by Custom Text",
+                                                 "Enter custom metadata/annotation attribute key:",
+                                                 QLineEdit::Normal, "", &ok);
+            if (ok && !text.trimmed().isEmpty()) {
+                groupType = "CustomText";
+                customKey = text.trimmed();
+            } else {
+                m_comboGrouping->blockSignals(true);
+                m_comboGrouping->setCurrentIndex(0);
+                m_comboGrouping->blockSignals(false);
+                return;
+            }
+            break;
+        }
+        default: return;
+    }
+
+    m_groupProxy->setGrouping(true, groupType, customKey);
+    m_treeView->expandAll();
+}
+
 void FilePanel::syncZoom(int value) {
     if (m_zoomLevel == value) return;
     m_zoomLevel = value;
@@ -1998,20 +2055,11 @@ void FilePanel::onHeaderContextMenu(const QPoint& pos) {
     QMenu menu(this);
     QHeaderView* header = m_treeView->header();
     
-    QStringList colNames = {
-        "Name", "Size", "Type", "Date Modified", 
-        "Title", "Artist", "Album", "Bitrate", "Resolution", 
-        "Date Taken", "Camera Model", "Genre", "Year", "Track", "Duration", "Codec", "Tags"
-    };
-
-    // Standard context menu lists first 10 columns for quick toggle
-    QList<int> quickToggleIndices = {0, 1, 2, 3, 16, 4, 5, 6, 7, 8};
-    for (int i : quickToggleIndices) {
-        if (i >= colNames.size()) continue;
-        QAction* act = menu.addAction(colNames[i]);
+    QStringList builtInNames = {"Name", "Size", "Type", "Date Modified"};
+    for (int i = 0; i < 4; ++i) {
+        QAction* act = menu.addAction(builtInNames[i]);
         act->setCheckable(true);
         act->setChecked(!header->isSectionHidden(i));
-        
         connect(act, &QAction::toggled, this, [header, i](bool checked) {
             header->setSectionHidden(i, !checked);
             QSettings settings("Amifiles", "Amifiles");
@@ -2020,23 +2068,30 @@ void FilePanel::onHeaderContextMenu(const QPoint& pos) {
     }
 
     menu.addSeparator();
-    QAction* actMore = menu.addAction("More...");
+
+    QList<CustomColumn> activeCustom = m_fileModel->activeColumns();
+    for (int i = 0; i < activeCustom.size(); ++i) {
+        int colIdx = i + 4;
+        QAction* act = menu.addAction(activeCustom[i].name);
+        act->setCheckable(true);
+        act->setChecked(!header->isSectionHidden(colIdx));
+        connect(act, &QAction::toggled, this, [header, colIdx](bool checked) {
+            header->setSectionHidden(colIdx, !checked);
+            QSettings settings("Amifiles", "Amifiles");
+            settings.setValue(QString("columns/hidden_%1").arg(colIdx), !checked);
+        });
+    }
+
+    menu.addSeparator();
+    QAction* actCustomize = menu.addAction("Customize Columns...");
 
     QAction* selected = menu.exec(m_treeView->header()->mapToGlobal(pos));
-    if (selected == actMore) {
-        QList<bool> visibilities;
-        for (int i = 0; i < colNames.size(); ++i) {
-            visibilities.append(!header->isSectionHidden(i));
-        }
-
-        ColumnSelectorDialog dlg(colNames, visibilities, this);
+    if (selected == actCustomize) {
+        ColumnsCustomizerDialog dlg(activeCustom, this);
         if (dlg.exec() == QDialog::Accepted) {
-            QList<bool> newVis = dlg.selectedVisibilities();
-            QSettings settings("Amifiles", "Amifiles");
-            for (int i = 0; i < colNames.size(); ++i) {
-                bool visible = newVis[i];
-                header->setSectionHidden(i, !visible);
-                settings.setValue(QString("columns/hidden_%1").arg(i), !visible);
+            m_fileModel->setActiveColumns(dlg.getSelectedColumns());
+            for (int i = 0; i < m_fileModel->columnCount(); ++i) {
+                header->setSectionHidden(i, false);
             }
         }
     }
@@ -2231,8 +2286,7 @@ void FilePanel::onDoubleClickedPath(const QString& path) {
             updateStatusText();
             if (ok) {
                 m_archiveViewActive = true;
-                m_treeView->setModel(m_archiveModel);
-                m_listView->setModel(m_archiveModel);
+                m_groupProxy->setSourceModel(m_archiveModel);
                 m_pathEdit->setText(QDir::toNativeSeparators(path));
                 emit pathChanged(m_currentPath);
             } else {

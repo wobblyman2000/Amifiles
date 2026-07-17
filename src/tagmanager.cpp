@@ -36,6 +36,11 @@ void TagManager::loadDatabase() {
         info.rating = fileInfoObj["rating"].toInt();
         info.comment = fileInfoObj["comment"].toString();
         
+        QJsonObject attrsObj = fileInfoObj["customAttributes"].toObject();
+        for (auto aIt = attrsObj.begin(); aIt != attrsObj.end(); ++aIt) {
+            info.customAttributes[aIt.key()] = aIt.value().toString();
+        }
+        
         QJsonArray tagsArr = fileInfoObj["tags"].toArray();
         for (const auto& tagVal : tagsArr) {
             info.tags.append(tagVal.toString());
@@ -52,13 +57,20 @@ void TagManager::saveDatabase() {
     QJsonObject filesObj;
 
     for (auto it = m_db.begin(); it != m_db.end(); ++it) {
-        if (it.value().colorName.isEmpty() && it.value().tags.isEmpty() && it.value().rating == 0 && it.value().comment.isEmpty()) {
+        if (it.value().colorName.isEmpty() && it.value().tags.isEmpty() && it.value().rating == 0 &&
+            it.value().comment.isEmpty() && it.value().customAttributes.isEmpty()) {
             continue; // Skip empty entries to clean database
         }
         QJsonObject fileInfoObj;
         fileInfoObj["color"] = it.value().colorName;
         fileInfoObj["rating"] = it.value().rating;
         fileInfoObj["comment"] = it.value().comment;
+        
+        QJsonObject attrsObj;
+        for (auto aIt = it.value().customAttributes.begin(); aIt != it.value().customAttributes.end(); ++aIt) {
+            attrsObj[aIt.key()] = aIt.value();
+        }
+        fileInfoObj["customAttributes"] = attrsObj;
         
         QJsonArray tagsArr;
         for (const QString& tag : it.value().tags) {
@@ -187,6 +199,19 @@ void TagManager::setFileComment(const QString& filePath, const QString& comment)
 
 QString TagManager::getFileComment(const QString& filePath) const {
     return m_db.value(filePath).comment;
+}
+
+void TagManager::setCustomAttribute(const QString& filePath, const QString& key, const QString& val) {
+    if (val.isEmpty()) {
+        m_db[filePath].customAttributes.remove(key);
+    } else {
+        m_db[filePath].customAttributes[key] = val;
+    }
+    saveDatabase();
+}
+
+QString TagManager::getCustomAttribute(const QString& filePath, const QString& key) const {
+    return m_db.value(filePath).customAttributes.value(key);
 }
 
 QStringList TagManager::getAllTags() const {

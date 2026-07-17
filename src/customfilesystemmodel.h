@@ -5,6 +5,12 @@
 #include <QHash>
 #include "metadataextractor.h"
 
+struct CustomColumn {
+    QString name;
+    QString type; // "BuiltIn", "Metadata", "Annotation", "CustomText", "EmbeddedArtwork"
+    QString key;
+};
+
 class CustomFileSystemModel : public QFileSystemModel {
     Q_OBJECT
 public:
@@ -17,10 +23,17 @@ public:
 
     void clearCache();
 
+    void loadColumnLayout();
+    void saveColumnLayout();
+    QList<CustomColumn> activeColumns() const { return m_activeColumns; }
+    void setActiveColumns(const QList<CustomColumn>& cols);
+
 private:
     FileMetadata getMetadata(const QString& filePath) const;
+    QIcon getEmbeddedArtworkIcon(const QString& filePath) const;
 
     mutable QHash<QString, FileMetadata> m_metadataCache;
+    QList<CustomColumn> m_activeColumns;
 };
 
 #endif // CUSTOMFILESYSTEMMODEL_H

@@ -18,6 +18,7 @@
 #include <QPushButton>
 #include <QToolButton>
 #include <QSettings>
+#include <QComboBox>
 #include <QStringList>
 #include <QModelIndex>
 #include <QFileInfo>
@@ -620,6 +621,7 @@ public:
 
     // Age Coloring support
     FileFilterProxyModel* proxyModel() const { return m_proxyModel; }
+    class GroupProxyModel* groupProxy() const { return m_groupProxy; }
 
     // View modular filter components
     void setCategoryButtonsVisible(bool visible);
@@ -685,6 +687,7 @@ private slots:
     void onFavoriteButtonContextMenu(const QPoint& pos);
     void onToggleViewMode();
     void onZoomChanged(int value);
+    void onGroupingChanged(int index);
     void onHeaderContextMenu(const QPoint& pos);
     void onGlobalSearchChanged(const QString& text);
     void startSearch();
@@ -739,6 +742,8 @@ private:
     QTreeView* m_treeView = nullptr;
     CustomFileSystemModel* m_fileModel = nullptr;
     FileFilterProxyModel* m_proxyModel = nullptr;
+    class GroupProxyModel* m_groupProxy = nullptr;
+    QComboBox* m_comboGrouping = nullptr;
 
     FlatFileSystemModel* m_flatModel = nullptr;
     QSortFilterProxyModel* m_flatProxyModel = nullptr;
