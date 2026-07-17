@@ -389,25 +389,43 @@ void MainWindow::setupCentralWidget() {
     createTab(m_leftTabWidget, QDir::homePath());
     createTab(m_rightTabWidget, QDir::homePath());
 
-    m_tbCenterOps = new QToolBar("Center Operations", this);
-    m_tbCenterOps->setObjectName("centerOpsToolBar");
-    m_tbCenterOps->setOrientation(Qt::Vertical);
-    m_tbCenterOps->setMovable(false);
-    m_tbCenterOps->setToolButtonStyle(Qt::ToolButtonIconOnly);
-    m_tbCenterOps->setIconSize(QSize(22, 22));
-    m_tbCenterOps->setStyleSheet(
-        "QToolBar { background-color: #11111b; border: 1px solid #313244; spacing: 6px; padding: 4px; }"
-        "QToolButton { background-color: #1e1e2e; border: 1px solid #45475a; border-radius: 4px; padding: 4px; color: #89b4fa; }"
-        "QToolButton:hover { background-color: #313244; color: #a6e3a1; }"
-    );
-    m_tbCenterOps->addAction(m_actCopy);
-    m_tbCenterOps->addAction(m_actMoveToSibling);
-    m_tbCenterOps->addAction(m_actCut);
-    m_tbCenterOps->addAction(m_actPaste);
-    m_tbCenterOps->addSeparator();
-    m_tbCenterOps->addAction(m_actDelete);
-    m_tbCenterOps->addAction(m_actRename);
-    m_tbCenterOps->addAction(m_actRefresh);
+    m_tbCenterOps = new QFrame(this);
+    m_tbCenterOps->setObjectName("centerOpsBarWidget");
+    m_tbCenterOps->setFrameShape(QFrame::NoFrame);
+    m_tbCenterOps->setStyleSheet("background-color: #11111b; border: 1px solid #313244; border-radius: 4px;");
+    m_tbCenterOps->setFixedWidth(38);
+    
+    QVBoxLayout* centerLayout = new QVBoxLayout(m_tbCenterOps);
+    centerLayout->setContentsMargins(4, 8, 4, 8);
+    centerLayout->setSpacing(8);
+    centerLayout->setAlignment(Qt::AlignTop);
+
+    auto createBarButton = [this](QAction* act) -> QToolButton* {
+        QToolButton* btn = new QToolButton(m_tbCenterOps);
+        btn->setDefaultAction(act);
+        btn->setFixedSize(30, 30);
+        btn->setIconSize(QSize(20, 20));
+        btn->setStyleSheet(
+            "QToolButton { background-color: #1e1e2e; border: 1px solid #45475a; border-radius: 4px; padding: 2px; color: #89b4fa; }"
+            "QToolButton:hover { background-color: #313244; color: #a6e3a1; }"
+        );
+        return btn;
+    };
+
+    centerLayout->addWidget(createBarButton(m_actCopy));
+    centerLayout->addWidget(createBarButton(m_actMoveToSibling));
+    centerLayout->addWidget(createBarButton(m_actCut));
+    centerLayout->addWidget(createBarButton(m_actPaste));
+
+    QFrame* separatorLine = new QFrame(m_tbCenterOps);
+    separatorLine->setFrameShape(QFrame::HLine);
+    separatorLine->setFrameShadow(QFrame::Sunken);
+    separatorLine->setStyleSheet("background-color: #45475a; max-height: 1px;");
+    centerLayout->addWidget(separatorLine);
+
+    centerLayout->addWidget(createBarButton(m_actDelete));
+    centerLayout->addWidget(createBarButton(m_actRename));
+    centerLayout->addWidget(createBarButton(m_actRefresh));
 
     m_dualSplitter = new QSplitter(Qt::Horizontal, this);
     m_dualSplitter->setHandleWidth(4);
