@@ -6,3 +6,7 @@ Whenever you implement a new user-facing feature, bugfix, or change existing beh
 ## AgeColorRule Reference
 - The customizable file age color and emoji badge configuration structure is defined as `AgeColorRule` inside [filepanel.h](file:///home/dave/cpp_projects/Amifiles/src/filepanel.h#L43-L49).
 - Dialog configuration and serialization are handled in [agestylingdialog.h](file:///home/dave/cpp_projects/Amifiles/src/agestylingdialog.h) and [agestylingdialog.cpp](file:///home/dave/cpp_projects/Amifiles/src/agestylingdialog.cpp).
+
+## Automated GitHub Commits & Pushes
+- Whenever you finish implementing a feature, fix a bug, or make any code changes that compile successfully, you MUST automatically stage, commit, and push all modifications to the remote repository (`git add . && git commit -m "..." && git push origin main`). Do not wait for the user to request a git push.
+
