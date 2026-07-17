@@ -10,6 +10,7 @@
 #include <QTabWidget>
 #include <QDockWidget>
 #include <QFrame>
+#include <QScrollBar>
 #include <QMap>
 #include <QKeySequence>
 #include "filepanel.h"
@@ -125,6 +126,10 @@ private slots:
     void onToggleCenterOps(bool checked);
     void onPreviewDockContextMenu(const QPoint& pos);
     void onClonePathRequested(const QString& path);
+    void onTabPressed();
+    void onToggleSyncScroll(bool checked);
+    void updateScrollSyncConnections();
+    void onTabContextMenuRequested(const QPoint& pos);
     
     // Command Routing to Active File Panel
     void onCopyAction();
@@ -132,6 +137,7 @@ private slots:
     void onPasteAction();
     void onDeleteAction();
     void onRenameAction();
+    void onEditAction();
     void onNewFolderAction();
     void onShowPropertiesAction();
     void onRefreshAction();
@@ -177,6 +183,7 @@ private slots:
     void onToggleAudioCoverArt(bool checked);
     void onSaveSearchPreset();
     void onPreferencesAction();
+    void onThemeStudioAction();
     void updateSearchPresetsMenu();
     void onSearchPresetTriggered();
 
@@ -313,6 +320,7 @@ private:
     QAction* m_actAutoSaveLayout = nullptr;
     QAction* m_actWorkspaceProfiles = nullptr;
     QAction* m_actPreferences = nullptr;
+    QAction* m_actThemeStudio = nullptr;
     QAction* m_actSaveLayoutNow = nullptr;
     QAction* m_actResetLayout = nullptr;
     QAction* m_actConfigureFolderLayouts = nullptr;
@@ -320,7 +328,11 @@ private:
     QAction* m_actCopyToSibling = nullptr;
     QAction* m_actMoveToSibling = nullptr;
     QAction* m_actClonePathToSibling = nullptr;
-
+    QAction* m_actEdit = nullptr;
+    QAction* m_actToggleSyncScroll = nullptr;
+    bool m_syncScrollEnabled = false;
+    QScrollBar* m_leftScrollConnected = nullptr;
+    QScrollBar* m_rightScrollConnected = nullptr;
     QAction* m_actLeftShowFilterText = nullptr;
     QAction* m_actLeftShowCategoryButtons = nullptr;
     QAction* m_actRightShowFilterText = nullptr;

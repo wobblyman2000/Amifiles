@@ -141,6 +141,10 @@ add_executable(Amifiles
     src/toolbareditordialog.cpp
     src/actionhelperdialog.h
     src/actionhelperdialog.cpp
+    src/texteditordialog.h
+    src/texteditordialog.cpp
+    src/themestudiodialog.h
+    src/themestudiodialog.cpp
 )
 
 target_link_libraries(Amifiles PRIVATE

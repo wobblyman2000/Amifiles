@@ -25,6 +25,8 @@
 #include "preferencesdialog.h"
 #include "iconpickerdialog.h"
 #include "version.h"
+#include "texteditordialog.h"
+#include "themestudiodialog.h"
 #include <QMenuBar>
 #include <QStorageInfo>
 #include <QJsonDocument>
@@ -158,7 +160,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     resize(1200, 800);
 
     // Apply global modern theme
-    setStyleSheet(Theme::Stylesheet);
+    setStyleSheet(Theme::getStylesheet());
 
     // Initialize layout components
     setupActions();
@@ -234,6 +236,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 
     bool casingOverlays = settings.value("preferences/casing_overlays", true).toBool();
     m_actToggleCasingOverlays->setChecked(casingOverlays);
+
+    bool syncScroll = settings.value("preferences/sync_scroll", false).toBool();
+    m_actToggleSyncScroll->setChecked(syncScroll);
 
     bool showAudioCover = settings.value("preview/show_audio_cover_art", true).toBool();
     m_actShowAudioCoverArt->setChecked(showAudioCover);
@@ -475,6 +480,11 @@ void MainWindow::setupCentralWidget() {
     connect(m_leftTabWidget, &QTabWidget::tabCloseRequested, this, &MainWindow::onTabCloseRequested);
     connect(m_rightTabWidget, &QTabWidget::tabCloseRequested, this, &MainWindow::onTabCloseRequested);
 
+    m_leftTabWidget->setContextMenuPolicy(Qt::CustomContextMenu);
+    m_rightTabWidget->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_leftTabWidget, &QTabWidget::customContextMenuRequested, this, &MainWindow::onTabContextMenuRequested);
+    connect(m_rightTabWidget, &QTabWidget::customContextMenuRequested, this, &MainWindow::onTabContextMenuRequested);
+
     updateSiblingLinks();
 
     // Initialize mini media controller in the status bar
@@ -493,8 +503,8 @@ void MainWindow::setupActions() {
 
     // File Actions
     m_actNewFolder = new QAction(style->standardIcon(QStyle::SP_FileDialogNewFolder), "New Folder", this);
-    m_actNewFolder->setShortcut(QKeySequence::New);
-    m_actNewFolder->setToolTip("Create a new folder in active directory");
+    m_actNewFolder->setShortcuts({ QKeySequence::New, QKeySequence(Qt::Key_F7) });
+    m_actNewFolder->setToolTip("Create a new folder in active directory (F7)");
     connect(m_actNewFolder, &QAction::triggered, this, &MainWindow::onNewFolderAction);
 
     m_actProperties = new QAction(style->standardIcon(QStyle::SP_MessageBoxInformation), "Properties", this);
@@ -519,14 +529,19 @@ void MainWindow::setupActions() {
     connect(m_actPaste, &QAction::triggered, this, &MainWindow::onPasteAction);
 
     m_actDelete = new QAction(style->standardIcon(QStyle::SP_TrashIcon), "Delete", this);
-    m_actDelete->setShortcut(QKeySequence::Delete);
-    m_actDelete->setToolTip("Permanently delete selected items");
+    m_actDelete->setShortcuts({ QKeySequence::Delete, QKeySequence(Qt::Key_F8) });
+    m_actDelete->setToolTip("Permanently delete selected items (F8)");
     connect(m_actDelete, &QAction::triggered, this, &MainWindow::onDeleteAction);
 
     m_actRename = new QAction(style->standardIcon(QStyle::SP_FileDialogInfoView), "Rename", this);
     m_actRename->setShortcut(QKeySequence(Qt::Key_F2));
     m_actRename->setToolTip("Rename selected item");
     connect(m_actRename, &QAction::triggered, this, &MainWindow::onRenameAction);
+
+    m_actEdit = new QAction(style->standardIcon(QStyle::SP_FileIcon), "Edit Selected File", this);
+    m_actEdit->setShortcut(QKeySequence(Qt::Key_F4));
+    m_actEdit->setToolTip("Edit selected file in inline/built-in editor (F4)");
+    connect(m_actEdit, &QAction::triggered, this, &MainWindow::onEditAction);
 
     m_actRefresh = new QAction(style->standardIcon(QStyle::SP_BrowserReload), "Refresh", this);
     m_actRefresh->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_R));
@@ -581,9 +596,9 @@ void MainWindow::setupActions() {
     m_actTogglePreview = new QAction("Preview Pane", this);
     m_actTogglePreview->setCheckable(true);
     m_actTogglePreview->setChecked(true);
-    m_actTogglePreview->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_P));
-    m_actTogglePreview->setToolTip("Toggle the file preview panel on/off");
-    m_actTogglePreview->setStatusTip("Toggle the file preview panel on/off");
+    m_actTogglePreview->setShortcuts({ QKeySequence(Qt::CTRL | Qt::Key_P), QKeySequence(Qt::Key_F3) });
+    m_actTogglePreview->setToolTip("Toggle the file preview panel on/off (F3 / Ctrl+P)");
+    m_actTogglePreview->setStatusTip("Toggle the file preview panel on/off (F3 / Ctrl+P)");
     connect(m_actTogglePreview, &QAction::toggled, this, &MainWindow::onTogglePreview);
 
     m_actCommandPalette = new QAction("Command Palette...", this);
@@ -653,6 +668,13 @@ void MainWindow::setupActions() {
     m_actToggleCenterOps->setToolTip("Show/hide a vertical file operations buttons bar situated between the left and right panels");
     connect(m_actToggleCenterOps, &QAction::toggled, this, &MainWindow::onToggleCenterOps);
 
+    m_actToggleSyncScroll = new QAction("Synchronize Scrolling", this);
+    m_actToggleSyncScroll->setCheckable(true);
+    m_actToggleSyncScroll->setChecked(false);
+    m_actToggleSyncScroll->setToolTip("Scroll left and right folder panels in parallel (Ctrl+Shift+S)");
+    m_actToggleSyncScroll->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S));
+    connect(m_actToggleSyncScroll, &QAction::toggled, this, &MainWindow::onToggleSyncScroll);
+
     // Toggle Favorites Sidebar Action
     m_actToggleFavoritesSidebar = new QAction("Favorites Sidebar", this);
     m_actToggleFavoritesSidebar->setCheckable(true);
@@ -695,6 +717,12 @@ void MainWindow::setupActions() {
     m_actPreferences->setToolTip("Open unified preferences control center dialog");
     m_actPreferences->setStatusTip("Open unified preferences control center dialog");
     connect(m_actPreferences, &QAction::triggered, this, &MainWindow::onPreferencesAction);
+
+    m_actThemeStudio = new QAction("Catppuccin Theme Studio...", this);
+    m_actThemeStudio->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_T));
+    m_actThemeStudio->setToolTip("Open Catppuccin theme customizer (Ctrl+Shift+T)");
+    m_actThemeStudio->setStatusTip("Open Catppuccin theme customizer (Ctrl+Shift+T)");
+    connect(m_actThemeStudio, &QAction::triggered, this, &MainWindow::onThemeStudioAction);
 
     m_actConfigureCustomMenus = new QAction(style->standardIcon(QStyle::SP_CustomBase), "Configure Custom Menus...", this);
     m_actConfigureCustomMenus->setToolTip("Create custom top-level menus, submenus, separators, and app launchers");
@@ -929,12 +957,14 @@ void MainWindow::setupMenus() {
     m_menuEdit->addSeparator();
     m_menuEdit->addAction(m_actDelete);
     m_menuEdit->addAction(m_actRename);
+    m_menuEdit->addAction(m_actEdit);
     m_menuEdit->addAction(m_actBulkRename);
     m_menuEdit->addSeparator();
     m_menuEdit->addAction(m_actKeybindings);
     m_menuEdit->addSeparator();
     m_menuEdit->addAction(m_actConfigureCustomMenus);
     m_menuEdit->addAction(m_actConfigureToolbars);
+    m_menuEdit->addAction(m_actThemeStudio);
     m_menuEdit->addAction(m_actPreferences);
 
     m_menuView = menuBar()->addMenu("View");
@@ -946,6 +976,7 @@ void MainWindow::setupMenus() {
     m_menuView->addAction(m_actToggleFavoritesSidebar);
     m_menuView->addAction(m_actToggleConsole);
     m_menuView->addAction(m_actToggleFlatView);
+    m_menuView->addAction(m_actToggleSyncScroll);
     
     m_menuView->addSeparator();
     QMenu* menuSaveLayout = m_menuView->addMenu("Save Layout");
@@ -1195,6 +1226,16 @@ void MainWindow::onDeleteAction() {
 
 void MainWindow::onRenameAction() {
     if (m_activePanel) m_activePanel->onRename();
+}
+
+void MainWindow::onEditAction() {
+    if (!m_activePanel) return;
+    QString filePath = m_activePanel->activeFilePath();
+    if (filePath.isEmpty() || QFileInfo(filePath).isDir()) return;
+
+    TextEditorDialog dlg(filePath, this);
+    dlg.exec();
+    m_activePanel->refresh();
 }
 
 void MainWindow::onNewFolderAction() {
@@ -2150,6 +2191,11 @@ FilePanel* MainWindow::createTab(QTabWidget* tabWidget, const QString& path) {
     connect(panel, &FilePanel::folderArtDetected, this, &MainWindow::onFolderArtDetected);
     connect(panel, &FilePanel::pathChanged, this, &MainWindow::onPathChanged);
     connect(panel, &FilePanel::clonePathRequested, this, &MainWindow::onClonePathRequested);
+    connect(panel, &FilePanel::tabPressed, this, &MainWindow::onTabPressed);
+    connect(panel, &FilePanel::viewModeChanged, this, &MainWindow::updateScrollSyncConnections);
+    connect(panel, &FilePanel::openNewTabRequested, this, [this, tabWidget](const QString& targetPath) {
+        createTab(tabWidget, targetPath);
+    });
     connect(panel, &FilePanel::playlistPlayRequested, this, [this](const QStringList& paths) {
         if (m_previewPanel) m_previewPanel->playPlaylist(paths);
     });
@@ -2171,6 +2217,9 @@ FilePanel* MainWindow::createTab(QTabWidget* tabWidget, const QString& path) {
         if (idx != -1) {
             QString name = QFileInfo(newPath).fileName();
             if (name.isEmpty()) name = newPath;
+            if (panel->isPinned()) name = "📌 " + name;
+            if (panel->isPathLocked()) name += " 🔒";
+            else if (panel->isPathLockedWithSubdirs()) name += " 📂🔒";
             tabWidget->setTabText(idx, name);
         }
     });
@@ -2192,6 +2241,7 @@ void MainWindow::updateSiblingLinks() {
         left->setSiblingPanel(right);
         right->setSiblingPanel(left);
     }
+    updateScrollSyncConnections();
 }
 
 void MainWindow::onLeftTabChanged(int index) {
@@ -2239,6 +2289,11 @@ void MainWindow::onTabCloseRequested(int index) {
     }
 
     QWidget* widget = tabWidget->widget(index);
+    FilePanel* panel = qobject_cast<FilePanel*>(widget);
+    if (panel && panel->isPinned()) {
+        QMessageBox::warning(this, "Pinned Tab", "This tab is pinned and cannot be closed.");
+        return;
+    }
     tabWidget->removeTab(index);
     widget->deleteLater();
 
@@ -3000,6 +3055,11 @@ void MainWindow::onPreferencesAction() {
     dlg.exec();
 }
 
+void MainWindow::onThemeStudioAction() {
+    ThemeStudioDialog dlg(this);
+    dlg.exec();
+}
+
 #include <QDragEnterEvent>
 #include <QDragMoveEvent>
 #include <QDropEvent>
@@ -3583,6 +3643,124 @@ void MainWindow::onClonePathRequested(const QString& path) {
 
     if (targetPanel) {
         targetPanel->setPath(path);
+    }
+}
+
+void MainWindow::onTabPressed() {
+    FilePanel* targetPanel = nullptr;
+    if (m_activePanel == leftPanel()) {
+        targetPanel = rightPanel();
+    } else {
+        targetPanel = leftPanel();
+    }
+
+    if (targetPanel) {
+        targetPanel->focusActiveView();
+        onPanelActivated(targetPanel);
+    }
+}
+
+void MainWindow::onToggleSyncScroll(bool checked) {
+    m_syncScrollEnabled = checked;
+    QSettings settings("Amifiles", "Amifiles");
+    settings.setValue("preferences/sync_scroll", checked);
+    updateScrollSyncConnections();
+}
+
+void MainWindow::updateScrollSyncConnections() {
+    if (m_leftScrollConnected && m_rightScrollConnected) {
+        disconnect(m_leftScrollConnected, &QScrollBar::valueChanged, m_rightScrollConnected, &QScrollBar::setValue);
+        disconnect(m_rightScrollConnected, &QScrollBar::valueChanged, m_leftScrollConnected, &QScrollBar::setValue);
+        m_leftScrollConnected = nullptr;
+        m_rightScrollConnected = nullptr;
+    }
+
+    if (!m_syncScrollEnabled) return;
+
+    FilePanel* left = leftPanel();
+    FilePanel* right = rightPanel();
+    if (!left || !right) return;
+
+    QScrollBar* leftScroll = left->activeVerticalScrollBar();
+    QScrollBar* rightScroll = right->activeVerticalScrollBar();
+
+    if (leftScroll && rightScroll) {
+        m_leftScrollConnected = leftScroll;
+        m_rightScrollConnected = rightScroll;
+
+        rightScroll->setValue(leftScroll->value());
+
+        connect(leftScroll, &QScrollBar::valueChanged, rightScroll, &QScrollBar::setValue);
+        connect(rightScroll, &QScrollBar::valueChanged, leftScroll, &QScrollBar::setValue);
+    }
+}
+
+struct TabWidgetEx : public QTabWidget {
+    using QTabWidget::tabBar;
+};
+
+void MainWindow::onTabContextMenuRequested(const QPoint& pos) {
+    QTabWidget* tabWidget = qobject_cast<QTabWidget*>(sender());
+    if (!tabWidget) return;
+
+    int tabIndex = static_cast<TabWidgetEx*>(tabWidget)->tabBar()->tabAt(pos);
+    if (tabIndex == -1) return;
+
+    FilePanel* panel = qobject_cast<FilePanel*>(tabWidget->widget(tabIndex));
+    if (!panel) return;
+
+    QMenu menu(this);
+    menu.setStyleSheet(
+        "QMenu { background-color: #11111b; color: #cdd6f4; border: 1px solid #313244; border-radius: 4px; padding: 4px; }"
+        "QMenu::item { padding: 4px 20px 4px 20px; border-radius: 2px; }"
+        "QMenu::item:selected { background-color: #313244; color: #a6e3a1; }"
+    );
+
+    QAction* actPin = menu.addAction("Pin Tab");
+    actPin->setCheckable(true);
+    actPin->setChecked(panel->isPinned());
+
+    QAction* actLockPath = menu.addAction("Lock Path");
+    actLockPath->setCheckable(true);
+    actLockPath->setChecked(panel->isPathLocked());
+
+    QAction* actLockSubdirs = menu.addAction("Lock Path with Subdirs");
+    actLockSubdirs->setCheckable(true);
+    actLockSubdirs->setChecked(panel->isPathLockedWithSubdirs());
+
+    QAction* selected = menu.exec(tabWidget->mapToGlobal(pos));
+    if (selected == actPin) {
+        panel->setPinned(actPin->isChecked());
+        QString name = QFileInfo(panel->currentPath()).fileName();
+        if (name.isEmpty()) name = panel->currentPath();
+        if (panel->isPinned()) name = "📌 " + name;
+        if (panel->isPathLocked()) name += " 🔒";
+        else if (panel->isPathLockedWithSubdirs()) name += " 📂🔒";
+        tabWidget->setTabText(tabIndex, name);
+    } else if (selected == actLockPath) {
+        bool lock = actLockPath->isChecked();
+        panel->setPathLocked(lock);
+        if (lock) {
+            panel->setPathLockedWithSubdirs(false);
+        }
+        QString name = QFileInfo(panel->currentPath()).fileName();
+        if (name.isEmpty()) name = panel->currentPath();
+        if (panel->isPinned()) name = "📌 " + name;
+        if (panel->isPathLocked()) name += " 🔒";
+        else if (panel->isPathLockedWithSubdirs()) name += " 📂🔒";
+        tabWidget->setTabText(tabIndex, name);
+    } else if (selected == actLockSubdirs) {
+        bool lock = actLockSubdirs->isChecked();
+        panel->setPathLockedWithSubdirs(lock);
+        if (lock) {
+            panel->setPathLocked(false);
+        }
+        QString name = QFileInfo(panel->currentPath()).fileName();
+        if (name.isEmpty()) name = panel->currentPath();
+        if (panel->isPinned()) name = "📌 " + name;
+        if (panel->isPathLocked()) name += " 🔒";
+        else if (panel->isPathLockedWithSubdirs()) name += " 📂🔒";
+        tabWidget->setTabText(tabIndex, name);
     }
 }
 

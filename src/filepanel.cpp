@@ -18,6 +18,7 @@
 #include "archivedialog.h"
 #include <QHBoxLayout>
 #include <QVBoxLayout>
+#include <QScrollBar>
 #include <QHeaderView>
 #include <QEvent>
 #include <QMouseEvent>
@@ -450,6 +451,14 @@ bool FilePanel::eventFilter(QObject* watched, QEvent* event) {
             setActive(true);
             emit panelActivated(this);
         }
+
+        if (event->type() == QEvent::KeyPress) {
+            QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
+            if (keyEvent->key() == Qt::Key_Tab || keyEvent->key() == Qt::Key_Backtab) {
+                emit tabPressed();
+                return true;
+            }
+        }
         
         if (event->type() == QEvent::Wheel) {
             QWheelEvent* wheel = static_cast<QWheelEvent*>(event);
@@ -551,7 +560,46 @@ void FilePanel::setPath(const QString& path) {
     navigateTo(path, true);
 }
 
+void FilePanel::focusActiveView() {
+    QWidget* view = nullptr;
+    if (m_flatViewEnabled && m_listView) {
+        view = m_listView;
+    } else if (m_smartViewActive && m_treeView) {
+        view = m_treeView;
+    } else if (m_treeView) {
+        view = m_treeView;
+    }
+    
+    if (view) {
+        view->setFocus();
+    } else {
+        setFocus();
+    }
+}
+
+QScrollBar* FilePanel::activeVerticalScrollBar() const {
+    QAbstractItemView* view = nullptr;
+    if (m_flatViewEnabled && m_listView) {
+        view = m_listView;
+    } else if (m_smartViewActive && m_treeView) {
+        view = m_treeView;
+    } else if (m_treeView) {
+        view = m_treeView;
+    }
+    return view ? view->verticalScrollBar() : nullptr;
+}
+
 void FilePanel::navigateTo(const QString& path, bool addHistory) {
+    if (m_isPathLocked && path != m_lockedPath) {
+        emit openNewTabRequested(path);
+        return;
+    }
+
+    if (m_isPathLockedWithSubdirs && !path.startsWith(m_lockedPath, Qt::CaseInsensitive)) {
+        QMessageBox::warning(this, "Locked Path", "This tab is locked to the current folder hierarchy.");
+        return;
+    }
+
     if (path == "smart://disk_dashboard") {
         QString scanDir = (m_currentPath.isEmpty() || m_currentPath.startsWith("smart://")) ? QDir::homePath() : m_currentPath;
         if (m_treeView->selectionModel()) {
@@ -2157,6 +2205,7 @@ void FilePanel::onViewModeChanged(int index) {
     // Save view mode index choice in preferences
     QSettings settings("Amifiles", "Amifiles");
     settings.setValue("file_panel/view_mode_index", index);
+    emit viewModeChanged();
 }
 
 void FilePanel::onDoubleClickedPath(const QString& path) {

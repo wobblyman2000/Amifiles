@@ -590,6 +590,15 @@ public:
 
     QString currentPath() const;
     void setPath(const QString& path);
+    void focusActiveView();
+    class QScrollBar* activeVerticalScrollBar() const;
+
+    bool isPinned() const { return m_isPinned; }
+    void setPinned(bool pin) { m_isPinned = pin; }
+    bool isPathLocked() const { return m_isPathLocked; }
+    void setPathLocked(bool lock) { m_isPathLocked = lock; if (lock) m_lockedPath = m_currentPath; }
+    bool isPathLockedWithSubdirs() const { return m_isPathLockedWithSubdirs; }
+    void setPathLockedWithSubdirs(bool lock) { m_isPathLockedWithSubdirs = lock; if (lock) m_lockedPath = m_currentPath; }
 
     void setActive(bool active);
     bool isActive() const { return m_isActive; }
@@ -649,6 +658,9 @@ signals:
     void zoomChanged(int value);
     void sigStartSearch(const QString& query, const QString& path);
     void clonePathRequested(const QString& path);
+    void tabPressed();
+    void viewModeChanged();
+    void openNewTabRequested(const QString& path);
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
@@ -698,6 +710,11 @@ private:
     QString m_currentPath;
     QStringList m_history;
     int m_historyIndex = -1;
+
+    bool m_isPinned = false;
+    bool m_isPathLocked = false;
+    bool m_isPathLockedWithSubdirs = false;
+    QString m_lockedPath;
 
     // UI Elements
     QToolButton* m_btnBack = nullptr;

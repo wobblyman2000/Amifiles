@@ -13,6 +13,7 @@
 #include <QRegularExpression>
 #include <QListWidget>
 #include <QDate>
+#include <QDateTime>
 #include <QDebug>
 
 BulkRenameDialog::BulkRenameDialog(const QStringList& filePaths, QWidget* parent)
@@ -315,6 +316,30 @@ QString BulkRenameDialog::computeNewName(const QString& filePath, int index) con
             }
             if (pattern.contains("[DateTaken]", Qt::CaseInsensitive)) {
                 pattern.replace("[DateTaken]", !meta.dateTaken.isEmpty() ? meta.dateTaken : "", Qt::CaseInsensitive);
+            }
+            if (pattern.contains("[exif_date]", Qt::CaseInsensitive)) {
+                pattern.replace("[exif_date]", !meta.dateTaken.isEmpty() ? meta.dateTaken : info.lastModified().toString("yyyy-MM-dd"), Qt::CaseInsensitive);
+            }
+            if (pattern.contains("[parent]", Qt::CaseInsensitive)) {
+                pattern.replace("[parent]", info.dir().dirName(), Qt::CaseInsensitive);
+            }
+            if (pattern.contains("[date]", Qt::CaseInsensitive)) {
+                pattern.replace("[date]", QDateTime::currentDateTime().toString("yyyy-MM-dd"), Qt::CaseInsensitive);
+            }
+            if (pattern.contains("[time]", Qt::CaseInsensitive)) {
+                pattern.replace("[time]", QDateTime::currentDateTime().toString("hh-mm-ss"), Qt::CaseInsensitive);
+            }
+
+            // Support [counter:N] and [counter:00N] style patterns
+            static QRegularExpression counterRegex("\\[counter:(0*)(\\d+)\\]", QRegularExpression::CaseInsensitiveOption);
+            QRegularExpressionMatchIterator cIt = counterRegex.globalMatch(pattern);
+            while (cIt.hasNext()) {
+                QRegularExpressionMatch match = cIt.next();
+                int baseVal = match.captured(2).toInt();
+                int padding = match.captured(1).length() + match.captured(2).length();
+                int val = baseVal + index * m_spinNumStep->value();
+                QString numStr = QString::number(val).rightJustified(padding, '0');
+                pattern.replace(match.captured(0), numStr);
             }
 
             // Replace [Seq:01] counter pattern
