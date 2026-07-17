@@ -613,6 +613,16 @@ void MainWindow::setupActions() {
     m_actPreferences->setStatusTip("Open unified preferences control center dialog");
     connect(m_actPreferences, &QAction::triggered, this, &MainWindow::onPreferencesAction);
 
+    m_actConfigureCustomMenus = new QAction(style->standardIcon(QStyle::SP_CustomBase), "Configure Custom Menus...", this);
+    m_actConfigureCustomMenus->setToolTip("Create custom top-level menus, submenus, separators, and app launchers");
+    m_actConfigureCustomMenus->setStatusTip("Create custom top-level menus, submenus, separators, and app launchers");
+    connect(m_actConfigureCustomMenus, &QAction::triggered, this, &MainWindow::onConfigureCustomMenus);
+
+    m_actConfigureToolbars = new QAction(style->standardIcon(QStyle::SP_CustomBase), "Configure Toolbars...", this);
+    m_actConfigureToolbars->setToolTip("Add, remove, or customize multiple floating/dockable toolbars");
+    m_actConfigureToolbars->setStatusTip("Add, remove, or customize multiple floating/dockable toolbars");
+    connect(m_actConfigureToolbars, &QAction::triggered, this, &MainWindow::onConfigureToolbars);
+
     m_actWorkspaceProfiles = new QAction("Workspace Session Manager...", this);
     m_actWorkspaceProfiles->setToolTip("Save, manage, or restore workspace profiles and layouts");
     m_actWorkspaceProfiles->setStatusTip("Save, manage, or restore workspace profiles and layouts");
@@ -838,6 +848,10 @@ void MainWindow::setupMenus() {
     m_menuEdit->addAction(m_actBulkRename);
     m_menuEdit->addSeparator();
     m_menuEdit->addAction(m_actKeybindings);
+    m_menuEdit->addSeparator();
+    m_menuEdit->addAction(m_actConfigureCustomMenus);
+    m_menuEdit->addAction(m_actConfigureToolbars);
+    m_menuEdit->addAction(m_actPreferences);
 
     m_menuView = menuBar()->addMenu("View");
     m_menuView->addAction(m_actToggleDualPane);
@@ -889,19 +903,7 @@ void MainWindow::setupMenus() {
     m_menuTools->addSeparator();
     m_menuTools->addAction(m_actEncryptVault);
     m_menuTools->addAction(m_actDecryptVault);
-    m_menuTools->addSeparator();
-    m_actConfigureCustomMenus = new QAction(style()->standardIcon(QStyle::SP_CustomBase), "Configure Custom Menus...", this);
-    m_actConfigureCustomMenus->setToolTip("Create custom top-level menus, submenus, separators, and app launchers");
-    m_actConfigureCustomMenus->setStatusTip("Create custom top-level menus, submenus, separators, and app launchers");
-    connect(m_actConfigureCustomMenus, &QAction::triggered, this, &MainWindow::onConfigureCustomMenus);
-    m_menuTools->addAction(m_actConfigureCustomMenus);
 
-    m_actConfigureToolbars = new QAction(style()->standardIcon(QStyle::SP_CustomBase), "Configure Toolbars...", this);
-    m_actConfigureToolbars->setToolTip("Add, remove, or customize multiple floating/dockable toolbars");
-    m_actConfigureToolbars->setStatusTip("Add, remove, or customize multiple floating/dockable toolbars");
-    connect(m_actConfigureToolbars, &QAction::triggered, this, &MainWindow::onConfigureToolbars);
-    m_menuTools->addAction(m_actConfigureToolbars);
-    m_menuTools->addAction(m_actPreferences);
 
     m_menuSearch = menuBar()->addMenu("Search");
     m_menuSearch->addAction("Save Current Search as Preset...", this, &MainWindow::onSaveSearchPreset);
