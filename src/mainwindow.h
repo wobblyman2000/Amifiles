@@ -121,6 +121,7 @@ private slots:
     void onToggleDualPane(bool checked);
     void onTogglePreview(bool checked);
     void onToggleAgeColoring(bool checked);
+    void onToggleCenterOps(bool checked);
     
     // Command Routing to Active File Panel
     void onCopyAction();
@@ -257,6 +258,8 @@ private:
     QTabWidget* m_rightTabWidget = nullptr;
     PreviewPanel* m_previewPanel = nullptr;
     QDockWidget* m_previewDock = nullptr;
+    QToolBar* m_tbCenterOps = nullptr;
+    QAction* m_actToggleCenterOps = nullptr;
     MiniMediaControls* m_miniMediaControls = nullptr;
     ConsolePanel* m_consolePanel = nullptr;
     class TerminalPanel* m_terminalPanel = nullptr;

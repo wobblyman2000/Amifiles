@@ -207,6 +207,10 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     m_actToggleDrivesToolbar->setChecked(drivesToolbarVisible);
     if (m_tbDrives) m_tbDrives->setVisible(drivesToolbarVisible);
 
+    bool centerOpsVisible = settings.value("layout/center_ops_visible", true).toBool();
+    m_actToggleCenterOps->setChecked(centerOpsVisible);
+    if (m_tbCenterOps) m_tbCenterOps->setVisible(centerOpsVisible && m_isDualPane);
+
     bool favoritesSidebarVisible = settings.value("favorites/sidebar_visible", false).toBool();
     m_actToggleFavoritesSidebar->setChecked(favoritesSidebarVisible);
     m_sidebarTabWidget->setVisible(favoritesSidebarVisible);
@@ -383,9 +387,31 @@ void MainWindow::setupCentralWidget() {
     // Add first tabs
     createTab(m_leftTabWidget, QDir::homePath());
     createTab(m_rightTabWidget, QDir::homePath());
+
+    m_tbCenterOps = new QToolBar("Center Operations", this);
+    m_tbCenterOps->setObjectName("centerOpsToolBar");
+    m_tbCenterOps->setOrientation(Qt::Vertical);
+    m_tbCenterOps->setMovable(false);
+    m_tbCenterOps->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    m_tbCenterOps->setIconSize(QSize(22, 22));
+    m_tbCenterOps->setStyleSheet(
+        "QToolBar { background-color: #11111b; border: 1px solid #313244; spacing: 6px; padding: 4px; }"
+        "QToolButton { background-color: #1e1e2e; border: 1px solid #45475a; border-radius: 4px; padding: 4px; color: #89b4fa; }"
+        "QToolButton:hover { background-color: #313244; color: #a6e3a1; }"
+    );
+    m_tbCenterOps->addAction(m_actCopy);
+    m_tbCenterOps->addAction(m_actMoveToSibling);
+    m_tbCenterOps->addAction(m_actCut);
+    m_tbCenterOps->addAction(m_actPaste);
+    m_tbCenterOps->addSeparator();
+    m_tbCenterOps->addAction(m_actDelete);
+    m_tbCenterOps->addAction(m_actRename);
+    m_tbCenterOps->addAction(m_actRefresh);
+
     m_dualSplitter = new QSplitter(Qt::Horizontal, this);
     m_dualSplitter->setHandleWidth(4);
     m_dualSplitter->addWidget(m_leftTabWidget);
+    m_dualSplitter->addWidget(m_tbCenterOps);
     m_dualSplitter->addWidget(m_rightTabWidget);
 
     m_splitter->addWidget(m_sidebarTabWidget);
@@ -584,6 +610,12 @@ void MainWindow::setupActions() {
     m_actToggleDrivesToolbar->setChecked(true);
     m_actToggleDrivesToolbar->setToolTip("Show/hide the attached drives toolbar");
     connect(m_actToggleDrivesToolbar, &QAction::toggled, this, &MainWindow::onToggleDrivesToolbar);
+
+    m_actToggleCenterOps = new QAction("Central Operations Button Bar", this);
+    m_actToggleCenterOps->setCheckable(true);
+    m_actToggleCenterOps->setChecked(true);
+    m_actToggleCenterOps->setToolTip("Show/hide a vertical file operations buttons bar situated between the left and right panels");
+    connect(m_actToggleCenterOps, &QAction::toggled, this, &MainWindow::onToggleCenterOps);
 
     // Toggle Favorites Sidebar Action
     m_actToggleFavoritesSidebar = new QAction("Favorites Sidebar", this);
@@ -873,6 +905,7 @@ void MainWindow::setupMenus() {
     m_menuView->addAction(m_actToggleHorizontalSplit);
     m_menuView->addAction(m_actTogglePreview);
     m_menuView->addAction(m_actToggleDrivesToolbar);
+    m_menuView->addAction(m_actToggleCenterOps);
     m_menuView->addAction(m_actToggleFavoritesSidebar);
     m_menuView->addAction(m_actToggleConsole);
     m_menuView->addAction(m_actToggleFlatView);
@@ -1028,6 +1061,9 @@ void MainWindow::onPathChanged(const QString& path) {
 void MainWindow::onToggleDualPane(bool checked) {
     m_isDualPane = checked;
     if (m_rightTabWidget) m_rightTabWidget->setVisible(checked);
+    if (m_tbCenterOps) {
+        m_tbCenterOps->setVisible(checked && m_actToggleCenterOps->isChecked());
+    }
     
     if (!checked && m_activePanel && m_rightTabWidget && m_rightTabWidget->indexOf(m_activePanel) != -1) {
         onPanelActivated(leftPanel());
@@ -3426,6 +3462,14 @@ void MainWindow::onConfigureToolbars() {
     if (dlg.exec() == QDialog::Accepted) {
         rebuildToolBars();
     }
+}
+
+void MainWindow::onToggleCenterOps(bool checked) {
+    if (m_tbCenterOps) {
+        m_tbCenterOps->setVisible(checked && m_isDualPane);
+    }
+    QSettings settings("Amifiles", "Amifiles");
+    settings.setValue("layout/center_ops_visible", checked);
 }
 
 #include "mainwindow.moc"

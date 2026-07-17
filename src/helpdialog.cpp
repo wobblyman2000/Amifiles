@@ -443,6 +443,8 @@ void HelpDialog::onSectionChanged(int index) {
                     "<li>On the left column, you can create, rename, delete, or reorder toolbars.</li>"
                     "<li>In the middle column, customize buttons and separators for the active toolbar.</li>"
                     "<li>In the right editor, configure properties for the selected toolbar (Visible, Render Style) or selected button (Action Type, Label, Icon path, Command script).</li>"
+                    "<li>**Internal Command Helper**: When creating or editing custom buttons/menus, click the **Insert Action...** button next to the command script field. This displays a searchable list of all 14 internal actions along with detailed explanations and syntax examples (e.g. `@internal:SpaceAnalyzer`). Double-click any item to insert it directly at the cursor.</li>"
+                    "<li>**Central Operations Bar**: Enable the **View -> Central Operations Button Bar** setting to display a thin vertical button bar (Copy, Move, Cut, Paste, Delete, Rename, Refresh) directly between the left and right split folder panels.</li>"
                     "<li>Click **Save Config** to rebuild all toolbars dynamically. You can drag toolbars to float them or dock them to any window border (Top, Bottom, Left, Right).</li>"
                     "<li>Click **Reset Defaults** to revert to the factory layout layout.</li>"
                     "</ol>"

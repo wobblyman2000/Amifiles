@@ -10,6 +10,7 @@
 #include <QComboBox>
 #include <QFileDialog>
 #include "iconpickerdialog.h"
+#include "actionhelperdialog.h"
 
 class CustomButtonDialog : public QDialog {
 public:
@@ -122,7 +123,25 @@ public:
         iconLayout->addWidget(btnClearIcon);
         layout->addLayout(iconLayout);
 
-        layout->addWidget(new QLabel("Shell Command / Script to Execute:"));
+        QHBoxLayout* cmdLabelLayout = new QHBoxLayout();
+        QLabel* lblCmd = new QLabel("Shell Command / Script to Execute:", this);
+        cmdLabelLayout->addWidget(lblCmd);
+        cmdLabelLayout->addStretch(1);
+        QPushButton* btnInsertAction = new QPushButton("Insert Action...", this);
+        btnInsertAction->setMaximumWidth(125);
+        connect(btnInsertAction, &QPushButton::clicked, this, [this]() {
+            ActionHelperDialog dlg(this);
+            if (dlg.exec() == QDialog::Accepted) {
+                QString cmd = dlg.selectedCommand();
+                if (!cmd.isEmpty()) {
+                    m_scriptEdit->insertPlainText(cmd);
+                    m_scriptEdit->setFocus();
+                }
+            }
+        });
+        cmdLabelLayout->addWidget(btnInsertAction);
+        layout->addLayout(cmdLabelLayout);
+
         m_scriptEdit = new QPlainTextEdit(this);
         m_scriptEdit->setPlainText(script);
         m_scriptEdit->setPlaceholderText("Enter command or script path...\nExample:\nbash /home/user/myscript.sh\nOr navigation: @internal:Go /path\nSupports: {dir} (active panel dir), {dest} (sibling panel dir)");

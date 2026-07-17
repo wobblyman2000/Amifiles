@@ -134,6 +134,8 @@ add_executable(Amifiles
     src/iconpickerdialog.cpp
     src/toolbareditordialog.h
     src/toolbareditordialog.cpp
+    src/actionhelperdialog.h
+    src/actionhelperdialog.cpp
 )
 
 target_link_libraries(Amifiles PRIVATE
