@@ -260,6 +260,7 @@ private:
     PreviewPanel* m_previewPanel = nullptr;
     QDockWidget* m_previewDock = nullptr;
     QFrame* m_tbCenterOps = nullptr;
+    QFrame* m_tbCenterOpsSeparator = nullptr;
     QAction* m_actToggleCenterOps = nullptr;
     MiniMediaControls* m_miniMediaControls = nullptr;
     ConsolePanel* m_consolePanel = nullptr;

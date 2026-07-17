@@ -395,7 +395,7 @@ void MainWindow::setupCentralWidget() {
     m_tbCenterOps->setStyleSheet("background-color: #11111b; border: 1px solid #313244; border-radius: 4px;");
     m_tbCenterOps->setFixedWidth(38);
     
-    QVBoxLayout* centerLayout = new QVBoxLayout(m_tbCenterOps);
+    QBoxLayout* centerLayout = new QBoxLayout(QBoxLayout::TopToBottom, m_tbCenterOps);
     centerLayout->setContentsMargins(4, 8, 4, 8);
     centerLayout->setSpacing(8);
     centerLayout->setAlignment(Qt::AlignTop);
@@ -417,11 +417,11 @@ void MainWindow::setupCentralWidget() {
     centerLayout->addWidget(createBarButton(m_actCut));
     centerLayout->addWidget(createBarButton(m_actPaste));
 
-    QFrame* separatorLine = new QFrame(m_tbCenterOps);
-    separatorLine->setFrameShape(QFrame::HLine);
-    separatorLine->setFrameShadow(QFrame::Sunken);
-    separatorLine->setStyleSheet("background-color: #45475a; max-height: 1px;");
-    centerLayout->addWidget(separatorLine);
+    m_tbCenterOpsSeparator = new QFrame(m_tbCenterOps);
+    m_tbCenterOpsSeparator->setFrameShape(QFrame::HLine);
+    m_tbCenterOpsSeparator->setFrameShadow(QFrame::Sunken);
+    m_tbCenterOpsSeparator->setStyleSheet("background-color: #45475a; max-height: 1px;");
+    centerLayout->addWidget(m_tbCenterOpsSeparator);
 
     centerLayout->addWidget(createBarButton(m_actDelete));
     centerLayout->addWidget(createBarButton(m_actRename));
@@ -1625,12 +1625,38 @@ void MainWindow::onToggleHorizontalSplit(bool checked) {
     if (m_dualSplitter) {
         if (checked) {
             m_dualSplitter->setOrientation(Qt::Vertical);
-            m_dualSplitter->insertWidget(0, m_rightTabWidget);
-            m_dualSplitter->insertWidget(1, m_leftTabWidget);
+            if (m_tbCenterOps) {
+                m_tbCenterOps->setFixedWidth(QWIDGETSIZE_MAX);
+                m_tbCenterOps->setFixedHeight(38);
+                if (m_tbCenterOpsSeparator) {
+                    m_tbCenterOpsSeparator->setFrameShape(QFrame::VLine);
+                    m_tbCenterOpsSeparator->setStyleSheet("background-color: #45475a; max-width: 1px; max-height: 30px;");
+                }
+                if (QBoxLayout* l = qobject_cast<QBoxLayout*>(m_tbCenterOps->layout())) {
+                    l->setDirection(QBoxLayout::LeftToRight);
+                    l->setContentsMargins(8, 4, 8, 4);
+                }
+            }
+            m_dualSplitter->insertWidget(0, m_leftTabWidget);
+            m_dualSplitter->insertWidget(1, m_tbCenterOps);
+            m_dualSplitter->insertWidget(2, m_rightTabWidget);
         } else {
             m_dualSplitter->setOrientation(Qt::Horizontal);
+            if (m_tbCenterOps) {
+                m_tbCenterOps->setFixedWidth(38);
+                m_tbCenterOps->setFixedHeight(QWIDGETSIZE_MAX);
+                if (m_tbCenterOpsSeparator) {
+                    m_tbCenterOpsSeparator->setFrameShape(QFrame::HLine);
+                    m_tbCenterOpsSeparator->setStyleSheet("background-color: #45475a; max-height: 1px; max-width: 30px;");
+                }
+                if (QBoxLayout* l = qobject_cast<QBoxLayout*>(m_tbCenterOps->layout())) {
+                    l->setDirection(QBoxLayout::TopToBottom);
+                    l->setContentsMargins(4, 8, 4, 8);
+                }
+            }
             m_dualSplitter->insertWidget(0, m_leftTabWidget);
-            m_dualSplitter->insertWidget(1, m_rightTabWidget);
+            m_dualSplitter->insertWidget(1, m_tbCenterOps);
+            m_dualSplitter->insertWidget(2, m_rightTabWidget);
         }
     }
 }
