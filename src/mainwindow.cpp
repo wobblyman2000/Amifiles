@@ -3407,6 +3407,18 @@ void MainWindow::rebuildToolBars() {
 
     // 4. Restore geometry/dock settings
     restoreState(settings.value("window/state").toByteArray());
+
+    // 5. Force JSON configured visibility (as restoreState can override it)
+    for (QToolBar* tb : m_dynamicToolBars) {
+        QString id = tb->objectName();
+        for (int i = 0; i < arr.size(); ++i) {
+            QJsonObject tbObj = arr[i].toObject();
+            if (tbObj["id"].toString() == id) {
+                tb->setVisible(tbObj["visible"].toBool(true));
+                break;
+            }
+        }
+    }
 }
 
 void MainWindow::onConfigureToolbars() {
