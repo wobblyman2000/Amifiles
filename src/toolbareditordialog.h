@@ -35,6 +35,7 @@ private slots:
 
     // Item operations
     void onAddItem();
+    void onAddCustomScript();
     void onDeleteItem();
     void onMoveItemUp();
     void onMoveItemDown();
@@ -57,6 +58,7 @@ private:
     // Controls Middle
     QListWidget* m_listItems = nullptr;
     QPushButton* m_btnAddItem = nullptr;
+    QPushButton* m_btnAddCustom = nullptr;
     QPushButton* m_btnDeleteItem = nullptr;
     QPushButton* m_btnMoveItemUp = nullptr;
     QPushButton* m_btnMoveItemDown = nullptr;

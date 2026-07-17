@@ -1,5 +1,6 @@
 #include "toolbareditordialog.h"
 #include "iconpickerdialog.h"
+#include "custombuttondialog.h"
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QFormLayout>
@@ -144,9 +145,11 @@ void ToolbarEditorDialog::setupUI() {
     col2->addWidget(m_listItems, 4);
 
     QHBoxLayout* btnItemRow1 = new QHBoxLayout();
-    m_btnAddItem = new QPushButton("Add Item", this);
+    m_btnAddItem = new QPushButton("Add Action...", this);
+    m_btnAddCustom = new QPushButton("Add Custom Script...", this);
     m_btnDeleteItem = new QPushButton("Remove", this);
     btnItemRow1->addWidget(m_btnAddItem);
+    btnItemRow1->addWidget(m_btnAddCustom);
     btnItemRow1->addWidget(m_btnDeleteItem);
     col2->addLayout(btnItemRow1);
 
@@ -263,6 +266,7 @@ void ToolbarEditorDialog::setupUI() {
     connect(btnTbDown, &QPushButton::clicked, this, &ToolbarEditorDialog::onMoveToolbarDown);
 
     connect(m_btnAddItem, &QPushButton::clicked, this, &ToolbarEditorDialog::onAddItem);
+    connect(m_btnAddCustom, &QPushButton::clicked, this, &ToolbarEditorDialog::onAddCustomScript);
     connect(m_btnDeleteItem, &QPushButton::clicked, this, &ToolbarEditorDialog::onDeleteItem);
     connect(m_btnMoveItemUp, &QPushButton::clicked, this, &ToolbarEditorDialog::onMoveItemUp);
     connect(m_btnMoveItemDown, &QPushButton::clicked, this, &ToolbarEditorDialog::onMoveItemDown);
@@ -319,6 +323,7 @@ void ToolbarEditorDialog::onToolbarSelected() {
         m_comboToolbarStyle->setEnabled(false);
         
         m_btnAddItem->setEnabled(false);
+        m_btnAddCustom->setEnabled(false);
         m_btnDeleteItem->setEnabled(false);
         m_btnMoveItemUp->setEnabled(false);
         m_btnMoveItemDown->setEnabled(false);
@@ -333,6 +338,7 @@ void ToolbarEditorDialog::onToolbarSelected() {
     m_comboToolbarStyle->setEnabled(true);
 
     m_btnAddItem->setEnabled(true);
+    m_btnAddCustom->setEnabled(true);
     m_btnDeleteItem->setEnabled(true);
     m_btnMoveItemUp->setEnabled(true);
     m_btnMoveItemDown->setEnabled(true);
@@ -547,6 +553,43 @@ void ToolbarEditorDialog::onAddItem() {
     // Force synchronize parent Json items array
     onItemFieldChanged();
 }
+
+void ToolbarEditorDialog::onAddCustomScript() {
+    QListWidgetItem* tbItem = m_listToolbars->currentItem();
+    if (!tbItem) return;
+
+    CustomButtonDialog dlg("", "", "", this);
+    if (dlg.exec() == QDialog::Accepted) {
+        QString name = dlg.buttonName();
+        QString script = dlg.script();
+        QString icon = dlg.iconPath();
+
+        if (!name.isEmpty()) {
+            m_updatingFields = true;
+
+            QJsonObject obj = createItemObj("custom", "", name, icon, script);
+            
+            QIcon qicon;
+            if (!icon.isEmpty()) {
+                if (icon.startsWith("theme:")) qicon = QIcon::fromTheme(icon.mid(6));
+                else if (QFileInfo(icon).exists()) qicon = QIcon(icon);
+                else qicon = QIcon::fromTheme(icon);
+            } else {
+                qicon = QIcon::fromTheme("system-run");
+            }
+
+            QListWidgetItem* item = new QListWidgetItem(qicon, name, m_listItems);
+            item->setData(Qt::UserRole, obj);
+
+            m_updatingFields = false;
+            m_listItems->setCurrentItem(item);
+
+            // Force synchronize parent Json items array
+            onItemFieldChanged();
+        }
+    }
+}
+
 
 void ToolbarEditorDialog::onDeleteItem() {
     QListWidgetItem* item = m_listItems->currentItem();
