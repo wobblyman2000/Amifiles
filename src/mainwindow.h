@@ -12,6 +12,74 @@
 #include <QKeySequence>
 #include "filepanel.h"
 #include "previewpanel.h"
+#include <QWidget>
+#include <QIcon>
+#include <QEnterEvent>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QPalette>
+#include <QMouseEvent>
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QJsonDocument>
+
+class CustomMenuActionWidget : public QWidget {
+    Q_OBJECT
+public:
+    CustomMenuActionWidget(const QIcon& icon, const QString& text, const QString& colorStr, const QString& displayMode, QWidget* parent = nullptr)
+        : QWidget(parent) {
+        QHBoxLayout* l = new QHBoxLayout(this);
+        l->setContentsMargins(12, 6, 12, 6);
+        l->setSpacing(8);
+
+        if (displayMode != "TextOnly" && !icon.isNull()) {
+            QLabel* iconLabel = new QLabel(this);
+            iconLabel->setPixmap(icon.pixmap(16, 16));
+            l->addWidget(iconLabel);
+        }
+
+        if (displayMode != "IconOnly") {
+            QLabel* textLabel = new QLabel(text, this);
+            if (!colorStr.isEmpty()) {
+                textLabel->setStyleSheet(QString("color: %1; font-weight: bold;").arg(colorStr));
+            } else {
+                textLabel->setStyleSheet("color: #cdd6f4;");
+            }
+            l->addWidget(textLabel);
+        }
+        l->addStretch();
+
+        setAutoFillBackground(true);
+        QPalette pal = palette();
+        pal.setColor(QPalette::Window, QColor(0, 0, 0, 0));
+        setPalette(pal);
+    }
+
+signals:
+    void clicked();
+
+protected:
+    void enterEvent(QEnterEvent* event) override {
+        QPalette pal = palette();
+        pal.setColor(QPalette::Window, QColor("#313244"));
+        setPalette(pal);
+        update();
+        QWidget::enterEvent(event);
+    }
+    void leaveEvent(QEvent* event) override {
+        QPalette pal = palette();
+        pal.setColor(QPalette::Window, QColor(0, 0, 0, 0));
+        setPalette(pal);
+        update();
+        QWidget::leaveEvent(event);
+    }
+    void mouseReleaseEvent(QMouseEvent* event) override {
+        if (rect().contains(event->pos())) {
+            emit clicked();
+        }
+        QWidget::mouseReleaseEvent(event);
+    }
+};
 
 struct CustomButton {
     QString name;
@@ -33,6 +101,7 @@ class QListWidgetItem;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
+    friend class WorkspaceProfileDialog;
 public:
     explicit MainWindow(QWidget* parent = nullptr);
     ~MainWindow() override;
@@ -81,6 +150,7 @@ private slots:
     void updateDrivesList();
     void onToggleDrivesMenu(bool checked);
     void onToggleDrivesToolbar(bool checked);
+    void onDrivesToolbarContextMenu(const QPoint& pos);
 
     // Individual pane filter toggle slots
     void onToggleLeftFilterText(bool checked);
@@ -96,9 +166,12 @@ private slots:
     void refreshFavoritesSidebar();
     void onMutePreview(bool checked);
     void onToggleArchiveNav(bool checked);
+    void onToggleArchiveWrite(bool checked);
+    void onToggleHorizontalSplit(bool checked);
     void onToggleCasingOverlays(bool checked);
     void onToggleAudioCoverArt(bool checked);
     void onSaveSearchPreset();
+    void onPreferencesAction();
     void updateSearchPresetsMenu();
     void onSearchPresetTriggered();
 
@@ -130,6 +203,11 @@ private slots:
     void onResetLayout();
     void onConfigureFolderLayouts();
     void onConfigureBackupSchedule();
+    void onConfigureAutoTags();
+    void onConfigureAutoOrganizer();
+    void onRemoteMountsManager();
+    void onCommandPaletteAction();
+    void onCommandPaletteTriggered(const QString& action);
     Q_INVOKABLE void refreshTagsSidebar();
 
 public:
@@ -169,6 +247,7 @@ private:
 
     // View Splitter and Panels
     QSplitter* m_splitter = nullptr;
+    QSplitter* m_dualSplitter = nullptr;
     QTabWidget* m_sidebarTabWidget = nullptr;
     QListWidget* m_favoritesSidebar = nullptr;
     QListWidget* m_filtersSidebar = nullptr;
@@ -208,10 +287,13 @@ private:
 
     QAction* m_actToggleDualPane = nullptr;
     QAction* m_actTogglePreview = nullptr;
+    QAction* m_actCommandPalette = nullptr;
     QAction* m_actMutePreview = nullptr;
     QAction* m_actToggleAgeColoring = nullptr;
     QAction* m_actConfigureAgeStyling = nullptr;
     QAction* m_actToggleArchiveNav = nullptr;
+    QAction* m_actToggleArchiveWrite = nullptr;
+    QAction* m_actToggleHorizontalSplit = nullptr;
     QAction* m_actToggleCasingOverlays = nullptr;
     QAction* m_actToggleDrivesMenu = nullptr;
     QAction* m_actToggleDrivesToolbar = nullptr;
@@ -220,6 +302,8 @@ private:
     QAction* m_actShowAudioCoverArt = nullptr;
     QAction* m_actToggleSpectrum = nullptr;
     QAction* m_actAutoSaveLayout = nullptr;
+    QAction* m_actWorkspaceProfiles = nullptr;
+    QAction* m_actPreferences = nullptr;
     QAction* m_actSaveLayoutNow = nullptr;
     QAction* m_actResetLayout = nullptr;
     QAction* m_actConfigureFolderLayouts = nullptr;
@@ -245,6 +329,9 @@ private:
     QAction* m_actProcessManager = nullptr;
     QAction* m_actEncryptVault = nullptr;
     QAction* m_actDecryptVault = nullptr;
+    QAction* m_actConfigureAutoTags = nullptr;
+    QAction* m_actConfigureAutoOrganizer = nullptr;
+    QAction* m_actRemoteMountsManager = nullptr;
 
     // Dynamic Toolbars
     QToolBar* m_tbFile = nullptr;
@@ -259,6 +346,25 @@ private:
     void saveKeybindings();
     void applyKeybindings();
     void registerKeybindableAction(const QString& id, QAction* action);
+    QIcon getFolderIcon(const QString& folderName);
+
+    // Custom Dynamic Menu System
+    void rebuildCustomMenus();
+    void onConfigureCustomMenus();
+    void executeCustomCommand(const QString& commandOrPath);
+    void buildMenuTree(QMenu* menu, const QJsonArray& itemsArray);
+    QJsonArray getDefaultCustomMenus();
+    QList<QMenu*> m_customMenus;
+    QAction* m_actConfigureCustomMenus = nullptr;
+
+    // Custom Dynamic Toolbar System
+    void rebuildToolBars();
+    void onConfigureToolbars();
+    QList<QToolBar*> m_dynamicToolBars;
+    QAction* m_actConfigureToolbars = nullptr;
+
+protected:
+    bool eventFilter(QObject* watched, QEvent* event) override;
 };
 
 #endif // MAINWINDOW_H

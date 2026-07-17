@@ -48,6 +48,9 @@ private:
     void parseZip(const QString& stdoutText);
     void parseTar(const QString& stdoutText);
     void parseRar(const QString& stdoutText);
+    void parse7z(const QString& stdoutText);
+    void parseD64(const QString& stdoutText);
+    void parseAdf(const QString& stdoutText);
 
     QString m_archivePath;
     QString m_currentVirtualPath; // Empty means root

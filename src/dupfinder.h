@@ -26,18 +26,24 @@ private slots:
     void onDeleteSelectedClicked();
     void onScanProgress(int current, int total, const QString& statusText);
     void onScanFinished(const QList<DupGroup>& dupGroups);
+    void applySmartSelection();
+    void updateRecoveryStats();
 
 private:
     void setupUI();
 
     QString m_scanDir;
     QList<DupGroup> m_dupGroups;
+    qint64 m_totalRedundantSpace = 0;
 
     QLabel* m_lblHeader = nullptr;
     QTableWidget* m_table = nullptr;
     QPushButton* m_btnScan = nullptr;
     QPushButton* m_btnDelete = nullptr;
     QProgressBar* m_progress = nullptr;
+
+    class QComboBox* m_comboSmartSelect = nullptr;
+    QLabel* m_lblSpaceStats = nullptr;
 };
 
 class DupScanWorker : public QThread {

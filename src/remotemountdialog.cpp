@@ -1,4 +1,5 @@
 #include "remotemountdialog.h"
+#include "remotemountmanager.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
@@ -235,11 +236,12 @@ void RemoteMountDialog::onMount() {
         }
 
         if (!mountedPath.isEmpty()) {
-            // Save mount bookmark/label to settings so we can display it dynamically
             QSettings settings("Amifiles", "Amifiles");
             settings.beginGroup("RemoteMounts");
             settings.setValue(label, mountedPath);
             settings.endGroup();
+
+            RemoteMountManager::addActiveMount(label, mountedPath, protocol.toUpper());
 
             QMessageBox::information(this, "Success", QString("Remote share mounted successfully at: %1").arg(mountedPath));
             accept();

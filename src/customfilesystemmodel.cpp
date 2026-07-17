@@ -9,7 +9,7 @@ CustomFileSystemModel::CustomFileSystemModel(QObject* parent)
 
 int CustomFileSystemModel::columnCount(const QModelIndex& parent) const {
     if (parent.column() > 0) return 0;
-    return QFileSystemModel::columnCount(parent) + 12;
+    return QFileSystemModel::columnCount(parent) + 13;
 }
 
 QVariant CustomFileSystemModel::headerData(int section, Qt::Orientation orientation, int role) const {
@@ -27,6 +27,7 @@ QVariant CustomFileSystemModel::headerData(int section, Qt::Orientation orientat
             case 13: return "Track";
             case 14: return "Duration";
             case 15: return "Codec";
+            case 16: return "Tags";
             default: break;
         }
     }
@@ -40,10 +41,38 @@ QVariant CustomFileSystemModel::data(const QModelIndex& index, int role) const {
     if (col == 0) {
         QString filePath = fileInfo(index).absoluteFilePath();
         if (role == Qt::DecorationRole) {
+            QIcon baseIcon = QFileSystemModel::data(index, role).value<QIcon>();
+            if (fileInfo(index).isDir()) {
+                QString dirName = fileInfo(index).fileName();
+                QString dirNameLower = dirName.toLower();
+                QString themeName;
+                if (dirNameLower.contains("game")) {
+                    themeName = "applications-games";
+                } else if (dirNameLower.contains("code") || dirNameLower.contains("prog") || dirNameLower.contains("dev") || dirNameLower.contains("src")) {
+                    themeName = "applications-development";
+                } else if (dirNameLower.contains("music") || dirNameLower.contains("song") || dirNameLower.contains("audio")) {
+                    themeName = "folder-music";
+                } else if (dirNameLower.contains("video") || dirNameLower.contains("movie") || dirNameLower.contains("film")) {
+                    themeName = "folder-videos";
+                } else if (dirNameLower.contains("picture") || dirNameLower.contains("photo") || dirNameLower.contains("image")) {
+                    themeName = "folder-pictures";
+                } else if (dirNameLower.contains("doc") || dirNameLower.contains("paper") || dirNameLower.contains("text")) {
+                    themeName = "folder-documents";
+                } else if (dirNameLower.contains("download")) {
+                    themeName = "folder-download";
+                }
+
+                if (!themeName.isEmpty()) {
+                    QIcon customIcon = QIcon::fromTheme(themeName);
+                    if (!customIcon.isNull()) {
+                        baseIcon = customIcon;
+                    }
+                }
+            }
+
             QString colorName = TagManager::instance().getFileColor(filePath);
-            if (!colorName.isEmpty()) {
+            if (!colorName.isEmpty() && colorName != "none") {
                 QColor colVal = TagManager::instance().getColorValue(colorName);
-                QIcon baseIcon = QFileSystemModel::data(index, role).value<QIcon>();
                 QIcon iconResult;
                 QList<int> targetSizes = {16, 24, 32, 48, 64, 96, 128};
                 for (int sz : targetSizes) {
@@ -68,6 +97,7 @@ QVariant CustomFileSystemModel::data(const QModelIndex& index, int role) const {
                     return iconResult;
                 }
             }
+            return baseIcon;
         } else if (role == Qt::DisplayRole) {
             QString baseName = QFileSystemModel::data(index, role).toString();
             QStringList tags = TagManager::instance().getFileTags(filePath);
@@ -101,6 +131,10 @@ QVariant CustomFileSystemModel::data(const QModelIndex& index, int role) const {
                 if (!meta.codec.isEmpty()) return meta.codec;
                 if (!meta.imageFormat.isEmpty()) return meta.imageFormat;
                 return QVariant();
+            }
+            case 16: {
+                QStringList tags = TagManager::instance().getFileTags(filePath);
+                return tags.isEmpty() ? QVariant() : tags.join(", ");
             }
             default: break;
         }

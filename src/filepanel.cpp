@@ -1,11 +1,19 @@
 #include "filepanel.h"
 #include "favoritesmanager.h"
 #include "archivemodel.h"
+#include "smartfoldermodel.h"
+#include "diskdashboardwidget.h"
+#include "millercolumnsview.h"
+#include "timelineview.h"
+#include "filmstripview.h"
+#include "cardviewdelegate.h"
+#include <QComboBox>
 #include "searchworker.h"
 #include "metadataextractor.h"
 #include "bulkrename.h"
 #include "diffdialog.h"
 #include "tageditordialog.h"
+#include "filetagsdialog.h"
 #include "copyqueue.h"
 #include "archivedialog.h"
 #include <QHBoxLayout>
@@ -131,12 +139,18 @@ void FilePanel::setupUI() {
     m_btnFlatView->setToolTip("Toggle Flat View (Recurse all subfolders)");
     m_btnFlatView->setStyleSheet("QToolButton { font-weight: bold; color: #a6e3a1; }");
     connect(m_btnFlatView, &QToolButton::toggled, this, &FilePanel::setFlatViewEnabled);
-
-    m_btnViewMode = new QToolButton(this);
-    m_btnViewMode->setText("List/Grid");
-    m_btnViewMode->setToolTip("Toggle Details List View vs. Icon Grid View");
-    m_btnViewMode->setStyleSheet("QToolButton { font-weight: bold; color: #89b4fa; }");
-    connect(m_btnViewMode, &QToolButton::clicked, this, &FilePanel::onToggleViewMode);
+    m_comboViewMode = new QComboBox(this);
+    m_comboViewMode->addItems({
+        "Details Table",
+        "Grid / Icons",
+        "Card / Tiles",
+        "Miller Columns",
+        "Chronological Timeline",
+        "Filmstrip View"
+    });
+    m_comboViewMode->setToolTip("Switch active file listing visual layout view mode");
+    m_comboViewMode->setStyleSheet("QComboBox { background-color: #313244; color: #89b4fa; border: 1px solid #45475a; border-radius: 4px; padding: 2px 6px; font-weight: bold; }");
+    connect(m_comboViewMode, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &FilePanel::onViewModeChanged);
 
     navLayout->addWidget(m_btnBack);
     navLayout->addWidget(m_btnForward);
@@ -145,7 +159,7 @@ void FilePanel::setupUI() {
     navLayout->addWidget(m_btnGo);
     navLayout->addWidget(m_btnFavorite);
     navLayout->addWidget(m_btnFlatView);
-    navLayout->addWidget(m_btnViewMode);
+    navLayout->addWidget(m_comboViewMode);
 
     // Central Tree View
     m_treeView = new QTreeView(this);
@@ -162,6 +176,8 @@ void FilePanel::setupUI() {
 
     // Icon Grid List View
     m_listView = new QListView(this);
+    m_defaultDelegate = m_listView->itemDelegate();
+    m_cardDelegate = new CardViewDelegate(m_listView);
     m_listView->setViewMode(QListView::IconMode);
     m_listView->setResizeMode(QListView::Adjust);
     m_listView->setWordWrap(true);
@@ -222,7 +238,35 @@ void FilePanel::setupUI() {
     m_flatProxyModel->setFilterKeyColumn(0);
     m_flatProxyModel->setFilterCaseSensitivity(Qt::CaseInsensitive);
 
+    m_smartModel = new SmartFolderModel(this);
     m_archiveModel = new ArchiveModel(this);
+    m_dashboardWidget = new DiskDashboardWidget(this);
+
+    m_millerView = new MillerColumnsView(m_fileModel, this);
+    m_millerView->installEventFilter(this);
+
+    m_timelineView = new TimelineView(this);
+    m_timelineView->installEventFilter(this);
+
+    m_filmstripView = new FilmstripView(m_fileModel, this);
+    m_filmstripView->installEventFilter(this);
+
+    m_viewStack->addWidget(m_millerView);
+    m_viewStack->addWidget(m_timelineView);
+    m_viewStack->addWidget(m_filmstripView);
+    m_viewStack->addWidget(m_dashboardWidget);
+
+    connect(m_millerView, &MillerColumnsView::fileSelected, this, &FilePanel::fileSelected);
+    connect(m_millerView, &MillerColumnsView::fileDoubleClicked, this, &FilePanel::onDoubleClickedPath);
+    connect(m_millerView, &MillerColumnsView::customContextMenuRequested, this, &FilePanel::onCustomContextMenu);
+
+    connect(m_timelineView, &TimelineView::fileSelected, this, &FilePanel::fileSelected);
+    connect(m_timelineView, &TimelineView::fileDoubleClicked, this, &FilePanel::onDoubleClickedPath);
+    connect(m_timelineView, &TimelineView::customContextMenuRequested, this, &FilePanel::onCustomContextMenu);
+
+    connect(m_filmstripView, &FilmstripView::fileSelected, this, &FilePanel::fileSelected);
+    connect(m_filmstripView, &FilmstripView::fileDoubleClicked, this, &FilePanel::onDoubleClickedPath);
+    connect(m_filmstripView, &FilmstripView::customContextMenuRequested, this, &FilePanel::onCustomContextMenu);
 
     m_treeView->setModel(m_proxyModel);
     m_listView->setModel(m_proxyModel);
@@ -242,17 +286,15 @@ void FilePanel::setupUI() {
 
     // Restore view mode choice from settings
     QSettings settings("Amifiles", "Amifiles");
-    bool viewModeGrid = settings.value("file_panel/view_mode_grid", false).toBool();
-    if (viewModeGrid) {
-        m_viewStack->setCurrentWidget(m_listView);
-    } else {
-        m_viewStack->setCurrentWidget(m_treeView);
-    }
+    int viewModeIdx = settings.value("file_panel/view_mode_index", 0).toInt();
+    m_comboViewMode->setCurrentIndex(viewModeIdx);
+    onViewModeChanged(viewModeIdx);
 
     m_treeView->header()->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(m_treeView->header(), &QHeaderView::customContextMenuRequested, this, &FilePanel::onHeaderContextMenu);
-    for (int i = 0; i < 16; ++i) {
-        bool hidden = settings.value(QString("columns/hidden_%1").arg(i), i >= 4).toBool();
+    for (int i = 0; i < 17; ++i) {
+        bool defaultHidden = (i >= 4 && i != 16);
+        bool hidden = settings.value(QString("columns/hidden_%1").arg(i), defaultHidden).toBool();
         m_treeView->header()->setSectionHidden(i, hidden);
     }
 
@@ -397,7 +439,7 @@ bool FilePanel::eventFilter(QObject* watched, QEvent* event) {
             emit panelActivated(this);
         }
     }
-    if (watched == m_treeView || watched == m_listView) {
+    if (watched == m_treeView || watched == m_listView || watched == m_millerView || watched == m_timelineView || watched == m_filmstripView) {
         if (event->type() == QEvent::FocusIn || event->type() == QEvent::MouseButtonPress) {
             setActive(true);
             emit panelActivated(this);
@@ -504,6 +546,73 @@ void FilePanel::setPath(const QString& path) {
 }
 
 void FilePanel::navigateTo(const QString& path, bool addHistory) {
+    if (path == "smart://disk_dashboard") {
+        QString scanDir = (m_currentPath.isEmpty() || m_currentPath.startsWith("smart://")) ? QDir::homePath() : m_currentPath;
+        if (m_treeView->selectionModel()) {
+            disconnect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
+        }
+        m_dashboardActive = true;
+        m_smartViewActive = false;
+        m_archiveViewActive = false;
+        m_viewStack->setCurrentWidget(m_dashboardWidget);
+        m_dashboardWidget->scanDirectory(scanDir);
+        m_currentPath = path;
+        m_pathEdit->setText(path);
+        emit pathChanged(m_currentPath);
+        updateStatusText();
+
+        if (addHistory) {
+            if (m_historyIndex >= 0 && m_historyIndex < m_history.size() - 1) {
+                m_history = m_history.mid(0, m_historyIndex + 1);
+            }
+            m_history.append(m_currentPath);
+            m_historyIndex = m_history.size() - 1;
+        }
+        updateNavigationButtons();
+        return;
+    }
+
+    if (path.startsWith("smart://")) {
+        QString ruleName = path.mid(8);
+        DynamicFavoriteRule matchedRule;
+        bool found = false;
+        for (const auto& r : FavoritesManager::instance().getDynamicRules()) {
+            if (r.name == ruleName) {
+                matchedRule = r;
+                found = true;
+                break;
+            }
+        }
+        if (found) {
+            if (m_treeView->selectionModel()) {
+                disconnect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
+            }
+            m_smartViewActive = true;
+            m_archiveViewActive = false;
+            m_treeView->setModel(m_smartModel);
+            m_listView->setModel(m_smartModel);
+            m_listView->setSelectionModel(m_treeView->selectionModel());
+            if (m_treeView->selectionModel()) {
+                connect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
+            }
+            m_smartModel->setQueryRule(matchedRule);
+            m_currentPath = path;
+            m_pathEdit->setText(path);
+            emit pathChanged(m_currentPath);
+            updateStatusText();
+
+            if (addHistory) {
+                if (m_historyIndex >= 0 && m_historyIndex < m_history.size() - 1) {
+                    m_history = m_history.mid(0, m_historyIndex + 1);
+                }
+                m_history.append(m_currentPath);
+                m_historyIndex = m_history.size() - 1;
+            }
+            updateNavigationButtons();
+            return;
+        }
+    }
+
     if (path.contains("//")) {
         int sepIdx = path.indexOf("//");
         QString archiveFile = path.left(sepIdx);
@@ -517,6 +626,7 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
                 }
                 
                 m_archiveViewActive = true;
+                m_smartViewActive = false;
                 m_treeView->setModel(m_archiveModel);
                 m_listView->setModel(m_archiveModel);
                 m_listView->setSelectionModel(m_treeView->selectionModel());
@@ -540,11 +650,17 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
             updateStatusText();
             return;
         }
-    } else if (m_archiveViewActive) {
+    } else if (m_archiveViewActive || m_smartViewActive || m_dashboardActive) {
         if (m_treeView->selectionModel()) {
             disconnect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
         }
         m_archiveViewActive = false;
+        m_smartViewActive = false;
+        m_dashboardActive = false;
+
+        // Restore active view stack widget
+        onViewModeChanged(viewModeIndex());
+
         m_treeView->setModel(m_proxyModel);
         m_listView->setModel(m_proxyModel);
         m_listView->setSelectionModel(m_treeView->selectionModel());
@@ -619,6 +735,10 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
     m_treeView->setColumnWidth(1, 80);  // Size
     m_treeView->setColumnWidth(2, 100); // Type
     m_treeView->setColumnWidth(3, 140); // Date Modified
+
+    m_millerView->setRootPath(m_currentPath);
+    m_timelineView->setRootPath(m_currentPath);
+    m_filmstripView->setRootPath(m_currentPath);
 
     updateNavigationButtons();
     updateFavoritesUI();
@@ -805,6 +925,8 @@ void FilePanel::onDoubleClicked(const QModelIndex& index) {
     if (m_flatViewEnabled) {
         QModelIndex srcIndex = m_flatProxyModel->mapToSource(index);
         path = m_flatModel->filePath(srcIndex);
+    } else if (m_smartViewActive) {
+        path = m_smartModel->filePath(index);
     } else {
         QModelIndex srcIndex = m_proxyModel->mapToSource(index);
         path = m_fileModel->filePath(srcIndex);
@@ -817,7 +939,7 @@ void FilePanel::onDoubleClicked(const QModelIndex& index) {
         QString ext = info.suffix().toLower();
         QSettings settings("Amifiles", "Amifiles");
         bool archiveNavEnabled = settings.value("preferences/archive_nav", true).toBool();
-        QStringList archiveExts = { "zip", "tar", "gz", "xz", "bz2", "tgz", "rar" };
+        QStringList archiveExts = { "zip", "tar", "gz", "xz", "bz2", "tgz", "rar", "7z", "adf", "d64", "iso", "img" };
 
         if (archiveNavEnabled && archiveExts.contains(ext)) {
             m_statusLabel->setText("Loading archive...");
@@ -871,18 +993,39 @@ void FilePanel::onSelectionChanged() {
 }
 
 QStringList FilePanel::selectedPaths() const {
+    QWidget* active = m_viewStack->currentWidget();
+    if (active == m_millerView) {
+        return m_millerView->selectedPaths();
+    } else if (active == m_timelineView) {
+        return m_timelineView->selectedPaths();
+    } else if (active == m_filmstripView) {
+        return m_filmstripView->selectedPaths();
+    }
+
     QStringList paths;
     if (!m_treeView->selectionModel()) return paths;
     QModelIndexList selectedRows = m_treeView->selectionModel()->selectedRows();
     for (const QModelIndex& index : selectedRows) {
         if (m_archiveViewActive) {
-            paths.append(m_archiveModel->entryPath(index));
+            if (!m_archiveModel->isDir(index)) {
+                QString vPath = m_archiveModel->entryPath(index);
+                QString tempPath = const_cast<ArchiveModel*>(m_archiveModel)->extractFile(vPath);
+                if (!tempPath.isEmpty()) {
+                    paths.append(tempPath);
+                } else {
+                    paths.append(vPath);
+                }
+            } else {
+                paths.append(m_archiveModel->entryPath(index));
+            }
         } else if (m_flatViewEnabled) {
             QSortFilterProxyModel* proxy = qobject_cast<QSortFilterProxyModel*>(m_treeView->model());
             if (proxy) {
                 QModelIndex srcIndex = proxy->mapToSource(index);
                 paths.append(m_flatModel->filePath(srcIndex));
             }
+        } else if (m_smartViewActive) {
+            paths.append(m_smartModel->filePath(index));
         } else {
             QModelIndex srcIndex = m_proxyModel->mapToSource(index);
             paths.append(m_fileModel->filePath(srcIndex));
@@ -1044,6 +1187,11 @@ void FilePanel::onPaste() {
         QSettings settings("Amifiles", "Amifiles");
         bool enableArchiveNav = settings.value("preferences/archive_nav", true).toBool();
         if (enableArchiveNav) {
+            bool archiveWriteEnabled = settings.value("preferences/archive_write", false).toBool();
+            if (!archiveWriteEnabled) {
+                QMessageBox::warning(this, "Write Mode Disabled", "Archive Write Mode is currently disabled. You can enable read-write permissions for archives and disk images in the View menu.");
+                return;
+            }
             if (m_archiveModel->addFiles(srcPaths)) {
                 refresh();
             } else {
@@ -1082,6 +1230,11 @@ void FilePanel::onDelete() {
             QSettings settings("Amifiles", "Amifiles");
             bool enableArchiveNav = settings.value("preferences/archive_nav", true).toBool();
             if (enableArchiveNav) {
+                bool archiveWriteEnabled = settings.value("preferences/archive_write", false).toBool();
+                if (!archiveWriteEnabled) {
+                    QMessageBox::warning(this, "Write Mode Disabled", "Archive Write Mode is currently disabled. You can enable read-write permissions for archives and disk images in the View menu.");
+                    return;
+                }
                 if (m_archiveModel->deleteFiles(paths)) {
                     refresh();
                 } else {
@@ -1219,21 +1372,34 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     QString selectedPath;
     bool isFolder = false;
     bool isFavorite = false;
-    if (index.isValid()) {
-        if (m_archiveViewActive) {
-            selectedPath = m_archiveModel->entryPath(index);
-            isFolder = m_archiveModel->isDir(index);
-        } else if (m_flatViewEnabled) {
-            QModelIndex srcIndex = m_flatProxyModel->mapToSource(index);
-            selectedPath = m_flatModel->filePath(srcIndex);
-        } else {
-            QModelIndex srcIndex = m_proxyModel->mapToSource(index);
-            selectedPath = m_fileModel->filePath(srcIndex);
-        }
-        QFileInfo info(selectedPath);
-        if (info.isDir()) {
-            isFolder = true;
+
+    QWidget* activeViewWidget = m_viewStack->currentWidget();
+    bool isNewView = (activeViewWidget == m_millerView || activeViewWidget == m_timelineView || activeViewWidget == m_filmstripView);
+
+    if (isNewView) {
+        if (!curSelected.isEmpty()) {
+            selectedPath = curSelected.first();
+            QFileInfo info(selectedPath);
+            isFolder = info.isDir();
             isFavorite = FavoritesManager::instance().isFavorite(selectedPath);
+        }
+    } else {
+        if (index.isValid()) {
+            if (m_archiveViewActive) {
+                selectedPath = m_archiveModel->entryPath(index);
+                isFolder = m_archiveModel->isDir(index);
+            } else if (m_flatViewEnabled) {
+                QModelIndex srcIndex = m_flatProxyModel->mapToSource(index);
+                selectedPath = m_flatModel->filePath(srcIndex);
+            } else {
+                QModelIndex srcIndex = m_proxyModel->mapToSource(index);
+                selectedPath = m_fileModel->filePath(srcIndex);
+            }
+            QFileInfo info(selectedPath);
+            if (info.isDir()) {
+                isFolder = true;
+                isFavorite = FavoritesManager::instance().isFavorite(selectedPath);
+            }
         }
     }
 
@@ -1300,6 +1466,7 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     }
 
     QAction* actCreateArchive = menu.addAction("Create Archive...");
+    QAction* actCreateSecureArchive = menu.addAction("Create Secure Archive (AES-256)...");
     QAction* actExtractArchive = menu.addAction("Extract Archive...");
     menu.addSeparator();
     QAction* actCalculateChecksum = menu.addAction("Calculate Checksum Hash...");
@@ -1350,7 +1517,7 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     bool isArchive = false;
     if (curSelected.size() == 1) {
         QString ext = QFileInfo(curSelected.first()).suffix().toLower();
-        isArchive = (ext == "zip" || ext == "tar" || ext == "gz" || ext == "xz" || ext == "bz2" || ext == "tgz");
+        isArchive = (ext == "zip" || ext == "tar" || ext == "gz" || ext == "xz" || ext == "bz2" || ext == "tgz" || ext == "7z" || ext == "rar" || ext == "adf" || ext == "d64" || ext == "iso" || ext == "img");
     }
     actCreateArchive->setEnabled(!curSelected.isEmpty());
     actExtractArchive->setEnabled(isArchive);
@@ -1364,12 +1531,23 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     actPaste->setEnabled(mimeData && mimeData->hasUrls());
 
     // Execute menu on the active view layout widget
-    QWidget* activeViewWidget = (m_viewStack->currentWidget() == m_listView) ? static_cast<QWidget*>(m_listView) : static_cast<QWidget*>(m_treeView);
-    QAction* selected = menu.exec(activeViewWidget->mapToGlobal(pos));
+    QPoint globalPos = QCursor::pos();
+    QAction* selected = menu.exec(globalPos);
     if (!selected) return;
 
     if (selected == actOpen) {
-        onDoubleClicked(index);
+        if (isNewView) {
+            if (!selectedPath.isEmpty()) {
+                QFileInfo fi(selectedPath);
+                if (fi.isDir()) {
+                    navigateTo(selectedPath, true);
+                } else {
+                    QDesktopServices::openUrl(QUrl::fromLocalFile(selectedPath));
+                }
+            }
+        } else {
+            onDoubleClicked(index);
+        }
     } else if (selected == actCopy) {
         onCopy();
     } else if (selected == actCut) {
@@ -1440,24 +1618,54 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
             refresh();
         }
     } else if (selected == actCreateArchive) {
-        ArchiveDialog dlg(ArchiveDialog::ModeCreate, curSelected, m_currentPath, this);
+        ArchiveDialog dlg(ArchiveDialog::ModeCreate, curSelected, m_currentPath, false, this);
         if (dlg.exec() == QDialog::Accepted) {
             refresh();
+            if (m_siblingPanel) m_siblingPanel->refresh();
+            QTimer::singleShot(500, this, [this]() {
+                refresh();
+                if (m_siblingPanel) m_siblingPanel->refresh();
+            });
+        }
+    } else if (selected == actCreateSecureArchive) {
+        ArchiveDialog dlg(ArchiveDialog::ModeCreate, curSelected, m_currentPath, true, this);
+        if (dlg.exec() == QDialog::Accepted) {
+            refresh();
+            if (m_siblingPanel) m_siblingPanel->refresh();
+            QTimer::singleShot(500, this, [this]() {
+                refresh();
+                if (m_siblingPanel) m_siblingPanel->refresh();
+            });
         }
     } else if (selected == actExtractArchive) {
         ArchiveDialog dlg(ArchiveDialog::ModeExtract, curSelected.first(), m_currentPath, this);
         if (dlg.exec() == QDialog::Accepted) {
             refresh();
+            if (m_siblingPanel) m_siblingPanel->refresh();
+            QTimer::singleShot(500, this, [this]() {
+                refresh();
+                if (m_siblingPanel) m_siblingPanel->refresh();
+            });
         }
     } else if (selected == actEncryptVault) {
         VaultDialog dlg(true, selectedPath, this);
         if (dlg.exec() == QDialog::Accepted) {
             refresh();
+            if (m_siblingPanel) m_siblingPanel->refresh();
+            QTimer::singleShot(500, this, [this]() {
+                refresh();
+                if (m_siblingPanel) m_siblingPanel->refresh();
+            });
         }
     } else if (selected == actDecryptVault) {
         VaultDialog dlg(false, selectedPath, this);
         if (dlg.exec() == QDialog::Accepted) {
             refresh();
+            if (m_siblingPanel) m_siblingPanel->refresh();
+            QTimer::singleShot(500, this, [this]() {
+                refresh();
+                if (m_siblingPanel) m_siblingPanel->refresh();
+            });
         }
     } else if (selected == actCalculateChecksum) {
         ChecksumDialog dlg(selectedPath, this);
@@ -1494,21 +1702,8 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         for (const QString& path : curSelected) TagManager::instance().setFileColor(path, "purple");
         refresh();
     } else if (selected == actFileTags) {
-        QStringList initialTags = TagManager::instance().getFileTags(selectedPath);
-        bool ok;
-        QString text = QInputDialog::getText(this, "Edit File Tags",
-                                            "Enter tags (comma-separated):",
-                                            QLineEdit::Normal,
-                                            initialTags.join(", "), &ok);
-        if (ok) {
-            QStringList tags;
-            for (const QString& rawTag : text.split(",")) {
-                QString clean = rawTag.trimmed();
-                if (!clean.isEmpty()) tags.append(clean);
-            }
-            for (const QString& path : curSelected) {
-                TagManager::instance().setFileTags(path, tags);
-            }
+        FileTagsDialog dlg(curSelected, this);
+        if (dlg.exec() == QDialog::Accepted) {
             refresh();
             QWidget* p = parentWidget();
             while (p && !p->inherits("MainWindow")) {
@@ -1651,19 +1846,9 @@ void FilePanel::onFavoriteButtonContextMenu(const QPoint& pos) {
 }
 
 void FilePanel::onToggleViewMode() {
-    if (m_viewStack->currentWidget() == m_treeView) {
-        m_viewStack->setCurrentWidget(m_listView);
-        
-        QSettings settings("Amifiles", "Amifiles");
-        settings.setValue("file_panel/view_mode_grid", true);
-
-        onZoomChanged(m_zoomLevel);
-    } else {
-        m_viewStack->setCurrentWidget(m_treeView);
-
-        QSettings settings("Amifiles", "Amifiles");
-        settings.setValue("file_panel/view_mode_grid", false);
-    }
+    int current = m_comboViewMode->currentIndex();
+    int next = (current + 1) % 6;
+    m_comboViewMode->setCurrentIndex(next);
 }
 
 void FilePanel::zoomIn() {
@@ -1732,8 +1917,14 @@ void FilePanel::updateStyles() {
     int fontSize = fonts[qBound(0, m_zoomLevel, 6)];
     QString borderColor = m_isActive ? "#89b4fa" : "#313244";
 
-    m_treeView->setStyleSheet(QString("QTreeView { border: 2px solid %1; font-size: %2px; }").arg(borderColor).arg(fontSize));
-    m_listView->setStyleSheet(QString("QListView { border: 2px solid %1; font-size: %2px; }").arg(borderColor).arg(fontSize));
+    m_viewStack->setStyleSheet(QString("QStackedWidget { border: 2px solid %1; border-radius: 4px; background-color: #1e1e2e; }").arg(borderColor));
+
+    m_treeView->setStyleSheet(QString("QTreeView { border: none; font-size: %1px; }").arg(fontSize));
+    m_listView->setStyleSheet(QString("QListView { border: none; font-size: %1px; }").arg(fontSize));
+    m_millerView->setStyleSheet(QString("MillerColumnsView { border: none; }"));
+    m_timelineView->setStyleSheet(QString("QTreeWidget { border: none; font-size: %1px; }").arg(fontSize));
+    m_filmstripView->setStyleSheet(QString("FilmstripView { border: none; }"));
+
     if (m_searchResultsView) {
         m_searchResultsView->setStyleSheet(QString("QListView { border: 2px solid %1; background-color: #1e1e2e; color: #cdd6f4; font-size: %2px; }").arg(borderColor).arg(fontSize));
     }
@@ -1746,11 +1937,13 @@ void FilePanel::onHeaderContextMenu(const QPoint& pos) {
     QStringList colNames = {
         "Name", "Size", "Type", "Date Modified", 
         "Title", "Artist", "Album", "Bitrate", "Resolution", 
-        "Date Taken", "Camera Model", "Genre", "Year", "Track", "Duration", "Codec"
+        "Date Taken", "Camera Model", "Genre", "Year", "Track", "Duration", "Codec", "Tags"
     };
 
-    // Standard context menu lists first 9 columns for quick toggle
-    for (int i = 0; i < qMin(9, colNames.size()); ++i) {
+    // Standard context menu lists first 10 columns for quick toggle
+    QList<int> quickToggleIndices = {0, 1, 2, 3, 16, 4, 5, 6, 7, 8};
+    for (int i : quickToggleIndices) {
+        if (i >= colNames.size()) continue;
         QAction* act = menu.addAction(colNames[i]);
         act->setCheckable(true);
         act->setChecked(!header->isSectionHidden(i));
@@ -1927,3 +2120,72 @@ QList<bool> ColumnSelectorDialog::selectedVisibilities() const {
     }
     return vis;
 }
+
+void FilePanel::onViewModeChanged(int index) {
+    if (index == 0) { // Details Table
+        m_listView->setItemDelegate(m_defaultDelegate);
+        m_viewStack->setCurrentWidget(m_treeView);
+    } else if (index == 1) { // Grid / Icons
+        m_listView->setItemDelegate(m_defaultDelegate);
+        m_listView->setGridSize(QSize());
+        m_viewStack->setCurrentWidget(m_listView);
+    } else if (index == 2) { // Card / Tiles
+        m_listView->setItemDelegate(m_cardDelegate);
+        m_listView->setGridSize(QSize(195, 75));
+        m_viewStack->setCurrentWidget(m_listView);
+    } else if (index == 3) { // Miller Columns
+        m_millerView->setRootPath(m_currentPath);
+        m_viewStack->setCurrentWidget(m_millerView);
+    } else if (index == 4) { // Chronological Timeline
+        m_timelineView->setRootPath(m_currentPath);
+        m_viewStack->setCurrentWidget(m_timelineView);
+    } else if (index == 5) { // Filmstrip View
+        m_filmstripView->setRootPath(m_currentPath);
+        m_viewStack->setCurrentWidget(m_filmstripView);
+    }
+    
+    // Save view mode index choice in preferences
+    QSettings settings("Amifiles", "Amifiles");
+    settings.setValue("file_panel/view_mode_index", index);
+}
+
+void FilePanel::onDoubleClickedPath(const QString& path) {
+    QFileInfo info(path);
+    if (info.isDir()) {
+        navigateTo(path, true);
+    } else {
+        QString ext = info.suffix().toLower();
+        QSettings settings("Amifiles", "Amifiles");
+        bool archiveNavEnabled = settings.value("preferences/archive_nav", true).toBool();
+        QStringList archiveExts = { "zip", "tar", "gz", "xz", "bz2", "tgz", "rar", "7z", "adf", "d64", "iso", "img" };
+
+        if (archiveNavEnabled && archiveExts.contains(ext)) {
+            m_statusLabel->setText("Loading archive...");
+            QApplication::processEvents();
+            bool ok = m_archiveModel->loadArchive(path);
+            updateStatusText();
+            if (ok) {
+                m_archiveViewActive = true;
+                m_treeView->setModel(m_archiveModel);
+                m_listView->setModel(m_archiveModel);
+                m_pathEdit->setText(QDir::toNativeSeparators(path));
+                emit pathChanged(m_currentPath);
+            } else {
+                QMessageBox::warning(this, "Load Archive", "Failed to parse archive file listing.");
+            }
+        } else {
+            QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+        }
+    }
+}
+
+int FilePanel::viewModeIndex() const {
+    return m_comboViewMode ? m_comboViewMode->currentIndex() : 0;
+}
+
+void FilePanel::setViewModeIndex(int index) {
+    if (m_comboViewMode) {
+        m_comboViewMode->setCurrentIndex(index);
+    }
+}
+

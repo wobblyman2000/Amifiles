@@ -137,6 +137,7 @@ public:
     void setSpectrumVisualizerVisible(bool visible);
 
 signals:
+    void tagsChanged(const QString& filePath);
     void spectrumVisualizerToggled(bool checked);
 
 protected:
@@ -211,6 +212,7 @@ private:
     QLabel* m_imageLabel = nullptr;
     QScrollArea* m_imageScrollArea = nullptr;
     class PdfViewerWidget* m_pdfViewer = nullptr;
+    class QTextEdit* m_pdfTextEdit = nullptr;
 
     // Media View
     QWidget* m_mediaView = nullptr;
@@ -241,6 +243,10 @@ private:
     class QTabWidget* m_bottomTab = nullptr;
     QWidget* m_metadataContainer = nullptr;
     QTableWidget* m_metadataTable = nullptr;
+    class QLineEdit* m_tagEditorEdit = nullptr;
+    class QComboBox* m_tagColorCombo = nullptr;
+    class QPushButton* m_btnApplyTagsColors = nullptr;
+    class QCompleter* m_tagCompleter = nullptr;
     class QListWidget* m_playlistList = nullptr;
     class HexEditorWidget* m_hexViewer = nullptr;
 
@@ -254,6 +260,7 @@ private slots:
     void onPrevTrack();
     void onNextTrack();
     void onPlaylistItemDoubleClicked(class QListWidgetItem* item);
+    void onApplyTagsColors();
 };
 
 #endif // PREVIEWPANEL_H

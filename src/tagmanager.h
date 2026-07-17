@@ -1,6 +1,7 @@
 #ifndef TAGMANAGER_H
 #define TAGMANAGER_H
 
+#include "autotagdialog.h"
 #include <QObject>
 #include <QStringList>
 #include <QMap>
@@ -26,15 +27,22 @@ public:
     QStringList getAllTags() const;
     QStringList getFilesWithTag(const QString& tag) const;
 
+    // Auto-Tagging Rules
+    QList<struct AutoTagRule> getAutoTagRules() const;
+    void setAutoTagRules(const QList<struct AutoTagRule>& rules);
+
 private:
     explicit TagManager(QObject* parent = nullptr);
     ~TagManager() override = default;
 
     void loadDatabase();
     void saveDatabase();
+    void loadAutoRules();
+    void saveAutoRules();
 
     QString m_dbPath;
     QMap<QString, FileTagInfo> m_db;
+    QList<struct AutoTagRule> m_autoRules;
 };
 
 #endif // TAGMANAGER_H

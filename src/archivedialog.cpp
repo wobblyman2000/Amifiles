@@ -13,11 +13,16 @@
 #include <QMessageBox>
 #include <QProcess>
 
-ArchiveDialog::ArchiveDialog(Mode mode, const QStringList& sourcePaths, const QString& currentDir, QWidget* parent)
+ArchiveDialog::ArchiveDialog(Mode mode, const QStringList& sourcePaths, const QString& currentDir, bool enablePassword, QWidget* parent)
     : QDialog(parent), m_mode(mode), m_sourcePaths(sourcePaths), m_currentDir(currentDir) {
     setWindowTitle("Create Archive");
     resize(500, 250);
     setupUI();
+    if (enablePassword && m_chkPassword && m_txtPassword) {
+        m_chkPassword->setChecked(true);
+        m_txtPassword->setEnabled(true);
+        m_txtPassword->setFocus();
+    }
 }
 
 ArchiveDialog::ArchiveDialog(Mode mode, const QString& archivePath, const QString& currentDir, QWidget* parent)
@@ -120,6 +125,17 @@ void ArchiveDialog::setupUI() {
         mainLayout->addLayout(passRow);
 
         connect(m_chkPassword, &QCheckBox::toggled, m_txtPassword, &QLineEdit::setEnabled);
+
+        QHBoxLayout* actionRow = new QHBoxLayout();
+        actionRow->addWidget(new QLabel("Post-Extraction:", this));
+        m_comboPostAction = new QComboBox(this);
+        m_comboPostAction->addItems({
+            "Keep source archive intact",
+            "Move source archive to Trash upon success",
+            "Delete source archive permanently upon success"
+        });
+        actionRow->addWidget(m_comboPostAction);
+        mainLayout->addLayout(actionRow);
     }
 
     m_progressBar = new QProgressBar(this);
@@ -187,7 +203,7 @@ void ArchiveDialog::startExtraction() {
         } else {
             m_process->start("unzip", {"-o", m_archivePath, "-d", m_currentDir});
         }
-    } else if (ext == "7z") {
+    } else if (ext == "7z" || ext == "iso" || ext == "img") {
         QStringList args;
         args << "x";
         if (m_chkPassword->isChecked() && !m_txtPassword->text().isEmpty()) {
@@ -195,6 +211,11 @@ void ArchiveDialog::startExtraction() {
         }
         args << m_archivePath << QString("-o%1").arg(m_currentDir) << "-y";
         m_process->start("7z", args);
+    } else if (ext == "d64") {
+        QString cmd = QString("for f in $(c1541 -attach \"%1\" -list | grep -o '\"[^\"]*\"' | tr -d '\"'); do c1541 -attach \"%1\" -read \"$f\" \"%2/$f\"; done").arg(m_archivePath).arg(m_currentDir);
+        m_process->start("bash", {"-c", cmd});
+    } else if (ext == "adf") {
+        m_process->start("xdftool", { m_archivePath, "unpack", m_currentDir });
     } else {
         // Double fallback: try 7z first for unknown format, then tar
         if (ext == "7z" || ext == "rar") {
@@ -306,7 +327,28 @@ void ArchiveDialog::onProcessFinished(int exitCode, QProcess::ExitStatus status)
 
     if (status == QProcess::NormalExit && exitCode == 0) {
         m_lblStatus->setText("Operation completed successfully!");
-        QMessageBox::information(this, "Success", "Archive operation finished successfully.");
+        if (m_mode == ModeExtract && m_comboPostAction) {
+            int actionIdx = m_comboPostAction->currentIndex();
+            if (actionIdx == 1) { // Move to Trash
+                bool trashed = QFile::moveToTrash(m_archivePath);
+                if (trashed) {
+                    QMessageBox::information(this, "Success", "Archive extracted and original archive moved to Trash successfully.");
+                } else {
+                    QMessageBox::warning(this, "Warning", "Archive extracted successfully, but original archive could not be moved to Trash.");
+                }
+            } else if (actionIdx == 2) { // Permanent Delete
+                bool removed = QFile::remove(m_archivePath);
+                if (removed) {
+                    QMessageBox::information(this, "Success", "Archive extracted and original archive deleted permanently.");
+                } else {
+                    QMessageBox::warning(this, "Warning", "Archive extracted successfully, but original archive could not be deleted.");
+                }
+            } else {
+                QMessageBox::information(this, "Success", "Archive operation finished successfully.");
+            }
+        } else {
+            QMessageBox::information(this, "Success", "Archive operation finished successfully.");
+        }
         accept();
     } else {
         m_lblStatus->setText("Operation failed.");

@@ -1,6 +1,11 @@
 #include "previewpanel.h"
 #include <QVBoxLayout>
 #include <QPainterPath>
+#include <QLineEdit>
+#include <QFormLayout>
+#include <QCompleter>
+#include <QStringListModel>
+#include "tagmanager.h"
 #include "imageeditordialog.h"
 #include "fullscreenimageviewer.h"
 #include "hexeditorwidget.h"
@@ -572,6 +577,69 @@ void PreviewPanel::setupUI() {
         "QTableWidget::item { padding: 3px 6px; border: none; }"
     );
     metaLayout->addWidget(m_metadataTable, 1);
+
+    // Separator line
+    QFrame* sep = new QFrame(m_metadataContainer);
+    sep->setFrameShape(QFrame::HLine);
+    sep->setFrameShadow(QFrame::Sunken);
+    sep->setStyleSheet("background-color: #313244; max-height: 1px; margin: 4px 0;");
+    metaLayout->addWidget(sep);
+
+    // Quick Tag Editor Layout
+    QFormLayout* tagForm = new QFormLayout();
+    tagForm->setContentsMargins(6, 4, 6, 4);
+    tagForm->setSpacing(6);
+
+    m_tagEditorEdit = new QLineEdit(m_metadataContainer);
+    m_tagEditorEdit->setPlaceholderText("Comma-separated tags (e.g. Work, Urgent)");
+    m_tagEditorEdit->setClearButtonEnabled(true);
+    m_tagEditorEdit->setStyleSheet("QLineEdit { background-color: #11111b; color: #cdd6f4; border: 1px solid #45475a; border-radius: 4px; padding: 4px; }");
+    tagForm->addRow(new QLabel("Tags:", m_metadataContainer), m_tagEditorEdit);
+
+    m_tagCompleter = new QCompleter(this);
+    m_tagCompleter->setCaseSensitivity(Qt::CaseInsensitive);
+    m_tagCompleter->setCompletionMode(QCompleter::PopupCompletion);
+    if (m_tagCompleter->popup()) {
+        m_tagCompleter->popup()->setStyleSheet("background-color: #1e1e2e; color: #cdd6f4; border: 1px solid #45475a;");
+    }
+    m_tagEditorEdit->setCompleter(m_tagCompleter);
+
+    connect(m_tagEditorEdit, &QLineEdit::textEdited, this, [this](const QString& text) {
+        int lastComma = text.lastIndexOf(',');
+        QString currentWord = (lastComma == -1) ? text.trimmed() : text.mid(lastComma + 1).trimmed();
+        if (currentWord.isEmpty()) {
+            m_tagCompleter->popup()->hide();
+        } else {
+            QStringList allTags = TagManager::instance().getAllTags();
+            m_tagCompleter->setModel(new QStringListModel(allTags, m_tagCompleter));
+            m_tagCompleter->setCompletionPrefix(currentWord);
+            m_tagCompleter->complete();
+        }
+    });
+
+    connect(m_tagCompleter, QOverload<const QString&>::of(&QCompleter::activated), this, [this](const QString& tag) {
+        QString text = m_tagEditorEdit->text();
+        int lastComma = text.lastIndexOf(',');
+        if (lastComma == -1) {
+            m_tagEditorEdit->setText(tag + ", ");
+        } else {
+            m_tagEditorEdit->setText(text.left(lastComma + 1) + " " + tag + ", ");
+        }
+    });
+
+    m_tagColorCombo = new QComboBox(m_metadataContainer);
+    m_tagColorCombo->addItems({"None", "Red", "Orange", "Yellow", "Green", "Blue", "Purple"});
+    m_tagColorCombo->setStyleSheet("QComboBox { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 4px; padding: 2px 4px; }");
+    tagForm->addRow(new QLabel("Badge Color:", m_metadataContainer), m_tagColorCombo);
+
+    m_btnApplyTagsColors = new QPushButton("Apply Tags & Color", m_metadataContainer);
+    m_btnApplyTagsColors->setStyleSheet("QPushButton { background-color: #89b4fa; color: #11111b; font-weight: bold; border-radius: 4px; padding: 4px; }"
+                                        "QPushButton:hover { background-color: #b4befe; }");
+    connect(m_btnApplyTagsColors, &QPushButton::clicked, this, &PreviewPanel::onApplyTagsColors);
+    tagForm->addRow(m_btnApplyTagsColors);
+
+    metaLayout->addLayout(tagForm);
+
     m_bottomTab->addTab(m_metadataContainer, "Properties");
 
     // Tab 2: Playlist Queue
@@ -664,6 +732,12 @@ void PreviewPanel::setupUI() {
     m_hexViewer = new HexEditorWidget(this);
     m_bottomTab->addTab(m_hexViewer, "Hex Viewer");
 
+    m_pdfTextEdit = new QTextEdit(this);
+    m_pdfTextEdit->setReadOnly(true);
+    m_pdfTextEdit->setPlaceholderText("Select a PDF to extract text contents...");
+    m_pdfTextEdit->setStyleSheet("QTextEdit { background-color: transparent; border: none; color: #cdd6f4; font-family: monospace; font-size: 11px; }");
+    m_bottomTab->addTab(m_pdfTextEdit, "Document Text");
+
     mainLayout->addWidget(m_stack, 2);
     mainLayout->addWidget(m_bottomTab, 1);
 }
@@ -683,6 +757,9 @@ void PreviewPanel::clearPreview() {
     }
     if (m_pdfViewer) {
         m_pdfViewer->clear();
+    }
+    if (m_pdfTextEdit) {
+        m_pdfTextEdit->clear();
     }
     if (m_audioPlaceholder) {
         m_audioPlaceholder->setFilePath("");
@@ -751,6 +828,19 @@ void PreviewPanel::previewFile(const QString& filePath) {
         if (m_pdfViewer) {
             m_pdfViewer->loadPdf(filePath);
             m_stack->setCurrentWidget(m_pdfViewer);
+        }
+        if (m_pdfTextEdit) {
+            m_pdfTextEdit->setPlainText("Extracting text contents from PDF...");
+            QProcess* extractProc = new QProcess(this);
+            connect(extractProc, &QProcess::finished, this, [this, extractProc](int exitCode) {
+                if (exitCode == 0) {
+                    m_pdfTextEdit->setPlainText(QString::fromLocal8Bit(extractProc->readAllStandardOutput()));
+                } else {
+                    m_pdfTextEdit->setPlainText("Failed to extract text from PDF.");
+                }
+                extractProc->deleteLater();
+            });
+            extractProc->start("pdftotext", {filePath, "-"});
         }
     } else {
         // Unknown binary/other file - just show metadata
@@ -1116,6 +1206,23 @@ void PreviewPanel::updateMetadataDisplay(const FileMetadata& meta) {
     qint64 durationMs = m_player->duration();
     if (durationMs > 0) {
         addMetaRow("Duration:", formatDuration(durationMs));
+    }
+
+    // Load and fill tag inputs
+    QStringList tags = TagManager::instance().getFileTags(meta.path);
+    m_tagEditorEdit->setText(tags.join(", "));
+
+    QString col = TagManager::instance().getFileColor(meta.path);
+    if (!col.isEmpty()) {
+        col = col.left(1).toUpper() + col.mid(1).toLower();
+    } else {
+        col = "None";
+    }
+    int colIdx = m_tagColorCombo->findText(col, Qt::MatchFixedString);
+    if (colIdx != -1) {
+        m_tagColorCombo->setCurrentIndex(colIdx);
+    } else {
+        m_tagColorCombo->setCurrentIndex(0);
     }
 }
 
@@ -1854,4 +1961,23 @@ void PreviewPanel::setSpectrumVisualizerVisible(bool visible) {
         bool shouldBeVisible = visible && (m_stack->currentWidget() == m_mediaView) && !m_videoWidget->isVisible();
         m_visualizer->setVisible(shouldBeVisible);
     }
+}
+
+void PreviewPanel::onApplyTagsColors() {
+    if (m_previewedFilePath.isEmpty()) return;
+
+    QString tagsText = m_tagEditorEdit->text();
+    QStringList tagsList = tagsText.split(',', Qt::SkipEmptyParts);
+    for (QString& tag : tagsList) {
+        tag = tag.trimmed();
+    }
+    TagManager::instance().setFileTags(m_previewedFilePath, tagsList);
+
+    QString colorName = m_tagColorCombo->currentText().toLower();
+    if (colorName == "none") {
+        colorName = "";
+    }
+    TagManager::instance().setFileColor(m_previewedFilePath, colorName);
+
+    emit tagsChanged(m_previewedFilePath);
 }

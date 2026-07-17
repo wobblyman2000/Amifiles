@@ -42,6 +42,11 @@ private:
     QTimer* m_slideshowTimer = nullptr;
     bool m_slideshowActive = false;
 
+    // HUD auto-hide & overlay toggles
+    QTimer* m_hudHideTimer = nullptr;
+    bool m_hudVisible = true;
+    bool m_showInfoOverlay = true;
+
     // GUI HUD rects for mouse click handling
     QRect m_hudRect;
     QRect m_btnPrevRect;

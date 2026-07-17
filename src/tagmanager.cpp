@@ -16,6 +16,7 @@ TagManager::TagManager(QObject* parent) : QObject(parent) {
     QDir().mkpath(configDir);
     m_dbPath = configDir + "/tags.json";
     loadDatabase();
+    loadAutoRules();
 }
 
 void TagManager::loadDatabase() {
@@ -74,7 +75,43 @@ void TagManager::setFileColor(const QString& filePath, const QString& colorName)
 }
 
 QString TagManager::getFileColor(const QString& filePath) const {
-    return m_db.value(filePath).colorName;
+    // 1. Static User Override
+    QString staticColor = m_db.value(filePath).colorName;
+    if (!staticColor.isEmpty() && staticColor != "none") {
+        return staticColor;
+    }
+
+    // 2. Evaluate Dynamic Auto-Rules
+    QFileInfo info(filePath);
+    if (info.exists() && info.isFile()) {
+        qint64 sizeMB = info.size() / (1024 * 1024);
+        for (const auto& rule : m_autoRules) {
+            if (!rule.active) continue;
+
+            bool matchesPattern = false;
+            if (!rule.pattern.isEmpty()) {
+                QRegularExpression re(QRegularExpression::wildcardToRegularExpression(rule.pattern), QRegularExpression::CaseInsensitiveOption);
+                matchesPattern = re.match(info.fileName()).hasMatch();
+            }
+
+            bool matchesSize = (rule.minSize != -1 && sizeMB >= rule.minSize);
+
+            bool match = false;
+            if (!rule.pattern.isEmpty() && rule.minSize != -1) {
+                match = matchesPattern && matchesSize;
+            } else if (!rule.pattern.isEmpty()) {
+                match = matchesPattern;
+            } else if (rule.minSize != -1) {
+                match = matchesSize;
+            }
+
+            if (match && !rule.color.isEmpty() && rule.color != "none") {
+                return rule.color;
+            }
+        }
+    }
+
+    return "none";
 }
 
 QColor TagManager::getColorValue(const QString& colorName) const {
@@ -93,7 +130,41 @@ void TagManager::setFileTags(const QString& filePath, const QStringList& tags) {
 }
 
 QStringList TagManager::getFileTags(const QString& filePath) const {
-    return m_db.value(filePath).tags;
+    QStringList tags = m_db.value(filePath).tags;
+
+    // Evaluate Auto-rules to append tags dynamically
+    QFileInfo info(filePath);
+    if (info.exists() && info.isFile()) {
+        qint64 sizeMB = info.size() / (1024 * 1024);
+        for (const auto& rule : m_autoRules) {
+            if (!rule.active) continue;
+
+            bool matchesPattern = false;
+            if (!rule.pattern.isEmpty()) {
+                QRegularExpression re(QRegularExpression::wildcardToRegularExpression(rule.pattern), QRegularExpression::CaseInsensitiveOption);
+                matchesPattern = re.match(info.fileName()).hasMatch();
+            }
+
+            bool matchesSize = (rule.minSize != -1 && sizeMB >= rule.minSize);
+
+            bool match = false;
+            if (!rule.pattern.isEmpty() && rule.minSize != -1) {
+                match = matchesPattern && matchesSize;
+            } else if (!rule.pattern.isEmpty()) {
+                match = matchesPattern;
+            } else if (rule.minSize != -1) {
+                match = matchesSize;
+            }
+
+            if (match && !rule.tag.isEmpty()) {
+                if (!tags.contains(rule.tag)) {
+                    tags.append(rule.tag);
+                }
+            }
+        }
+    }
+
+    return tags;
 }
 
 QStringList TagManager::getAllTags() const {
@@ -117,4 +188,59 @@ QStringList TagManager::getFilesWithTag(const QString& tag) const {
         }
     }
     return files;
+}
+
+void TagManager::loadAutoRules() {
+    QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    QFile file(configDir + "/autorules.json");
+    if (!file.open(QIODevice::ReadOnly)) return;
+
+    QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+    if (doc.isNull()) return;
+
+    m_autoRules.clear();
+    QJsonArray arr = doc.array();
+    for (const auto& val : arr) {
+        QJsonObject obj = val.toObject();
+        AutoTagRule r;
+        r.id = obj["id"].toString();
+        r.name = obj["name"].toString();
+        r.pattern = obj["pattern"].toString();
+        r.minSize = obj["minSize"].toVariant().toLongLong();
+        r.tag = obj["tag"].toString();
+        r.color = obj["color"].toString();
+        r.active = obj["active"].toBool();
+        m_autoRules.append(r);
+    }
+}
+
+void TagManager::saveAutoRules() {
+    QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    QFile file(configDir + "/autorules.json");
+    if (!file.open(QIODevice::WriteOnly)) return;
+
+    QJsonArray arr;
+    for (const auto& r : m_autoRules) {
+        QJsonObject obj;
+        obj["id"] = r.id;
+        obj["name"] = r.name;
+        obj["pattern"] = r.pattern;
+        obj["minSize"] = r.minSize;
+        obj["tag"] = r.tag;
+        obj["color"] = r.color;
+        obj["active"] = r.active;
+        arr.append(obj);
+    }
+
+    QJsonDocument doc(arr);
+    file.write(doc.toJson());
+}
+
+QList<AutoTagRule> TagManager::getAutoTagRules() const {
+    return m_autoRules;
+}
+
+void TagManager::setAutoTagRules(const QList<AutoTagRule>& rules) {
+    m_autoRules = rules;
+    saveAutoRules();
 }

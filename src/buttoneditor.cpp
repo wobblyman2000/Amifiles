@@ -71,10 +71,20 @@ QString ButtonEditorDialog::name() const { return m_txtName->text().trimmed(); }
 QString ButtonEditorDialog::command() const { return m_txtCommand->text().trimmed(); }
 QString ButtonEditorDialog::iconPath() const { return m_txtIconPath->text().trimmed(); }
 
+#include "iconpickerdialog.h"
+
 void ButtonEditorDialog::onBrowseIcon() {
-    QString path = QFileDialog::getOpenFileName(this, "Select Icon File", QDir::homePath(), "Images (*.png *.jpg *.svg *.xpm)");
-    if (!path.isEmpty()) {
-        m_txtIconPath->setText(path);
+    IconPickerDialog dlg(this);
+    if (dlg.exec() == QDialog::Accepted) {
+        QString path = dlg.selectedIconName();
+        if (!path.isEmpty()) {
+            // If it is a system icon name, prefix with 'theme:' to match the loading code in rebuildCustomToolBar
+            if (!path.contains("/") && !path.contains("\\")) {
+                m_txtIconPath->setText("theme:" + path);
+            } else {
+                m_txtIconPath->setText(path);
+            }
+        }
     }
 }
 

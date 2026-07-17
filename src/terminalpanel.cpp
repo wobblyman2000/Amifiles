@@ -1,6 +1,10 @@
 #include "terminalpanel.h"
 #include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QDir>
+#include <QPushButton>
 #include <QKeyEvent>
+#include <QScrollBar>
 #include <QDebug>
 #include <unistd.h>
 #include <fcntl.h>
@@ -13,7 +17,7 @@
 // ================= TerminalEdit =================
 
 TerminalEdit::TerminalEdit(QWidget* parent) : QPlainTextEdit(parent) {
-    document()->setMaximumBlockCount(2000); // Prevent infinite memory growth
+    document()->setMaximumBlockCount(2000);
 }
 
 void TerminalEdit::keyPressEvent(QKeyEvent* e) {
@@ -37,7 +41,7 @@ void TerminalEdit::keyPressEvent(QKeyEvent* e) {
                 data.append("\r");
                 break;
             case Qt::Key_Backspace:
-                data.append("\177"); // ASCII Delete
+                data.append("\177");
                 break;
             case Qt::Key_Tab:
                 data.append("\t");
@@ -66,12 +70,12 @@ void TerminalEdit::keyPressEvent(QKeyEvent* e) {
     if (!data.isEmpty()) {
         ::write(m_masterFd, data.constData(), data.size());
     }
-    e->accept(); // Consume key event locally, shell will echo it back
+    e->accept();
 }
 
-// ================= TerminalPanel =================
+// ================= SingleTerminalWidget =================
 
-TerminalPanel::TerminalPanel(QWidget* parent) : QWidget(parent) {
+SingleTerminalWidget::SingleTerminalWidget(QWidget* parent) : QWidget(parent) {
     QVBoxLayout* layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
 
@@ -80,14 +84,16 @@ TerminalPanel::TerminalPanel(QWidget* parent) : QWidget(parent) {
         "QPlainTextEdit { background-color: #11111b; color: #cdd6f4; border: 1px solid #313244; font-family: monospace; font-size: 11px; }"
     );
 
-    // Style baseline format matching Catppuccin Mocha theme text colors
     m_defaultFormat.setForeground(QColor("#cdd6f4"));
     m_currentFormat = m_defaultFormat;
 
     layout->addWidget(m_terminalEdit);
 }
 
-TerminalPanel::~TerminalPanel() {
+SingleTerminalWidget::~SingleTerminalWidget() {
+    if (m_notifier) {
+        m_notifier->setEnabled(false);
+    }
     if (m_masterFd != -1) {
         ::close(m_masterFd);
     }
@@ -97,7 +103,7 @@ TerminalPanel::~TerminalPanel() {
     }
 }
 
-void TerminalPanel::startShell(const QString& workingDir) {
+void SingleTerminalWidget::startShell(const QString& workingDir) {
     struct winsize ws;
     ws.ws_row = 24;
     ws.ws_col = 80;
@@ -113,7 +119,6 @@ void TerminalPanel::startShell(const QString& workingDir) {
     }
 
     if (pid == 0) {
-        // Child shell process
         setenv("TERM", "xterm-color", 1);
         if (!workingDir.isEmpty()) {
             chdir(workingDir.toLocal8Bit().constData());
@@ -122,29 +127,26 @@ void TerminalPanel::startShell(const QString& workingDir) {
         _exit(1);
     }
 
-    // Parent GUI process
     m_masterFd = masterFd;
     m_pid = pid;
     m_terminalEdit->setMasterFd(m_masterFd);
 
-    // Make master file descriptor non-blocking
     int flags = fcntl(m_masterFd, F_GETFL, 0);
     fcntl(m_masterFd, F_SETFL, flags | O_NONBLOCK);
 
     m_notifier = new QSocketNotifier(m_masterFd, QSocketNotifier::Read, this);
-    connect(m_notifier, &QSocketNotifier::activated, this, &TerminalPanel::onReadyRead);
+    connect(m_notifier, &QSocketNotifier::activated, this, &SingleTerminalWidget::onReadyRead);
 
-    m_terminalEdit->appendPlainText("=== Interactive Bash Terminal Initialized ===");
+    m_terminalEdit->appendPlainText("=== Terminal Session Active ===");
 }
 
-void TerminalPanel::syncDirectory(const QString& path) {
+void SingleTerminalWidget::syncDirectory(const QString& path) {
     if (m_masterFd == -1) return;
-    // Safely cd to directory using single-line bash command execution
     QString cmd = QString("cd \"%1\"\n").arg(path);
     ::write(m_masterFd, cmd.toLocal8Bit().constData(), cmd.length());
 }
 
-void TerminalPanel::onReadyRead() {
+void SingleTerminalWidget::onReadyRead() {
     char buf[1024];
     QByteArray incoming;
 
@@ -162,7 +164,7 @@ void TerminalPanel::onReadyRead() {
     }
 }
 
-void TerminalPanel::parseAndWriteText(const QByteArray& data) {
+void SingleTerminalWidget::parseAndWriteText(const QByteArray& data) {
     QTextCursor cursor = m_terminalEdit->textCursor();
     cursor.movePosition(QTextCursor::End);
     m_terminalEdit->setTextCursor(cursor);
@@ -181,7 +183,7 @@ void TerminalPanel::parseAndWriteText(const QByteArray& data) {
                 if (seqEnd < len) {
                     char code = data[seqEnd];
                     QByteArray seq = data.mid(seqStart, seqEnd - seqStart);
-                    idx = seqEnd; // Skip processed code
+                    idx = seqEnd;
 
                     if (code == 'm') {
                         QStringList codes = QString::fromLocal8Bit(seq).split(';');
@@ -207,13 +209,131 @@ void TerminalPanel::parseAndWriteText(const QByteArray& data) {
         } else if (ch == '\b') {
             cursor.deletePreviousChar();
         } else if (ch == '\r') {
-            // Wait for newline
+            // skip
         } else {
-            QString str = QString(ch);
-            cursor.insertText(str, m_currentFormat);
+            cursor.insertText(QString(ch), m_currentFormat);
         }
         idx++;
     }
 
     m_terminalEdit->ensureCursorVisible();
+}
+
+// ================= TerminalPanel =================
+
+TerminalPanel::TerminalPanel(QWidget* parent) : QWidget(parent) {
+    setupUI();
+}
+
+void TerminalPanel::startShell(const QString& workingDir) {
+    addNewTab(workingDir);
+}
+
+void TerminalPanel::setupUI() {
+    QVBoxLayout* mainLayout = new QVBoxLayout(this);
+    mainLayout->setContentsMargins(4, 4, 4, 4);
+    mainLayout->setSpacing(4);
+
+    // Mini Controls Row
+    QHBoxLayout* controlsLayout = new QHBoxLayout();
+    controlsLayout->setContentsMargins(4, 0, 4, 0);
+
+    QPushButton* btnAdd = new QPushButton("+ New Tab", this);
+    QPushButton* btnSplit = new QPushButton("🔲 Split Vertically", this);
+
+    btnAdd->setStyleSheet("QPushButton { background-color: #313244; color: #a6e3a1; border: 1px solid #45475a; border-radius: 4px; padding: 4px 10px; font-weight: bold; } QPushButton:hover { background-color: #a6e3a1; color: #11111b; }");
+    btnSplit->setStyleSheet("QPushButton { background-color: #313244; color: #89b4fa; border: 1px solid #45475a; border-radius: 4px; padding: 4px 10px; font-weight: bold; } QPushButton:hover { background-color: #89b4fa; color: #11111b; }");
+
+    connect(btnAdd, &QPushButton::clicked, this, [this]() { addNewTab(); });
+    connect(btnSplit, &QPushButton::clicked, this, &TerminalPanel::splitActiveTab);
+
+    controlsLayout->addWidget(btnAdd);
+    controlsLayout->addWidget(btnSplit);
+    controlsLayout->addStretch(1);
+    mainLayout->addLayout(controlsLayout);
+
+    // Tab Widget
+    m_tabWidget = new QTabWidget(this);
+    m_tabWidget->setTabsClosable(true);
+    m_tabWidget->setStyleSheet(
+        "QTabWidget::pane { border: 1px solid #313244; background-color: #181825; }"
+        "QTabBar::tab { background-color: #313244; color: #a6adc8; padding: 6px 12px; margin-right: 2px; border-top-left-radius: 4px; border-top-right-radius: 4px; }"
+        "QTabBar::tab:selected { background-color: #181825; color: #89b4fa; font-weight: bold; }"
+    );
+    connect(m_tabWidget, &QTabWidget::tabCloseRequested, this, &TerminalPanel::onTabCloseRequested);
+
+    mainLayout->addWidget(m_tabWidget, 1);
+}
+
+void TerminalPanel::addNewTab(const QString& workingDir) {
+    SingleTerminalWidget* term = new SingleTerminalWidget(m_tabWidget);
+    term->startShell(workingDir.isEmpty() ? QDir::homePath() : workingDir);
+
+    int idx = m_tabWidget->addTab(term, QString("Shell %1").arg(m_tabWidget->count() + 1));
+    m_tabWidget->setCurrentIndex(idx);
+}
+
+void TerminalPanel::splitActiveTab() {
+    int currentIdx = m_tabWidget->currentIndex();
+    if (currentIdx < 0) return;
+
+    QWidget* currentTab = m_tabWidget->widget(currentIdx);
+    
+    // Check if it's already a splitter
+    QSplitter* splitter = qobject_cast<QSplitter*>(currentTab);
+    if (!splitter) {
+        // Create new splitter, replace single widget in tab
+        splitter = new QSplitter(Qt::Horizontal, m_tabWidget);
+        splitter->setStyleSheet("QSplitter::handle { background-color: #313244; }");
+
+        // Remove old widget but keep it to put in splitter
+        m_tabWidget->removeTab(currentIdx);
+        
+        // Add original widget to splitter
+        splitter->addWidget(currentTab);
+        
+        // Add new side-by-side terminal widget
+        SingleTerminalWidget* newTerm = new SingleTerminalWidget(splitter);
+        newTerm->startShell(QDir::homePath());
+        splitter->addWidget(newTerm);
+
+        m_tabWidget->insertTab(currentIdx, splitter, QString("Split Shell %1").arg(currentIdx + 1));
+        m_tabWidget->setCurrentIndex(currentIdx);
+    } else {
+        // Add another terminal to existing splitter
+        SingleTerminalWidget* newTerm = new SingleTerminalWidget(splitter);
+        newTerm->startShell(QDir::homePath());
+        splitter->addWidget(newTerm);
+    }
+}
+
+void TerminalPanel::onTabCloseRequested(int index) {
+    if (m_tabWidget->count() <= 1) return; // Prevent closing the last tab
+    QWidget* w = m_tabWidget->widget(index);
+    m_tabWidget->removeTab(index);
+    w->deleteLater();
+}
+
+void TerminalPanel::syncDirectory(const QString& path) {
+    int idx = m_tabWidget->currentIndex();
+    if (idx < 0) return;
+
+    QWidget* currentTab = m_tabWidget->widget(idx);
+    QSplitter* splitter = qobject_cast<QSplitter*>(currentTab);
+    if (splitter) {
+        // Sync the active focused terminal inside splitter
+        for (int i = 0; i < splitter->count(); ++i) {
+            SingleTerminalWidget* term = qobject_cast<SingleTerminalWidget*>(splitter->widget(i));
+            if (term && term->hasFocus()) {
+                term->syncDirectory(path);
+                return;
+            }
+        }
+        // Fallback sync first child
+        SingleTerminalWidget* term = qobject_cast<SingleTerminalWidget*>(splitter->widget(0));
+        if (term) term->syncDirectory(path);
+    } else {
+        SingleTerminalWidget* term = qobject_cast<SingleTerminalWidget*>(currentTab);
+        if (term) term->syncDirectory(path);
+    }
 }

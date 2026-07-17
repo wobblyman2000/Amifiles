@@ -1,4 +1,5 @@
 #include "cloudmountdialog.h"
+#include "remotemountmanager.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
@@ -202,6 +203,7 @@ void CloudMountDialog::onMountRemote() {
     proc.waitForFinished();
 
     if (proc.exitCode() == 0) {
+        RemoteMountManager::addActiveMount(remote, mountPath, "CLOUD");
         QMessageBox::information(this, "Success", QString("Cloud connection '%1' mounted successfully to:\n%2").arg(remote).arg(mountPath));
         m_lblStatus->setText("Status: Mount successful.");
         // Notify main window to reload drives (via updating QStorageInfo)

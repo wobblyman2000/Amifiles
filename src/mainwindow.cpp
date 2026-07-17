@@ -17,8 +17,13 @@
 #include "cloudmountdialog.h"
 #include "imageconverterdialog.h"
 #include "agestylingdialog.h"
+#include "workspaceprofiledialog.h"
+#include "autoorganizerdialog.h"
+#include "remotemountmanager.h"
 #include "processmanagerdialog.h"
 #include "vaultdialog.h"
+#include "preferencesdialog.h"
+#include "iconpickerdialog.h"
 #include <QMenuBar>
 #include <QStorageInfo>
 #include <QJsonDocument>
@@ -131,13 +136,18 @@ public:
         QPushButton* btnSelectIcon = new QPushButton("Browse...", this);
         btnSelectIcon->setMaximumWidth(100);
         connect(btnSelectIcon, &QPushButton::clicked, this, [this]() {
-            QString file = QFileDialog::getOpenFileName(this, "Select Icon Image", 
-                                                        QDir::homePath(), 
-                                                        "Images (*.png *.jpg *.jpeg *.svg *.xpm *.gif);;All Files (*)");
-            if (!file.isEmpty()) {
-                m_iconPath = file;
-                m_lblIconPath->setText(m_iconPath);
-                m_comboSysIcon->setCurrentIndex(0); // Reset system theme selection
+            IconPickerDialog dlg(this);
+            if (dlg.exec() == QDialog::Accepted) {
+                QString path = dlg.selectedIconName();
+                if (!path.isEmpty()) {
+                    if (!path.contains("/") && !path.contains("\\")) {
+                        m_iconPath = "theme:" + path;
+                    } else {
+                        m_iconPath = path;
+                    }
+                    m_lblIconPath->setText(m_iconPath);
+                    m_comboSysIcon->setCurrentIndex(0); // Reset system selection
+                }
             }
         });
 
@@ -332,6 +342,13 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     });
     SyncScheduler::instance().start();
 
+    // Start background Auto-Organizer Rules scheduler (runs every 30 seconds)
+    QTimer* organizerTimer = new QTimer(this);
+    connect(organizerTimer, &QTimer::timeout, this, []() {
+        AutoOrganizerDialog::executeRules();
+    });
+    organizerTimer->start(30000); // 30 seconds
+
     // Load custom buttons & build custom toolbar
     loadCustomButtons();
     rebuildCustomToolBar();
@@ -345,7 +362,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     m_menuDrives->menuAction()->setVisible(drivesMenuVisible);
 
     m_actToggleDrivesToolbar->setChecked(drivesToolbarVisible);
-    m_tbDrives->setVisible(drivesToolbarVisible);
+    if (m_tbDrives) m_tbDrives->setVisible(drivesToolbarVisible);
 
     bool favoritesSidebarVisible = settings.value("favorites/sidebar_visible", false).toBool();
     m_actToggleFavoritesSidebar->setChecked(favoritesSidebarVisible);
@@ -359,6 +376,13 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 
     bool archiveNav = settings.value("preferences/archive_nav", true).toBool();
     m_actToggleArchiveNav->setChecked(archiveNav);
+
+    bool archiveWrite = settings.value("preferences/archive_write", false).toBool();
+    m_actToggleArchiveWrite->setChecked(archiveWrite);
+
+    bool horizontalSplit = settings.value("preferences/horizontal_split", false).toBool();
+    m_actToggleHorizontalSplit->setChecked(horizontalSplit);
+    onToggleHorizontalSplit(horizontalSplit);
 
     bool casingOverlays = settings.value("preferences/casing_overlays", true).toBool();
     m_actToggleCasingOverlays->setChecked(casingOverlays);
@@ -396,8 +420,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     m_actRightShowCategoryButtons->setChecked(rightCategoryVisible);
     if (rightPanel()) rightPanel()->setCategoryButtonsVisible(rightCategoryVisible);
 
-    // Initial populate of drives
+    // Initial populate of drives and custom menus
     updateDrivesList();
+    rebuildCustomMenus();
 
     // Default active panel is Left
     onPanelActivated(leftPanel());
@@ -491,17 +516,24 @@ void MainWindow::setupCentralWidget() {
 
     m_previewPanel = new PreviewPanel(this);
     connect(m_previewPanel, &PreviewPanel::spectrumVisualizerToggled, this, &MainWindow::onToggleSpectrum);
+    connect(m_previewPanel, &PreviewPanel::tagsChanged, this, [this](const QString&) {
+        if (leftPanel()) leftPanel()->refresh();
+        if (rightPanel()) rightPanel()->refresh();
+    });
 
     // Add first tabs
     createTab(m_leftTabWidget, QDir::homePath());
     createTab(m_rightTabWidget, QDir::homePath());
+    m_dualSplitter = new QSplitter(Qt::Horizontal, this);
+    m_dualSplitter->setHandleWidth(4);
+    m_dualSplitter->addWidget(m_leftTabWidget);
+    m_dualSplitter->addWidget(m_rightTabWidget);
 
     m_splitter->addWidget(m_sidebarTabWidget);
-    m_splitter->addWidget(m_leftTabWidget);
-    m_splitter->addWidget(m_rightTabWidget);
+    m_splitter->addWidget(m_dualSplitter);
     m_splitter->addWidget(m_previewPanel);
 
-    m_splitter->setSizes({160, 400, 400, 240});
+    m_splitter->setSizes({160, 800, 240});
 
     m_bottomTabWidget = new QTabWidget(this);
     m_bottomTabWidget->setTabPosition(QTabWidget::South);
@@ -608,11 +640,13 @@ void MainWindow::setupActions() {
     m_actCompareSync = new QAction(style->standardIcon(QStyle::SP_DialogYesButton), "Compare & Sync Folders...", this);
     m_actCompareSync->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_G));
     m_actCompareSync->setToolTip("Compare left and right folder contents and synchronize them");
+    m_actCompareSync->setStatusTip("Compare left and right folder contents and synchronize them");
     connect(m_actCompareSync, &QAction::triggered, this, &MainWindow::onCompareSyncAction);
 
     m_actDuplicateFinder = new QAction(style->standardIcon(QStyle::SP_MessageBoxQuestion), "Find Duplicate Files...", this);
     m_actDuplicateFinder->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_U));
     m_actDuplicateFinder->setToolTip("Find duplicate files by size or hash in directories");
+    m_actDuplicateFinder->setStatusTip("Find duplicate files by size or hash in directories");
     connect(m_actDuplicateFinder, &QAction::triggered, this, &MainWindow::onDuplicateFinderAction);
 
     // Layout Toggle Actions
@@ -621,6 +655,7 @@ void MainWindow::setupActions() {
     m_actToggleDualPane->setChecked(true);
     m_actToggleDualPane->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_D));
     m_actToggleDualPane->setToolTip("Toggle between single and dual pane file display");
+    m_actToggleDualPane->setStatusTip("Toggle between single and dual pane file display");
     connect(m_actToggleDualPane, &QAction::toggled, this, &MainWindow::onToggleDualPane);
 
     m_actTogglePreview = new QAction("Preview Pane", this);
@@ -628,7 +663,14 @@ void MainWindow::setupActions() {
     m_actTogglePreview->setChecked(true);
     m_actTogglePreview->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_P));
     m_actTogglePreview->setToolTip("Toggle the file preview panel on/off");
+    m_actTogglePreview->setStatusTip("Toggle the file preview panel on/off");
     connect(m_actTogglePreview, &QAction::toggled, this, &MainWindow::onTogglePreview);
+
+    m_actCommandPalette = new QAction("Command Palette...", this);
+    m_actCommandPalette->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_P));
+    m_actCommandPalette->setToolTip("Open spotlight command palette dialog");
+    m_actCommandPalette->setStatusTip("Open spotlight command palette dialog");
+    connect(m_actCommandPalette, &QAction::triggered, this, &MainWindow::onCommandPaletteAction);
 
     m_actMutePreview = new QAction("Mute Preview Audio", this);
     m_actMutePreview->setCheckable(true);
@@ -652,6 +694,18 @@ void MainWindow::setupActions() {
     m_actToggleArchiveNav->setChecked(true);
     m_actToggleArchiveNav->setToolTip("Allows browsing archives (.zip, .tar.gz, etc.) like directories");
     connect(m_actToggleArchiveNav, &QAction::toggled, this, &MainWindow::onToggleArchiveNav);
+
+    m_actToggleArchiveWrite = new QAction("Allow Modifications to Archives / Disk Images", this);
+    m_actToggleArchiveWrite->setCheckable(true);
+    m_actToggleArchiveWrite->setChecked(false);
+    m_actToggleArchiveWrite->setToolTip("Allows drag-and-drop file additions and deletions inside archives and disk images");
+    connect(m_actToggleArchiveWrite, &QAction::toggled, this, &MainWindow::onToggleArchiveWrite);
+
+    m_actToggleHorizontalSplit = new QAction("Split Panels Horizontally (Top/Bottom)", this);
+    m_actToggleHorizontalSplit->setCheckable(true);
+    m_actToggleHorizontalSplit->setChecked(false);
+    m_actToggleHorizontalSplit->setToolTip("Stacks file panels vertically: Right panel on Top, Left panel on Bottom");
+    connect(m_actToggleHorizontalSplit, &QAction::toggled, this, &MainWindow::onToggleHorizontalSplit);
 
     m_actToggleCasingOverlays = new QAction("Enable Media Casing Overlays", this);
     m_actToggleCasingOverlays->setCheckable(true);
@@ -710,6 +764,21 @@ void MainWindow::setupActions() {
         settings.setValue("layout/auto_save", checked);
     });
 
+    m_actPreferences = new QAction("Preferences...", this);
+    m_actPreferences->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Comma));
+    m_actPreferences->setToolTip("Open unified preferences control center dialog");
+    m_actPreferences->setStatusTip("Open unified preferences control center dialog");
+    connect(m_actPreferences, &QAction::triggered, this, &MainWindow::onPreferencesAction);
+
+    m_actWorkspaceProfiles = new QAction("Workspace Session Manager...", this);
+    m_actWorkspaceProfiles->setToolTip("Save, manage, or restore workspace profiles and layouts");
+    m_actWorkspaceProfiles->setStatusTip("Save, manage, or restore workspace profiles and layouts");
+    connect(m_actWorkspaceProfiles, &QAction::triggered, this, [this]() {
+        WorkspaceProfileDialog dlg(this);
+        dlg.exec();
+        updateFavoritesMenu();
+    });
+
     m_actSaveLayoutNow = new QAction("Save Current Layout Now", this);
     m_actSaveLayoutNow->setToolTip("Manually save toolbar positions and window dimensions");
     connect(m_actSaveLayoutNow, &QAction::triggered, this, &MainWindow::onSaveLayoutNow);
@@ -720,11 +789,28 @@ void MainWindow::setupActions() {
 
     m_actConfigureFolderLayouts = new QAction("Configure Folder-Specific Layouts...", this);
     m_actConfigureFolderLayouts->setToolTip("Define custom view modes and toolbars for specific folders or media categories");
+    m_actConfigureFolderLayouts->setStatusTip("Define custom view modes and toolbars for specific folders or media categories");
     connect(m_actConfigureFolderLayouts, &QAction::triggered, this, &MainWindow::onConfigureFolderLayouts);
 
     m_actConfigureBackupSchedule = new QAction("Configure Backup Schedule...", this);
     m_actConfigureBackupSchedule->setToolTip("Define automated copy and sync backup schedules for directories");
+    m_actConfigureBackupSchedule->setStatusTip("Define automated copy and sync backup schedules for directories");
     connect(m_actConfigureBackupSchedule, &QAction::triggered, this, &MainWindow::onConfigureBackupSchedule);
+
+    m_actConfigureAutoTags = new QAction("Configure Auto-Tagging Rules...", this);
+    m_actConfigureAutoTags->setToolTip("Define dynamic rules to automatically assign tags and colors to files");
+    m_actConfigureAutoTags->setStatusTip("Define dynamic rules to automatically assign tags and colors to files");
+    connect(m_actConfigureAutoTags, &QAction::triggered, this, &MainWindow::onConfigureAutoTags);
+
+    m_actConfigureAutoOrganizer = new QAction("Configure Smart Auto-Organizer...", this);
+    m_actConfigureAutoOrganizer->setToolTip("Define background rules to automatically sort files into subfolders");
+    m_actConfigureAutoOrganizer->setStatusTip("Define background rules to automatically sort files into subfolders");
+    connect(m_actConfigureAutoOrganizer, &QAction::triggered, this, &MainWindow::onConfigureAutoOrganizer);
+
+    m_actRemoteMountsManager = new QAction("Remote Mounts Manager...", this);
+    m_actRemoteMountsManager->setToolTip("Configure, mount, or unmount remote FTP, SFTP, Samba, and Cloud folders");
+    m_actRemoteMountsManager->setStatusTip("Configure, mount, or unmount remote FTP, SFTP, Samba, and Cloud folders");
+    connect(m_actRemoteMountsManager, &QAction::triggered, this, &MainWindow::onRemoteMountsManager);
 
     // Toggle Flat View Action
     m_actToggleFlatView = new QAction("Flat View (Recursion Mode)", this);
@@ -805,46 +891,55 @@ void MainWindow::setupActions() {
 
     m_actKeybindings = new QAction("Keyboard Shortcuts...", this);
     m_actKeybindings->setToolTip("Configure custom keyboard shortcuts");
+    m_actKeybindings->setStatusTip("Configure custom keyboard shortcuts");
     connect(m_actKeybindings, &QAction::triggered, this, &MainWindow::onKeybindingsEditorAction);
     addAction(m_actKeybindings);
 
     m_actCalculateChecksum = new QAction("Calculate Checksum Hash...", this);
     m_actCalculateChecksum->setToolTip("Calculate MD5/SHA-1/SHA-256 hash for a file");
+    m_actCalculateChecksum->setStatusTip("Calculate MD5/SHA-1/SHA-256 hash for a file");
     connect(m_actCalculateChecksum, &QAction::triggered, this, &MainWindow::onCalculateChecksum);
     addAction(m_actCalculateChecksum);
 
     m_actSecureShred = new QAction("Secure Shred files...", this);
     m_actSecureShred->setToolTip("Securely shred and delete files permanently");
+    m_actSecureShred->setStatusTip("Securely shred and delete files permanently");
     connect(m_actSecureShred, &QAction::triggered, this, &MainWindow::onSecureShred);
     addAction(m_actSecureShred);
 
     m_actRemoteMount = new QAction("Mount Remote Share...", this);
     m_actRemoteMount->setToolTip("Mount SFTP/FTP/Samba directory locally");
+    m_actRemoteMount->setStatusTip("Mount SFTP/FTP/Samba directory locally");
     connect(m_actRemoteMount, &QAction::triggered, this, &MainWindow::onRemoteMount);
     addAction(m_actRemoteMount);
 
     m_actCloudMount = new QAction("Rclone Cloud Mounts...", this);
     m_actCloudMount->setToolTip("Configure and mount Google Drive, OneDrive, or Dropbox");
+    m_actCloudMount->setStatusTip("Configure and mount Google Drive, OneDrive, or Dropbox");
     connect(m_actCloudMount, &QAction::triggered, this, &MainWindow::onCloudMount);
     addAction(m_actCloudMount);
 
     m_actImageConvert = new QAction("Batch Image Converter...", this);
     m_actImageConvert->setToolTip("Bulk format conversion and resizing for images");
+    m_actImageConvert->setStatusTip("Bulk format conversion and resizing for images");
     connect(m_actImageConvert, &QAction::triggered, this, &MainWindow::onImageConvert);
     addAction(m_actImageConvert);
 
     m_actProcessManager = new QAction("System Monitor...", this);
     m_actProcessManager->setToolTip("Monitor CPU/Memory and manage running processes");
+    m_actProcessManager->setStatusTip("Monitor CPU/Memory and manage running processes");
     connect(m_actProcessManager, &QAction::triggered, this, &MainWindow::onProcessManagerAction);
     addAction(m_actProcessManager);
 
     m_actEncryptVault = new QAction("Encrypt into Vault...", this);
     m_actEncryptVault->setToolTip("Secure password-lock directories/files using AES-256");
+    m_actEncryptVault->setStatusTip("Secure password-lock directories/files using AES-256");
     connect(m_actEncryptVault, &QAction::triggered, this, &MainWindow::onEncryptVault);
     addAction(m_actEncryptVault);
 
     m_actDecryptVault = new QAction("Decrypt Vault...", this);
     m_actDecryptVault->setToolTip("Unlock password-protected secure vaults");
+    m_actDecryptVault->setStatusTip("Unlock password-protected secure vaults");
     connect(m_actDecryptVault, &QAction::triggered, this, &MainWindow::onDecryptVault);
     addAction(m_actDecryptVault);
 
@@ -875,6 +970,7 @@ void MainWindow::setupActions() {
     registerKeybindableAction("checksum", m_actCalculateChecksum);
     registerKeybindableAction("configure_layouts", m_actConfigureFolderLayouts);
     registerKeybindableAction("configure_age_styles", m_actConfigureAgeStyling);
+    registerKeybindableAction("configure_autotags", m_actConfigureAutoTags);
 }
 
 void MainWindow::setupMenus() {
@@ -902,25 +998,19 @@ void MainWindow::setupMenus() {
 
     m_menuView = menuBar()->addMenu("View");
     m_menuView->addAction(m_actToggleDualPane);
+    m_menuView->addAction(m_actToggleHorizontalSplit);
     m_menuView->addAction(m_actTogglePreview);
-    m_menuView->addAction(m_actMutePreview);
-    m_menuView->addAction(m_actToggleAgeColoring);
-    m_menuView->addAction(m_actConfigureAgeStyling);
-    m_menuView->addAction(m_actToggleDrivesMenu);
     m_menuView->addAction(m_actToggleDrivesToolbar);
     m_menuView->addAction(m_actToggleFavoritesSidebar);
     m_menuView->addAction(m_actToggleConsole);
     m_menuView->addAction(m_actToggleFlatView);
-    m_menuView->addSeparator();
-    m_menuView->addAction(m_actToggleArchiveNav);
-    m_menuView->addAction(m_actToggleCasingOverlays);
-    m_menuView->addAction(m_actShowAudioCoverArt);
-    m_menuView->addAction(m_actToggleSpectrum);
     
     m_menuView->addSeparator();
     QMenu* menuSaveLayout = m_menuView->addMenu("Save Layout");
     menuSaveLayout->addAction(m_actAutoSaveLayout);
     menuSaveLayout->addAction(m_actSaveLayoutNow);
+    menuSaveLayout->addAction(m_actWorkspaceProfiles);
+    menuSaveLayout->addSeparator();
     menuSaveLayout->addAction(m_actResetLayout);
     
     QMenu* menuFilterToggles = m_menuView->addMenu("Filter Bars");
@@ -936,6 +1026,8 @@ void MainWindow::setupMenus() {
     m_menuDrives = menuBar()->addMenu("Drives");
 
     m_menuTools = menuBar()->addMenu("Tools");
+    m_menuTools->addAction(m_actCommandPalette);
+    m_menuTools->addSeparator();
     m_menuTools->addAction(m_actCompareSync);
     m_menuTools->addAction(m_actDuplicateFinder);
     m_menuTools->addAction(m_actSpaceAnalyzer);
@@ -948,9 +1040,25 @@ void MainWindow::setupMenus() {
     m_menuTools->addAction(m_actProcessManager);
     m_menuTools->addAction(m_actConfigureFolderLayouts);
     m_menuTools->addAction(m_actConfigureBackupSchedule);
+    m_menuTools->addAction(m_actConfigureAutoTags);
+    m_menuTools->addAction(m_actConfigureAutoOrganizer);
+    m_menuTools->addAction(m_actRemoteMountsManager);
     m_menuTools->addSeparator();
     m_menuTools->addAction(m_actEncryptVault);
     m_menuTools->addAction(m_actDecryptVault);
+    m_menuTools->addSeparator();
+    m_actConfigureCustomMenus = new QAction(style()->standardIcon(QStyle::SP_CustomBase), "Configure Custom Menus...", this);
+    m_actConfigureCustomMenus->setToolTip("Create custom top-level menus, submenus, separators, and app launchers");
+    m_actConfigureCustomMenus->setStatusTip("Create custom top-level menus, submenus, separators, and app launchers");
+    connect(m_actConfigureCustomMenus, &QAction::triggered, this, &MainWindow::onConfigureCustomMenus);
+    m_menuTools->addAction(m_actConfigureCustomMenus);
+
+    m_actConfigureToolbars = new QAction(style()->standardIcon(QStyle::SP_CustomBase), "Configure Toolbars...", this);
+    m_actConfigureToolbars->setToolTip("Add, remove, or customize multiple floating/dockable toolbars");
+    m_actConfigureToolbars->setStatusTip("Add, remove, or customize multiple floating/dockable toolbars");
+    connect(m_actConfigureToolbars, &QAction::triggered, this, &MainWindow::onConfigureToolbars);
+    m_menuTools->addAction(m_actConfigureToolbars);
+    m_menuTools->addAction(m_actPreferences);
 
     m_menuSearch = menuBar()->addMenu("Search");
     m_menuSearch->addAction("Save Current Search as Preset...", this, &MainWindow::onSaveSearchPreset);
@@ -971,46 +1079,7 @@ void MainWindow::setupMenus() {
 }
 
 void MainWindow::setupToolbars() {
-    // Toolbar 1: File Operations
-    m_tbFile = addToolBar("File Operations");
-    m_tbFile->setObjectName("fileToolBar");
-    m_tbFile->setMovable(true);
-    m_tbFile->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-
-    m_tbFile->addAction(m_actNewFolder);
-    m_tbFile->addAction(m_actCopy);
-    m_tbFile->addAction(m_actCut);
-    m_tbFile->addAction(m_actPaste);
-    m_tbFile->addAction(m_actCopyToSibling);
-    m_tbFile->addAction(m_actMoveToSibling);
-    m_tbFile->addAction(m_actDelete);
-    m_tbFile->addAction(m_actRefresh);
-    m_tbFile->addAction(m_actBulkRename);
-    m_tbFile->addAction(m_actProperties);
-
-    // Toolbar 2: Views/Layouts
-    m_tbView = addToolBar("Layout Controls");
-    m_tbView->setObjectName("viewToolBar");
-    m_tbView->setMovable(true);
-    m_tbView->setToolButtonStyle(Qt::ToolButtonTextOnly);
-
-    m_tbView->addAction(m_actToggleDualPane);
-    m_tbView->addAction(m_actTogglePreview);
-    m_tbView->addAction(m_actToggleAgeColoring);
-
-    // Toolbar 3: Custom script command buttons
-    m_customToolBar = addToolBar("Custom Commands");
-    m_customToolBar->setObjectName("customToolBar");
-    m_customToolBar->setMovable(true);
-    m_customToolBar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    m_customToolBar->setContextMenuPolicy(Qt::CustomContextMenu);
-    connect(m_customToolBar, &QToolBar::customContextMenuRequested, this, &MainWindow::onCustomToolBarContextMenu);
-
-    // Toolbar 4: Drives Toolbar
-    m_tbDrives = addToolBar("Drives");
-    m_tbDrives->setObjectName("drivesToolBar");
-    m_tbDrives->setMovable(true);
-    m_tbDrives->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    rebuildToolBars();
 }
 
 void MainWindow::onPanelActivated(FilePanel* panel) {
@@ -1347,6 +1416,70 @@ void MainWindow::updateFavoritesMenu() {
             connect(actFav, &QAction::triggered, this, &MainWindow::onFavoriteTriggered);
         }
     }
+
+    m_menuFavorites->addSeparator();
+    m_menuFavorites->addAction("Workspace Session Manager...", this, [this]() {
+        WorkspaceProfileDialog dlg(this);
+        dlg.exec();
+        updateFavoritesMenu();
+    });
+
+    QSettings settings("Amifiles", "Amifiles");
+    QStringList profiles = settings.value("workspace_profiles/profile_list").toStringList();
+    if (!profiles.isEmpty()) {
+        QMenu* menuProfiles = m_menuFavorites->addMenu("Load Workspace Profile...");
+        for (const QString& name : profiles) {
+            QAction* actLoad = menuProfiles->addAction(name);
+            connect(actLoad, &QAction::triggered, this, [this, name]() {
+                QSettings settings("Amifiles", "Amifiles");
+                QStringList leftPaths = settings.value(QString("workspace_profiles/%1/left_paths").arg(name)).toStringList();
+                int leftActive = settings.value(QString("workspace_profiles/%1/left_active").arg(name), 0).toInt();
+                int leftViewMode = settings.value(QString("workspace_profiles/%1/left_view_mode").arg(name), 0).toInt();
+
+                QStringList rightPaths = settings.value(QString("workspace_profiles/%1/right_paths").arg(name)).toStringList();
+                int rightActive = settings.value(QString("workspace_profiles/%1/right_active").arg(name), 0).toInt();
+                int rightViewMode = settings.value(QString("workspace_profiles/%1/right_view_mode").arg(name), 0).toInt();
+
+                bool rightVisible = settings.value(QString("workspace_profiles/%1/right_visible").arg(name), true).toBool();
+                bool sidebarVisible = settings.value(QString("workspace_profiles/%1/sidebar_visible").arg(name), true).toBool();
+                bool consoleVisible = settings.value(QString("workspace_profiles/%1/console_visible").arg(name), true).toBool();
+
+                m_rightTabWidget->setVisible(rightVisible);
+                m_sidebarTabWidget->setVisible(sidebarVisible);
+                m_bottomTabWidget->setVisible(consoleVisible);
+
+                while (m_leftTabWidget->count() > 0) {
+                    QWidget* w = m_leftTabWidget->widget(0);
+                    m_leftTabWidget->removeTab(0);
+                    delete w;
+                }
+                for (const QString& path : leftPaths) {
+                    createTab(m_leftTabWidget, path);
+                }
+                if (m_leftTabWidget->count() > 0) {
+                    m_leftTabWidget->setCurrentIndex(qBound(0, leftActive, m_leftTabWidget->count() - 1));
+                    FilePanel* fp = qobject_cast<FilePanel*>(m_leftTabWidget->currentWidget());
+                    if (fp) fp->setViewModeIndex(leftViewMode);
+                }
+
+                while (m_rightTabWidget->count() > 0) {
+                    QWidget* w = m_rightTabWidget->widget(0);
+                    m_rightTabWidget->removeTab(0);
+                    delete w;
+                }
+                for (const QString& path : rightPaths) {
+                    createTab(m_rightTabWidget, path);
+                }
+                if (m_rightTabWidget->count() > 0) {
+                    m_rightTabWidget->setCurrentIndex(qBound(0, rightActive, m_rightTabWidget->count() - 1));
+                    FilePanel* fp = qobject_cast<FilePanel*>(m_rightTabWidget->currentWidget());
+                    if (fp) fp->setViewModeIndex(rightViewMode);
+                }
+
+                updateSiblingLinks();
+            });
+        }
+    }
 }
 
 void MainWindow::updateDrivesList() {
@@ -1493,6 +1626,35 @@ void MainWindow::updateDrivesList() {
         }
     }
     settings.endGroup();
+
+    // 4. Add drag-and-drop user shortcuts from settings
+    settings.beginGroup("DrivesShortcuts");
+    QStringList shortcutKeys = settings.allKeys();
+    if (!shortcutKeys.isEmpty()) {
+        m_menuDrives->addSeparator();
+        m_tbDrives->addSeparator();
+        for (const QString& label : shortcutKeys) {
+            QString path = settings.value(label).toString();
+            if (QDir(path).exists()) {
+                QIcon icon = getFolderIcon(label);
+
+                // Menu action
+                QAction* actMenu = m_menuDrives->addAction(icon, QString("%1 (%2)").arg(label).arg(QDir::toNativeSeparators(path)));
+                connect(actMenu, &QAction::triggered, this, [this, path]() {
+                    if (m_activePanel) m_activePanel->setPath(path);
+                });
+
+                // Toolbar action
+                QAction* actTb = m_tbDrives->addAction(icon, label);
+                actTb->setToolTip(QString("Navigate to %1").arg(QDir::toNativeSeparators(path)));
+                actTb->setData(label); // Store label for deletion
+                connect(actTb, &QAction::triggered, this, [this, path]() {
+                    if (m_activePanel) m_activePanel->setPath(path);
+                });
+            }
+        }
+    }
+    settings.endGroup();
 }
 
 void MainWindow::onToggleDrivesMenu(bool checked) {
@@ -1531,6 +1693,35 @@ void MainWindow::onToggleArchiveNav(bool checked) {
     for (int i = 0; i < m_rightTabWidget->count(); ++i) {
         FilePanel* p = qobject_cast<FilePanel*>(m_rightTabWidget->widget(i));
         if (p) p->refresh();
+    }
+}
+
+void MainWindow::onToggleArchiveWrite(bool checked) {
+    QSettings settings("Amifiles", "Amifiles");
+    settings.setValue("preferences/archive_write", checked);
+    for (int i = 0; i < m_leftTabWidget->count(); ++i) {
+        FilePanel* p = qobject_cast<FilePanel*>(m_leftTabWidget->widget(i));
+        if (p) p->refresh();
+    }
+    for (int i = 0; i < m_rightTabWidget->count(); ++i) {
+        FilePanel* p = qobject_cast<FilePanel*>(m_rightTabWidget->widget(i));
+        if (p) p->refresh();
+    }
+}
+
+void MainWindow::onToggleHorizontalSplit(bool checked) {
+    QSettings settings("Amifiles", "Amifiles");
+    settings.setValue("preferences/horizontal_split", checked);
+    if (m_dualSplitter) {
+        if (checked) {
+            m_dualSplitter->setOrientation(Qt::Vertical);
+            m_dualSplitter->insertWidget(0, m_rightTabWidget);
+            m_dualSplitter->insertWidget(1, m_leftTabWidget);
+        } else {
+            m_dualSplitter->setOrientation(Qt::Horizontal);
+            m_dualSplitter->insertWidget(0, m_leftTabWidget);
+            m_dualSplitter->insertWidget(1, m_rightTabWidget);
+        }
     }
 }
 
@@ -1624,6 +1815,8 @@ void MainWindow::onToggleFlatView(bool checked) {
     }
 }
 
+#include "folderdiffdialog.h"
+
 void MainWindow::onCompareSyncAction() {
     FilePanel* lp = leftPanel();
     FilePanel* rp = rightPanel();
@@ -1632,7 +1825,7 @@ void MainWindow::onCompareSyncAction() {
     QString leftPath = lp->currentPath();
     QString rightPath = rp->currentPath();
 
-    FolderSyncDialog dlg(leftPath, rightPath, this);
+    FolderDiffDialog dlg(leftPath, rightPath, this);
     dlg.exec();
 
     lp->refresh();
@@ -1684,6 +1877,7 @@ void MainWindow::saveCustomButtons() {
 }
 
 void MainWindow::rebuildCustomToolBar() {
+    if (!m_customToolBar) return;
     m_customToolBar->clear();
 
     // Standard static action to add custom script buttons
@@ -1856,6 +2050,7 @@ void MainWindow::onCustomButtonClicked() {
 }
 
 void MainWindow::onCustomToolBarContextMenu(const QPoint& pos) {
+    if (!m_customToolBar) return;
     QAction* action = m_customToolBar->actionAt(pos);
     QMenu menu(this);
 
@@ -2224,6 +2419,25 @@ void MainWindow::refreshFavoritesSidebar() {
             m_favoritesSidebar->addItem(item);
         }
     }
+
+    QList<DynamicFavoriteRule> smartRules = FavoritesManager::instance().getDynamicRules();
+    if (!smartRules.isEmpty()) {
+        QListWidgetItem* separatorItem = new QListWidgetItem(m_favoritesSidebar);
+        separatorItem->setText("── Smart Virtual Folders ──");
+        separatorItem->setFlags(Qt::NoItemFlags);
+        separatorItem->setTextAlignment(Qt::AlignCenter);
+        separatorItem->setForeground(QBrush(QColor("#a6e3a1"))); // light green
+        m_favoritesSidebar->addItem(separatorItem);
+
+        for (const auto& rule : smartRules) {
+            QListWidgetItem* item = new QListWidgetItem(m_favoritesSidebar);
+            item->setText(rule.name);
+            item->setToolTip(QString("Smart dynamic query: %1 (%2)").arg(rule.ruleType).arg(rule.value));
+            item->setData(Qt::UserRole, "smart://" + rule.name);
+            item->setIcon(QApplication::style()->standardIcon(QStyle::SP_FileDialogContentsView));
+            m_favoritesSidebar->addItem(item);
+        }
+    }
 }
 
 void MainWindow::onQuickFilterSidebarClicked(QListWidgetItem* item) {
@@ -2468,18 +2682,11 @@ void MainWindow::onResetLayout() {
     QSettings settings("Amifiles", "Amifiles");
     settings.remove("window/geometry");
     settings.remove("window/state");
-    
-    addToolBar(Qt::TopToolBarArea, m_tbFile);
-    addToolBar(Qt::TopToolBarArea, m_tbView);
-    addToolBar(Qt::TopToolBarArea, m_customToolBar);
-    addToolBar(Qt::TopToolBarArea, m_tbDrives);
-    
-    m_tbFile->setVisible(true);
-    m_tbView->setVisible(true);
-    m_customToolBar->setVisible(true);
-    m_tbDrives->setVisible(true);
-    
-    QMessageBox::information(this, "Reset Layout", "Window layout reset to default. Please restart Amifiles to apply full default geometry.");
+    settings.remove("custom_toolbars_v1");
+
+    rebuildToolBars();
+
+    QMessageBox::information(this, "Reset Layout", "Window geometry and toolbar layouts reset to default successfully!");
 }
 
 void MainWindow::loadFolderRules() {
@@ -2727,10 +2934,640 @@ void MainWindow::onImportCustomButtons() {
 }
 
 #include "schedulerdialog.h"
+#include "autotagdialog.h"
 
 void MainWindow::onConfigureBackupSchedule() {
     SchedulerDialog dlg(this);
     dlg.exec();
+}
+
+void MainWindow::onConfigureAutoTags() {
+    AutoTagDialog dlg(this);
+    if (dlg.exec() == QDialog::Accepted) {
+        if (leftPanel()) leftPanel()->refresh();
+        if (rightPanel()) rightPanel()->refresh();
+    }
+}
+
+#include "commandpalette.h"
+
+void MainWindow::onCommandPaletteAction() {
+    CommandPalette dlg(this);
+    connect(&dlg, &CommandPalette::commandTriggered, this, &MainWindow::onCommandPaletteTriggered);
+    dlg.move(x() + (width() - dlg.width()) / 2, y() + (height() - dlg.height()) / 3);
+    dlg.exec();
+}
+
+void MainWindow::onCommandPaletteTriggered(const QString& action) {
+    if (action == "view_details") {
+        if (m_activePanel) m_activePanel->onViewModeChanged(0);
+    } else if (action == "view_icons") {
+        if (m_activePanel) m_activePanel->onViewModeChanged(1);
+    } else if (action == "view_cards") {
+        if (m_activePanel) m_activePanel->onViewModeChanged(2);
+    } else if (action == "view_miller") {
+        if (m_activePanel) m_activePanel->onViewModeChanged(3);
+    } else if (action == "view_timeline") {
+        if (m_activePanel) m_activePanel->onViewModeChanged(4);
+    } else if (action == "view_filmstrip") {
+        if (m_activePanel) m_activePanel->onViewModeChanged(5);
+    } else if (action == "toggle_dual") {
+        m_actToggleDualPane->toggle();
+    } else if (action == "toggle_sidebar") {
+        m_actToggleFavoritesSidebar->toggle();
+    } else if (action == "toggle_age") {
+        m_actToggleAgeColoring->toggle();
+    } else if (action == "tool_image") {
+        onImageConvert();
+    } else if (action == "tool_diff") {
+        onCompareSyncAction();
+    } else if (action == "tool_duplicates") {
+        onDuplicateFinderAction();
+    } else if (action == "tool_autotags") {
+        onConfigureAutoTags();
+    } else if (action == "tool_autoorganizer") {
+        onConfigureAutoOrganizer();
+    } else if (action == "tool_remotemountmanager") {
+        onRemoteMountsManager();
+    } else if (action == "nav_up") {
+        if (m_activePanel) m_activePanel->onNavigateUp();
+    } else if (action == "nav_back") {
+        if (m_activePanel) m_activePanel->onNavigateBack();
+    } else if (action == "nav_forward") {
+        if (m_activePanel) m_activePanel->onNavigateForward();
+    } else if (action == "help_open") {
+        onShowHelpAction();
+    } else if (action == "tool_folder_diff") {
+        onCompareSyncAction();
+    } else if (action == "tool_encrypt") {
+        onEncryptVault();
+    } else if (action == "open_disk_dashboard") {
+        if (m_activePanel) m_activePanel->setPath("smart://disk_dashboard");
+    }
+}
+
+void MainWindow::onConfigureAutoOrganizer() {
+    AutoOrganizerDialog dlg(this);
+    dlg.exec();
+}
+
+void MainWindow::onRemoteMountsManager() {
+    RemoteMountManager dlg(this);
+    dlg.exec();
+    updateDrivesList();
+}
+
+void MainWindow::onPreferencesAction() {
+    PreferencesDialog dlg(this);
+    connect(&dlg, &PreferencesDialog::preferencesChanged, this, [this]() {
+        QSettings settings("Amifiles", "Amifiles");
+        
+        bool horizontalSplit = settings.value("preferences/horizontal_split", false).toBool();
+        if (m_actToggleHorizontalSplit) m_actToggleHorizontalSplit->setChecked(horizontalSplit);
+        onToggleHorizontalSplit(horizontalSplit);
+        
+        bool toolbarVisible = settings.value("layout/drives_toolbar_visible", true).toBool();
+        if (m_actToggleDrivesToolbar) m_actToggleDrivesToolbar->setChecked(toolbarVisible);
+        if (m_tbDrives) m_tbDrives->setVisible(toolbarVisible);
+        
+        bool menuDrivesVisible = settings.value("layout/drives_menu_visible", true).toBool();
+        if (m_menuDrives && m_menuDrives->menuAction()) {
+            m_menuDrives->menuAction()->setVisible(menuDrivesVisible);
+        }
+        
+        bool previewMuted = settings.value("preview/muted", false).toBool();
+        if (m_actMutePreview) m_actMutePreview->setChecked(previewMuted);
+        if (m_previewPanel) {
+            m_previewPanel->setMuted(previewMuted);
+            m_previewPanel->setSpectrumVisualizerVisible(settings.value("preview/show_spectrum_visualizer", true).toBool());
+        }
+        
+        for (int i = 0; i < m_leftTabWidget->count(); ++i) {
+            FilePanel* p = qobject_cast<FilePanel*>(m_leftTabWidget->widget(i));
+            if (p) p->refresh();
+        }
+        for (int i = 0; i < m_rightTabWidget->count(); ++i) {
+            FilePanel* p = qobject_cast<FilePanel*>(m_rightTabWidget->widget(i));
+            if (p) p->refresh();
+        }
+    });
+    dlg.exec();
+}
+
+#include <QDragEnterEvent>
+#include <QDragMoveEvent>
+#include <QDropEvent>
+#include <QMimeData>
+#include <QUrl>
+#include <QMenu>
+
+QIcon MainWindow::getFolderIcon(const QString& folderName) {
+    QString nameLower = folderName.toLower();
+    QString themeName;
+    if (nameLower.contains("game")) {
+        themeName = "applications-games";
+    } else if (nameLower.contains("code") || nameLower.contains("prog") || nameLower.contains("dev") || nameLower.contains("src")) {
+        themeName = "applications-development";
+    } else if (nameLower.contains("music") || nameLower.contains("song") || nameLower.contains("audio")) {
+        themeName = "folder-music";
+    } else if (nameLower.contains("video") || nameLower.contains("movie") || nameLower.contains("film")) {
+        themeName = "folder-videos";
+    } else if (nameLower.contains("picture") || nameLower.contains("photo") || nameLower.contains("image")) {
+        themeName = "folder-pictures";
+    } else if (nameLower.contains("doc") || nameLower.contains("paper") || nameLower.contains("text")) {
+        themeName = "folder-documents";
+    } else if (nameLower.contains("download")) {
+        themeName = "folder-download";
+    }
+
+    QIcon icon = QIcon::fromTheme(themeName);
+    if (icon.isNull()) {
+        QStyle* style = QApplication::style();
+        if (themeName == "applications-games" || themeName == "applications-development") {
+            icon = style->standardIcon(QStyle::SP_ComputerIcon);
+        } else {
+            icon = style->standardIcon(QStyle::SP_DirIcon);
+        }
+    }
+    return icon;
+}
+
+bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
+    if (watched == m_tbDrives) {
+        if (event->type() == QEvent::DragEnter) {
+            QDragEnterEvent* dragEvent = static_cast<QDragEnterEvent*>(event);
+            if (dragEvent->mimeData()->hasUrls()) {
+                dragEvent->acceptProposedAction();
+                return true;
+            }
+        } else if (event->type() == QEvent::DragMove) {
+            QDragMoveEvent* dragMoveEvent = static_cast<QDragMoveEvent*>(event);
+            dragMoveEvent->acceptProposedAction();
+            return true;
+        } else if (event->type() == QEvent::Drop) {
+            QDropEvent* dropEvent = static_cast<QDropEvent*>(event);
+            QList<QUrl> urls = dropEvent->mimeData()->urls();
+            bool addedAny = false;
+            for (const QUrl& url : urls) {
+                QString localPath = url.toLocalFile();
+                if (!localPath.isEmpty() && QFileInfo(localPath).isDir()) {
+                    QString name = QFileInfo(localPath).fileName();
+                    if (name.isEmpty()) name = localPath;
+                    
+                    QSettings settings("Amifiles", "Amifiles");
+                    settings.setValue("DrivesShortcuts/" + name, localPath);
+                    addedAny = true;
+                }
+            }
+            if (addedAny) {
+                updateDrivesList();
+            }
+            dropEvent->acceptProposedAction();
+            return true;
+        }
+    } else if (watched == m_customToolBar) {
+        if (event->type() == QEvent::DragEnter) {
+            QDragEnterEvent* dragEvent = static_cast<QDragEnterEvent*>(event);
+            if (dragEvent->mimeData()->hasUrls()) {
+                dragEvent->acceptProposedAction();
+                return true;
+            }
+        } else if (event->type() == QEvent::DragMove) {
+            QDragMoveEvent* dragMoveEvent = static_cast<QDragMoveEvent*>(event);
+            dragMoveEvent->acceptProposedAction();
+            return true;
+        } else if (event->type() == QEvent::Drop) {
+            QDropEvent* dropEvent = static_cast<QDropEvent*>(event);
+            QList<QUrl> urls = dropEvent->mimeData()->urls();
+            bool addedAny = false;
+            for (const QUrl& url : urls) {
+                QString localPath = url.toLocalFile();
+                if (!localPath.isEmpty()) {
+                    QString name = QFileInfo(localPath).fileName();
+                    if (name.isEmpty()) name = localPath;
+                    
+                    QString script;
+                    QString iconStr;
+                    if (QFileInfo(localPath).isDir()) {
+                        script = "@internal:Go " + localPath;
+                        QString folderLower = name.toLower();
+                        QString themeName = "folder";
+                        if (folderLower.contains("game")) themeName = "applications-games";
+                        else if (folderLower.contains("code") || folderLower.contains("prog") || folderLower.contains("dev") || folderLower.contains("src")) themeName = "applications-development";
+                        else if (folderLower.contains("music") || folderLower.contains("song") || folderLower.contains("audio")) themeName = "folder-music";
+                        else if (folderLower.contains("video") || folderLower.contains("movie") || folderLower.contains("film")) themeName = "folder-videos";
+                        else if (folderLower.contains("picture") || folderLower.contains("photo") || folderLower.contains("image")) themeName = "folder-pictures";
+                        else if (folderLower.contains("doc") || folderLower.contains("paper") || folderLower.contains("text")) themeName = "folder-documents";
+                        else if (folderLower.contains("download")) themeName = "folder-download";
+                        
+                        iconStr = "theme:" + themeName;
+                    } else {
+                        script = localPath;
+                        iconStr = "theme:system-run";
+                    }
+                    
+                    m_customButtons.append(CustomButton{name, script, iconStr});
+                    addedAny = true;
+                }
+            }
+            if (addedAny) {
+                saveCustomButtons();
+                rebuildCustomToolBar();
+            }
+            dropEvent->acceptProposedAction();
+            return true;
+        }
+    }
+    return QMainWindow::eventFilter(watched, event);
+}
+
+void MainWindow::onDrivesToolbarContextMenu(const QPoint& pos) {
+    QAction* act = m_tbDrives->actionAt(pos);
+    if (!act) return;
+
+    QString label = act->data().toString();
+    if (label.isEmpty()) return;
+
+    QMenu menu(this);
+    QAction* actRemove = menu.addAction(QIcon::fromTheme("edit-delete"), QString("Remove Shortcut '%1'").arg(label));
+    QAction* selected = menu.exec(m_tbDrives->mapToGlobal(pos));
+    if (selected == actRemove) {
+        QSettings settings("Amifiles", "Amifiles");
+        settings.remove("DrivesShortcuts/" + label);
+        updateDrivesList();
+    }
+}
+
+#include "custommenueditordialog.h"
+#include <QWidgetAction>
+
+// Helper function to build custom menu sub-items recursively
+void MainWindow::buildMenuTree(QMenu* menu, const QJsonArray& itemsArray) {
+    for (int i = 0; i < itemsArray.size(); ++i) {
+        QJsonObject obj = itemsArray[i].toObject();
+        QString type = obj["type"].toString();
+        
+        if (type == "separator") {
+            menu->addSeparator();
+        } else if (type == "menu") {
+            QString title = obj["title"].toString();
+            QMenu* sub = menu->addMenu(title);
+            
+            QString iconPath = obj["icon"].toString();
+            if (!iconPath.isEmpty()) {
+                QIcon icon;
+                if (QFileInfo(iconPath).exists()) icon = QIcon(iconPath);
+                else icon = QIcon::fromTheme(iconPath);
+                if (!icon.isNull()) sub->setIcon(icon);
+            }
+            
+            buildMenuTree(sub, obj["children"].toArray());
+        } else if (type == "action") {
+            QString title = obj["title"].toString();
+            QString command = obj["command"].toString();
+            QString iconPath = obj["icon"].toString();
+            QString colorStr = obj["color"].toString();
+            QString mode = obj["mode"].toString("Normal");
+            
+            QIcon icon;
+            if (!iconPath.isEmpty()) {
+                if (QFileInfo(iconPath).exists()) icon = QIcon(iconPath);
+                else icon = QIcon::fromTheme(iconPath);
+            }
+            
+            QWidgetAction* act = new QWidgetAction(menu);
+            CustomMenuActionWidget* w = new CustomMenuActionWidget(icon, title, colorStr, mode, menu);
+            act->setDefaultWidget(w);
+            
+            QObject::connect(w, &CustomMenuActionWidget::clicked, this, [this, act, command, menu]() {
+                // Close parent menus recursively
+                QMenu* p = menu;
+                while (p) {
+                    p->close();
+                    p = qobject_cast<QMenu*>(p->parentWidget());
+                }
+                executeCustomCommand(command);
+            });
+            menu->addAction(act);
+        }
+    }
+}
+
+void MainWindow::rebuildCustomMenus() {
+    for (QMenu* menu : m_customMenus) {
+        menuBar()->removeAction(menu->menuAction());
+        delete menu;
+    }
+    m_customMenus.clear();
+
+    QSettings settings("Amifiles", "Amifiles");
+    QString jsonStr = settings.value("custom_menus_v2").toString();
+    QJsonArray arr;
+    
+    if (jsonStr.isEmpty()) {
+        arr = getDefaultCustomMenus();
+    } else {
+        QJsonDocument doc = QJsonDocument::fromJson(jsonStr.toUtf8());
+        arr = doc.array();
+    }
+
+    QAction* helpAction = nullptr;
+    if (m_menuHelp) helpAction = m_menuHelp->menuAction();
+
+    for (int i = 0; i < arr.size(); ++i) {
+        QJsonObject obj = arr[i].toObject();
+        QString type = obj["type"].toString();
+        if (type != "menu") continue;
+        
+        QString title = obj["title"].toString();
+        QMenu* customMenu = new QMenu(title, this);
+        customMenu->setStyleSheet(
+            "QMenu { background-color: #1e1e2e; color: #cdd6f4; border: 1px solid #45475a; }"
+            "QMenu::item:selected { background-color: #313244; color: #f5c2e7; }"
+        );
+
+        buildMenuTree(customMenu, obj["children"].toArray());
+
+        if (helpAction) {
+            menuBar()->insertMenu(helpAction, customMenu);
+        } else {
+            menuBar()->addMenu(customMenu);
+        }
+        m_customMenus.append(customMenu);
+    }
+}
+
+void MainWindow::onConfigureCustomMenus() {
+    CustomMenuEditorDialog dlg(this);
+    if (dlg.exec() == QDialog::Accepted) {
+        rebuildCustomMenus();
+    }
+}
+
+void MainWindow::executeCustomCommand(const QString& commandOrPath) {
+    if (commandOrPath.isEmpty()) return;
+
+    QString script = commandOrPath.trimmed();
+
+    QString resolvedPath = script;
+    if (resolvedPath.startsWith("~")) {
+        resolvedPath = QDir::home().filePath(resolvedPath.mid(1));
+    }
+    if (QFileInfo(resolvedPath).isDir()) {
+        if (m_activePanel) {
+            m_activePanel->setPath(resolvedPath);
+        }
+        return;
+    }
+
+    if (script.startsWith("@internal:")) {
+        QString cmd = script.mid(10).trimmed();
+        if (cmd == "Copy") {
+            onCopyToSiblingAction();
+        } else if (cmd == "Move") {
+            onMoveToSiblingAction();
+        } else if (cmd == "Cut") {
+            onCutAction();
+        } else if (cmd == "Paste") {
+            onPasteAction();
+        } else if (cmd == "Delete") {
+            onDeleteAction();
+        } else if (cmd == "Rename") {
+            onRenameAction();
+        } else if (cmd == "NewFolder") {
+            onNewFolderAction();
+        } else if (cmd == "Refresh") {
+            onRefreshAction();
+        } else if (cmd == "ToggleDualPane") {
+            if (m_actToggleDualPane) m_actToggleDualPane->trigger();
+        } else if (cmd == "TogglePreview") {
+            if (m_actTogglePreview) m_actTogglePreview->trigger();
+        } else if (cmd == "ToggleFlatView") {
+            if (m_actToggleFlatView) m_actToggleFlatView->trigger();
+        } else if (cmd == "CompareSync") {
+            onCompareSyncAction();
+        } else if (cmd == "DuplicateFinder") {
+            onDuplicateFinderAction();
+        } else if (cmd == "SpaceAnalyzer") {
+            onSpaceAnalyzerAction();
+        } else if (cmd.startsWith("Go ") || cmd == "Go") {
+            QString path = cmd.mid(3).trimmed();
+            QString activeDir = m_activePanel ? m_activePanel->currentPath() : "";
+            FilePanel* destPanel = (m_activePanel == leftPanel()) ? rightPanel() : leftPanel();
+            QString destDir = destPanel ? destPanel->currentPath() : "";
+            path.replace("{dest}", destDir);
+            path.replace("{dir}", activeDir);
+            if (m_activePanel) m_activePanel->setPath(path);
+        } else {
+            statusBar()->showMessage(QString("Unknown internal command: %1").arg(cmd), 4000);
+        }
+        return;
+    }
+
+    QString activeDir = m_activePanel ? m_activePanel->currentPath() : QDir::homePath();
+    FilePanel* destPanel = (m_activePanel == leftPanel()) ? rightPanel() : leftPanel();
+    QString destDir = destPanel ? destPanel->currentPath() : QDir::homePath();
+    
+    script.replace("{dir}", activeDir);
+    script.replace("{dest}", destDir);
+    
+    QProcess::startDetached("/bin/bash", QStringList() << "-c" << script);
+}
+
+QJsonArray MainWindow::getDefaultCustomMenus() {
+    QJsonArray root;
+    
+    QJsonObject m1;
+    m1["type"] = "menu";
+    m1["title"] = "🚀 Quick Launch";
+    
+    QJsonArray c1;
+    
+    QJsonObject a1;
+    a1["type"] = "action";
+    a1["title"] = "Home Directory";
+    a1["command"] = QDir::homePath();
+    a1["icon"] = "user-home";
+    a1["color"] = "#89b4fa";
+    a1["mode"] = "Normal";
+    c1.append(a1);
+    
+    QJsonObject s1;
+    s1["type"] = "separator";
+    c1.append(s1);
+    
+    QJsonObject a2;
+    a2["type"] = "action";
+    a2["title"] = "System Monitor";
+    a2["command"] = "gnome-system-monitor";
+    a2["icon"] = "utilities-system-monitor";
+    a2["color"] = "#a6e3a1";
+    a2["mode"] = "Normal";
+    c1.append(a2);
+
+    QJsonObject subM;
+    subM["type"] = "menu";
+    subM["title"] = "Project Workspaces";
+    QJsonArray subC;
+    
+    QJsonObject a3;
+    a3["type"] = "action";
+    a3["title"] = "Amifiles Workspace";
+    a3["command"] = "/home/dave/cpp_projects/Amifiles";
+    a3["icon"] = "folder-development";
+    a3["color"] = "#cba6f7";
+    a3["mode"] = "Normal";
+    subC.append(a3);
+    
+    subM["children"] = subC;
+    c1.append(subM);
+    
+    m1["children"] = c1;
+    root.append(m1);
+    
+    return root;
+}
+
+#include "toolbareditordialog.h"
+
+void MainWindow::rebuildToolBars() {
+    // 1. Delete all existing dynamic toolbars
+    for (QToolBar* tb : m_dynamicToolBars) {
+        removeToolBar(tb);
+        delete tb;
+    }
+    m_dynamicToolBars.clear();
+
+    m_tbDrives = nullptr;
+    m_customToolBar = nullptr;
+
+    // 2. Load JSON structure from settings
+    QSettings settings("Amifiles", "Amifiles");
+    QString jsonStr = settings.value("custom_toolbars_v1").toString();
+    QJsonArray arr;
+
+    if (jsonStr.isEmpty()) {
+        arr = ToolbarEditorDialog::getDefaultToolbarsJson();
+    } else {
+        QJsonDocument doc = QJsonDocument::fromJson(jsonStr.toUtf8());
+        arr = doc.array();
+    }
+
+    // Helper lambda to find internal actions by ID
+    auto findInternalAction = [this](const QString& actId) -> QAction* {
+        if (actId == "Copy") return m_actCopy;
+        if (actId == "Cut") return m_actCut;
+        if (actId == "Paste") return m_actPaste;
+        if (actId == "Delete") return m_actDelete;
+        if (actId == "Rename") return m_actRename;
+        if (actId == "NewFolder") return m_actNewFolder;
+        if (actId == "Refresh") return m_actRefresh;
+        if (actId == "ToggleDualPane") return m_actToggleDualPane;
+        if (actId == "TogglePreview") return m_actTogglePreview;
+        if (actId == "ToggleFlatView") return m_actToggleFlatView;
+        if (actId == "CompareSync") return m_actCompareSync;
+        if (actId == "DuplicateFinder") return m_actDuplicateFinder;
+        if (actId == "SpaceAnalyzer") return m_actSpaceAnalyzer;
+        return nullptr;
+    };
+
+    // 3. Rebuild toolbars
+    for (int i = 0; i < arr.size(); ++i) {
+        QJsonObject tbObj = arr[i].toObject();
+        QString name = tbObj["name"].toString();
+        QString id = tbObj["id"].toString();
+        QString styleStr = tbObj["style"].toString("TextBesideIcon");
+        bool visible = tbObj["visible"].toBool(true);
+
+        QToolBar* tb = new QToolBar(name, this);
+        tb->setObjectName(id);
+        tb->setMovable(true);
+
+        // Apply toolbar button style style
+        if (styleStr == "IconOnly") tb->setToolButtonStyle(Qt::ToolButtonIconOnly);
+        else if (styleStr == "TextOnly") tb->setToolButtonStyle(Qt::ToolButtonTextOnly);
+        else if (styleStr == "TextBesideIcon") tb->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+        else if (styleStr == "TextUnderIcon") tb->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
+
+        QJsonArray itemsArr = tbObj["items"].toArray();
+        for (int j = 0; j < itemsArr.size(); ++j) {
+            QJsonObject itemObj = itemsArr[j].toObject();
+            QString type = itemObj["type"].toString();
+            QString itemName = itemObj["name"].toString();
+            QString itemIcon = itemObj["icon"].toString();
+
+            if (type == "separator") {
+                tb->addSeparator();
+            } else if (type == "internal") {
+                QString actId = itemObj["id"].toString();
+                QAction* internalAct = findInternalAction(actId);
+                if (internalAct) {
+                    QAction* customAct = new QAction(tb);
+                    customAct->setText(itemName.isEmpty() ? internalAct->text() : itemName);
+                    
+                    QIcon qicon;
+                    if (!itemIcon.isEmpty()) {
+                        if (itemIcon.startsWith("theme:")) qicon = QIcon::fromTheme(itemIcon.mid(6));
+                        else if (QFileInfo(itemIcon).exists()) qicon = QIcon(itemIcon);
+                        else qicon = QIcon::fromTheme(itemIcon);
+                    } else {
+                        qicon = internalAct->icon();
+                    }
+                    customAct->setIcon(qicon);
+                    connect(customAct, &QAction::triggered, internalAct, &QAction::trigger);
+                    tb->addAction(customAct);
+                }
+            } else if (type == "custom") {
+                QString command = itemObj["command"].toString();
+                QAction* customAct = new QAction(tb);
+                customAct->setText(itemName);
+
+                QIcon qicon;
+                if (!itemIcon.isEmpty()) {
+                    if (itemIcon.startsWith("theme:")) qicon = QIcon::fromTheme(itemIcon.mid(6));
+                    else if (QFileInfo(itemIcon).exists()) qicon = QIcon(itemIcon);
+                    else qicon = QIcon::fromTheme(itemIcon);
+                } else {
+                    qicon = QIcon::fromTheme("system-run");
+                }
+                customAct->setIcon(qicon);
+                connect(customAct, &QAction::triggered, this, [this, command]() {
+                    executeCustomCommand(command);
+                });
+                tb->addAction(customAct);
+            }
+        }
+
+        // Install drag and drop hooks
+        if (id == "tb_drives" || id == "drivesToolBar") {
+            m_tbDrives = tb;
+            tb->setAcceptDrops(true);
+            tb->installEventFilter(this);
+            tb->setContextMenuPolicy(Qt::CustomContextMenu);
+            connect(tb, &QToolBar::customContextMenuRequested, this, &MainWindow::onDrivesToolbarContextMenu);
+        } else if (id == "tb_custom_ops" || id.startsWith("tb_custom") || id == "customToolBar") {
+            // Keep a pointer to allow drops on custom script commands toolbar
+            m_customToolBar = tb;
+            tb->setAcceptDrops(true);
+            tb->installEventFilter(this);
+            tb->setContextMenuPolicy(Qt::CustomContextMenu);
+            connect(tb, &QToolBar::customContextMenuRequested, this, &MainWindow::onCustomToolBarContextMenu);
+        }
+
+        tb->setVisible(visible);
+        addToolBar(Qt::TopToolBarArea, tb);
+        m_dynamicToolBars.append(tb);
+    }
+
+    // 4. Restore geometry/dock settings
+    restoreState(settings.value("window/state").toByteArray());
+}
+
+void MainWindow::onConfigureToolbars() {
+    ToolbarEditorDialog dlg(this);
+    if (dlg.exec() == QDialog::Accepted) {
+        rebuildToolBars();
+    }
 }
 
 #include "mainwindow.moc"

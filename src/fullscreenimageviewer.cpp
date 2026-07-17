@@ -25,6 +25,15 @@ FullscreenImageViewer::FullscreenImageViewer(const QStringList& imageFiles, int 
         }
     });
 
+    m_hudHideTimer = new QTimer(this);
+    m_hudHideTimer->setSingleShot(true);
+    connect(m_hudHideTimer, &QTimer::timeout, this, [this]() {
+        m_hudVisible = false;
+        setCursor(Qt::BlankCursor);
+        update();
+    });
+    m_hudHideTimer->start(2000);
+
     loadImage();
     showFullScreen();
 }
@@ -65,76 +74,88 @@ void FullscreenImageViewer::paintEvent(QPaintEvent* /*event*/) {
     int imgY = (height() - scaled.height()) / 2;
     painter.drawPixmap(imgX, imgY, scaled);
 
-    // Dynamic HUD layout calculations
-    int hudW = qMin(800, width() - 40);
-    int hudX = (width() - hudW) / 2;
-    m_hudRect = QRect(hudX, height() - 90, hudW, 70);
+    if (m_hudVisible) {
+        // Dynamic HUD layout calculations
+        int hudW = qMin(800, width() - 40);
+        int hudX = (width() - hudW) / 2;
+        m_hudRect = QRect(hudX, height() - 90, hudW, 70);
 
-    // Draw HUD background panel
-    painter.setPen(Qt::NoPen);
-    painter.setBrush(QBrush(QColor(17, 17, 27, 220)));
-    painter.drawRoundedRect(m_hudRect, 8, 8);
-
-    // HUD Text Information (left-aligned)
-    QFileInfo info(m_files[m_currentIndex]);
-    QString displayTitle = info.fileName();
-    QString displayMeta = QString("%1x%2 — %3 (Image %4 of %5)")
-                          .arg(m_originalPixmap.width())
-                          .arg(m_originalPixmap.height())
-                          .arg(formatBytes(info.size()))
-                          .arg(m_currentIndex + 1)
-                          .arg(m_files.size());
-
-    painter.setPen(QColor("#cdd6f4"));
-    QFont fontTitle = font();
-    fontTitle.setPointSize(10);
-    fontTitle.setBold(true);
-    painter.setFont(fontTitle);
-    painter.drawText(QRect(m_hudRect.left() + 16, m_hudRect.top() + 15, m_hudRect.width() / 2, 20), Qt::AlignLeft | Qt::AlignVCenter, displayTitle);
-
-    painter.setPen(QColor("#a6adc8"));
-    QFont fontMeta = font();
-    fontMeta.setPointSize(8);
-    painter.setFont(fontMeta);
-    painter.drawText(QRect(m_hudRect.left() + 16, m_hudRect.top() + 38, m_hudRect.width() / 2, 16), Qt::AlignLeft | Qt::AlignVCenter, displayMeta);
-
-    // Draw Interactive Buttons (right-aligned in HUD)
-    int btnW = 55;
-    int btnH = 36;
-    int btnY = m_hudRect.top() + 17;
-    int rightBound = m_hudRect.right() - 16;
-
-    m_btnCloseRect = QRect(rightBound - btnW, btnY, btnW, btnH);
-    m_btnFlipRect = QRect(m_btnCloseRect.left() - btnW - 6, btnY, btnW, btnH);
-    m_btnRotateRect = QRect(m_btnFlipRect.left() - btnW - 6, btnY, btnW, btnH);
-    m_btnNextRect = QRect(m_btnRotateRect.left() - btnW - 12, btnY, btnW, btnH);
-    m_btnPlayRect = QRect(m_btnNextRect.left() - btnW - 6, btnY, btnW, btnH);
-    m_btnPrevRect = QRect(m_btnPlayRect.left() - btnW - 6, btnY, btnW, btnH);
-
-    auto drawBtn = [&painter, this](const QRect& r, const QString& symbol, const QString& tooltip, QColor hoverCol) {
-        bool hover = r.contains(mapFromGlobal(QCursor::pos()));
+        // Draw HUD background panel
         painter.setPen(Qt::NoPen);
-        painter.setBrush(QBrush(hover ? hoverCol : QColor("#313244")));
-        painter.drawRoundedRect(r, 4, 4);
+        painter.setBrush(QBrush(QColor(17, 17, 27, 220)));
+        painter.drawRoundedRect(m_hudRect, 8, 8);
 
-        painter.setPen(QColor(hover ? "#11111b" : "#cdd6f4"));
-        QFont fSym = font();
-        fSym.setPointSize(11);
-        fSym.setBold(true);
-        painter.setFont(fSym);
-        painter.drawText(r, Qt::AlignCenter, symbol);
-    };
+        if (m_showInfoOverlay) {
+            // HUD Text Information (left-aligned)
+            QFileInfo info(m_files[m_currentIndex]);
+            QString displayTitle = info.fileName();
+            QString displayMeta = QString("%1x%2 — %3 (Image %4 of %5)")
+                                  .arg(m_originalPixmap.width())
+                                  .arg(m_originalPixmap.height())
+                                  .arg(formatBytes(info.size()))
+                                  .arg(m_currentIndex + 1)
+                                  .arg(m_files.size());
 
-    drawBtn(m_btnPrevRect, "⏮", "Previous", QColor("#89b4fa"));
-    drawBtn(m_btnPlayRect, m_slideshowActive ? "⏸" : "▶", m_slideshowActive ? "Pause Slideshow" : "Play Slideshow", QColor("#a6e3a1"));
-    drawBtn(m_btnNextRect, "⏭", "Next", QColor("#89b4fa"));
-    drawBtn(m_btnRotateRect, "🔄", "Rotate 90°", QColor("#f9e2af"));
-    drawBtn(m_btnFlipRect, "↔️", "Flip Horizontal", QColor("#cba6f7"));
-    drawBtn(m_btnCloseRect, "✖", "Close Viewer", QColor("#f38ba8"));
+            painter.setPen(QColor("#cdd6f4"));
+            QFont fontTitle = font();
+            fontTitle.setPointSize(10);
+            fontTitle.setBold(true);
+            painter.setFont(fontTitle);
+            painter.drawText(QRect(m_hudRect.left() + 16, m_hudRect.top() + 15, m_hudRect.width() / 2, 20), Qt::AlignLeft | Qt::AlignVCenter, displayTitle);
+
+            painter.setPen(QColor("#a6adc8"));
+            QFont fontMeta = font();
+            fontMeta.setPointSize(8);
+            painter.setFont(fontMeta);
+            painter.drawText(QRect(m_hudRect.left() + 16, m_hudRect.top() + 38, m_hudRect.width() / 2, 16), Qt::AlignLeft | Qt::AlignVCenter, displayMeta);
+        }
+
+        // Draw Interactive Buttons (right-aligned in HUD)
+        int btnW = 55;
+        int btnH = 36;
+        int btnY = m_hudRect.top() + 17;
+        int rightBound = m_hudRect.right() - 16;
+
+        m_btnCloseRect = QRect(rightBound - btnW, btnY, btnW, btnH);
+        m_btnFlipRect = QRect(m_btnCloseRect.left() - btnW - 6, btnY, btnW, btnH);
+        m_btnRotateRect = QRect(m_btnFlipRect.left() - btnW - 6, btnY, btnW, btnH);
+        m_btnNextRect = QRect(m_btnRotateRect.left() - btnW - 12, btnY, btnW, btnH);
+        m_btnPlayRect = QRect(m_btnNextRect.left() - btnW - 6, btnY, btnW, btnH);
+        m_btnPrevRect = QRect(m_btnPlayRect.left() - btnW - 6, btnY, btnW, btnH);
+
+        auto drawBtn = [&painter, this](const QRect& r, const QString& symbol, const QString& tooltip, QColor hoverCol) {
+            bool hover = r.contains(mapFromGlobal(QCursor::pos()));
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(QBrush(hover ? hoverCol : QColor("#313244")));
+            painter.drawRoundedRect(r, 4, 4);
+
+            painter.setPen(QColor(hover ? "#11111b" : "#cdd6f4"));
+            QFont fSym = font();
+            fSym.setPointSize(11);
+            fSym.setBold(true);
+            painter.setFont(fSym);
+            painter.drawText(r, Qt::AlignCenter, symbol);
+        };
+
+        drawBtn(m_btnPrevRect, "⏮", "Previous", QColor("#89b4fa"));
+        drawBtn(m_btnPlayRect, m_slideshowActive ? "⏸" : "▶", m_slideshowActive ? "Pause Slideshow" : "Play Slideshow", QColor("#a6e3a1"));
+        drawBtn(m_btnNextRect, "⏭", "Next", QColor("#89b4fa"));
+        drawBtn(m_btnRotateRect, "🔄", "Rotate 90°", QColor("#f9e2af"));
+        drawBtn(m_btnFlipRect, "↔️", "Flip Horizontal", QColor("#cba6f7"));
+        drawBtn(m_btnCloseRect, "✖", "Close Viewer", QColor("#f38ba8"));
+    } else {
+        m_hudRect = QRect();
+        m_btnPrevRect = QRect();
+        m_btnNextRect = QRect();
+        m_btnRotateRect = QRect();
+        m_btnFlipRect = QRect();
+        m_btnPlayRect = QRect();
+        m_btnCloseRect = QRect();
+    }
 
     // Draw Shortcut Help Card (top-left overlay)
-    if (m_showHelp) {
-        QRect helpRect(20, 20, 310, 160);
+    if (m_showHelp && m_hudVisible) {
+        QRect helpRect(20, 20, 310, 175);
         painter.setPen(Qt::NoPen);
         painter.setBrush(QBrush(QColor(17, 17, 27, 210)));
         painter.drawRoundedRect(helpRect, 6, 6);
@@ -155,6 +176,7 @@ void FullscreenImageViewer::paintEvent(QPaintEvent* /*event*/) {
                           "• [Space] : Toggle Slideshow (3s)\n"
                           "• [R] : Rotate 90° Clockwise\n"
                           "• [F] : Flip Horizontally\n"
+                          "• [I] : Toggle Info Overlay\n"
                           "• [H] : Toggle Help Box\n"
                           "• [Esc / Q] : Close Fullscreen Viewer";
         painter.drawText(helpRect.adjusted(12, 32, -12, -10), Qt::AlignTop | Qt::AlignLeft, helpTxt);
@@ -162,6 +184,13 @@ void FullscreenImageViewer::paintEvent(QPaintEvent* /*event*/) {
 }
 
 void FullscreenImageViewer::keyPressEvent(QKeyEvent* event) {
+    if (event->key() != Qt::Key_Escape && event->key() != Qt::Key_Q) {
+        m_hudVisible = true;
+        setCursor(Qt::ArrowCursor);
+        m_hudHideTimer->start(2000);
+        update();
+    }
+
     if (event->key() == Qt::Key_Escape || event->key() == Qt::Key_Q) {
         close();
     } else if (event->key() == Qt::Key_Left || event->key() == Qt::Key_A) {
@@ -184,6 +213,9 @@ void FullscreenImageViewer::keyPressEvent(QKeyEvent* event) {
         flipImage();
     } else if (event->key() == Qt::Key_Space) {
         toggleSlideshow();
+    } else if (event->key() == Qt::Key_I) {
+        m_showInfoOverlay = !m_showInfoOverlay;
+        update();
     } else if (event->key() == Qt::Key_H) {
         m_showHelp = !m_showHelp;
         update();
@@ -193,6 +225,18 @@ void FullscreenImageViewer::keyPressEvent(QKeyEvent* event) {
 }
 
 void FullscreenImageViewer::mousePressEvent(QMouseEvent* event) {
+    if (!m_hudVisible) {
+        m_hudVisible = true;
+        setCursor(Qt::ArrowCursor);
+        m_hudHideTimer->start(2000);
+        update();
+        event->accept();
+        return;
+    }
+
+    // Keep HUD awake on any mouse interaction
+    m_hudHideTimer->start(2000);
+
     QPoint clickPos = event->pos();
     if (m_btnPrevRect.contains(clickPos)) {
         m_currentIndex = (m_currentIndex - 1 + m_files.size()) % m_files.size();
@@ -217,9 +261,14 @@ void FullscreenImageViewer::mousePressEvent(QMouseEvent* event) {
     }
 }
 
-void FullscreenImageViewer::mouseMoveEvent(QMouseEvent* /*event*/) {
-    // Force redraw to update button hover states
-    update();
+void FullscreenImageViewer::mouseMoveEvent(QMouseEvent* event) {
+    if (!m_hudVisible) {
+        m_hudVisible = true;
+        setCursor(Qt::ArrowCursor);
+        update();
+    }
+    m_hudHideTimer->start(2000);
+    QDialog::mouseMoveEvent(event);
 }
 
 void FullscreenImageViewer::rotateImage() {
@@ -236,8 +285,12 @@ void FullscreenImageViewer::toggleSlideshow() {
     m_slideshowActive = !m_slideshowActive;
     if (m_slideshowActive) {
         m_slideshowTimer->start(3000); // 3 seconds transitions
+        m_hudHideTimer->start(500); // Quick fade-out for HUD on slideshow play!
     } else {
         m_slideshowTimer->stop();
+        m_hudVisible = true;
+        setCursor(Qt::ArrowCursor);
+        m_hudHideTimer->start(2000); // Keep HUD open when slideshow is paused!
     }
     update();
 }

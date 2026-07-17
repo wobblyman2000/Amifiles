@@ -16,6 +16,9 @@ private:
     void setupUI();
     void computeDiff(const QString& pathLeft, const QString& pathRight);
     void applyHighlighting();
+    void onSave();
+    void onMergeLeftToRight();
+    void onMergeRightToLeft();
 
     QString m_fileLeft;
     QString m_fileRight;
@@ -23,6 +26,8 @@ private:
     QLabel* m_lblHeader = nullptr;
     QPlainTextEdit* m_editLeft = nullptr;
     QPlainTextEdit* m_editRight = nullptr;
+    QPlainTextEdit* m_leftLineNums = nullptr;
+    QPlainTextEdit* m_rightLineNums = nullptr;
 
     // Track which lines need red/green highlighting
     QList<int> m_deletedLines; // 0-indexed lines on left to highlight red

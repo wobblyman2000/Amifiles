@@ -47,6 +47,21 @@ bool ArchiveModel::loadArchive(const QString& archivePath) {
         if (proc.exitCode() == 0) {
             parseRar(QString::fromUtf8(proc.readAllStandardOutput()));
         }
+    } else if (ext == "7z" || ext == "iso" || ext == "img") {
+        proc.start("7z", { "l", archivePath });
+        if (proc.waitForFinished() && proc.exitCode() == 0) {
+            parse7z(QString::fromUtf8(proc.readAllStandardOutput()));
+        }
+    } else if (ext == "d64") {
+        proc.start("c1541", { "-attach", archivePath, "-list" });
+        if (proc.waitForFinished() && proc.exitCode() == 0) {
+            parseD64(QString::fromUtf8(proc.readAllStandardOutput()));
+        }
+    } else if (ext == "adf") {
+        proc.start("xdftool", { archivePath, "list" });
+        if (proc.waitForFinished() && proc.exitCode() == 0) {
+            parseAdf(QString::fromUtf8(proc.readAllStandardOutput()));
+        }
     }
 
     beginResetModel();
@@ -168,6 +183,48 @@ void ArchiveModel::parseRar(const QString& stdoutText) {
     }
 }
 
+void ArchiveModel::parse7z(const QString& stdoutText) {
+    QStringList lines = stdoutText.split('\n');
+    bool start = false;
+    for (const QString& line : lines) {
+        QString trimmed = line.trimmed();
+        if (trimmed.startsWith("-------------------")) {
+            start = !start;
+            continue;
+        }
+        if (!start) continue;
+
+        // format: Date Time Attr Size Compressed Name
+        QStringList parts = trimmed.split(QRegularExpression("\\s+"));
+        if (parts.size() < 6) continue;
+
+        QString dateStr = parts[0];
+        QString timeStr = parts[1];
+        QString attr = parts[2];
+        qint64 size = parts[3].toLongLong();
+
+        // Reassemble name
+        QString name = trimmed.section(QRegularExpression("\\s+"), 5);
+
+        ArchiveFileEntry entry;
+        entry.fullVirtualPath = QDir::cleanPath(name);
+        entry.name = QFileInfo(name).fileName();
+        if (entry.name.isEmpty()) {
+            entry.name = QDir(name).dirName();
+            entry.isDir = true;
+        } else {
+            entry.isDir = attr.contains('D') || name.endsWith('/');
+        }
+        entry.size = size;
+        entry.modified = QDateTime::fromString(dateStr + " " + timeStr, "yyyy-MM-dd hh:mm:ss");
+        if (!entry.modified.isValid()) {
+            entry.modified = QFileInfo(m_archivePath).lastModified();
+        }
+
+        m_allEntries.append(entry);
+    }
+}
+
 void ArchiveModel::rebuildActiveEntries() {
     m_activeEntries.clear();
     QStringList addedVirtualDirs;
@@ -186,7 +243,14 @@ void ArchiveModel::rebuildActiveEntries() {
 
             if (parts.size() == 1) {
                 // Direct file child
-                m_activeEntries.append(entry);
+                if (entry.isDir) {
+                    if (!addedVirtualDirs.contains(entry.name)) {
+                        m_activeEntries.append(entry);
+                        addedVirtualDirs.append(entry.name);
+                    }
+                } else {
+                    m_activeEntries.append(entry);
+                }
             } else {
                 // Folder child
                 QString dirName = parts[0];
@@ -212,7 +276,14 @@ void ArchiveModel::rebuildActiveEntries() {
                 if (parts.isEmpty() || parts[0].isEmpty()) continue;
 
                 if (parts.size() == 1) {
-                    m_activeEntries.append(entry);
+                    if (entry.isDir) {
+                        if (!addedVirtualDirs.contains(entry.name)) {
+                            m_activeEntries.append(entry);
+                            addedVirtualDirs.append(entry.name);
+                        }
+                    } else {
+                        m_activeEntries.append(entry);
+                    }
                 } else {
                     QString dirName = parts[0];
                     if (!addedVirtualDirs.contains(dirName)) {
@@ -352,12 +423,22 @@ QString ArchiveModel::extractFile(const QString& virtualFilePath) {
     QDir().mkpath(scratchDir);
 
     QString destPath = QDir(scratchDir).filePath(QFileInfo(virtualFilePath).fileName());
-    proc.setStandardOutputFile(destPath);
 
-    if (m_archivePath.endsWith(".zip", Qt::CaseInsensitive)) {
-        proc.start("unzip", { "-p", m_archivePath, virtualFilePath });
+    if (m_archivePath.endsWith(".d64", Qt::CaseInsensitive)) {
+        proc.start("c1541", { "-attach", m_archivePath, "-read", virtualFilePath, destPath });
+    } else if (m_archivePath.endsWith(".adf", Qt::CaseInsensitive)) {
+        proc.start("xdftool", { m_archivePath, "read", virtualFilePath, destPath });
     } else {
-        proc.start("tar", { "-xOf", m_archivePath, virtualFilePath });
+        proc.setStandardOutputFile(destPath);
+        if (m_archivePath.endsWith(".zip", Qt::CaseInsensitive)) {
+            proc.start("unzip", { "-p", m_archivePath, virtualFilePath });
+        } else if (m_archivePath.endsWith(".rar", Qt::CaseInsensitive)) {
+            proc.start("unrar", { "p", "-inul", m_archivePath, virtualFilePath });
+        } else if (m_archivePath.endsWith(".7z", Qt::CaseInsensitive) || m_archivePath.endsWith(".iso", Qt::CaseInsensitive) || m_archivePath.endsWith(".img", Qt::CaseInsensitive)) {
+            proc.start("7z", { "x", m_archivePath, virtualFilePath, "-so" });
+        } else {
+            proc.start("tar", { "-xOf", m_archivePath, virtualFilePath });
+        }
     }
 
     if (proc.waitForFinished() && proc.exitCode() == 0) {
@@ -376,6 +457,38 @@ bool ArchiveModel::deleteFiles(const QStringList& virtualPaths) {
     QFileInfo info(m_archivePath);
     QString ext = info.suffix().toLower();
     
+    if (ext == "adf") {
+        QProcess proc;
+        bool ok = true;
+        for (const QString& vp : virtualPaths) {
+            proc.start("xdftool", { m_archivePath, "delete", vp });
+            if (!proc.waitForFinished() || proc.exitCode() != 0) {
+                ok = false;
+            }
+        }
+        if (ok) {
+            loadArchive(m_archivePath);
+            return true;
+        }
+        return false;
+    }
+
+    if (ext == "d64") {
+        QProcess proc;
+        bool ok = true;
+        for (const QString& vp : virtualPaths) {
+            proc.start("c1541", { "-attach", m_archivePath, "-delete", vp });
+            if (!proc.waitForFinished() || proc.exitCode() != 0) {
+                ok = false;
+            }
+        }
+        if (ok) {
+            loadArchive(m_archivePath);
+            return true;
+        }
+        return false;
+    }
+
     if (ext == "zip") {
         QProcess proc;
         QStringList args = { "-d", m_archivePath };
@@ -465,6 +578,41 @@ bool ArchiveModel::addFiles(const QStringList& localPaths) {
     
     QFileInfo info(m_archivePath);
     QString ext = info.suffix().toLower();
+
+    if (ext == "adf") {
+        QProcess proc;
+        bool ok = true;
+        for (const QString& lp : localPaths) {
+            QFileInfo lInfo(lp);
+            QString destVirtualPath = m_currentVirtualPath.isEmpty() ? lInfo.fileName() : m_currentVirtualPath + "/" + lInfo.fileName();
+            proc.start("xdftool", { m_archivePath, "write", lp, destVirtualPath });
+            if (!proc.waitForFinished() || proc.exitCode() != 0) {
+                ok = false;
+            }
+        }
+        if (ok) {
+            loadArchive(m_archivePath);
+            return true;
+        }
+        return false;
+    }
+
+    if (ext == "d64") {
+        QProcess proc;
+        bool ok = true;
+        for (const QString& lp : localPaths) {
+            QFileInfo lInfo(lp);
+            proc.start("c1541", { "-attach", m_archivePath, "-write", lp, lInfo.fileName().toUpper() });
+            if (!proc.waitForFinished() || proc.exitCode() != 0) {
+                ok = false;
+            }
+        }
+        if (ok) {
+            loadArchive(m_archivePath);
+            return true;
+        }
+        return false;
+    }
     
     QString tempAddDir = "/home/dave/cpp_projects/Amifiles/build/tmp_archive_add";
     QDir(tempAddDir).removeRecursively();
@@ -585,5 +733,82 @@ bool ArchiveModel::addFiles(const QStringList& localPaths) {
             return true;
         }
         return false;
+    }
+}
+
+void ArchiveModel::parseD64(const QString& stdoutText) {
+    QStringList lines = stdoutText.split('\n');
+    for (const QString& line : lines) {
+        QString trimmed = line.trimmed();
+        if (trimmed.isEmpty()) continue;
+
+        int firstQuote = trimmed.indexOf('"');
+        int lastQuote = trimmed.lastIndexOf('"');
+        if (firstQuote != -1 && lastQuote > firstQuote) {
+            QString name = trimmed.mid(firstQuote + 1, lastQuote - firstQuote - 1).trimmed();
+            QString beforeQuote = trimmed.left(firstQuote).trimmed();
+            qint64 size = beforeQuote.toLongLong() * 256;
+
+            ArchiveFileEntry entry;
+            entry.name = name;
+            entry.fullVirtualPath = name;
+            entry.size = size;
+            entry.isDir = false;
+            entry.modified = QFileInfo(m_archivePath).lastModified();
+            m_allEntries.append(entry);
+        }
+    }
+}
+
+void ArchiveModel::parseAdf(const QString& stdoutText) {
+    QStringList lines = stdoutText.split('\n');
+    QStringList pathStack;
+    for (const QString& line : lines) {
+        QString trimmed = line.trimmed();
+        if (trimmed.isEmpty()) continue;
+
+        if (trimmed.contains("VOLUME") || trimmed.startsWith("sum:") || trimmed.startsWith("data:") || trimmed.startsWith("fs:")) {
+            continue;
+        }
+
+        int leadingSpaces = 0;
+        while (leadingSpaces < line.length() && line[leadingSpaces] == ' ') {
+            leadingSpaces++;
+        }
+
+        // xdftool uses 2 spaces indentation per subdirectory level
+        int depth = leadingSpaces / 2;
+        while (pathStack.size() > depth - 1 && !pathStack.isEmpty()) {
+            pathStack.removeLast();
+        }
+
+        QStringList parts = trimmed.split(QRegularExpression("\\s+"));
+        if (parts.size() < 2) continue;
+
+        QString name = parts[0];
+        bool isDirectory = (parts[1] == "DIR");
+        qint64 size = 0;
+        if (!isDirectory) {
+            size = parts[1].toLongLong();
+        }
+
+        QString fullPath;
+        if (pathStack.isEmpty()) {
+            fullPath = name;
+        } else {
+            fullPath = pathStack.join("/") + "/" + name;
+        }
+
+        ArchiveFileEntry entry;
+        entry.name = name;
+        entry.fullVirtualPath = fullPath;
+        entry.size = size;
+        entry.isDir = isDirectory;
+        entry.modified = QFileInfo(m_archivePath).lastModified();
+        m_allEntries.append(entry);
+
+        if (isDirectory) {
+            pathStack.append(name);
+        }
     }
 }

@@ -88,6 +88,8 @@ add_executable(Amifiles
     src/pdfviewerwidget.cpp
     src/agestylingdialog.h
     src/agestylingdialog.cpp
+    src/preferencesdialog.h
+    src/preferencesdialog.cpp
     src/folderlayoutdialog.h
     src/folderlayoutdialog.cpp
     src/dynamicfavoritesdialog.h
@@ -100,6 +102,38 @@ add_executable(Amifiles
     src/schedulerdialog.cpp
     src/fullscreenimageviewer.h
     src/fullscreenimageviewer.cpp
+    src/autotagdialog.h
+    src/autotagdialog.cpp
+    src/cardviewdelegate.h
+    src/cardviewdelegate.cpp
+    src/millercolumnsview.h
+    src/millercolumnsview.cpp
+    src/timelineview.h
+    src/timelineview.cpp
+    src/filmstripview.h
+    src/filmstripview.cpp
+    src/commandpalette.h
+    src/commandpalette.cpp
+    src/folderdiffdialog.h
+    src/folderdiffdialog.cpp
+    src/smartfoldermodel.h
+    src/smartfoldermodel.cpp
+    src/filetagsdialog.h
+    src/filetagsdialog.cpp
+    src/workspaceprofiledialog.h
+    src/workspaceprofiledialog.cpp
+    src/diskdashboardwidget.h
+    src/diskdashboardwidget.cpp
+    src/autoorganizerdialog.h
+    src/autoorganizerdialog.cpp
+    src/remotemountmanager.h
+    src/remotemountmanager.cpp
+    src/custommenueditordialog.h
+    src/custommenueditordialog.cpp
+    src/iconpickerdialog.h
+    src/iconpickerdialog.cpp
+    src/toolbareditordialog.h
+    src/toolbareditordialog.cpp
 )
 
 target_link_libraries(Amifiles PRIVATE

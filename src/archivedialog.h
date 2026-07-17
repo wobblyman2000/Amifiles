@@ -16,7 +16,7 @@ public:
     enum Mode { ModeCreate, ModeExtract };
 
     // Constructor for creating an archive from files
-    ArchiveDialog(Mode mode, const QStringList& sourcePaths, const QString& currentDir, QWidget* parent = nullptr);
+    ArchiveDialog(Mode mode, const QStringList& sourcePaths, const QString& currentDir, bool enablePassword = false, QWidget* parent = nullptr);
     // Constructor for extracting a single archive file
     ArchiveDialog(Mode mode, const QString& archivePath, const QString& currentDir, QWidget* parent = nullptr);
     ~ArchiveDialog() override;
@@ -46,6 +46,7 @@ private:
     QLabel* m_lblStatus = nullptr;
     QLineEdit* m_txtTargetName = nullptr;
     QComboBox* m_comboFormat = nullptr;
+    QComboBox* m_comboPostAction = nullptr;
     class QCheckBox* m_chkPassword = nullptr;
     QLineEdit* m_txtPassword = nullptr;
     QProgressBar* m_progressBar = nullptr;

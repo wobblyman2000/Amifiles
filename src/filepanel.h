@@ -585,6 +585,8 @@ public:
     ~FilePanel() override;
 
     bool isArchiveViewActive() const { return m_archiveViewActive; }
+    int viewModeIndex() const;
+    void setViewModeIndex(int index);
 
     QString currentPath() const;
     void setPath(const QString& path);
@@ -650,16 +652,20 @@ signals:
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
 
-private slots:
+public slots:
     void onNavigateUp();
     void onNavigateBack();
     void onNavigateForward();
+    void onViewModeChanged(int index);
+
+private slots:
     void onPathEntered();
     void onFavoriteClicked();
     void onFilterChanged(const QString& filterText);
     void onFilterTypeChanged();
     void onSelectionChanged();
     void onDoubleClicked(const QModelIndex& index);
+    void onDoubleClickedPath(const QString& path);
     void updateFavoritesUI();
     void onCustomContextMenu(const QPoint& pos);
     void onFavoriteButtonContextMenu(const QPoint& pos);
@@ -718,12 +724,24 @@ private:
     QSortFilterProxyModel* m_flatProxyModel = nullptr;
     bool m_flatViewEnabled = false;
 
+    class SmartFolderModel* m_smartModel = nullptr;
+    bool m_smartViewActive = false;
+
+    class DiskDashboardWidget* m_dashboardWidget = nullptr;
+    bool m_dashboardActive = false;
+
     ArchiveModel* m_archiveModel = nullptr;
     bool m_archiveViewActive = false;
 
     QSlider* m_zoomSlider = nullptr;
     QStackedWidget* m_viewStack = nullptr;
     QListView* m_listView = nullptr;
+    class MillerColumnsView* m_millerView = nullptr;
+    class TimelineView* m_timelineView = nullptr;
+    class FilmstripView* m_filmstripView = nullptr;
+    class QComboBox* m_comboViewMode = nullptr;
+    class QAbstractItemDelegate* m_defaultDelegate = nullptr;
+    class CardViewDelegate* m_cardDelegate = nullptr;
     int m_zoomLevel = -1;
 
     // Bottom Filter Bar

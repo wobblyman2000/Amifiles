@@ -11,6 +11,8 @@
 #include <QCheckBox>
 #include <QColor>
 #include <QBrush>
+#include <QComboBox>
+#include <QDateTime>
 
 DuplicateFinderDialog::DuplicateFinderDialog(const QString& scanDir, QWidget* parent)
     : QDialog(parent), m_scanDir(scanDir) {
@@ -30,9 +32,36 @@ DuplicateFinderDialog::DuplicateFinderDialog(const QString& scanDir, QWidget* pa
 
 void DuplicateFinderDialog::setupUI() {
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
+    mainLayout->setSpacing(8);
 
     m_lblHeader = new QLabel(QString("<b>Scan Folder:</b> %1").arg(QDir::toNativeSeparators(m_scanDir)), this);
     mainLayout->addWidget(m_lblHeader);
+
+    // Smart Selection Row
+    QHBoxLayout* smartSelectLayout = new QHBoxLayout();
+    smartSelectLayout->setSpacing(6);
+    
+    QLabel* lblSmart = new QLabel("Smart Auto-Selection:", this);
+    lblSmart->setStyleSheet("font-weight: bold; color: #89b4fa;");
+    
+    m_comboSmartSelect = new QComboBox(this);
+    m_comboSmartSelect->addItems({
+        "Keep Oldest Copy (Delete newer duplicates)",
+        "Keep Newest Copy (Delete older duplicates)",
+        "Select All duplicates",
+        "Deselect All duplicates"
+    });
+    m_comboSmartSelect->setStyleSheet("QComboBox { background-color: #313244; color: #cdd6f4; border-radius: 4px; padding: 4px; }");
+    m_comboSmartSelect->setEnabled(false);
+
+    QPushButton* btnApplySmart = new QPushButton("Apply Selection", this);
+    btnApplySmart->setStyleSheet("QPushButton { background-color: #89b4fa; color: #11111b; font-weight: bold; } QPushButton:hover { background-color: #b4befe; }");
+    connect(btnApplySmart, &QPushButton::clicked, this, &DuplicateFinderDialog::applySmartSelection);
+
+    smartSelectLayout->addWidget(lblSmart);
+    smartSelectLayout->addWidget(m_comboSmartSelect, 1);
+    smartSelectLayout->addWidget(btnApplySmart);
+    mainLayout->addLayout(smartSelectLayout);
 
     m_table = new QTableWidget(this);
     m_table->setColumnCount(4);
@@ -45,10 +74,18 @@ void DuplicateFinderDialog::setupUI() {
     m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
     mainLayout->addWidget(m_table);
 
+    // Connect item changes to dynamically update recovery stats dashboard!
+    connect(m_table, &QTableWidget::itemChanged, this, &DuplicateFinderDialog::updateRecoveryStats);
+
     m_progress = new QProgressBar(this);
     m_progress->setValue(0);
     m_progress->setVisible(false);
     mainLayout->addWidget(m_progress);
+
+    // Dashboard recovery stats bar
+    m_lblSpaceStats = new QLabel("Duplicates scan not started yet. Redundant Space: 0 KB | Selected for Recovery: 0 KB", this);
+    m_lblSpaceStats->setStyleSheet("font-weight: bold; color: #a6e3a1; background-color: #11111b; border: 1px solid #313244; border-radius: 4px; padding: 6px;");
+    mainLayout->addWidget(m_lblSpaceStats);
 
     QHBoxLayout* ctrlLayout = new QHBoxLayout();
     m_btnScan = new QPushButton("Scan Directory", this);
@@ -57,6 +94,7 @@ void DuplicateFinderDialog::setupUI() {
 
     m_btnDelete = new QPushButton("Delete Selected Duplicates", this);
     m_btnDelete->setEnabled(false);
+    m_btnDelete->setStyleSheet("QPushButton { background-color: #f38ba8; color: #11111b; font-weight: bold; } QPushButton:hover { background-color: #eba0ac; }");
     connect(m_btnDelete, &QPushButton::clicked, this, &DuplicateFinderDialog::onDeleteSelectedClicked);
     ctrlLayout->addWidget(m_btnDelete);
 
@@ -92,9 +130,16 @@ void DuplicateFinderDialog::onScanFinished(const QList<DupGroup>& dupGroups) {
     m_dupGroups = dupGroups;
     m_progress->setVisible(false);
 
+    // Block signals while populating to avoid calling updateRecoveryStats in loop
+    m_table->blockSignals(true);
+
     int totalRows = 0;
+    m_totalRedundantSpace = 0;
     for (const DupGroup& group : dupGroups) {
         totalRows += group.filePaths.size();
+        if (group.filePaths.size() > 1) {
+            m_totalRedundantSpace += group.size * (group.filePaths.size() - 1);
+        }
     }
 
     m_table->setRowCount(totalRows);
@@ -103,7 +148,6 @@ void DuplicateFinderDialog::onScanFinished(const QList<DupGroup>& dupGroups) {
     bool isAlternateColor = false;
 
     for (const DupGroup& group : dupGroups) {
-        // Distinct group color tags to improve scan visibility
         QColor bgColor = isAlternateColor ? QColor("#24273a") : QColor("#1e2030");
         isAlternateColor = !isAlternateColor;
 
@@ -115,7 +159,6 @@ void DuplicateFinderDialog::onScanFinished(const QList<DupGroup>& dupGroups) {
             const QString& path = group.filePaths.at(i);
             QFileInfo info(path);
 
-            // Leftmost column is checkable box (to select deletion candidates)
             QTableWidgetItem* checkItem = new QTableWidgetItem();
             checkItem->setCheckState(Qt::Unchecked);
             checkItem->setBackground(QBrush(bgColor));
@@ -129,21 +172,27 @@ void DuplicateFinderDialog::onScanFinished(const QList<DupGroup>& dupGroups) {
             QTableWidgetItem* pathItem = new QTableWidgetItem(QDir::toNativeSeparators(info.absolutePath()));
             pathItem->setBackground(QBrush(bgColor));
 
-            // To protect user files, do not check the first item by default, leaving one copy safe
             m_table->setItem(currentRow, 0, checkItem);
             m_table->setItem(currentRow, 1, nameItem);
             m_table->setItem(currentRow, 2, sizeItem);
             m_table->setItem(currentRow, 3, pathItem);
 
-            // Store full filepath in custom role for easy deletion access
             checkItem->setData(Qt::UserRole, path);
+
+            // Set size in custom role to easily query selected size later
+            checkItem->setData(Qt::UserRole + 1, group.size);
 
             currentRow++;
         }
     }
 
+    m_table->blockSignals(false);
+
     m_btnScan->setEnabled(true);
+    m_comboSmartSelect->setEnabled(totalRows > 0);
     m_btnDelete->setEnabled(totalRows > 0);
+
+    updateRecoveryStats();
 
     if (totalRows == 0) {
         QMessageBox::information(this, "Scan Finished", "No duplicate files found.");
@@ -252,4 +301,92 @@ QString DupScanWorker::calculateMD5(const QString& filePath) {
         return hash.result().toHex();
     }
     return "";
+}
+
+void DuplicateFinderDialog::applySmartSelection() {
+    if (m_dupGroups.isEmpty()) return;
+
+    m_table->blockSignals(true);
+
+    QMap<QString, int> pathToRow;
+    for (int r = 0; r < m_table->rowCount(); ++r) {
+        QTableWidgetItem* item = m_table->item(r, 0);
+        if (item) {
+            pathToRow[item->data(Qt::UserRole).toString()] = r;
+        }
+    }
+
+    int opt = m_comboSmartSelect->currentIndex();
+
+    for (const DupGroup& group : m_dupGroups) {
+        QList<QString> sortedPaths = group.filePaths;
+        
+        if (opt == 0) { // Keep Oldest
+            std::sort(sortedPaths.begin(), sortedPaths.end(), [](const QString& a, const QString& b) {
+                return QFileInfo(a).lastModified() < QFileInfo(b).lastModified();
+            });
+            if (!sortedPaths.isEmpty()) {
+                int firstRow = pathToRow.value(sortedPaths.first(), -1);
+                if (firstRow != -1 && m_table->item(firstRow, 0)) {
+                    m_table->item(firstRow, 0)->setCheckState(Qt::Unchecked);
+                }
+                for (int i = 1; i < sortedPaths.size(); ++i) {
+                    int row = pathToRow.value(sortedPaths[i], -1);
+                    if (row != -1 && m_table->item(row, 0)) {
+                        m_table->item(row, 0)->setCheckState(Qt::Checked);
+                    }
+                }
+            }
+        } else if (opt == 1) { // Keep Newest
+            std::sort(sortedPaths.begin(), sortedPaths.end(), [](const QString& a, const QString& b) {
+                return QFileInfo(a).lastModified() > QFileInfo(b).lastModified();
+            });
+            if (!sortedPaths.isEmpty()) {
+                int firstRow = pathToRow.value(sortedPaths.first(), -1);
+                if (firstRow != -1 && m_table->item(firstRow, 0)) {
+                    m_table->item(firstRow, 0)->setCheckState(Qt::Unchecked);
+                }
+                for (int i = 1; i < sortedPaths.size(); ++i) {
+                    int row = pathToRow.value(sortedPaths[i], -1);
+                    if (row != -1 && m_table->item(row, 0)) {
+                        m_table->item(row, 0)->setCheckState(Qt::Checked);
+                    }
+                }
+            }
+        } else if (opt == 2) { // Select All
+            for (const QString& path : sortedPaths) {
+                int row = pathToRow.value(path, -1);
+                if (row != -1 && m_table->item(row, 0)) {
+                    m_table->item(row, 0)->setCheckState(Qt::Checked);
+                }
+            }
+        } else if (opt == 3) { // Deselect All
+            for (const QString& path : sortedPaths) {
+                int row = pathToRow.value(path, -1);
+                if (row != -1 && m_table->item(row, 0)) {
+                    m_table->item(row, 0)->setCheckState(Qt::Unchecked);
+                }
+            }
+        }
+    }
+
+    m_table->blockSignals(false);
+    updateRecoveryStats();
+}
+
+void DuplicateFinderDialog::updateRecoveryStats() {
+    qint64 selectedBytes = 0;
+    for (int r = 0; r < m_table->rowCount(); ++r) {
+        QTableWidgetItem* item = m_table->item(r, 0);
+        if (item && item->checkState() == Qt::Checked) {
+            selectedBytes += item->data(Qt::UserRole + 1).toLongLong();
+        }
+    }
+
+    double totalRedundantMB = m_totalRedundantSpace / (1024.0 * 1024.0);
+    double selectedMB = selectedBytes / (1024.0 * 1024.0);
+
+    m_lblSpaceStats->setText(QString("Redundant Space: %1 MB | Selected for Recovery: %2 MB")
+                             .arg(totalRedundantMB, 0, 'f', 2)
+                             .arg(selectedMB, 0, 'f', 2));
 }
