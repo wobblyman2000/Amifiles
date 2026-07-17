@@ -1676,35 +1676,41 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
             refresh();
         }
     } else if (selected == actCreateArchive) {
-        ArchiveDialog dlg(ArchiveDialog::ModeCreate, curSelected, m_currentPath, false, this);
-        if (dlg.exec() == QDialog::Accepted) {
+        ArchiveDialog* dlg = new ArchiveDialog(ArchiveDialog::ModeCreate, curSelected, m_currentPath, false, this);
+        dlg->setAttribute(Qt::WA_DeleteOnClose);
+        connect(dlg, &QDialog::accepted, this, [this]() {
             refresh();
             if (m_siblingPanel) m_siblingPanel->refresh();
             QTimer::singleShot(500, this, [this]() {
                 refresh();
                 if (m_siblingPanel) m_siblingPanel->refresh();
             });
-        }
+        });
+        dlg->show();
     } else if (selected == actCreateSecureArchive) {
-        ArchiveDialog dlg(ArchiveDialog::ModeCreate, curSelected, m_currentPath, true, this);
-        if (dlg.exec() == QDialog::Accepted) {
+        ArchiveDialog* dlg = new ArchiveDialog(ArchiveDialog::ModeCreate, curSelected, m_currentPath, true, this);
+        dlg->setAttribute(Qt::WA_DeleteOnClose);
+        connect(dlg, &QDialog::accepted, this, [this]() {
             refresh();
             if (m_siblingPanel) m_siblingPanel->refresh();
             QTimer::singleShot(500, this, [this]() {
                 refresh();
                 if (m_siblingPanel) m_siblingPanel->refresh();
             });
-        }
+        });
+        dlg->show();
     } else if (selected == actExtractArchive) {
-        ArchiveDialog dlg(ArchiveDialog::ModeExtract, curSelected.first(), m_currentPath, this);
-        if (dlg.exec() == QDialog::Accepted) {
+        ArchiveDialog* dlg = new ArchiveDialog(ArchiveDialog::ModeExtract, curSelected.first(), m_currentPath, this);
+        dlg->setAttribute(Qt::WA_DeleteOnClose);
+        connect(dlg, &QDialog::accepted, this, [this]() {
             refresh();
             if (m_siblingPanel) m_siblingPanel->refresh();
             QTimer::singleShot(500, this, [this]() {
                 refresh();
                 if (m_siblingPanel) m_siblingPanel->refresh();
             });
-        }
+        });
+        dlg->show();
     } else if (selected == actEncryptVault) {
         VaultDialog dlg(true, selectedPath, this);
         if (dlg.exec() == QDialog::Accepted) {

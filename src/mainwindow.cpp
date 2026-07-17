@@ -27,6 +27,7 @@
 #include "version.h"
 #include "texteditordialog.h"
 #include "themestudiodialog.h"
+#include "smartcollectiondialog.h"
 #include <QMenuBar>
 #include <QStorageInfo>
 #include <QJsonDocument>
@@ -761,6 +762,11 @@ void MainWindow::setupActions() {
     m_actConfigureBackupSchedule->setStatusTip("Define automated copy and sync backup schedules for directories");
     connect(m_actConfigureBackupSchedule, &QAction::triggered, this, &MainWindow::onConfigureBackupSchedule);
 
+    m_actCreateSmartCollection = new QAction("Create Smart Collection...", this);
+    m_actCreateSmartCollection->setToolTip("Create dynamic folder collections based on custom search criteria");
+    m_actCreateSmartCollection->setStatusTip("Create dynamic folder collections based on custom search criteria");
+    connect(m_actCreateSmartCollection, &QAction::triggered, this, &MainWindow::onCreateSmartCollectionAction);
+
     m_actConfigureAutoTags = new QAction("Configure Auto-Tagging Rules...", this);
     m_actConfigureAutoTags->setToolTip("Define dynamic rules to automatically assign tags and colors to files");
     m_actConfigureAutoTags->setStatusTip("Define dynamic rules to automatically assign tags and colors to files");
@@ -1015,6 +1021,7 @@ void MainWindow::setupMenus() {
     m_menuTools->addAction(m_actConfigureBackupSchedule);
     m_menuTools->addAction(m_actConfigureAutoTags);
     m_menuTools->addAction(m_actConfigureAutoOrganizer);
+    m_menuTools->addAction(m_actCreateSmartCollection);
     m_menuTools->addAction(m_actRemoteMountsManager);
     m_menuTools->addSeparator();
     m_menuTools->addAction(m_actEncryptVault);
@@ -3057,6 +3064,11 @@ void MainWindow::onPreferencesAction() {
 
 void MainWindow::onThemeStudioAction() {
     ThemeStudioDialog dlg(this);
+    dlg.exec();
+}
+
+void MainWindow::onCreateSmartCollectionAction() {
+    SmartCollectionDialog dlg(this);
     dlg.exec();
 }
 

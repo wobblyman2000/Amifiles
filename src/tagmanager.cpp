@@ -33,6 +33,8 @@ void TagManager::loadDatabase() {
         QJsonObject fileInfoObj = it.value().toObject();
         FileTagInfo info;
         info.colorName = fileInfoObj["color"].toString();
+        info.rating = fileInfoObj["rating"].toInt();
+        info.comment = fileInfoObj["comment"].toString();
         
         QJsonArray tagsArr = fileInfoObj["tags"].toArray();
         for (const auto& tagVal : tagsArr) {
@@ -50,11 +52,13 @@ void TagManager::saveDatabase() {
     QJsonObject filesObj;
 
     for (auto it = m_db.begin(); it != m_db.end(); ++it) {
-        if (it.value().colorName.isEmpty() && it.value().tags.isEmpty()) {
+        if (it.value().colorName.isEmpty() && it.value().tags.isEmpty() && it.value().rating == 0 && it.value().comment.isEmpty()) {
             continue; // Skip empty entries to clean database
         }
         QJsonObject fileInfoObj;
         fileInfoObj["color"] = it.value().colorName;
+        fileInfoObj["rating"] = it.value().rating;
+        fileInfoObj["comment"] = it.value().comment;
         
         QJsonArray tagsArr;
         for (const QString& tag : it.value().tags) {
@@ -165,6 +169,24 @@ QStringList TagManager::getFileTags(const QString& filePath) const {
     }
 
     return tags;
+}
+
+void TagManager::setFileRating(const QString& filePath, int rating) {
+    m_db[filePath].rating = qBound(0, rating, 5);
+    saveDatabase();
+}
+
+int TagManager::getFileRating(const QString& filePath) const {
+    return m_db.value(filePath).rating;
+}
+
+void TagManager::setFileComment(const QString& filePath, const QString& comment) {
+    m_db[filePath].comment = comment;
+    saveDatabase();
+}
+
+QString TagManager::getFileComment(const QString& filePath) const {
+    return m_db.value(filePath).comment;
 }
 
 QStringList TagManager::getAllTags() const {

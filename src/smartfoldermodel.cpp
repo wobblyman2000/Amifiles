@@ -5,6 +5,9 @@
 #include <QDateTime>
 #include <QRegularExpression>
 #include <QFileIconProvider>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
 
 SmartFolderModel::SmartFolderModel(QObject* parent) : QAbstractTableModel(parent) {}
 
@@ -98,35 +101,80 @@ SmartScanWorker::SmartScanWorker(const DynamicFavoriteRule& rule) : m_rule(rule)
 
 void SmartScanWorker::run() {
     QList<QFileInfo> files;
-    QString home = QDir::homePath();
     QDateTime now = QDateTime::currentDateTime();
 
-    QDirIterator it(home, QDir::Files, QDirIterator::Subdirectories);
-    int count = 0;
-    while (it.hasNext() && files.size() < 1500 && count < 8000) {
-        it.next();
-        count++;
+    QStringList searchDirs;
+    QString pat;
+    double minSizeMB = -1.0;
+    double maxSizeMB = -1.0;
+    int ageDays = -1;
+    bool isSmart = (m_rule.ruleType == "Smart");
 
-        QString filePath = it.filePath();
-        if (filePath.contains("/.") || filePath.contains("\\.")) continue;
-
-        QFileInfo info = it.fileInfo();
-        bool matches = false;
-
-        if (m_rule.ruleType == "Wildcard") {
-            QRegularExpression re(QRegularExpression::wildcardToRegularExpression(m_rule.value));
-            matches = re.match(info.fileName()).hasMatch();
-        } else if (m_rule.ruleType == "Tag") {
-            QStringList tags = TagManager::instance().getFileTags(filePath);
-            matches = tags.contains(m_rule.value);
-        } else if (m_rule.ruleType == "Recent") {
-            int hours = m_rule.value.toInt();
-            if (hours <= 0) hours = 24;
-            matches = (info.lastModified().secsTo(now) <= hours * 3600);
+    if (isSmart) {
+        QJsonDocument doc = QJsonDocument::fromJson(m_rule.value.toUtf8());
+        if (!doc.isNull() && doc.isObject()) {
+            QJsonObject obj = doc.object();
+            QJsonArray dirsArr = obj["dirs"].toArray();
+            for (const auto& dVal : dirsArr) {
+                searchDirs.append(dVal.toString());
+            }
+            pat = obj["pattern"].toString();
+            if (obj.contains("minSizeMB")) minSizeMB = obj["minSizeMB"].toDouble();
+            if (obj.contains("maxSizeMB")) maxSizeMB = obj["maxSizeMB"].toDouble();
+            if (obj.contains("ageDays")) ageDays = obj["ageDays"].toInt();
         }
+    }
 
-        if (matches) {
-            files.append(info);
+    if (searchDirs.isEmpty()) {
+        searchDirs.append(QDir::homePath());
+    }
+
+    int count = 0;
+    for (const QString& sDir : searchDirs) {
+        QDirIterator it(sDir, QDir::Files, QDirIterator::Subdirectories);
+        while (it.hasNext() && files.size() < 2000 && count < 10000) {
+            it.next();
+            count++;
+
+            QString filePath = it.filePath();
+            if (filePath.contains("/.") || filePath.contains("\\.")) continue;
+
+            QFileInfo info = it.fileInfo();
+            bool matches = false;
+
+            if (isSmart) {
+                matches = true;
+                if (!pat.isEmpty()) {
+                    QRegularExpression re(QRegularExpression::wildcardToRegularExpression(pat), QRegularExpression::CaseInsensitiveOption);
+                    if (!re.match(info.fileName()).hasMatch()) {
+                        matches = false;
+                    }
+                }
+                if (matches) {
+                    double sizeMB = info.size() / (1024.0 * 1024.0);
+                    if (minSizeMB >= 0.0 && sizeMB < minSizeMB) matches = false;
+                    if (maxSizeMB >= 0.0 && sizeMB > maxSizeMB) matches = false;
+                }
+                if (matches && ageDays > 0) {
+                    if (info.lastModified().daysTo(now) > ageDays) matches = false;
+                }
+            } else {
+                if (m_rule.ruleType == "Wildcard") {
+                    QRegularExpression re(QRegularExpression::wildcardToRegularExpression(m_rule.value));
+                    matches = re.match(info.fileName()).hasMatch();
+                } else if (m_rule.ruleType == "Tag") {
+                    QStringList tags = TagManager::instance().getFileTags(filePath);
+                    matches = tags.contains(m_rule.value);
+                } else if (m_rule.ruleType == "Recent") {
+                    int hours = m_rule.value.toInt();
+                    if (hours <= 0) hours = 24;
+                    matches = (info.lastModified().secsTo(now) <= hours * 3600);
+                }
+            }
+
+            if (matches) {
+                files.append(info);
+            }
         }
     }
 

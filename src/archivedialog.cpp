@@ -1,4 +1,5 @@
 #include "archivedialog.h"
+#include "theme.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
@@ -45,16 +46,7 @@ void ArchiveDialog::setupUI() {
     mainLayout->setContentsMargins(20, 20, 20, 20);
 
     // Apply Catppuccin styling
-    setStyleSheet(
-        "QDialog { background-color: #1e1e2e; color: #cdd6f4; }"
-        "QLabel { color: #cdd6f4; font-size: 13px; }"
-        "QLineEdit { border: 1px solid #313244; background-color: #11111b; color: #cdd6f4; padding: 6px; border-radius: 4px; }"
-        "QComboBox { border: 1px solid #313244; background-color: #11111b; color: #cdd6f4; padding: 6px; border-radius: 4px; min-width: 120px; }"
-        "QProgressBar { border: 1px solid #313244; background-color: #11111b; text-align: center; border-radius: 4px; color: #cdd6f4; }"
-        "QProgressBar::chunk { background-color: #89b4fa; border-radius: 3px; }"
-        "QPushButton { border: none; background-color: #313244; color: #cdd6f4; padding: 8px 16px; border-radius: 4px; font-weight: bold; min-width: 80px; }"
-        "QPushButton:hover { background-color: #45475a; }"
-    );
+    setStyleSheet(Theme::getStylesheet());
 
     m_lblTitle = new QLabel(this);
     m_lblTitle->setStyleSheet("font-size: 16px; font-weight: bold; color: #89b4fa;");

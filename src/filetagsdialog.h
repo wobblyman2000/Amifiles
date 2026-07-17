@@ -20,5 +20,7 @@ private:
     QStringList m_filePaths;
     QLineEdit* m_tagEdit = nullptr;
     QComboBox* m_colorCombo = nullptr;
+    QComboBox* m_ratingCombo = nullptr;
+    QLineEdit* m_commentEdit = nullptr;
     class QCompleter* m_completer = nullptr;
 };

@@ -10,6 +10,8 @@
 struct FileTagInfo {
     QString colorName; // "red", "orange", "yellow", "green", "blue", "purple" or empty
     QStringList tags;
+    int rating = 0; // 0 to 5
+    QString comment;
 };
 
 class TagManager : public QObject {
@@ -23,6 +25,11 @@ public:
 
     void setFileTags(const QString& filePath, const QStringList& tags);
     QStringList getFileTags(const QString& filePath) const;
+
+    void setFileRating(const QString& filePath, int rating);
+    int getFileRating(const QString& filePath) const;
+    void setFileComment(const QString& filePath, const QString& comment);
+    QString getFileComment(const QString& filePath) const;
 
     QStringList getAllTags() const;
     QStringList getFilesWithTag(const QString& tag) const;

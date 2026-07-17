@@ -12,7 +12,7 @@
 FileTagsDialog::FileTagsDialog(const QStringList& filePaths, QWidget* parent)
     : QDialog(parent), m_filePaths(filePaths) {
     setWindowTitle("Edit File Tags & Badges");
-    resize(450, 200);
+    resize(450, 300);
     setupUI();
 }
 
@@ -53,6 +53,15 @@ void FileTagsDialog::setupUI() {
     m_colorCombo->addItems({"None", "Red", "Orange", "Yellow", "Green", "Blue", "Purple"});
     form->addRow("Badge Color:", m_colorCombo);
 
+    m_ratingCombo = new QComboBox(this);
+    m_ratingCombo->addItems({"No Rating", "1 Star ★", "2 Stars ★★", "3 Stars ★★★", "4 Stars ★★★★", "5 Stars ★★★★★"});
+    form->addRow("Rating:", m_ratingCombo);
+
+    m_commentEdit = new QLineEdit(this);
+    m_commentEdit->setPlaceholderText("Enter a text comment/note about this file");
+    m_commentEdit->setClearButtonEnabled(true);
+    form->addRow("Comment:", m_commentEdit);
+
     mainLayout->addLayout(form);
 
     // Populate initial values from the first file
@@ -71,6 +80,11 @@ void FileTagsDialog::setupUI() {
         if (colIdx != -1) {
             m_colorCombo->setCurrentIndex(colIdx);
         }
+
+        int r = TagManager::instance().getFileRating(firstPath);
+        m_ratingCombo->setCurrentIndex(qBound(0, r, 5));
+
+        m_commentEdit->setText(TagManager::instance().getFileComment(firstPath));
     }
 
     // Set up QCompleter with multi-word comma completion
@@ -133,10 +147,15 @@ void FileTagsDialog::onSaveClicked() {
         colorName = "";
     }
 
+    int rating = m_ratingCombo->currentIndex(); // 0 is No Rating, matches index perfectly
+    QString comment = m_commentEdit->text();
+
     // Apply to all selected files
     for (const QString& path : m_filePaths) {
         TagManager::instance().setFileTags(path, tagsList);
         TagManager::instance().setFileColor(path, colorName);
+        TagManager::instance().setFileRating(path, rating);
+        TagManager::instance().setFileComment(path, comment);
     }
 
     accept();

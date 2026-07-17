@@ -184,6 +184,7 @@ private slots:
     void onSaveSearchPreset();
     void onPreferencesAction();
     void onThemeStudioAction();
+    void onCreateSmartCollectionAction();
     void updateSearchPresetsMenu();
     void onSearchPresetTriggered();
 
@@ -325,6 +326,7 @@ private:
     QAction* m_actResetLayout = nullptr;
     QAction* m_actConfigureFolderLayouts = nullptr;
     QAction* m_actConfigureBackupSchedule = nullptr;
+    QAction* m_actCreateSmartCollection = nullptr;
     QAction* m_actCopyToSibling = nullptr;
     QAction* m_actMoveToSibling = nullptr;
     QAction* m_actClonePathToSibling = nullptr;

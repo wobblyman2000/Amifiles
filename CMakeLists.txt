@@ -145,6 +145,8 @@ add_executable(Amifiles
     src/texteditordialog.cpp
     src/themestudiodialog.h
     src/themestudiodialog.cpp
+    src/smartcollectiondialog.h
+    src/smartcollectiondialog.cpp
 )
 
 target_link_libraries(Amifiles PRIVATE

@@ -9,7 +9,7 @@ CustomFileSystemModel::CustomFileSystemModel(QObject* parent)
 
 int CustomFileSystemModel::columnCount(const QModelIndex& parent) const {
     if (parent.column() > 0) return 0;
-    return QFileSystemModel::columnCount(parent) + 13;
+    return QFileSystemModel::columnCount(parent) + 15;
 }
 
 QVariant CustomFileSystemModel::headerData(int section, Qt::Orientation orientation, int role) const {
@@ -28,6 +28,8 @@ QVariant CustomFileSystemModel::headerData(int section, Qt::Orientation orientat
             case 14: return "Duration";
             case 15: return "Codec";
             case 16: return "Tags";
+            case 17: return "Rating";
+            case 18: return "Comment";
             default: break;
         }
     }
@@ -135,6 +137,15 @@ QVariant CustomFileSystemModel::data(const QModelIndex& index, int role) const {
             case 16: {
                 QStringList tags = TagManager::instance().getFileTags(filePath);
                 return tags.isEmpty() ? QVariant() : tags.join(", ");
+            }
+            case 17: {
+                int r = TagManager::instance().getFileRating(filePath);
+                if (r <= 0) return QVariant();
+                return QString(r, QChar(0x2605)) + QString(5 - r, QChar(0x2606));
+            }
+            case 18: {
+                QString comment = TagManager::instance().getFileComment(filePath);
+                return comment.isEmpty() ? QVariant() : comment;
             }
             default: break;
         }
