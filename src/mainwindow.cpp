@@ -161,8 +161,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     setStyleSheet(Theme::Stylesheet);
 
     // Initialize layout components
-    setupCentralWidget();
     setupActions();
+    setupCentralWidget();
     loadKeybindings();
     applyKeybindings();
     setupMenus();
@@ -403,8 +403,13 @@ void MainWindow::setupCentralWidget() {
     auto createBarButton = [this](QAction* act) -> QToolButton* {
         QToolButton* btn = new QToolButton(m_tbCenterOps);
         btn->setDefaultAction(act);
+        if (act) {
+            btn->setIcon(act->icon());
+            btn->setToolTip(act->text() + (act->shortcut().isEmpty() ? "" : " (" + act->shortcut().toString() + ")"));
+        }
         btn->setFixedSize(30, 30);
         btn->setIconSize(QSize(20, 20));
+        btn->setToolButtonStyle(Qt::ToolButtonIconOnly);
         btn->setStyleSheet(
             "QToolButton { background-color: #1e1e2e; border: 1px solid #45475a; border-radius: 4px; padding: 2px; color: #89b4fa; }"
             "QToolButton:hover { background-color: #313244; color: #a6e3a1; }"
@@ -515,7 +520,7 @@ void MainWindow::setupActions() {
     m_actDelete->setToolTip("Permanently delete selected items");
     connect(m_actDelete, &QAction::triggered, this, &MainWindow::onDeleteAction);
 
-    m_actRename = new QAction("Rename", this);
+    m_actRename = new QAction(style->standardIcon(QStyle::SP_FileDialogInfoView), "Rename", this);
     m_actRename->setShortcut(QKeySequence(Qt::Key_F2));
     m_actRename->setToolTip("Rename selected item");
     connect(m_actRename, &QAction::triggered, this, &MainWindow::onRenameAction);
