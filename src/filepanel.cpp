@@ -145,7 +145,23 @@ void FilePanel::setupUI() {
     m_btnFlatView->setText("Flat View");
     m_btnFlatView->setCheckable(true);
     m_btnFlatView->setToolTip("Toggle Flat View (Recurse all subfolders)");
-    m_btnFlatView->setStyleSheet("QToolButton { font-weight: bold; color: #a6e3a1; }");
+    m_btnFlatView->setStyleSheet(
+        "QToolButton {"
+        "  font-weight: bold;"
+        "  color: #a6e3a1;"
+        "  background-color: transparent;"
+        "  border: 1px solid #a6e3a1;"
+        "  border-radius: 4px;"
+        "  padding: 2px 6px;"
+        "}"
+        "QToolButton:hover {"
+        "  background-color: #313244;"
+        "}"
+        "QToolButton:checked {"
+        "  background-color: #a6e3a1;"
+        "  color: #11111b;"
+        "}"
+    );
     connect(m_btnFlatView, &QToolButton::toggled, this, &FilePanel::setFlatViewEnabled);
     m_comboViewMode = new QComboBox(this);
     m_comboViewMode->addItems({
