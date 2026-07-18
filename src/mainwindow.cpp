@@ -354,6 +354,7 @@ void MainWindow::setupCentralWidget() {
     refreshTagsSidebar();
 
     m_leftTabWidget = new QTabWidget(this);
+    m_leftTabWidget->setObjectName("leftTabWidget");
     m_leftTabWidget->setTabsClosable(true);
     m_leftTabWidget->setMovable(true);
     m_leftTabWidget->setStyleSheet(
@@ -364,6 +365,7 @@ void MainWindow::setupCentralWidget() {
     );
 
     m_rightTabWidget = new QTabWidget(this);
+    m_rightTabWidget->setObjectName("rightTabWidget");
     m_rightTabWidget->setTabsClosable(true);
     m_rightTabWidget->setMovable(true);
     m_rightTabWidget->setStyleSheet(m_leftTabWidget->styleSheet());

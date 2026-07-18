@@ -213,7 +213,7 @@ void HelpDialog::onSectionChanged(int index) {
                     "<h3>Flat View (Recursion Mode)</h3>"
                     "<p><b>How to use:</b></p>"
                     "<ol>"
-                    "<li>Press <code>Ctrl+F</code> or select <b>View -> Flat View</b>.</li>"
+                    "<li>Press <code>Ctrl+F</code>, select <b>View -> Flat View</b>, or click the state-aware <b>Tree View / Flat View</b> button in the toolbar (indicated by folder/list icons).</li>"
                     "<li>The directory tree is scanned and flattened into a single list view.</li>"
                     "<li>This allows you to view, sort, and batch-rename files located across multiple subdirectories simultaneously without manually traversing folders.</li>"
                     "</ol>"

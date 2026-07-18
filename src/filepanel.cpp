@@ -137,14 +137,16 @@ void FilePanel::setupUI() {
     connect(m_btnFavorite, &QToolButton::customContextMenuRequested, this, &FilePanel::onFavoriteButtonContextMenu);
 
     m_btnClonePath = new QToolButton(this);
-    m_btnClonePath->setIcon(style->standardIcon(QStyle::SP_FileDialogContentsView));
+    m_btnClonePath->setIcon(style->standardIcon(QStyle::SP_ArrowRight));
     m_btnClonePath->setToolTip("Clone current path to opposite sibling panel");
     connect(m_btnClonePath, &QToolButton::clicked, this, &FilePanel::onClonePathClicked);
 
     m_btnFlatView = new QToolButton(this);
-    m_btnFlatView->setText("Flat View");
     m_btnFlatView->setCheckable(true);
-    m_btnFlatView->setToolTip("Toggle Flat View (Recurse all subfolders)");
+    m_btnFlatView->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    m_btnFlatView->setIcon(style->standardIcon(QStyle::SP_DirIcon));
+    m_btnFlatView->setText("Tree View");
+    m_btnFlatView->setToolTip("Tree View Enabled (Click to flatten all subfolders)");
     m_btnFlatView->setStyleSheet(
         "QToolButton {"
         "  font-weight: bold;"
@@ -1870,6 +1872,19 @@ void FilePanel::setFlatViewEnabled(bool enabled) {
     if (m_flatViewEnabled == enabled) return;
     m_flatViewEnabled = enabled;
 
+    if (m_btnFlatView) {
+        QStyle* style = QApplication::style();
+        if (enabled) {
+            m_btnFlatView->setIcon(style->standardIcon(QStyle::SP_FileDialogListView));
+            m_btnFlatView->setText("Flat View");
+            m_btnFlatView->setToolTip("Flat View Enabled (Click to view folder tree)");
+        } else {
+            m_btnFlatView->setIcon(style->standardIcon(QStyle::SP_DirIcon));
+            m_btnFlatView->setText("Tree View");
+            m_btnFlatView->setToolTip("Tree View Enabled (Click to flatten all subfolders)");
+        }
+    }
+
     if (m_btnFlatView && m_btnFlatView->isChecked() != enabled) {
         m_btnFlatView->blockSignals(true);
         m_btnFlatView->setChecked(enabled);
@@ -2300,6 +2315,35 @@ int FilePanel::viewModeIndex() const {
 void FilePanel::setViewModeIndex(int index) {
     if (m_comboViewMode) {
         m_comboViewMode->setCurrentIndex(index);
+    }
+}
+
+void FilePanel::showEvent(QShowEvent* event) {
+    QWidget::showEvent(event);
+    updateCloneButtonIcon();
+}
+
+void FilePanel::updateCloneButtonIcon() {
+    QStyle* style = QApplication::style();
+    bool isLeft = true;
+    QWidget* temp = parentWidget();
+    while (temp) {
+        if (temp->objectName() == "leftTabWidget") {
+            isLeft = true;
+            break;
+        } else if (temp->objectName() == "rightTabWidget") {
+            isLeft = false;
+            break;
+        }
+        temp = temp->parentWidget();
+    }
+
+    if (isLeft) {
+        m_btnClonePath->setIcon(style->standardIcon(QStyle::SP_ArrowRight));
+        m_btnClonePath->setToolTip("Clone current path to the right panel");
+    } else {
+        m_btnClonePath->setIcon(style->standardIcon(QStyle::SP_ArrowLeft));
+        m_btnClonePath->setToolTip("Clone current path to the left panel");
     }
 }
 

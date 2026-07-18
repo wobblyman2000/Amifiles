@@ -668,6 +668,7 @@ signals:
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
+    void showEvent(QShowEvent* event) override;
 
 public slots:
     void onNavigateUp();
@@ -685,6 +686,7 @@ private slots:
     void onDoubleClicked(const QModelIndex& index);
     void onDoubleClickedPath(const QString& path);
     void updateFavoritesUI();
+    void updateCloneButtonIcon();
     void onCustomContextMenu(const QPoint& pos);
     void onFavoriteButtonContextMenu(const QPoint& pos);
     void onToggleViewMode();
