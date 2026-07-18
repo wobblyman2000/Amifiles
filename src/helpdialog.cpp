@@ -328,7 +328,7 @@ void HelpDialog::onSectionChanged(int index) {
                     "<li>Click the <b>Properties</b> tab on the preview panel.</li>"
                     "<li>Inspect file sizes, dimensions, permissions, audio ID3 parameters, and EXIF parameters.</li>"
                     "<li>Type tag strings (comma-separated) in the tags line edit.</li>"
-                    "<li>Select a color dot badge to associate with the file, and click **Apply**. The list views render tags and color dots instantly.</li>"
+                    "<li>Select a color label to associate with the file, and click **Apply**. The list views render tags and color labels instantly.</li>"
                     "</ol>"
                     "<h3>Docking &amp; Floating Panel Controls</h3>"
                     "<ul>"

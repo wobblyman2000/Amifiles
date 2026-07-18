@@ -630,7 +630,7 @@ void PreviewPanel::setupUI() {
     m_tagColorCombo = new QComboBox(m_metadataContainer);
     m_tagColorCombo->addItems({"None", "Red", "Orange", "Yellow", "Green", "Blue", "Purple"});
     m_tagColorCombo->setStyleSheet("QComboBox { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 4px; padding: 2px 4px; }");
-    tagForm->addRow(new QLabel("Badge Color:", m_metadataContainer), m_tagColorCombo);
+    tagForm->addRow(new QLabel("Color Label:", m_metadataContainer), m_tagColorCombo);
 
     m_btnApplyTagsColors = new QPushButton("Apply Tags & Color", m_metadataContainer);
     m_btnApplyTagsColors->setStyleSheet("QPushButton { background-color: #89b4fa; color: #11111b; font-weight: bold; border-radius: 4px; padding: 4px; }"
