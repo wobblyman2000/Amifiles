@@ -369,6 +369,7 @@ private:
     void loadKeybindings();
     void saveKeybindings();
     void applyKeybindings();
+    void updateWidgetStylesheets();
     void registerKeybindableAction(const QString& id, QAction* action);
     QIcon getFolderIcon(const QString& folderName);
 

@@ -161,7 +161,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     resize(1200, 800);
 
     // Apply global modern theme
-    qApp->setStyleSheet(Theme::getStylesheet());
+    updateWidgetStylesheets();
 
     // Initialize layout components
     setupActions();
@@ -3030,6 +3030,7 @@ void MainWindow::onRemoteMountsManager() {
 void MainWindow::onPreferencesAction() {
     PreferencesDialog dlg(this);
     connect(&dlg, &PreferencesDialog::preferencesChanged, this, [this]() {
+        updateWidgetStylesheets();
         QSettings settings("Amifiles", "Amifiles");
         
         bool horizontalSplit = settings.value("preferences/horizontal_split", false).toBool();
@@ -3067,6 +3068,7 @@ void MainWindow::onPreferencesAction() {
 void MainWindow::onThemeStudioAction() {
     ThemeStudioDialog dlg(this);
     dlg.exec();
+    updateWidgetStylesheets();
 }
 
 void MainWindow::onCreateSmartCollectionAction() {
@@ -3775,6 +3777,57 @@ void MainWindow::onTabContextMenuRequested(const QPoint& pos) {
         if (panel->isPathLocked()) name += " 🔒";
         else if (panel->isPathLockedWithSubdirs()) name += " 📂🔒";
         tabWidget->setTabText(tabIndex, name);
+    }
+}
+
+void MainWindow::updateWidgetStylesheets() {
+    QSettings settings("Amifiles", "Amifiles");
+    QString preset = settings.value("theme/preset", "Catppuccin Mocha").toString();
+
+    if (preset == "System Theme") {
+        qApp->setStyleSheet("");
+        m_sidebarTabWidget->setStyleSheet("");
+        m_favoritesSidebar->setStyleSheet("");
+        m_filtersSidebar->setStyleSheet("");
+        m_tagsSidebar->setStyleSheet("");
+        m_leftTabWidget->setStyleSheet("");
+        m_rightTabWidget->setStyleSheet("");
+        m_bottomTabWidget->setStyleSheet("");
+        m_tbCenterOps->setStyleSheet("");
+        m_tbCenterOpsSeparator->setStyleSheet("");
+        if (m_tbDrives) m_tbDrives->setStyleSheet("");
+    } else {
+        qApp->setStyleSheet(Theme::getStylesheet());
+        
+        m_sidebarTabWidget->setStyleSheet(
+            "QTabWidget::pane { border: 1px solid #313244; background-color: #1e1e2e; border-radius: 6px; }"
+            "QTabBar::tab { background-color: #181825; color: #a6adc8; padding: 6px 10px; border-top-left-radius: 4px; border-top-right-radius: 4px; }"
+            "QTabBar::tab:selected { background-color: #313244; color: #cdd6f4; }"
+        );
+        
+        m_favoritesSidebar->setStyleSheet(
+            "QListWidget { background-color: #181825; color: #cdd6f4; border: none; padding: 4px; }"
+            "QListWidget::item { padding: 6px 8px; border-radius: 4px; color: #cdd6f4; }"
+            "QListWidget::item:hover { background-color: #313244; color: #f5c2e7; }"
+            "QListWidget::item:selected { background-color: #89b4fa; color: #11111b; font-weight: bold; }"
+        );
+        m_filtersSidebar->setStyleSheet(m_favoritesSidebar->styleSheet());
+        m_tagsSidebar->setStyleSheet(m_favoritesSidebar->styleSheet());
+        
+        m_leftTabWidget->setStyleSheet(
+            "QTabWidget::pane { border: 1px solid #313244; background-color: #1e1e2e; }"
+            "QTabBar::tab { background-color: #181825; color: #a6adc8; border: 1px solid #313244; border-bottom: none; padding: 6px 12px; border-top-left-radius: 4px; border-top-right-radius: 4px; }"
+            "QTabBar::tab:selected { background-color: #1e1e2e; color: #cdd6f4; border-color: #313244; }"
+            "QTabBar::tab:hover { background-color: #313244; color: #cdd6f4; }"
+        );
+        m_rightTabWidget->setStyleSheet(m_leftTabWidget->styleSheet());
+        m_bottomTabWidget->setStyleSheet(m_leftTabWidget->styleSheet());
+        
+        m_tbCenterOps->setStyleSheet("background-color: #11111b; border: 1px solid #313244; border-radius: 4px;");
+        m_tbCenterOpsSeparator->setStyleSheet("background-color: #45475a; max-height: 1px;");
+        if (m_tbDrives) {
+            m_tbDrives->setStyleSheet("QToolBar { background-color: #11111b; border-bottom: 1px solid #313244; }");
+        }
     }
 }
 

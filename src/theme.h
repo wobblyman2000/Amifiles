@@ -12,6 +12,9 @@ inline QString getStylesheet() {
     
     // Theme presets
     QString preset = settings.value("theme/preset", "Catppuccin Mocha").toString();
+    if (preset == "System Theme") {
+        return "";
+    }
     int fontSize = settings.value("theme/font_size", 13).toInt();
     int borderRadius = settings.value("theme/border_radius", 4).toInt();
     double opacity = settings.value("theme/sidebar_opacity", 1.0).toDouble();
