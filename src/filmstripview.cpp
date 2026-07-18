@@ -6,6 +6,30 @@
 #include <QPixmap>
 #include <QFileIconProvider>
 #include <QDir>
+#include <QAbstractProxyModel>
+
+static QString getAbsolutePathOfIndex(const QModelIndex& index) {
+    if (!index.isValid()) return "";
+    
+    QModelIndex mappedIndex = index;
+    const QAbstractItemModel* m = index.model();
+    
+    while (m) {
+        if (const QAbstractProxyModel* proxy = qobject_cast<const QAbstractProxyModel*>(m)) {
+            mappedIndex = proxy->mapToSource(mappedIndex);
+            m = proxy->sourceModel();
+        } else {
+            break;
+        }
+    }
+    
+    if (m) {
+        if (const QFileSystemModel* fsm = qobject_cast<const QFileSystemModel*>(m)) {
+            return fsm->filePath(mappedIndex);
+        }
+    }
+    return "";
+}
 
 FilmstripView::FilmstripView(QFileSystemModel* model, QWidget* parent)
     : QWidget(parent), m_model(model) {
@@ -57,11 +81,44 @@ FilmstripView::FilmstripView(QFileSystemModel* model, QWidget* parent)
 
 void FilmstripView::setRootPath(const QString& path) {
     m_rootPath = path;
-    m_thumbList->setRootIndex(m_model->index(path));
+
+    QAbstractItemModel* curModel = m_thumbList->model();
+    QModelIndex srcIndex;
+
+    QAbstractItemModel* m = curModel;
+    while (m) {
+        if (const QFileSystemModel* fsm = qobject_cast<const QFileSystemModel*>(m)) {
+            srcIndex = fsm->index(path);
+            break;
+        }
+        if (const QAbstractProxyModel* proxy = qobject_cast<const QAbstractProxyModel*>(m)) {
+            m = proxy->sourceModel();
+        } else {
+            break;
+        }
+    }
+
+    QModelIndex targetIndex = srcIndex;
+    if (curModel) {
+        QList<const QAbstractProxyModel*> proxies;
+        QAbstractItemModel* curM = curModel;
+        while (curM) {
+            if (const QAbstractProxyModel* proxy = qobject_cast<const QAbstractProxyModel*>(curM)) {
+                proxies.prepend(proxy);
+                curM = proxy->sourceModel();
+            } else {
+                break;
+            }
+        }
+        for (const QAbstractProxyModel* proxy : proxies) {
+            targetIndex = proxy->mapFromSource(targetIndex);
+        }
+    }
+
+    m_thumbList->setRootIndex(targetIndex);
     m_previewLabel->clear();
     m_previewLabel->setText("Select an image from the filmstrip below");
 
-    // Select the first image automatically if possible
     QDir dir(path);
     QStringList filters = {"*.png", "*.jpg", "*.jpeg", "*.webp", "*.bmp", "*.gif"};
     QFileInfoList list = dir.entryInfoList(filters, QDir::Files);
@@ -70,14 +127,18 @@ void FilmstripView::setRootPath(const QString& path) {
     }
 }
 
+void FilmstripView::setModel(QAbstractItemModel* model) {
+    m_thumbList->setModel(model);
+}
+
 void FilmstripView::onItemClicked(const QModelIndex& index) {
-    QString path = m_model->filePath(index);
+    QString path = getAbsolutePathOfIndex(index);
     emit fileSelected(path);
     updatePreview(path);
 }
 
 void FilmstripView::onItemDoubleClicked(const QModelIndex& index) {
-    QString path = m_model->filePath(index);
+    QString path = getAbsolutePathOfIndex(index);
     emit fileDoubleClicked(path);
 }
 
@@ -110,7 +171,7 @@ QStringList FilmstripView::selectedPaths() const {
     QStringList paths;
     QModelIndexList selected = m_thumbList->selectionModel()->selectedRows();
     for (const QModelIndex& idx : selected) {
-        paths.append(m_model->filePath(idx));
+        paths.append(getAbsolutePathOfIndex(idx));
     }
     return paths;
 }

@@ -629,10 +629,12 @@ void FilePanel::updateActiveViewModel() {
         m_treeView->setModel(m_groupProxy);
         m_listView->setModel(m_groupProxy);
         m_theaterListView->setModel(m_groupProxy);
+        m_filmstripView->setModel(m_groupProxy);
     } else {
         m_treeView->setModel(base);
         m_listView->setModel(base);
         m_theaterListView->setModel(base);
+        m_filmstripView->setModel(base);
     }
     m_listView->setSelectionModel(m_treeView->selectionModel());
     m_theaterListView->setSelectionModel(m_treeView->selectionModel());
@@ -2523,6 +2525,19 @@ void FilePanel::updateCloneButtonIcon() {
 }
 
 
+static QString findFirstCaseInsensitiveFile(const QString& dirPath, const QStringList& candidates) {
+    QDir dir(dirPath);
+    QStringList files = dir.entryList(QDir::Files);
+    for (const QString& candidate : candidates) {
+        for (const QString& file : files) {
+            if (file.compare(candidate, Qt::CaseInsensitive) == 0) {
+                return dir.filePath(file);
+            }
+        }
+    }
+    return "";
+}
+
 CasingRunnable::CasingRunnable(QPointer<FileFilterProxyModel> model, const QString& path)
     : m_model(model), m_path(path) {
     setAutoDelete(true);
@@ -2545,13 +2560,7 @@ void CasingRunnable::run() {
             baseName + "_cover.jpg", baseName + "_cover.jpeg", baseName + "_cover.png",
             baseName + ".jpg", baseName + ".jpeg", baseName + ".png"
         };
-        for (const QString& check : fileSpecificChecks) {
-            QString test = QDir(dirPath).filePath(check);
-            if (QFile::exists(test)) {
-                artPath = test;
-                break;
-            }
-        }
+        artPath = findFirstCaseInsensitiveFile(dirPath, fileSpecificChecks);
         
         if (!artPath.isEmpty()) {
             QString ext = fileInfo.suffix().toLower();
@@ -2580,13 +2589,9 @@ void CasingRunnable::run() {
         }
         if (checkBluRay) {
             QStringList blurayChecks = { "bluray_cover.jpg", "bluray_cover.jpeg", "bluray_cover.png", "bluray.jpg", "bluray.jpeg", "bluray.png" };
-            for (const QString& check : blurayChecks) {
-                QString test = QDir(dirPath).filePath(check);
-                if (QFile::exists(test)) {
-                    artPath = test;
-                    casingInt = 2; // CasingBluRay
-                    break;
-                }
+            artPath = findFirstCaseInsensitiveFile(dirPath, blurayChecks);
+            if (!artPath.isEmpty()) {
+                casingInt = 2; // CasingBluRay
             }
         }
     }
@@ -2603,13 +2608,9 @@ void CasingRunnable::run() {
         }
         if (checkDVD) {
             QStringList dvdChecks = { "dvd_cover.jpg", "dvd_cover.jpeg", "dvd_cover.png", "dvd.jpg", "dvd.jpeg", "dvd.png", "movie.jpg", "movie.jpeg", "movie.png", "poster.jpg", "poster.jpeg", "poster.png" };
-            for (const QString& check : dvdChecks) {
-                QString test = QDir(dirPath).filePath(check);
-                if (QFile::exists(test)) {
-                    artPath = test;
-                    casingInt = 1; // CasingDVD
-                    break;
-                }
+            artPath = findFirstCaseInsensitiveFile(dirPath, dvdChecks);
+            if (!artPath.isEmpty()) {
+                casingInt = 1; // CasingDVD
             }
         }
     }
@@ -2617,13 +2618,9 @@ void CasingRunnable::run() {
     // 4. Fall back to CD covers
     if (artPath.isEmpty()) {
         QStringList cdChecks = { "folder.jpg", "folder.jpeg", "folder.png", "cover.jpg", "cover.jpeg", "cover.png" };
-        for (const QString& check : cdChecks) {
-            QString test = QDir(dirPath).filePath(check);
-            if (QFile::exists(test)) {
-                artPath = test;
-                casingInt = 0; // CasingCD
-                break;
-            }
+        artPath = findFirstCaseInsensitiveFile(dirPath, cdChecks);
+        if (!artPath.isEmpty()) {
+            casingInt = 0; // CasingCD
         }
     }
 

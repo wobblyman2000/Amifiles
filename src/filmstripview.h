@@ -13,6 +13,7 @@ public:
     ~FilmstripView() override = default;
 
     void setRootPath(const QString& path);
+    void setModel(QAbstractItemModel* model);
     QString rootPath() const { return m_rootPath; }
     QStringList selectedPaths() const;
 
