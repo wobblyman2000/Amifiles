@@ -10,7 +10,7 @@
 class TagEditorDialog : public QDialog {
     Q_OBJECT
 public:
-    explicit TagEditorDialog(const QStringList& filePaths, QWidget* parent = nullptr);
+    explicit TagEditorDialog(const QStringList& filePaths, QWidget* parent = nullptr, bool autoStartFetch = false);
     ~TagEditorDialog() override = default;
 
 private slots:

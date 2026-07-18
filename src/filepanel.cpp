@@ -1529,6 +1529,7 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     QAction* actCompareSelected = menu.addAction("Compare Selected Files");
     QAction* actCompareSibling = menu.addAction("Compare with Sibling Pane File");
     QAction* actEditTags = menu.addAction("Edit Audio Tags...");
+    QAction* actFetchMusicBrainz = menu.addAction(style->standardIcon(QStyle::SP_ComputerIcon), "Fetch MusicBrainz Album Info...");
     menu.addSeparator();
 
     QMenu* menuColorLabel = menu.addMenu("Color Label");
@@ -1600,7 +1601,29 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         }
     }
     actCompareSibling->setEnabled(canCompareSibling);
-    actEditTags->setEnabled(hasSelection);
+    bool hasAudioFiles = false;
+    for (const QString& sPath : curSelected) {
+        QFileInfo info(sPath);
+        if (info.isDir()) {
+            QDir dir(sPath);
+            QFileInfoList files = dir.entryInfoList(QDir::Files | QDir::NoDotAndDotDot);
+            for (const QFileInfo& f : files) {
+                QString ext = f.suffix().toLower();
+                if (ext == "mp3" || ext == "flac") {
+                    hasAudioFiles = true;
+                    break;
+                }
+            }
+        } else if (info.isFile()) {
+            QString ext = info.suffix().toLower();
+            if (ext == "mp3" || ext == "flac") {
+                hasAudioFiles = true;
+            }
+        }
+        if (hasAudioFiles) break;
+    }
+    actEditTags->setEnabled(hasSelection && hasAudioFiles);
+    actFetchMusicBrainz->setEnabled(hasSelection && hasAudioFiles);
 
     bool isArchive = false;
     if (curSelected.size() == 1) {
@@ -1704,6 +1727,32 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         TagEditorDialog dlg(curSelected, this);
         if (dlg.exec() == QDialog::Accepted) {
             refresh();
+        }
+    } else if (selected == actFetchMusicBrainz) {
+        QStringList pathsToFetch;
+        for (const QString& path : curSelected) {
+            QFileInfo info(path);
+            if (info.isDir()) {
+                QDir dir(path);
+                QFileInfoList files = dir.entryInfoList(QDir::Files, QDir::Name);
+                for (const QFileInfo& f : files) {
+                    QString ext = f.suffix().toLower();
+                    if (ext == "mp3" || ext == "flac") {
+                        pathsToFetch.append(f.absoluteFilePath());
+                    }
+                }
+            } else if (info.isFile()) {
+                QString ext = info.suffix().toLower();
+                if (ext == "mp3" || ext == "flac") {
+                    pathsToFetch.append(path);
+                }
+            }
+        }
+        if (!pathsToFetch.isEmpty()) {
+            TagEditorDialog dlg(pathsToFetch, this, true);
+            if (dlg.exec() == QDialog::Accepted) {
+                refresh();
+            }
         }
     } else if (selected == actCreateArchive) {
         ArchiveDialog* dlg = new ArchiveDialog(ArchiveDialog::ModeCreate, curSelected, m_currentPath, false, this);

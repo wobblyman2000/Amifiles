@@ -14,8 +14,9 @@
 #include <QApplication>
 #include <QDir>
 #include <QBuffer>
+#include <QTimer>
 
-TagEditorDialog::TagEditorDialog(const QStringList& filePaths, QWidget* parent)
+TagEditorDialog::TagEditorDialog(const QStringList& filePaths, QWidget* parent, bool autoStartFetch)
     : QDialog(parent), m_filePaths(filePaths) {
     setWindowTitle("Batch Metadata Tag Editor");
     resize(580, 520);
@@ -29,6 +30,10 @@ TagEditorDialog::TagEditorDialog(const QStringList& filePaths, QWidget* parent)
 
     setupUI();
     loadCommonTags();
+
+    if (autoStartFetch) {
+        QTimer::singleShot(0, this, &TagEditorDialog::onAutoFetchClicked);
+    }
 }
 
 void TagEditorDialog::setupUI() {
