@@ -805,10 +805,15 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
         m_proxyModel->setCurrentPath(m_currentPath);
         QModelIndex srcIndex = m_fileModel->setRootPath(m_currentPath);
         QModelIndex proxyIndex = m_proxyModel->mapFromSource(srcIndex);
-        m_groupProxy->setSourceRoot(proxyIndex);
-        QModelIndex groupRootIndex = m_groupProxy->mapFromSource(proxyIndex);
-        m_treeView->setRootIndex(groupRootIndex);
-        m_listView->setRootIndex(groupRootIndex);
+        if (m_groupProxy && m_groupProxy->isGroupingActive()) {
+            m_groupProxy->setSourceRoot(proxyIndex);
+            QModelIndex groupRootIndex = m_groupProxy->mapFromSource(proxyIndex);
+            m_treeView->setRootIndex(groupRootIndex);
+            m_listView->setRootIndex(groupRootIndex);
+        } else {
+            m_treeView->setRootIndex(proxyIndex);
+            m_listView->setRootIndex(proxyIndex);
+        }
     }
 
     // Update History
