@@ -66,6 +66,7 @@ struct AgeColorRule {
 
 class FileFilterProxyModel : public QSortFilterProxyModel {
     Q_OBJECT
+    friend class CasingRunnable;
 
 public:
     enum FilterType { FilterAll, FilterAudio, FilterVideos, FilterPictures, FilterDocs, FilterArchive };

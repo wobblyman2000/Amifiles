@@ -2625,11 +2625,13 @@ void CasingRunnable::run() {
     }
 
     if (artPath.isEmpty()) {
-        QMetaObject::invokeMethod(m_model.data(), "onCasingRendered", Qt::QueuedConnection,
-                                  Q_ARG(QString, m_path),
-                                  Q_ARG(QString, ""),
-                                  Q_ARG(int, 0),
-                                  Q_ARG(QImage, QImage()));
+        QPointer<FileFilterProxyModel> model = m_model;
+        QString path = m_path;
+        QMetaObject::invokeMethod(model.data(), [model, path]() {
+            if (model) {
+                model->onCasingRendered(path, "", 0, QImage());
+            }
+        }, Qt::QueuedConnection);
         return;
     }
 
@@ -2654,11 +2656,13 @@ void CasingRunnable::run() {
     }
 
     if (cover.isNull()) {
-        QMetaObject::invokeMethod(m_model.data(), "onCasingRendered", Qt::QueuedConnection,
-                                  Q_ARG(QString, m_path),
-                                  Q_ARG(QString, ""),
-                                  Q_ARG(int, 0),
-                                  Q_ARG(QImage, QImage()));
+        QPointer<FileFilterProxyModel> model = m_model;
+        QString path = m_path;
+        QMetaObject::invokeMethod(model.data(), [model, path]() {
+            if (model) {
+                model->onCasingRendered(path, "", 0, QImage());
+            }
+        }, Qt::QueuedConnection);
         return;
     }
 
@@ -2788,11 +2792,13 @@ void CasingRunnable::run() {
     
     painter.end();
 
-    QMetaObject::invokeMethod(m_model.data(), "onCasingRendered", Qt::QueuedConnection,
-                              Q_ARG(QString, m_path),
-                              Q_ARG(QString, artPath),
-                              Q_ARG(int, casingInt),
-                              Q_ARG(QImage, caseImage));
+    QPointer<FileFilterProxyModel> model = m_model;
+    QString path = m_path;
+    QMetaObject::invokeMethod(model.data(), [model, path, artPath, casingInt, caseImage]() {
+        if (model) {
+            model->onCasingRendered(path, artPath, casingInt, caseImage);
+        }
+    }, Qt::QueuedConnection);
 }
 
 void FileFilterProxyModel::onCasingRendered(const QString& path, const QString& artPath, int casingType, const QImage& image) {
