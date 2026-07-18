@@ -143,10 +143,8 @@ void FilePanel::setupUI() {
 
     m_btnFlatView = new QToolButton(this);
     m_btnFlatView->setCheckable(true);
-    m_btnFlatView->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     m_btnFlatView->setIcon(style->standardIcon(QStyle::SP_DirIcon));
-    m_btnFlatView->setText("Tree View");
-    m_btnFlatView->setToolTip("Tree View Enabled (Click to flatten all subfolders)");
+    m_btnFlatView->setToolTip("Enable Flat View (Recurse all subfolders)");
     m_btnFlatView->setStyleSheet(
         "QToolButton {"
         "  font-weight: bold;"
@@ -1876,12 +1874,10 @@ void FilePanel::setFlatViewEnabled(bool enabled) {
         QStyle* style = QApplication::style();
         if (enabled) {
             m_btnFlatView->setIcon(style->standardIcon(QStyle::SP_FileDialogListView));
-            m_btnFlatView->setText("Flat View");
-            m_btnFlatView->setToolTip("Flat View Enabled (Click to view folder tree)");
+            m_btnFlatView->setToolTip("Disable Flat View (Return to folder tree view)");
         } else {
             m_btnFlatView->setIcon(style->standardIcon(QStyle::SP_DirIcon));
-            m_btnFlatView->setText("Tree View");
-            m_btnFlatView->setToolTip("Tree View Enabled (Click to flatten all subfolders)");
+            m_btnFlatView->setToolTip("Enable Flat View (Recurse all subfolders)");
         }
     }
 
