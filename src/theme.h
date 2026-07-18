@@ -53,6 +53,33 @@ inline QString getStylesheet() {
         text = "#c6d0f5";
         secText = "#a5adce";
         hover = "#51576d";
+    } else if (preset == "Midnight High Contrast") {
+        bg = "#0c0f12";
+        sidebar = "#13181f";
+        border = "#283241";
+        accent = "#3b82f6";
+        green = "#10b981";
+        text = "#ffffff";
+        secText = "#94a3b8";
+        hover = "#1e293b";
+    } else if (preset == "Cyber Obsidian") {
+        bg = "#0d0d0d";
+        sidebar = "#151515";
+        border = "#2a2a2a";
+        accent = "#ff007f";
+        green = "#00ffcc";
+        text = "#ffffff";
+        secText = "#a0a0a0";
+        hover = "#222222";
+    } else if (preset == "Nordic Frost") {
+        bg = "#0f172a";
+        sidebar = "#1e293b";
+        border = "#384252";
+        accent = "#38bdf8";
+        green = "#34d399";
+        text = "#ffffff";
+        secText = "#cbd5e1";
+        hover = "#334155";
     } else if (preset == "Amiga Workbench Classic") {
         bg = "#0055aa";
         sidebar = "#aaaaaa";
