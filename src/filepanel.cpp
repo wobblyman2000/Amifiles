@@ -1044,7 +1044,11 @@ void FilePanel::onDoubleClicked(const QModelIndex& index) {
     } else if (m_smartViewActive) {
         path = m_smartModel->filePath(index);
     } else {
-        QModelIndex srcIndex = m_proxyModel->mapToSource(index);
+        QModelIndex mappedIndex = index;
+        if (m_groupProxy && m_groupProxy->isGroupingActive()) {
+            mappedIndex = m_groupProxy->mapToSource(index);
+        }
+        QModelIndex srcIndex = m_proxyModel->mapToSource(mappedIndex);
         path = m_fileModel->filePath(srcIndex);
     }
 
@@ -2530,35 +2534,91 @@ void CasingRunnable::run() {
     QString artPath;
     int casingInt = 0; // CasingCD = 0, CasingDVD = 1, CasingBluRay = 2
     
-    // 1. Check Blu-ray covers first
-    QStringList blurayChecks = { "bluray_cover.jpg", "bluray_cover.jpeg", "bluray_cover.png", "bluray.jpg", "bluray.jpeg", "bluray.png" };
-    for (const QString& check : blurayChecks) {
-        QString test = QDir(m_path).filePath(check);
-        if (QFile::exists(test)) {
-            artPath = test;
-            casingInt = 2; // CasingBluRay
-            break;
-        }
-    }
-
-    // 2. Check DVD covers next
-    if (artPath.isEmpty()) {
-        QStringList dvdChecks = { "dvd_cover.jpg", "dvd_cover.jpeg", "dvd_cover.png", "dvd.jpg", "dvd.jpeg", "dvd.png", "movie.jpg", "movie.jpeg", "movie.png", "poster.jpg", "poster.jpeg", "poster.png" };
-        for (const QString& check : dvdChecks) {
-            QString test = QDir(m_path).filePath(check);
+    QFileInfo fileInfo(m_path);
+    bool isDir = fileInfo.isDir();
+    QString dirPath = isDir ? m_path : fileInfo.absolutePath();
+    QString baseName = fileInfo.baseName();
+    
+    if (!isDir) {
+        // 1. Check file-specific cover art first
+        QStringList fileSpecificChecks = {
+            baseName + "_cover.jpg", baseName + "_cover.jpeg", baseName + "_cover.png",
+            baseName + ".jpg", baseName + ".jpeg", baseName + ".png"
+        };
+        for (const QString& check : fileSpecificChecks) {
+            QString test = QDir(dirPath).filePath(check);
             if (QFile::exists(test)) {
                 artPath = test;
-                casingInt = 1; // CasingDVD
                 break;
+            }
+        }
+        
+        if (!artPath.isEmpty()) {
+            QString ext = fileInfo.suffix().toLower();
+            QStringList videoExts = { "mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "m4v" };
+            if (videoExts.contains(ext)) {
+                QString lowerName = fileInfo.fileName().toLower();
+                if (lowerName.contains("bluray") || lowerName.contains("blu-ray")) {
+                    casingInt = 2; // CasingBluRay
+                } else {
+                    casingInt = 1; // CasingDVD
+                }
+            } else {
+                casingInt = 0; // CasingCD
             }
         }
     }
 
-    // 3. Fall back to CD covers
+    // 2. Check Blu-ray covers next
+    if (artPath.isEmpty()) {
+        bool checkBluRay = isDir;
+        if (!isDir) {
+            QString lowerName = fileInfo.fileName().toLower();
+            if (lowerName.contains("bluray") || lowerName.contains("blu-ray")) {
+                checkBluRay = true;
+            }
+        }
+        if (checkBluRay) {
+            QStringList blurayChecks = { "bluray_cover.jpg", "bluray_cover.jpeg", "bluray_cover.png", "bluray.jpg", "bluray.jpeg", "bluray.png" };
+            for (const QString& check : blurayChecks) {
+                QString test = QDir(dirPath).filePath(check);
+                if (QFile::exists(test)) {
+                    artPath = test;
+                    casingInt = 2; // CasingBluRay
+                    break;
+                }
+            }
+        }
+    }
+
+    // 3. Check DVD covers next
+    if (artPath.isEmpty()) {
+        bool checkDVD = isDir;
+        if (!isDir) {
+            QString ext = fileInfo.suffix().toLower();
+            QStringList videoExts = { "mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "m4v" };
+            if (videoExts.contains(ext)) {
+                checkDVD = true;
+            }
+        }
+        if (checkDVD) {
+            QStringList dvdChecks = { "dvd_cover.jpg", "dvd_cover.jpeg", "dvd_cover.png", "dvd.jpg", "dvd.jpeg", "dvd.png", "movie.jpg", "movie.jpeg", "movie.png", "poster.jpg", "poster.jpeg", "poster.png" };
+            for (const QString& check : dvdChecks) {
+                QString test = QDir(dirPath).filePath(check);
+                if (QFile::exists(test)) {
+                    artPath = test;
+                    casingInt = 1; // CasingDVD
+                    break;
+                }
+            }
+        }
+    }
+
+    // 4. Fall back to CD covers
     if (artPath.isEmpty()) {
         QStringList cdChecks = { "folder.jpg", "folder.jpeg", "folder.png", "cover.jpg", "cover.jpeg", "cover.png" };
         for (const QString& check : cdChecks) {
-            QString test = QDir(m_path).filePath(check);
+            QString test = QDir(dirPath).filePath(check);
             if (QFile::exists(test)) {
                 artPath = test;
                 casingInt = 0; // CasingCD

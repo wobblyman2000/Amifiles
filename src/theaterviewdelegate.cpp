@@ -31,25 +31,36 @@ void TheaterViewDelegate::paint(QPainter* painter, const QStyleOptionViewItem& o
     painter->drawRoundedRect(rect.adjusted(3, 3, -3, -3), 8, 8);
 
     QModelIndex col0 = index.siblingAtColumn(0);
-    QString path = col0.data(Qt::UserRole).toString();
-    if (path.isEmpty()) {
-        path = col0.data(Qt::DisplayRole).toString();
-    }
-    QFileInfo info(path);
-
+    QString path;
     const FileFilterProxyModel* filterModel = nullptr;
     const QAbstractItemModel* m = index.model();
+    QModelIndex mappedIndex = col0;
+
     while (m) {
         if (const QAbstractProxyModel* proxy = qobject_cast<const QAbstractProxyModel*>(m)) {
             if (const FileFilterProxyModel* ffm = qobject_cast<const FileFilterProxyModel*>(proxy)) {
                 filterModel = ffm;
-                break;
             }
+            mappedIndex = proxy->mapToSource(mappedIndex);
             m = proxy->sourceModel();
         } else {
             break;
         }
     }
+
+    if (m) {
+        if (const QFileSystemModel* fsm = qobject_cast<const QFileSystemModel*>(m)) {
+            path = fsm->filePath(mappedIndex);
+        }
+    }
+
+    if (path.isEmpty()) {
+        path = col0.data(Qt::UserRole).toString();
+        if (path.isEmpty()) {
+            path = col0.data(Qt::DisplayRole).toString();
+        }
+    }
+    QFileInfo info(path);
 
     bool hasCover = false;
     if (filterModel) {

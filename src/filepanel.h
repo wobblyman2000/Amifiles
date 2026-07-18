@@ -238,28 +238,37 @@ public:
                 if (casingEnabled) {
                     QModelIndex srcIndex = mapToSource(index);
                     QFileSystemModel* fileModel = qobject_cast<QFileSystemModel*>(sourceModel());
-                    if (fileModel && fileModel->isDir(srcIndex)) {
+                    if (fileModel) {
+                        bool isDir = fileModel->isDir(srcIndex);
                         QString path = fileModel->filePath(srcIndex);
-                        
-                        if (m_casingCache.contains(path)) {
-                            QPair<QString, int> cachedVal = m_casingCache.value(path);
-                            QString artPath = cachedVal.first;
-                            int casingInt = cachedVal.second;
-                            
-                            if (artPath.isEmpty()) {
-                                return QSortFilterProxyModel::data(index, role);
-                            }
-                            
-                            QString cacheKey = artPath + "_" + QString::number(casingInt);
-                            if (m_iconCache.contains(cacheKey)) {
-                                return m_iconCache.value(cacheKey);
-                            }
+                        bool isMedia = false;
+                        if (!isDir) {
+                            QString ext = QFileInfo(path).suffix().toLower();
+                            QStringList mediaExts = { "mp3", "flac", "wav", "ogg", "m4a", "wma", "mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "m4v" };
+                            isMedia = mediaExts.contains(ext);
                         }
                         
-                        if (!m_pendingCasingChecks.contains(path)) {
-                            m_pendingCasingChecks.insert(path);
-                            QPointer<FileFilterProxyModel> ptr(const_cast<FileFilterProxyModel*>(this));
-                            QThreadPool::globalInstance()->start(new CasingRunnable(ptr, path));
+                        if (isDir || isMedia) {
+                            if (m_casingCache.contains(path)) {
+                                QPair<QString, int> cachedVal = m_casingCache.value(path);
+                                QString artPath = cachedVal.first;
+                                int casingInt = cachedVal.second;
+                                
+                                if (artPath.isEmpty()) {
+                                    return QSortFilterProxyModel::data(index, role);
+                                }
+                                
+                                QString cacheKey = artPath + "_" + QString::number(casingInt);
+                                if (m_iconCache.contains(cacheKey)) {
+                                    return m_iconCache.value(cacheKey);
+                                }
+                            }
+                            
+                            if (!m_pendingCasingChecks.contains(path)) {
+                                m_pendingCasingChecks.insert(path);
+                                QPointer<FileFilterProxyModel> ptr(const_cast<FileFilterProxyModel*>(this));
+                                QThreadPool::globalInstance()->start(new CasingRunnable(ptr, path));
+                            }
                         }
                     }
                 }
