@@ -161,7 +161,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     resize(1200, 800);
 
     // Apply global modern theme
-    setStyleSheet(Theme::getStylesheet());
+    qApp->setStyleSheet(Theme::getStylesheet());
 
     // Initialize layout components
     setupActions();

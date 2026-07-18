@@ -115,9 +115,7 @@ void ThemeStudioDialog::setupUI() {
         settings.setValue("theme/custom_sec_text", m_origSecText);
         
         // Reapply original global styles
-        for (QWidget* w : QApplication::topLevelWidgets()) {
-            w->setStyleSheet(Theme::getStylesheet());
-        }
+        qApp->setStyleSheet(Theme::getStylesheet());
         reject();
     });
 
@@ -194,10 +192,7 @@ void ThemeStudioDialog::applyTheme() {
     settings.setValue("theme/sidebar_opacity", m_sliderOpacity->value() / 100.0);
 
     // Apply global modern theme dynamically on all open dialogs / widgets
-    QString sheet = Theme::getStylesheet();
-    for (QWidget* w : QApplication::topLevelWidgets()) {
-        w->setStyleSheet(sheet);
-    }
+    qApp->setStyleSheet(Theme::getStylesheet());
 }
 
 void ThemeStudioDialog::saveAndClose() {

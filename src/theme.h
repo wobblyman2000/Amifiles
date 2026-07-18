@@ -78,11 +78,13 @@ inline QString getStylesheet() {
             background-color: %2;
             border-bottom: 1px solid %3;
             padding: 4px;
+            color: %6;
         }
         QMenuBar::item {
             background-color: transparent;
             padding: 4px 10px;
             border-radius: %10px;
+            color: %6;
         }
         QMenuBar::item:selected {
             background-color: %3;
@@ -94,11 +96,13 @@ inline QString getStylesheet() {
             border: 1px solid %3;
             border-radius: %10px;
             padding: 5px;
+            color: %6;
         }
         QMenu::item {
             background-color: transparent;
             padding: 4px 20px;
             border-radius: %10px;
+            color: %6;
         }
         QMenu::item:selected {
             background-color: %8;
