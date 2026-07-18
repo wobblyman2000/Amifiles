@@ -18,6 +18,8 @@
 #include "tageditordialog.h"
 #include "filetagsdialog.h"
 #include "iconpickerdialog.h"
+#include "theaterviewdelegate.h"
+#include "theaterlistview.h"
 #include "videoscraperdialog.h"
 #include "copyqueue.h"
 #include "archivedialog.h"
@@ -173,7 +175,8 @@ void FilePanel::setupUI() {
         "Card / Tiles",
         "Miller Columns",
         "Chronological Timeline",
-        "Filmstrip View"
+        "Filmstrip View",
+        "Theater View"
     });
     m_comboViewMode->setToolTip("Switch active file listing visual layout view mode");
     m_comboViewMode->setStyleSheet("QComboBox { background-color: #313244; color: #89b4fa; border: 1px solid #45475a; border-radius: 4px; padding: 2px 6px; font-weight: bold; }");
@@ -272,6 +275,14 @@ void FilePanel::setupUI() {
     m_smartModel = new SmartFolderModel(this);
     m_archiveModel = new ArchiveModel(this);
     m_dashboardWidget = new DiskDashboardWidget(this);
+    m_theaterListView = new TheaterListView(this);
+    m_theaterDelegate = new TheaterViewDelegate(m_theaterListView);
+    m_theaterListView->setItemDelegate(m_theaterDelegate);
+    m_theaterListView->installEventFilter(this);
+    m_theaterListView->setDragEnabled(true);
+    m_theaterListView->setAcceptDrops(true);
+    m_theaterListView->setDropIndicatorShown(true);
+    m_theaterListView->setDragDropMode(QAbstractItemView::DragDrop);
 
     m_millerView = new MillerColumnsView(m_fileModel, this);
     m_millerView->installEventFilter(this);
@@ -282,6 +293,7 @@ void FilePanel::setupUI() {
     m_filmstripView = new FilmstripView(m_fileModel, this);
     m_filmstripView->installEventFilter(this);
 
+    m_viewStack->addWidget(m_theaterListView);
     m_viewStack->addWidget(m_millerView);
     m_viewStack->addWidget(m_timelineView);
     m_viewStack->addWidget(m_filmstripView);
@@ -311,6 +323,8 @@ void FilePanel::setupUI() {
     connect(m_treeView, &QTreeView::customContextMenuRequested, this, &FilePanel::onCustomContextMenu);
     connect(m_listView, &QListView::doubleClicked, this, &FilePanel::onDoubleClicked);
     connect(m_listView, &QListView::customContextMenuRequested, this, &FilePanel::onCustomContextMenu);
+    connect(m_theaterListView, &QListView::doubleClicked, this, &FilePanel::onDoubleClicked);
+    connect(m_theaterListView, &QListView::customContextMenuRequested, this, &FilePanel::onCustomContextMenu);
     connect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
 
     // Restore view mode choice from settings
@@ -614,11 +628,14 @@ void FilePanel::updateActiveViewModel() {
         m_groupProxy->setSourceModel(base);
         m_treeView->setModel(m_groupProxy);
         m_listView->setModel(m_groupProxy);
+        m_theaterListView->setModel(m_groupProxy);
     } else {
         m_treeView->setModel(base);
         m_listView->setModel(base);
+        m_theaterListView->setModel(base);
     }
     m_listView->setSelectionModel(m_treeView->selectionModel());
+    m_theaterListView->setSelectionModel(m_treeView->selectionModel());
     
     if (m_treeView->selectionModel()) {
         connect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
@@ -627,7 +644,9 @@ void FilePanel::updateActiveViewModel() {
 
 void FilePanel::focusActiveView() {
     QWidget* view = nullptr;
-    if (m_flatViewEnabled && m_listView) {
+    if (m_viewStack && m_viewStack->currentWidget() == m_theaterListView) {
+        view = m_theaterListView;
+    } else if (m_flatViewEnabled && m_listView) {
         view = m_listView;
     } else if (m_smartViewActive && m_treeView) {
         view = m_treeView;
@@ -644,7 +663,9 @@ void FilePanel::focusActiveView() {
 
 QScrollBar* FilePanel::activeVerticalScrollBar() const {
     QAbstractItemView* view = nullptr;
-    if (m_flatViewEnabled && m_listView) {
+    if (m_viewStack && m_viewStack->currentWidget() == m_theaterListView) {
+        view = m_theaterListView;
+    } else if (m_flatViewEnabled && m_listView) {
         view = m_listView;
     } else if (m_smartViewActive && m_treeView) {
         view = m_treeView;
@@ -1066,6 +1087,21 @@ void FilePanel::onDoubleClicked(const QModelIndex& index) {
 void FilePanel::onSelectionChanged() {
     updateStatusText();
     QStringList paths = selectedPaths();
+
+    if (m_viewStack->currentWidget() == m_theaterListView) {
+        QString backdropPath;
+        QString dirPath = paths.isEmpty() ? m_currentPath : (QFileInfo(paths.first()).isDir() ? paths.first() : QFileInfo(paths.first()).absolutePath());
+        
+        QStringList checks = { "backdrop.jpg", "backdrop.jpeg", "backdrop.png", "fanart.jpg", "fanart.jpeg", "fanart.png" };
+        for (const QString& check : checks) {
+            QString test = QDir(dirPath).filePath(check);
+            if (QFile::exists(test)) {
+                backdropPath = test;
+                break;
+            }
+        }
+        m_theaterListView->setBackdropPath(backdropPath);
+    }
 
     if (paths.isEmpty()) {
         if (!m_folderArtPath.isEmpty()) {
@@ -2136,6 +2172,12 @@ void FilePanel::syncZoom(int value) {
     if (m_listView->viewMode() == QListView::IconMode) {
         m_listView->setGridSize(QSize(size + 60, size + 40));
     }
+    if (m_theaterListView) {
+        double factor = (double)size / 32.0;
+        int gw = qRound(170.0 * factor);
+        int gh = qRound(270.0 * factor);
+        m_theaterListView->setGridSize(QSize(gw, gh));
+    }
 }
 
 void FilePanel::updateStyles() {
@@ -2151,6 +2193,10 @@ void FilePanel::updateStyles() {
         m_viewStack->setStyleSheet("");
         m_treeView->setStyleSheet(QString("QTreeView { border: none; font-size: %1px; }").arg(fontSize));
         m_listView->setStyleSheet(QString("QListView { border: none; font-size: %1px; }").arg(fontSize));
+        m_theaterListView->setStyleSheet(QString("QListView { background: transparent; border: none; font-size: %1px; }"
+                                                 "QListView::item { border: none; }"
+                                                 "QListView::item:hover { background: transparent; }"
+                                                 "QListView::item:selected { background: transparent; }").arg(fontSize));
         m_millerView->setStyleSheet("");
         m_timelineView->setStyleSheet(QString("QTreeWidget { border: none; font-size: %1px; }").arg(fontSize));
         m_filmstripView->setStyleSheet("");
@@ -2170,6 +2216,10 @@ void FilePanel::updateStyles() {
 
         m_treeView->setStyleSheet(QString("QTreeView { border: none; font-size: %1px; }").arg(fontSize));
         m_listView->setStyleSheet(QString("QListView { border: none; font-size: %1px; }").arg(fontSize));
+        m_theaterListView->setStyleSheet(QString("QListView { background: transparent; color: %1; border: none; font-size: %2px; }"
+                                                 "QListView::item { border: none; }"
+                                                 "QListView::item:hover { background: transparent; }"
+                                                 "QListView::item:selected { background: transparent; }").arg(text).arg(fontSize));
         m_millerView->setStyleSheet(QString("MillerColumnsView { border: none; }"));
         m_timelineView->setStyleSheet(QString("QTreeWidget { border: none; font-size: %1px; }").arg(fontSize));
         m_filmstripView->setStyleSheet(QString("FilmstripView { border: none; }"));
@@ -2390,6 +2440,8 @@ void FilePanel::onViewModeChanged(int index) {
     } else if (index == 5) { // Filmstrip View
         m_filmstripView->setRootPath(m_currentPath);
         m_viewStack->setCurrentWidget(m_filmstripView);
+    } else if (index == 6) { // Theater View
+        m_viewStack->setCurrentWidget(m_theaterListView);
     }
     
     // Save view mode index choice in preferences

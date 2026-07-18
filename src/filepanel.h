@@ -173,6 +173,10 @@ public:
         invalidate();
     }
 
+    bool hasCasingCover(const QString& path) const {
+        return m_casingCache.contains(path) && !m_casingCache.value(path).first.isEmpty();
+    }
+
     // Overriding data() to support dynamic file age text coloring and icon badges
     QVariant data(const QModelIndex& index, int role) const override {
         if (m_ageRules.isEmpty()) {
@@ -594,9 +598,11 @@ private:
     class MillerColumnsView* m_millerView = nullptr;
     class TimelineView* m_timelineView = nullptr;
     class FilmstripView* m_filmstripView = nullptr;
+    class TheaterListView* m_theaterListView = nullptr;
     class QComboBox* m_comboViewMode = nullptr;
     class QAbstractItemDelegate* m_defaultDelegate = nullptr;
     class CardViewDelegate* m_cardDelegate = nullptr;
+    class TheaterViewDelegate* m_theaterDelegate = nullptr;
     int m_zoomLevel = -1;
 
     // Bottom Filter Bar
