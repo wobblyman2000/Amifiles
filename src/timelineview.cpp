@@ -1,9 +1,11 @@
 #include "timelineview.h"
+#include "tagmanager.h"
 #include <QDir>
 #include <QFileInfo>
 #include <QDateTime>
 #include <QFileIconProvider>
 #include <QHeaderView>
+#include <QPainter>
 
 TimelineView::TimelineView(QWidget* parent) : QTreeWidget(parent) {
     setColumnCount(3);
@@ -85,7 +87,60 @@ void TimelineView::setRootPath(const QString& path) {
 
             // Fetch system file/folder icon
             QIcon icon = iconProvider.icon(info);
-            child->setIcon(0, icon);
+            
+            QString filePath = info.absoluteFilePath();
+            QString colorName = TagManager::instance().getFileColor(filePath);
+            QString overlayIconName = TagManager::instance().getFileOverlayIcon(filePath);
+
+            bool hasColor = (!colorName.isEmpty() && colorName != "none");
+            bool hasOverlay = (!overlayIconName.isEmpty());
+
+            QIcon finalIcon = icon;
+            if (hasColor || hasOverlay) {
+                QColor colVal = hasColor ? TagManager::instance().getColorValue(colorName) : QColor(Qt::transparent);
+                QIcon overlayIcon = hasOverlay ? QIcon::fromTheme(overlayIconName) : QIcon();
+                
+                QIcon iconResult;
+                QList<int> targetSizes = {16, 24, 32, 48};
+                for (int sz : targetSizes) {
+                    QPixmap pix = icon.pixmap(sz, sz);
+                    if (!pix.isNull()) {
+                        QPainter painter(&pix);
+                        painter.setRenderHint(QPainter::Antialiasing);
+                        
+                        if (hasOverlay && !overlayIcon.isNull()) {
+                            int subSize = qMax(8, qRound(sz * 0.4));
+                            int padding = qMax(1, qRound(sz * 0.05));
+                            int x = sz - subSize - padding;
+                            int y = sz - subSize - padding;
+                            
+                            QPixmap subPix = overlayIcon.pixmap(subSize, subSize);
+                            if (!subPix.isNull()) {
+                                painter.setBrush(hasColor ? colVal : QColor("#11111b"));
+                                painter.setPen(QPen(hasColor ? QColor("#ffffff") : QColor("#89b4fa"), 1));
+                                painter.drawRoundedRect(x - 1, y - 1, subSize + 2, subSize + 2, 2, 2);
+                                painter.drawPixmap(x, y, subPix);
+                            }
+                        } else if (hasColor) {
+                            painter.setBrush(colVal);
+                            painter.setPen(Qt::NoPen);
+                            
+                            int dotSize = qMax(4, qRound(sz * 0.3));
+                            int padding = qMax(1, qRound(sz * 0.05));
+                            int x = sz - dotSize - padding;
+                            int y = sz - dotSize - padding;
+                            
+                            painter.drawEllipse(x, y, dotSize, dotSize);
+                        }
+                        painter.end();
+                        iconResult.addPixmap(pix);
+                    }
+                }
+                if (!iconResult.isNull()) {
+                    finalIcon = iconResult;
+                }
+            }
+            child->setIcon(0, finalIcon);
 
             // Store full path
             child->setData(0, Qt::UserRole, info.absoluteFilePath());

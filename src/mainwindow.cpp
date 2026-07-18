@@ -1121,7 +1121,7 @@ void MainWindow::onFileSelected(const QString& filePath) {
     if (filePath.isEmpty()) {
         m_previewPanel->clearPreview();
     } else {
-        m_previewPanel->previewFile(filePath);
+        m_previewPanel->previewFile(filePath, m_activePanel->selectedPaths());
     }
     updateMiniPlayer();
 }

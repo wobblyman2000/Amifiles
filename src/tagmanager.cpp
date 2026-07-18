@@ -35,6 +35,7 @@ void TagManager::loadDatabase() {
         info.colorName = fileInfoObj["color"].toString();
         info.rating = fileInfoObj["rating"].toInt();
         info.comment = fileInfoObj["comment"].toString();
+        info.overlayIconName = fileInfoObj["overlayIcon"].toString();
         
         QJsonObject attrsObj = fileInfoObj["customAttributes"].toObject();
         for (auto aIt = attrsObj.begin(); aIt != attrsObj.end(); ++aIt) {
@@ -58,13 +59,14 @@ void TagManager::saveDatabase() {
 
     for (auto it = m_db.begin(); it != m_db.end(); ++it) {
         if (it.value().colorName.isEmpty() && it.value().tags.isEmpty() && it.value().rating == 0 &&
-            it.value().comment.isEmpty() && it.value().customAttributes.isEmpty()) {
+            it.value().comment.isEmpty() && it.value().customAttributes.isEmpty() && it.value().overlayIconName.isEmpty()) {
             continue; // Skip empty entries to clean database
         }
         QJsonObject fileInfoObj;
         fileInfoObj["color"] = it.value().colorName;
         fileInfoObj["rating"] = it.value().rating;
         fileInfoObj["comment"] = it.value().comment;
+        fileInfoObj["overlayIcon"] = it.value().overlayIconName;
         
         QJsonObject attrsObj;
         for (auto aIt = it.value().customAttributes.begin(); aIt != it.value().customAttributes.end(); ++aIt) {
@@ -83,6 +85,15 @@ void TagManager::saveDatabase() {
     mainObj["files"] = filesObj;
     QJsonDocument doc(mainObj);
     file.write(doc.toJson());
+}
+
+void TagManager::setFileOverlayIcon(const QString& filePath, const QString& iconName) {
+    m_db[filePath].overlayIconName = iconName;
+    saveDatabase();
+}
+
+QString TagManager::getFileOverlayIcon(const QString& filePath) const {
+    return m_db.value(filePath).overlayIconName;
 }
 
 void TagManager::setFileColor(const QString& filePath, const QString& colorName) {

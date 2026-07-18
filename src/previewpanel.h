@@ -126,7 +126,7 @@ public:
     explicit PreviewPanel(QWidget* parent = nullptr);
     ~PreviewPanel() override;
 
-    void previewFile(const QString& filePath);
+    void previewFile(const QString& filePath, const QStringList& siblingSelections = QStringList());
     void previewFolderArt(const QString& artPath, const QString& folderPath);
     void clearPreview();
     void playPlaylist(const QStringList& filePaths);
@@ -184,6 +184,8 @@ private:
 
     QString m_previewedFilePath;
     QString m_currentAudioPath;
+    QStringList m_previewedFilePaths;
+    QString m_selectedOverlayIconName;
     bool m_textChanged = false;
     QStringList m_playlist;
     int m_playlistIndex = -1;
@@ -245,6 +247,8 @@ private:
     QTableWidget* m_metadataTable = nullptr;
     class QLineEdit* m_tagEditorEdit = nullptr;
     class QComboBox* m_tagColorCombo = nullptr;
+    class QPushButton* m_btnChooseOverlayIcon = nullptr;
+    class QPushButton* m_btnClearOverlayIcon = nullptr;
     class QPushButton* m_btnApplyTagsColors = nullptr;
     class QCompleter* m_tagCompleter = nullptr;
     class QListWidget* m_playlistList = nullptr;
@@ -260,6 +264,8 @@ private slots:
     void onPrevTrack();
     void onNextTrack();
     void onPlaylistItemDoubleClicked(class QListWidgetItem* item);
+    void onChooseOverlayIcon();
+    void onClearOverlayIcon();
     void onApplyTagsColors();
 };
 

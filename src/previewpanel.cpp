@@ -10,6 +10,7 @@
 #include "fullscreenimageviewer.h"
 #include "hexeditorwidget.h"
 #include "pdfviewerwidget.h"
+#include "iconpickerdialog.h"
 #include <QHBoxLayout>
 #include <QComboBox>
 #include <QCheckBox>
@@ -632,6 +633,17 @@ void PreviewPanel::setupUI() {
     m_tagColorCombo->setStyleSheet("QComboBox { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 4px; padding: 2px 4px; }");
     tagForm->addRow(new QLabel("Color Label:", m_metadataContainer), m_tagColorCombo);
 
+    QHBoxLayout* overlayIconLayout = new QHBoxLayout();
+    m_btnChooseOverlayIcon = new QPushButton("Select...", m_metadataContainer);
+    m_btnChooseOverlayIcon->setStyleSheet("QPushButton { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 4px; padding: 2px 4px; }");
+    m_btnClearOverlayIcon = new QPushButton("Clear", m_metadataContainer);
+    m_btnClearOverlayIcon->setStyleSheet("QPushButton { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 4px; padding: 2px 4px; }");
+    overlayIconLayout->addWidget(m_btnChooseOverlayIcon, 1);
+    overlayIconLayout->addWidget(m_btnClearOverlayIcon, 0);
+    tagForm->addRow(new QLabel("Icon Overlay:", m_metadataContainer), overlayIconLayout);
+    connect(m_btnChooseOverlayIcon, &QPushButton::clicked, this, &PreviewPanel::onChooseOverlayIcon);
+    connect(m_btnClearOverlayIcon, &QPushButton::clicked, this, &PreviewPanel::onClearOverlayIcon);
+
     m_btnApplyTagsColors = new QPushButton("Apply Tags & Color", m_metadataContainer);
     m_btnApplyTagsColors->setStyleSheet("QPushButton { background-color: #89b4fa; color: #11111b; font-weight: bold; border-radius: 4px; padding: 4px; }"
                                         "QPushButton:hover { background-color: #b4befe; }");
@@ -770,7 +782,12 @@ void PreviewPanel::clearPreview() {
     m_metadataTable->setRowCount(0);
 }
 
-void PreviewPanel::previewFile(const QString& filePath) {
+void PreviewPanel::previewFile(const QString& filePath, const QStringList& siblingSelections) {
+    m_previewedFilePaths = siblingSelections;
+    if (m_previewedFilePaths.isEmpty() && !filePath.isEmpty()) {
+        m_previewedFilePaths.append(filePath);
+    }
+
     if (!m_playlist.isEmpty()) {
         int idx = m_playlist.indexOf(filePath);
         if (idx != -1) {
@@ -1223,6 +1240,15 @@ void PreviewPanel::updateMetadataDisplay(const FileMetadata& meta) {
         m_tagColorCombo->setCurrentIndex(colIdx);
     } else {
         m_tagColorCombo->setCurrentIndex(0);
+    }
+
+    m_selectedOverlayIconName = TagManager::instance().getFileOverlayIcon(meta.path);
+    if (!m_selectedOverlayIconName.isEmpty()) {
+        m_btnChooseOverlayIcon->setText(m_selectedOverlayIconName);
+        m_btnChooseOverlayIcon->setIcon(QIcon::fromTheme(m_selectedOverlayIconName));
+    } else {
+        m_btnChooseOverlayIcon->setText("Select...");
+        m_btnChooseOverlayIcon->setIcon(QIcon());
     }
 }
 
@@ -1963,21 +1989,47 @@ void PreviewPanel::setSpectrumVisualizerVisible(bool visible) {
     }
 }
 
+void PreviewPanel::onChooseOverlayIcon() {
+    IconPickerDialog dlg(this);
+    if (dlg.exec() == QDialog::Accepted) {
+        m_selectedOverlayIconName = dlg.selectedIconName();
+        if (!m_selectedOverlayIconName.isEmpty()) {
+            m_btnChooseOverlayIcon->setText(m_selectedOverlayIconName);
+            m_btnChooseOverlayIcon->setIcon(QIcon::fromTheme(m_selectedOverlayIconName));
+        }
+    }
+}
+
+void PreviewPanel::onClearOverlayIcon() {
+    m_selectedOverlayIconName = "";
+    m_btnChooseOverlayIcon->setText("Select...");
+    m_btnChooseOverlayIcon->setIcon(QIcon());
+}
+
 void PreviewPanel::onApplyTagsColors() {
-    if (m_previewedFilePath.isEmpty()) return;
+    if (m_previewedFilePaths.isEmpty() && m_previewedFilePath.isEmpty()) return;
 
     QString tagsText = m_tagEditorEdit->text();
     QStringList tagsList = tagsText.split(',', Qt::SkipEmptyParts);
     for (QString& tag : tagsList) {
         tag = tag.trimmed();
     }
-    TagManager::instance().setFileTags(m_previewedFilePath, tagsList);
 
     QString colorName = m_tagColorCombo->currentText().toLower();
     if (colorName == "none") {
         colorName = "";
     }
-    TagManager::instance().setFileColor(m_previewedFilePath, colorName);
+
+    QStringList targets = m_previewedFilePaths;
+    if (targets.isEmpty()) {
+        targets.append(m_previewedFilePath);
+    }
+
+    for (const QString& path : targets) {
+        TagManager::instance().setFileTags(path, tagsList);
+        TagManager::instance().setFileColor(path, colorName);
+        TagManager::instance().setFileOverlayIcon(path, m_selectedOverlayIconName);
+    }
 
     emit tagsChanged(m_previewedFilePath);
 }

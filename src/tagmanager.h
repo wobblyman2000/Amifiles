@@ -13,6 +13,7 @@ struct FileTagInfo {
     int rating = 0; // 0 to 5
     QString comment;
     QMap<QString, QString> customAttributes;
+    QString overlayIconName; // Chosen custom overlay icon from IconPickerDialog
 };
 
 class TagManager : public QObject {
@@ -23,6 +24,9 @@ public:
     void setFileColor(const QString& filePath, const QString& colorName);
     QString getFileColor(const QString& filePath) const;
     QColor getColorValue(const QString& colorName) const;
+
+    void setFileOverlayIcon(const QString& filePath, const QString& iconName);
+    QString getFileOverlayIcon(const QString& filePath) const;
 
     void setFileTags(const QString& filePath, const QStringList& tags);
     QStringList getFileTags(const QString& filePath) const;

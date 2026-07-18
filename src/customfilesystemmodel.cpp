@@ -64,8 +64,15 @@ QVariant CustomFileSystemModel::data(const QModelIndex& index, int role) const {
             }
 
             QString colorName = TagManager::instance().getFileColor(filePath);
-            if (!colorName.isEmpty() && colorName != "none") {
-                QColor colVal = TagManager::instance().getColorValue(colorName);
+            QString overlayIconName = TagManager::instance().getFileOverlayIcon(filePath);
+
+            bool hasColor = (!colorName.isEmpty() && colorName != "none");
+            bool hasOverlay = (!overlayIconName.isEmpty());
+
+            if (hasColor || hasOverlay) {
+                QColor colVal = hasColor ? TagManager::instance().getColorValue(colorName) : QColor(Qt::transparent);
+                QIcon overlayIcon = hasOverlay ? QIcon::fromTheme(overlayIconName) : QIcon();
+                
                 QIcon iconResult;
                 QList<int> targetSizes = {16, 24, 32, 48, 64, 96, 128};
                 for (int sz : targetSizes) {
@@ -73,15 +80,31 @@ QVariant CustomFileSystemModel::data(const QModelIndex& index, int role) const {
                     if (!pix.isNull()) {
                         QPainter painter(&pix);
                         painter.setRenderHint(QPainter::Antialiasing);
-                        painter.setBrush(colVal);
-                        painter.setPen(Qt::NoPen);
                         
-                        int dotSize = qMax(4, qRound(sz * 0.3));
-                        int padding = qMax(1, qRound(sz * 0.05));
-                        int x = sz - dotSize - padding;
-                        int y = sz - dotSize - padding;
-                        
-                        painter.drawEllipse(x, y, dotSize, dotSize);
+                        if (hasOverlay && !overlayIcon.isNull()) {
+                            int subSize = qMax(8, qRound(sz * 0.4));
+                            int padding = qMax(1, qRound(sz * 0.05));
+                            int x = sz - subSize - padding;
+                            int y = sz - subSize - padding;
+                            
+                            QPixmap subPix = overlayIcon.pixmap(subSize, subSize);
+                            if (!subPix.isNull()) {
+                                painter.setBrush(hasColor ? colVal : QColor("#11111b"));
+                                painter.setPen(QPen(hasColor ? QColor("#ffffff") : QColor("#89b4fa"), 1));
+                                painter.drawRoundedRect(x - 1, y - 1, subSize + 2, subSize + 2, 2, 2);
+                                painter.drawPixmap(x, y, subPix);
+                            }
+                        } else if (hasColor) {
+                            painter.setBrush(colVal);
+                            painter.setPen(Qt::NoPen);
+                            
+                            int dotSize = qMax(4, qRound(sz * 0.3));
+                            int padding = qMax(1, qRound(sz * 0.05));
+                            int x = sz - dotSize - padding;
+                            int y = sz - dotSize - padding;
+                            
+                            painter.drawEllipse(x, y, dotSize, dotSize);
+                        }
                         painter.end();
                         iconResult.addPixmap(pix);
                     }

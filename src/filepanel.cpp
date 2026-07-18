@@ -17,6 +17,7 @@
 #include "diffdialog.h"
 #include "tageditordialog.h"
 #include "filetagsdialog.h"
+#include "iconpickerdialog.h"
 #include "videoscraperdialog.h"
 #include "copyqueue.h"
 #include "archivedialog.h"
@@ -1543,6 +1544,9 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     QAction* actGreen = menuColorLabel->addAction("Green");
     QAction* actBlue = menuColorLabel->addAction("Blue");
     QAction* actPurple = menuColorLabel->addAction("Purple");
+    menuColorLabel->addSeparator();
+    QAction* actCustomOverlay = menuColorLabel->addAction("Custom Icon Overlay...");
+    QAction* actClearOverlay = menuColorLabel->addAction("Clear Icon Overlay");
 
     QAction* actFileTags = menu.addAction("File Tags...");
     menu.addSeparator();
@@ -1868,6 +1872,22 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         refresh();
     } else if (selected == actPurple) {
         for (const QString& path : curSelected) TagManager::instance().setFileColor(path, "purple");
+        refresh();
+    } else if (selected == actCustomOverlay) {
+        IconPickerDialog dlg(this);
+        if (dlg.exec() == QDialog::Accepted) {
+            QString iconName = dlg.selectedIconName();
+            if (!iconName.isEmpty()) {
+                for (const QString& path : curSelected) {
+                    TagManager::instance().setFileOverlayIcon(path, iconName);
+                }
+                refresh();
+            }
+        }
+    } else if (selected == actClearOverlay) {
+        for (const QString& path : curSelected) {
+            TagManager::instance().setFileOverlayIcon(path, "");
+        }
         refresh();
     } else if (selected == actFileTags) {
         FileTagsDialog dlg(curSelected, this);
