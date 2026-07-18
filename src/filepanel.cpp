@@ -827,6 +827,7 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
         m_groupProxy->setSourceRoot(QModelIndex());
         m_treeView->setRootIndex(QModelIndex());
         m_listView->setRootIndex(QModelIndex());
+        m_theaterListView->setRootIndex(QModelIndex());
     } else {
         m_proxyModel->setCurrentPath(m_currentPath);
         QModelIndex srcIndex = m_fileModel->setRootPath(m_currentPath);
@@ -836,9 +837,11 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
             QModelIndex groupRootIndex = m_groupProxy->mapFromSource(proxyIndex);
             m_treeView->setRootIndex(groupRootIndex);
             m_listView->setRootIndex(groupRootIndex);
+            m_theaterListView->setRootIndex(groupRootIndex);
         } else {
             m_treeView->setRootIndex(proxyIndex);
             m_listView->setRootIndex(proxyIndex);
+            m_theaterListView->setRootIndex(proxyIndex);
         }
     }
 
