@@ -115,119 +115,120 @@ inline QString getStylesheet() {
     QString stylesheet = QString(R"(
         /* Global Styles */
         QWidget {
-            background-color: %1;
-            color: %6;
+            background-color: @bg@;
+            color: @text@;
             font-family: "Segoe UI", "Inter", "Helvetica Neue", sans-serif;
-            font-size: %9px;
+            font-size: @fontSize@px;
         }
 
         /* Menu Bar */
         QMenuBar {
-            background-color: %2;
-            border-bottom: 1px solid %3;
+            background-color: @sidebarBg@;
+            border-bottom: 1px solid @border@;
             padding: 4px;
-            color: %6;
+            color: @text@;
         }
         QMenuBar::item {
             background-color: transparent;
             padding: 4px 10px;
-            border-radius: %10px;
-            color: %6;
+            border-radius: @borderRadius@px;
+            color: @text@;
         }
         QMenuBar::item:selected {
-            background-color: %3;
-            color: %4;
+            background-color: @border@;
+            color: @accent@;
         }
 
         QMenu {
-            background-color: %2;
-            border: 1px solid %3;
-            border-radius: %10px;
+            background-color: @sidebarBg@;
+            border: 1px solid @border@;
+            border-radius: @borderRadius@px;
             padding: 5px;
-            color: %6;
+            color: @text@;
         }
         QMenu::item {
             background-color: transparent;
             padding: 4px 20px;
-            border-radius: %10px;
-            color: %6;
+            border-radius: @borderRadius@px;
+            color: @text@;
         }
         QMenu::item:selected {
-            background-color: %8;
-            color: %4;
+            background-color: @hover@;
+            color: @accent@;
         }
 
         /* Sidebars & Views */
         QTreeView, QListView {
-            background-color: %1;
-            border: 1px solid %3;
-            border-radius: %10px;
-            gridline-color: %3;
+            background-color: @bg@;
+            border: 1px solid @border@;
+            border-radius: @borderRadius@px;
+            gridline-color: @border@;
         }
         QTreeView::item, QListView::item {
             padding: 6px;
-            border-radius: %10px;
+            border-radius: @borderRadius@px;
         }
         QTreeView::item:hover, QListView::item:hover {
-            background-color: %8;
+            background-color: @hover@;
         }
         QTreeView::item:selected, QListView::item:selected {
-            background-color: %3;
-            color: %4;
+            background-color: @border@;
+            color: @accent@;
         }
 
         /* Tab widgets */
         QTabWidget::pane {
-            border: 1px solid %3;
-            background-color: %1;
+            border: 1px solid @border@;
+            background-color: @bg@;
         }
         QTabBar::tab {
-            background-color: %2;
-            color: %7;
+            background-color: @sidebarBg@;
+            color: @secText@;
             padding: 6px 12px;
-            border-top-left-radius: %10px;
-            border-top-right-radius: %10px;
+            border-top-left-radius: @borderRadius@px;
+            border-top-right-radius: @borderRadius@px;
             margin-right: 2px;
-            border: 1px solid %3;
+            border: 1px solid @border@;
             border-bottom: none;
         }
         QTabBar::tab:selected {
-            background-color: %1;
-            color: %4;
-            border-bottom: 2px solid %4;
+            background-color: @bg@;
+            color: @accent@;
+            border-bottom: 2px solid @accent@;
         }
 
         /* Buttons */
         QPushButton {
-            background-color: %8;
-            border: 1px solid %3;
-            border-radius: %10px;
+            background-color: @hover@;
+            border: 1px solid @border@;
+            border-radius: @borderRadius@px;
             padding: 6px 12px;
-            color: %6;
+            color: @text@;
             min-width: 60px;
         }
         QPushButton:hover {
-            background-color: %3;
-            border: 1px solid %4;
+            background-color: @border@;
+            border: 1px solid @accent@;
         }
 
         /* Status Bar */
         QStatusBar {
-            background-color: %1;
-            border-top: 1px solid %3;
-            color: %7;
+            background-color: @bg@;
+            border-top: 1px solid @border@;
+            color: @secText@;
         }
-    )")
-    .arg(bg)          // %1
-    .arg(sidebarBg)   // %2
-    .arg(border)      // %3
-    .arg(accent)      // %4
-    .arg(green)       // %5
-    .arg(text)        // %6
-    .arg(secText)     // %7
-    .arg(hover)       // %8
-    .arg(fontSize)    // %9
-    .arg(borderRadius); // %10
+    )");
+
+    stylesheet.replace("@bg@", bg);
+    stylesheet.replace("@sidebarBg@", sidebarBg);
+    stylesheet.replace("@border@", border);
+    stylesheet.replace("@accent@", accent);
+    stylesheet.replace("@green@", green);
+    stylesheet.replace("@text@", text);
+    stylesheet.replace("@secText@", secText);
+    stylesheet.replace("@hover@", hover);
+    stylesheet.replace("@fontSize@", QString::number(fontSize));
+    stylesheet.replace("@borderRadius@", QString::number(borderRadius));
 
     return stylesheet;
 }
