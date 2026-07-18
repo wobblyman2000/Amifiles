@@ -7,6 +7,107 @@
 
 namespace Theme {
 
+struct ThemeColors {
+    QString bg;
+    QString sidebar;
+    QString border;
+    QString accent;
+    QString green;
+    QString text;
+    QString secText;
+    QString hover;
+};
+
+inline ThemeColors getThemeColors() {
+    QSettings settings("Amifiles", "Amifiles");
+    QString preset = settings.value("theme/preset", "Catppuccin Mocha").toString();
+
+    ThemeColors c;
+    c.bg = "#1e1e2e";
+    c.sidebar = "#181825";
+    c.border = "#313244";
+    c.accent = "#89b4fa";
+    c.green = "#a6e3a1";
+    c.text = "#cdd6f4";
+    c.secText = "#a6adc8";
+    c.hover = "#45475a";
+
+    if (preset == "Catppuccin Latte") {
+        c.bg = "#eff1f5";
+        c.sidebar = "#e6e9ef";
+        c.border = "#ccd0da";
+        c.accent = "#1e66f5";
+        c.green = "#40a02b";
+        c.text = "#4c4f69";
+        c.secText = "#6c6f85";
+        c.hover = "#acb0be";
+    } else if (preset == "Catppuccin Macchiato") {
+        c.bg = "#24273a";
+        c.sidebar = "#1e2030";
+        c.border = "#363a4f";
+        c.accent = "#8aadf4";
+        c.green = "#a6da95";
+        c.text = "#cad3f5";
+        c.secText = "#a5adcb";
+        c.hover = "#494d64";
+    } else if (preset == "Catppuccin Frappé") {
+        c.bg = "#303446";
+        c.sidebar = "#292c3c";
+        c.border = "#414559";
+        c.accent = "#8caaee";
+        c.green = "#a6d189";
+        c.text = "#c6d0f5";
+        c.secText = "#a5adce";
+        c.hover = "#51576d";
+    } else if (preset == "Midnight High Contrast") {
+        c.bg = "#0c0f12";
+        c.sidebar = "#13181f";
+        c.border = "#283241";
+        c.accent = "#3b82f6";
+        c.green = "#10b981";
+        c.text = "#ffffff";
+        c.secText = "#94a3b8";
+        c.hover = "#1e293b";
+    } else if (preset == "Cyber Obsidian") {
+        c.bg = "#0d0d0d";
+        c.sidebar = "#151515";
+        c.border = "#2a2a2a";
+        c.accent = "#ff007f";
+        c.green = "#00ffcc";
+        c.text = "#ffffff";
+        c.secText = "#a0a0a0";
+        c.hover = "#222222";
+    } else if (preset == "Nordic Frost") {
+        c.bg = "#0f172a";
+        c.sidebar = "#1e293b";
+        c.border = "#384252";
+        c.accent = "#38bdf8";
+        c.green = "#34d399";
+        c.text = "#ffffff";
+        c.secText = "#cbd5e1";
+        c.hover = "#334155";
+    } else if (preset == "Amiga Workbench Classic") {
+        c.bg = "#0055aa";
+        c.sidebar = "#aaaaaa";
+        c.border = "#555555";
+        c.accent = "#ff5555";
+        c.green = "#55ff55";
+        c.text = "#ffffff";
+        c.secText = "#000000";
+        c.hover = "#555555";
+    } else if (preset == "Custom") {
+        c.bg = settings.value("theme/custom_bg", "#1e1e2e").toString();
+        c.sidebar = settings.value("theme/custom_sidebar", "#181825").toString();
+        c.border = settings.value("theme/custom_border", "#313244").toString();
+        c.accent = settings.value("theme/custom_accent", "#89b4fa").toString();
+        c.green = settings.value("theme/custom_green", "#a6e3a1").toString();
+        c.text = settings.value("theme/custom_text", "#cdd6f4").toString();
+        c.secText = settings.value("theme/custom_sec_text", "#a6adc8").toString();
+        c.hover = settings.value("theme/custom_hover", "#45475a").toString();
+    }
+    return c;
+}
+
 inline QString getStylesheet() {
     QSettings settings("Amifiles", "Amifiles");
     
@@ -19,89 +120,15 @@ inline QString getStylesheet() {
     int borderRadius = settings.value("theme/border_radius", 4).toInt();
     double opacity = settings.value("theme/sidebar_opacity", 1.0).toDouble();
 
-    // Default Catppuccin Mocha colors
-    QString bg = "#1e1e2e";
-    QString sidebar = "#181825";
-    QString border = "#313244";
-    QString accent = "#89b4fa";
-    QString green = "#a6e3a1";
-    QString text = "#cdd6f4";
-    QString secText = "#a6adc8";
-    QString hover = "#45475a";
-
-    if (preset == "Catppuccin Latte") {
-        bg = "#eff1f5";
-        sidebar = "#e6e9ef";
-        border = "#ccd0da";
-        accent = "#1e66f5";
-        green = "#40a02b";
-        text = "#4c4f69";
-        secText = "#6c6f85";
-        hover = "#acb0be";
-    } else if (preset == "Catppuccin Macchiato") {
-        bg = "#24273a";
-        sidebar = "#1e2030";
-        border = "#363a4f";
-        accent = "#8aadf4";
-        green = "#a6da95";
-        text = "#cad3f5";
-        secText = "#a5adcb";
-        hover = "#494d64";
-    } else if (preset == "Catppuccin Frappé") {
-        bg = "#303446";
-        sidebar = "#292c3c";
-        border = "#414559";
-        accent = "#8caaee";
-        green = "#a6d189";
-        text = "#c6d0f5";
-        secText = "#a5adce";
-        hover = "#51576d";
-    } else if (preset == "Midnight High Contrast") {
-        bg = "#0c0f12";
-        sidebar = "#13181f";
-        border = "#283241";
-        accent = "#3b82f6";
-        green = "#10b981";
-        text = "#ffffff";
-        secText = "#94a3b8";
-        hover = "#1e293b";
-    } else if (preset == "Cyber Obsidian") {
-        bg = "#0d0d0d";
-        sidebar = "#151515";
-        border = "#2a2a2a";
-        accent = "#ff007f";
-        green = "#00ffcc";
-        text = "#ffffff";
-        secText = "#a0a0a0";
-        hover = "#222222";
-    } else if (preset == "Nordic Frost") {
-        bg = "#0f172a";
-        sidebar = "#1e293b";
-        border = "#384252";
-        accent = "#38bdf8";
-        green = "#34d399";
-        text = "#ffffff";
-        secText = "#cbd5e1";
-        hover = "#334155";
-    } else if (preset == "Amiga Workbench Classic") {
-        bg = "#0055aa";
-        sidebar = "#aaaaaa";
-        border = "#555555";
-        accent = "#ff5555";
-        green = "#55ff55";
-        text = "#ffffff";
-        secText = "#000000";
-        hover = "#555555";
-    } else if (preset == "Custom") {
-        bg = settings.value("theme/custom_bg", "#1e1e2e").toString();
-        sidebar = settings.value("theme/custom_sidebar", "#181825").toString();
-        border = settings.value("theme/custom_border", "#313244").toString();
-        accent = settings.value("theme/custom_accent", "#89b4fa").toString();
-        green = settings.value("theme/custom_green", "#a6e3a1").toString();
-        text = settings.value("theme/custom_text", "#cdd6f4").toString();
-        secText = settings.value("theme/custom_sec_text", "#a6adc8").toString();
-        hover = settings.value("theme/custom_hover", "#45475a").toString();
-    }
+    ThemeColors colors = getThemeColors();
+    QString bg = colors.bg;
+    QString sidebar = colors.sidebar;
+    QString border = colors.border;
+    QString accent = colors.accent;
+    QString green = colors.green;
+    QString text = colors.text;
+    QString secText = colors.secText;
+    QString hover = colors.hover;
 
     // Apply sidebar opacity if glassmorphism is used (e.g. converting sidebar color to rgba)
     QString sidebarBg = sidebar;

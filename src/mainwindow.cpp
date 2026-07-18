@@ -303,6 +303,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
         applyFolderRules(m_activePanel->currentPath());
     }
     updateWidgetStylesheets();
+    updateTooltips();
 }
 
 void MainWindow::setupCentralWidget() {
@@ -1038,6 +1039,13 @@ void MainWindow::setupMenus() {
 
     m_menuHelp = menuBar()->addMenu("Help");
     m_menuHelp->addAction(m_actShowHelp);
+    
+    QAction* actDetailedTooltips = m_menuHelp->addAction("Enable Detailed Hover Tooltips");
+    actDetailedTooltips->setCheckable(true);
+    QSettings settings("Amifiles", "Amifiles");
+    actDetailedTooltips->setChecked(settings.value("help/detailed_tooltips", true).toBool());
+    connect(actDetailedTooltips, &QAction::toggled, this, &MainWindow::onToggleDetailedTooltips);
+
     m_menuHelp->addSeparator();
     m_menuHelp->addAction("About Amifiles", this, [this]() {
         QMessageBox::about(this, "About Amifiles", 
@@ -3836,6 +3844,53 @@ void MainWindow::updateWidgetStylesheets() {
             m_tbDrives->setStyleSheet("QToolBar { background-color: #11111b; border-bottom: 1px solid #313244; }");
         }
     }
+
+    // Update style on all active file panels
+    if (m_leftTabWidget) {
+        for (int i = 0; i < m_leftTabWidget->count(); ++i) {
+            FilePanel* p = qobject_cast<FilePanel*>(m_leftTabWidget->widget(i));
+            if (p) p->updateStyles();
+        }
+    }
+    if (m_rightTabWidget) {
+        for (int i = 0; i < m_rightTabWidget->count(); ++i) {
+            FilePanel* p = qobject_cast<FilePanel*>(m_rightTabWidget->widget(i));
+            if (p) p->updateStyles();
+        }
+    }
+}
+
+void MainWindow::updateTooltips() {
+    QSettings settings("Amifiles", "Amifiles");
+    bool detailed = settings.value("help/detailed_tooltips", true).toBool();
+
+    if (detailed) {
+        m_actShowHelp->setToolTip("Open the interactive Help Guide (F1) containing standard/advanced guides, search tips, custom scripting parameters, and database sync manuals.");
+        m_actToggleHorizontalSplit->setToolTip("Toggle layout split: checked splits panels horizontally; unchecked splits them vertically.");
+        m_actToggleDualPane->setToolTip("Toggle single panel or dual-pane directory side-by-side mode. Dual pane enables fast comparison, drag & drop, and copy/move operations.");
+        m_actToggleFavoritesSidebar->setToolTip("Toggle the bookmarks, filters, and tags sidebar widget. Useful for instant navigation, file category isolation, and custom tag matching.");
+        m_actToggleConsole->setToolTip("Toggle the bottom panel containing the integrated interactive Terminal tab and custom command execution output shells.");
+        m_actToggleCasingOverlays->setToolTip("Toggle 3D visual sleeves (CD jewel cases or DVD covers) on folders containing cover.jpg or poster.jpg artwork.");
+        if (m_actCompareSync) m_actCompareSync->setToolTip("Compare active and destination panel folders by date/size and synchronize files between them bidirectionally or unidirectionally.");
+        if (m_actDuplicateFinder) m_actDuplicateFinder->setToolTip("Find duplicate files recursively in any directory by matching file name, size, or cryptographic MD5/SHA256 checksum hashes.");
+        if (m_actSpaceAnalyzer) m_actSpaceAnalyzer->setToolTip("Scan folder trees recursively and display disk usage statistics using a dynamic visual sunburst chart or hierarchical bar graphs.");
+    } else {
+        m_actShowHelp->setToolTip("Open user manual (F1)");
+        m_actToggleHorizontalSplit->setToolTip("Toggle horizontal layout split");
+        m_actToggleDualPane->setToolTip("Toggle Dual-Pane view");
+        m_actToggleFavoritesSidebar->setToolTip("Toggle Bookmarks sidebar");
+        m_actToggleConsole->setToolTip("Toggle Bottom console");
+        m_actToggleCasingOverlays->setToolTip("Toggle CD/DVD cover casings");
+        if (m_actCompareSync) m_actCompareSync->setToolTip("Folder Sync comparison");
+        if (m_actDuplicateFinder) m_actDuplicateFinder->setToolTip("Duplicate Finder");
+        if (m_actSpaceAnalyzer) m_actSpaceAnalyzer->setToolTip("Visual Folder Space Analyzer");
+    }
+}
+
+void MainWindow::onToggleDetailedTooltips(bool enabled) {
+    QSettings settings("Amifiles", "Amifiles");
+    settings.setValue("help/detailed_tooltips", enabled);
+    updateTooltips();
 }
 
 #include "mainwindow.moc"

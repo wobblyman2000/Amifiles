@@ -370,6 +370,8 @@ private:
     void saveKeybindings();
     void applyKeybindings();
     void updateWidgetStylesheets();
+    void updateTooltips();
+    void onToggleDetailedTooltips(bool enabled);
     void registerKeybindableAction(const QString& id, QAction* action);
     QIcon getFolderIcon(const QString& folderName);
 

@@ -609,6 +609,7 @@ public:
     QString folderArtPath() const { return m_folderArtPath; }
 
     void refresh();
+    void updateStyles();
 
     // Clipboard and File Operations
     void onCopy();
@@ -709,7 +710,6 @@ private:
     void updateStatusText();
     void navigateTo(const QString& path, bool addHistory = true);
     bool copyRecursively(const QString& srcPath, const QString& destPath);
-    void updateStyles();
 
     bool m_isActive = false;
     bool m_categoryButtonsVisible = true;

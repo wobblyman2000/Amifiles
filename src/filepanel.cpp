@@ -1,4 +1,5 @@
 #include "filepanel.h"
+#include "theme.h"
 #include "favoritesmanager.h"
 #include "archivemodel.h"
 #include "smartfoldermodel.h"
@@ -2118,20 +2119,44 @@ void FilePanel::syncZoom(int value) {
 }
 
 void FilePanel::updateStyles() {
-    int fonts[] = { 9, 10, 12, 14, 16, 18, 20 };
-    int fontSize = fonts[qBound(0, m_zoomLevel, 6)];
-    QString borderColor = m_isActive ? "#89b4fa" : "#313244";
+    QSettings settings("Amifiles", "Amifiles");
+    QString preset = settings.value("theme/preset", "Catppuccin Mocha").toString();
+    int baseFontSize = settings.value("theme/font_size", 13).toInt();
 
-    m_viewStack->setStyleSheet(QString("QStackedWidget { border: 2px solid %1; border-radius: 4px; background-color: #1e1e2e; }").arg(borderColor));
+    // Scale font size based on zoom level (m_zoomLevel is 0 to 6, default zoom level is 2)
+    int fontSize = baseFontSize + (m_zoomLevel - 2) * 2;
+    if (fontSize < 8) fontSize = 8;
 
-    m_treeView->setStyleSheet(QString("QTreeView { border: none; font-size: %1px; }").arg(fontSize));
-    m_listView->setStyleSheet(QString("QListView { border: none; font-size: %1px; }").arg(fontSize));
-    m_millerView->setStyleSheet(QString("MillerColumnsView { border: none; }"));
-    m_timelineView->setStyleSheet(QString("QTreeWidget { border: none; font-size: %1px; }").arg(fontSize));
-    m_filmstripView->setStyleSheet(QString("FilmstripView { border: none; }"));
+    if (preset == "System Theme") {
+        m_viewStack->setStyleSheet("");
+        m_treeView->setStyleSheet(QString("QTreeView { border: none; font-size: %1px; }").arg(fontSize));
+        m_listView->setStyleSheet(QString("QListView { border: none; font-size: %1px; }").arg(fontSize));
+        m_millerView->setStyleSheet("");
+        m_timelineView->setStyleSheet(QString("QTreeWidget { border: none; font-size: %1px; }").arg(fontSize));
+        m_filmstripView->setStyleSheet("");
+        if (m_searchResultsView) {
+            m_searchResultsView->setStyleSheet(QString("QListView { font-size: %1px; }").arg(fontSize));
+        }
+    } else {
+        Theme::ThemeColors colors = Theme::getThemeColors();
+        QString bg = colors.bg;
+        QString border = colors.border;
+        QString text = colors.text;
+        QString accent = colors.accent;
+        
+        QString borderColor = m_isActive ? accent : border;
 
-    if (m_searchResultsView) {
-        m_searchResultsView->setStyleSheet(QString("QListView { border: 2px solid %1; background-color: #1e1e2e; color: #cdd6f4; font-size: %2px; }").arg(borderColor).arg(fontSize));
+        m_viewStack->setStyleSheet(QString("QStackedWidget { border: 2px solid %1; border-radius: 4px; background-color: %2; }").arg(borderColor).arg(bg));
+
+        m_treeView->setStyleSheet(QString("QTreeView { border: none; font-size: %1px; }").arg(fontSize));
+        m_listView->setStyleSheet(QString("QListView { border: none; font-size: %1px; }").arg(fontSize));
+        m_millerView->setStyleSheet(QString("MillerColumnsView { border: none; }"));
+        m_timelineView->setStyleSheet(QString("QTreeWidget { border: none; font-size: %1px; }").arg(fontSize));
+        m_filmstripView->setStyleSheet(QString("FilmstripView { border: none; }"));
+
+        if (m_searchResultsView) {
+            m_searchResultsView->setStyleSheet(QString("QListView { border: 2px solid %1; background-color: %2; color: %3; font-size: %4px; }").arg(borderColor).arg(bg).arg(text).arg(fontSize));
+        }
     }
 }
 
