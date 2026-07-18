@@ -10,3 +10,5 @@ Whenever you implement a new user-facing feature, bugfix, or change existing beh
 ## Automated GitHub Commits & Pushes
 - Whenever you finish implementing a feature, fix a bug, or make any code changes that compile successfully, you MUST automatically stage, commit, and push all modifications to the remote repository (`git add . && git commit -m "..." && git push origin main`). Do not wait for the user to request a git push.
 
+## Automated Version Bumps
+- Every time you implement any code changes, feature additions, or bug fixes, you MUST run the helper script `python3 scripts/bump_version.py` to automatically increment the patch version number in `CMakeLists.txt` prior to committing and pushing the changes. Incrementing the version number is the absolute first step of the commit/push workflow.
