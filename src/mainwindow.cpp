@@ -987,6 +987,7 @@ void MainWindow::setupMenus() {
     m_menuView->addAction(m_actToggleConsole);
     m_menuView->addAction(m_actToggleFlatView);
     m_menuView->addAction(m_actToggleSyncScroll);
+    m_menuView->addAction(m_actToggleCasingOverlays);
     
     m_menuView->addSeparator();
     QMenu* menuSaveLayout = m_menuView->addMenu("Save Layout");

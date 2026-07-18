@@ -2479,7 +2479,7 @@ void CasingRunnable::run() {
     int casingInt = 0; // CasingCD = 0, CasingDVD = 1, CasingBluRay = 2
     
     // 1. Check Blu-ray covers first
-    QStringList blurayChecks = { "bluray_cover.jpg", "bluray_cover.png", "bluray.jpg", "bluray.png" };
+    QStringList blurayChecks = { "bluray_cover.jpg", "bluray_cover.jpeg", "bluray_cover.png", "bluray.jpg", "bluray.jpeg", "bluray.png" };
     for (const QString& check : blurayChecks) {
         QString test = QDir(m_path).filePath(check);
         if (QFile::exists(test)) {
@@ -2491,7 +2491,7 @@ void CasingRunnable::run() {
 
     // 2. Check DVD covers next
     if (artPath.isEmpty()) {
-        QStringList dvdChecks = { "dvd_cover.jpg", "dvd_cover.png", "dvd.jpg", "dvd.png", "movie.jpg", "movie.png", "poster.jpg", "poster.png" };
+        QStringList dvdChecks = { "dvd_cover.jpg", "dvd_cover.jpeg", "dvd_cover.png", "dvd.jpg", "dvd.jpeg", "dvd.png", "movie.jpg", "movie.jpeg", "movie.png", "poster.jpg", "poster.jpeg", "poster.png" };
         for (const QString& check : dvdChecks) {
             QString test = QDir(m_path).filePath(check);
             if (QFile::exists(test)) {
@@ -2504,7 +2504,7 @@ void CasingRunnable::run() {
 
     // 3. Fall back to CD covers
     if (artPath.isEmpty()) {
-        QStringList cdChecks = { "folder.jpg", "folder.png", "cover.jpg", "cover.png" };
+        QStringList cdChecks = { "folder.jpg", "folder.jpeg", "folder.png", "cover.jpg", "cover.jpeg", "cover.png" };
         for (const QString& check : cdChecks) {
             QString test = QDir(m_path).filePath(check);
             if (QFile::exists(test)) {
