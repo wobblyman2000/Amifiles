@@ -35,6 +35,24 @@ inline QString getStylesheet() {
         text = "#4c4f69";
         secText = "#6c6f85";
         hover = "#acb0be";
+    } else if (preset == "Catppuccin Macchiato") {
+        bg = "#24273a";
+        sidebar = "#1e2030";
+        border = "#363a4f";
+        accent = "#8aadf4";
+        green = "#a6da95";
+        text = "#cad3f5";
+        secText = "#a5adcb";
+        hover = "#494d64";
+    } else if (preset == "Catppuccin Frappé") {
+        bg = "#303446";
+        sidebar = "#292c3c";
+        border = "#414559";
+        accent = "#8caaee";
+        green = "#a6d189";
+        text = "#c6d0f5";
+        secText = "#a5adce";
+        hover = "#51576d";
     } else if (preset == "Amiga Workbench Classic") {
         bg = "#0055aa";
         sidebar = "#aaaaaa";

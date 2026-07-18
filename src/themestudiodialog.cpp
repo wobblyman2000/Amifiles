@@ -35,7 +35,7 @@ void ThemeStudioDialog::setupUI() {
 
     presetLayout->addWidget(new QLabel("Theme Preset:", this), 0, 0);
     m_comboPreset = new QComboBox(this);
-    m_comboPreset->addItems({"Catppuccin Mocha", "Catppuccin Latte", "Amiga Workbench Classic", "Custom"});
+    m_comboPreset->addItems({"Catppuccin Mocha", "Catppuccin Macchiato", "Catppuccin Frappé", "Catppuccin Latte", "Amiga Workbench Classic", "Custom"});
     presetLayout->addWidget(m_comboPreset, 0, 1);
 
     presetLayout->addWidget(new QLabel("Font Size (px):", this), 1, 0);
