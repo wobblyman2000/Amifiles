@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(Amifiles VERSION 1.3.3 LANGUAGES CXX)
+project(Amifiles VERSION 1.3.4 LANGUAGES CXX)
 
 configure_file(
     "${PROJECT_SOURCE_DIR}/src/version.h.in"
@@ -61,6 +61,8 @@ add_executable(Amifiles
     src/tageditordialog.cpp
     src/metadatafetcherdialog.h
     src/metadatafetcherdialog.cpp
+    src/videoscraperdialog.h
+    src/videoscraperdialog.cpp
     src/terminalpanel.h
     src/terminalpanel.cpp
     src/keybindingseditor.h

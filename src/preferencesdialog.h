@@ -8,6 +8,7 @@ class QListWidget;
 class QStackedWidget;
 class QCheckBox;
 class QPushButton;
+class QLineEdit;
 
 class PreferencesDialog : public QDialog {
     Q_OBJECT
@@ -51,6 +52,9 @@ private:
     QCheckBox* m_chkAudioCoverArt = nullptr;
     QCheckBox* m_chkSpectrumVisualizer = nullptr;
     QCheckBox* m_chkMutePreview = nullptr;
+
+    // Services & API keys
+    QLineEdit* m_editTmdbApiKey = nullptr;
 
     QPushButton* m_btnOk = nullptr;
     QPushButton* m_btnCancel = nullptr;

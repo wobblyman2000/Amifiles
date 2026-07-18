@@ -250,7 +250,7 @@ public:
 
                         // 2. Check DVD covers next
                         if (artPath.isEmpty()) {
-                            QStringList dvdChecks = { "dvd_cover.jpg", "dvd_cover.png", "dvd.jpg", "dvd.png", "movie.jpg", "movie.png" };
+                            QStringList dvdChecks = { "dvd_cover.jpg", "dvd_cover.png", "dvd.jpg", "dvd.png", "movie.jpg", "movie.png", "poster.jpg", "poster.png" };
                             for (const QString& check : dvdChecks) {
                                 QString test = QDir(path).filePath(check);
                                 if (QFile::exists(test)) {

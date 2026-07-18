@@ -16,6 +16,7 @@
 #include "diffdialog.h"
 #include "tageditordialog.h"
 #include "filetagsdialog.h"
+#include "videoscraperdialog.h"
 #include "copyqueue.h"
 #include "archivedialog.h"
 #include <QHBoxLayout>
@@ -1530,6 +1531,7 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     QAction* actCompareSibling = menu.addAction("Compare with Sibling Pane File");
     QAction* actEditTags = menu.addAction("Edit Audio Tags...");
     QAction* actFetchMusicBrainz = menu.addAction(style->standardIcon(QStyle::SP_ComputerIcon), "Fetch MusicBrainz Album Info...");
+    QAction* actScrapeVideo = menu.addAction(style->standardIcon(QStyle::SP_ComputerIcon), "Scrape Video Metadata...");
     menu.addSeparator();
 
     QMenu* menuColorLabel = menu.addMenu("Color Label");
@@ -1624,6 +1626,23 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     }
     actEditTags->setEnabled(hasSelection && hasAudioFiles);
     actFetchMusicBrainz->setEnabled(hasSelection && hasAudioFiles);
+
+    bool hasVideoFilesOrDirs = false;
+    QStringList videoExts = { "mp4", "mkv", "avi", "mov", "webm", "mpeg", "mpg" };
+    for (const QString& sPath : curSelected) {
+        QFileInfo info(sPath);
+        if (info.isDir()) {
+            hasVideoFilesOrDirs = true;
+            break;
+        } else if (info.isFile()) {
+            QString ext = info.suffix().toLower();
+            if (videoExts.contains(ext)) {
+                hasVideoFilesOrDirs = true;
+                break;
+            }
+        }
+    }
+    actScrapeVideo->setEnabled(hasSelection && hasVideoFilesOrDirs);
 
     bool isArchive = false;
     if (curSelected.size() == 1) {
@@ -1753,6 +1772,11 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
             if (dlg.exec() == QDialog::Accepted) {
                 refresh();
             }
+        }
+    } else if (selected == actScrapeVideo) {
+        VideoScraperDialog dlg(curSelected, this);
+        if (dlg.exec() == QDialog::Accepted) {
+            refresh();
         }
     } else if (selected == actCreateArchive) {
         ArchiveDialog* dlg = new ArchiveDialog(ArchiveDialog::ModeCreate, curSelected, m_currentPath, false, this);

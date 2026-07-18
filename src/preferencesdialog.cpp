@@ -9,6 +9,7 @@
 #include <QPushButton>
 #include <QLabel>
 #include <QFrame>
+#include <QLineEdit>
 
 PreferencesDialog::PreferencesDialog(QWidget* parent) : QDialog(parent) {
     setWindowTitle("Preferences & System Settings");
@@ -29,6 +30,7 @@ void PreferencesDialog::setupUI() {
         "QCheckBox::indicator { width: 16px; height: 16px; border-radius: 3px; border: 1px solid #45475a; background: #11111b; }"
         "QCheckBox::indicator:checked { background: #89b4fa; border-color: #89b4fa; image: url(:/icons/check.png); }"
         "QLabel { color: #cdd6f4; font-size: 13px; }"
+        "QLineEdit { background-color: #181825; border: 1px solid #313244; border-radius: 4px; color: #cdd6f4; padding: 6px 10px; }"
         "QPushButton { border: none; background-color: #313244; color: #cdd6f4; padding: 8px 16px; border-radius: 4px; font-weight: bold; min-width: 80px; }"
         "QPushButton:hover { background-color: #45475a; }"
         "QPushButton:pressed { background-color: #585b70; }"
@@ -46,7 +48,8 @@ void PreferencesDialog::setupUI() {
         "General",
         "View & Colors",
         "Archives & VFS",
-        "Media Preview"
+        "Media Preview",
+        "Services"
     });
     mainLayout->addWidget(m_listCategory);
 
@@ -163,6 +166,42 @@ void PreferencesDialog::setupUI() {
     layMedia->addStretch(1);
     m_stackPages->addWidget(pageMedia);
 
+    // ----------------------------------------------------
+    // Page 5: Services & API keys
+    // ----------------------------------------------------
+    QWidget* pageServices = new QWidget(this);
+    QVBoxLayout* layServ = new QVBoxLayout(pageServices);
+    layServ->setContentsMargins(10, 10, 10, 10);
+    layServ->setSpacing(15);
+
+    QLabel* lblServTitle = new QLabel("Online Services & Integration API Keys", this);
+    lblServTitle->setStyleSheet("font-size: 16px; font-weight: bold; color: #89b4fa;");
+    layServ->addWidget(lblServTitle);
+
+    QFormLayout* formServ = new QFormLayout();
+    formServ->setSpacing(12);
+
+    m_editTmdbApiKey = new QLineEdit(this);
+    m_editTmdbApiKey->setPlaceholderText("Enter your free TMDb API Key...");
+    m_editTmdbApiKey->setEchoMode(QLineEdit::PasswordEchoOnEdit);
+    formServ->addRow("TMDb API Key:", m_editTmdbApiKey);
+
+    layServ->addLayout(formServ);
+
+    QLabel* lblServNote = new QLabel(
+        "Note: TVmaze is used by default and does not require an API Key. "
+        "A TMDb API Key is optional but required for movie metadata. "
+        "Get a free key by signing up at: <a href=\"https://www.themoviedb.org/\" style=\"color: #89b4fa;\">themoviedb.org</a>",
+        this
+    );
+    lblServNote->setOpenExternalLinks(true);
+    lblServNote->setWordWrap(true);
+    lblServNote->setStyleSheet("color: #a6adc8; font-size: 12px; line-height: 1.4;");
+    layServ->addWidget(lblServNote);
+
+    layServ->addStretch(1);
+    m_stackPages->addWidget(pageServices);
+
     // Right Layout
     QVBoxLayout* rightLayout = new QVBoxLayout();
     rightLayout->addWidget(m_stackPages);
@@ -221,6 +260,8 @@ void PreferencesDialog::loadPreferences() {
     m_chkAudioCoverArt->setChecked(settings.value("preview/show_audio_cover_art", true).toBool());
     m_chkSpectrumVisualizer->setChecked(settings.value("preview/show_spectrum_visualizer", true).toBool());
     m_chkMutePreview->setChecked(settings.value("preview/muted", false).toBool());
+
+    m_editTmdbApiKey->setText(settings.value("services/tmdb_api_key", "").toString());
 }
 
 void PreferencesDialog::savePreferences() {
@@ -240,6 +281,8 @@ void PreferencesDialog::savePreferences() {
     settings.setValue("preview/show_audio_cover_art", m_chkAudioCoverArt->isChecked());
     settings.setValue("preview/show_spectrum_visualizer", m_chkSpectrumVisualizer->isChecked());
     settings.setValue("preview/muted", m_chkMutePreview->isChecked());
+
+    settings.setValue("services/tmdb_api_key", m_editTmdbApiKey->text().trimmed());
 
     emit preferencesChanged();
 }
