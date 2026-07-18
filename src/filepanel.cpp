@@ -2466,3 +2466,243 @@ void FilePanel::updateCloneButtonIcon() {
     }
 }
 
+
+CasingRunnable::CasingRunnable(QPointer<FileFilterProxyModel> model, const QString& path)
+    : m_model(model), m_path(path) {
+    setAutoDelete(true);
+}
+
+void CasingRunnable::run() {
+    if (!m_model) return;
+    
+    QString artPath;
+    int casingInt = 0; // CasingCD = 0, CasingDVD = 1, CasingBluRay = 2
+    
+    // 1. Check Blu-ray covers first
+    QStringList blurayChecks = { "bluray_cover.jpg", "bluray_cover.png", "bluray.jpg", "bluray.png" };
+    for (const QString& check : blurayChecks) {
+        QString test = QDir(m_path).filePath(check);
+        if (QFile::exists(test)) {
+            artPath = test;
+            casingInt = 2; // CasingBluRay
+            break;
+        }
+    }
+
+    // 2. Check DVD covers next
+    if (artPath.isEmpty()) {
+        QStringList dvdChecks = { "dvd_cover.jpg", "dvd_cover.png", "dvd.jpg", "dvd.png", "movie.jpg", "movie.png", "poster.jpg", "poster.png" };
+        for (const QString& check : dvdChecks) {
+            QString test = QDir(m_path).filePath(check);
+            if (QFile::exists(test)) {
+                artPath = test;
+                casingInt = 1; // CasingDVD
+                break;
+            }
+        }
+    }
+
+    // 3. Fall back to CD covers
+    if (artPath.isEmpty()) {
+        QStringList cdChecks = { "folder.jpg", "folder.png", "cover.jpg", "cover.png" };
+        for (const QString& check : cdChecks) {
+            QString test = QDir(m_path).filePath(check);
+            if (QFile::exists(test)) {
+                artPath = test;
+                casingInt = 0; // CasingCD
+                break;
+            }
+        }
+    }
+
+    if (artPath.isEmpty()) {
+        QMetaObject::invokeMethod(m_model.data(), "onCasingRendered", Qt::QueuedConnection,
+                                  Q_ARG(QString, m_path),
+                                  Q_ARG(QString, ""),
+                                  Q_ARG(int, 0),
+                                  Q_ARG(QImage, QImage()));
+        return;
+    }
+
+    QImage cover;
+    QImageReader reader(artPath);
+    if (reader.canRead()) {
+        QSize origSize = reader.size();
+        if (origSize.isValid()) {
+            int targetW = 220;
+            int targetH = 220;
+            if (casingInt == 1) { // DVD
+                targetW = 154;
+                targetH = 240;
+            } else if (casingInt == 2) { // BluRay
+                targetW = 164;
+                targetH = 226;
+            }
+            QSize scaledSize = origSize.scaled(QSize(targetW, targetH), Qt::KeepAspectRatioByExpanding);
+            reader.setScaledSize(scaledSize);
+        }
+        cover = reader.read();
+    }
+
+    if (cover.isNull()) {
+        QMetaObject::invokeMethod(m_model.data(), "onCasingRendered", Qt::QueuedConnection,
+                                  Q_ARG(QString, m_path),
+                                  Q_ARG(QString, ""),
+                                  Q_ARG(int, 0),
+                                  Q_ARG(QImage, QImage()));
+        return;
+    }
+
+    int caseW = 256;
+    int caseH = 256;
+    if (casingInt == 1) { // DVD
+        caseW = 170;
+    } else if (casingInt == 2) { // BluRay
+        caseW = 180;
+    }
+
+    double s = 256.0 / 48.0;
+
+    QImage caseImage(caseW, caseH, QImage::Format_ARGB32_Premultiplied);
+    caseImage.fill(Qt::transparent);
+
+    QPainter painter(&caseImage);
+    painter.setRenderHint(QPainter::Antialiasing);
+
+    if (casingInt == 0) { // CasingCD
+        painter.setBrush(QColor("#313244"));
+        painter.setPen(QPen(QColor("#45475a"), qMax(1, qRound(1 * s))));
+        painter.drawRoundedRect(qRound(2 * s), qRound(2 * s), caseW - qRound(4 * s), caseH - qRound(4 * s), qRound(3 * s), qRound(3 * s));
+
+        painter.setBrush(QColor("#11111b"));
+        painter.setPen(Qt::NoPen);
+        painter.drawRect(qRound(3 * s), qRound(3 * s), qRound(5 * s), caseH - qRound(6 * s));
+
+        int coverX = qRound(10 * s);
+        int coverY = qRound(4 * s);
+        int coverW = caseW - qRound(14 * s);
+        int coverH = caseH - qRound(8 * s);
+        painter.drawImage(QRect(coverX, coverY, coverW, coverH), cover.scaled(coverW, coverH, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+
+        painter.setBrush(Qt::NoBrush);
+        painter.setPen(QPen(QColor(255, 255, 255, 60), qMax(1, qRound(1 * s))));
+        painter.drawRoundedRect(qRound(3 * s), qRound(3 * s), caseW - qRound(6 * s), caseH - qRound(6 * s), qRound(2 * s), qRound(2 * s));
+
+        QLinearGradient gradient(0, 0, caseW, caseH);
+        gradient.setColorAt(0.0, QColor(255, 255, 255, 80));
+        gradient.setColorAt(0.3, QColor(255, 255, 255, 120));
+        gradient.setColorAt(0.35, QColor(255, 255, 255, 0));
+        gradient.setColorAt(1.0, QColor(255, 255, 255, 0));
+
+        painter.setBrush(gradient);
+        painter.setPen(Qt::NoPen);
+        QPolygon gloss;
+        gloss << QPoint(qRound(9 * s), qRound(4 * s))
+              << QPoint(caseW - qRound(4 * s), qRound(4 * s))
+              << QPoint(qRound(9 * s), caseH - qRound(4 * s));
+        painter.drawPolygon(gloss);
+    }
+    else if (casingInt == 1) { // CasingDVD
+        painter.setBrush(QColor("#1e1e2e"));
+        painter.setPen(QPen(QColor("#313244"), qMax(1, qRound(1.5 * s))));
+        painter.drawRoundedRect(qRound(2 * s), qRound(2 * s), caseW - qRound(4 * s), caseH - qRound(4 * s), qRound(4 * s), qRound(4 * s));
+
+        int coverX = qRound(4 * s);
+        int coverY = qRound(4 * s);
+        int coverW = caseW - qRound(8 * s);
+        int coverH = caseH - qRound(8 * s);
+        painter.drawImage(QRect(coverX, coverY, coverW, coverH), cover.scaled(coverW, coverH, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+
+        painter.setBrush(Qt::NoBrush);
+        painter.setPen(QPen(QColor(255, 255, 255, 40), qMax(1, qRound(1 * s))));
+        painter.drawRoundedRect(qRound(3 * s), qRound(3 * s), caseW - qRound(6 * s), caseH - qRound(6 * s), qRound(3 * s), qRound(3 * s));
+
+        QLinearGradient gradient(0, 0, caseW, caseH);
+        gradient.setColorAt(0.0, QColor(255, 255, 255, 60));
+        gradient.setColorAt(0.25, QColor(255, 255, 255, 100));
+        gradient.setColorAt(0.3, QColor(255, 255, 255, 0));
+        gradient.setColorAt(1.0, QColor(255, 255, 255, 0));
+
+        painter.setBrush(gradient);
+        painter.setPen(Qt::NoPen);
+        QPolygon gloss;
+        gloss << QPoint(qRound(4 * s), qRound(4 * s))
+              << QPoint(caseW - qRound(4 * s), qRound(4 * s))
+              << QPoint(qRound(4 * s), caseH - qRound(4 * s));
+        painter.drawPolygon(gloss);
+    }
+    else if (casingInt == 2) { // CasingBluRay
+        painter.setBrush(QColor("#1e1e2e"));
+        painter.setPen(QPen(QColor("#313244"), qMax(1, qRound(1.5 * s))));
+        painter.drawRoundedRect(qRound(2 * s), qRound(2 * s), caseW - qRound(4 * s), caseH - qRound(4 * s), qRound(4 * s), qRound(4 * s));
+
+        int coverX = qRound(4 * s);
+        int coverY = qRound(9 * s);
+        int coverW = caseW - qRound(8 * s);
+        int coverH = caseH - qRound(13 * s);
+        painter.drawImage(QRect(coverX, coverY, coverW, coverH), cover.scaled(coverW, coverH, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+
+        QLinearGradient blueGrad(0, 0, 0, coverY);
+        blueGrad.setColorAt(0.0, QColor(14, 165, 233, 220));
+        blueGrad.setColorAt(1.0, QColor(3, 105, 161, 180));
+        
+        painter.setBrush(blueGrad);
+        painter.setPen(Qt::NoPen);
+        painter.drawRoundedRect(qRound(3 * s), qRound(3 * s), caseW - qRound(6 * s), qRound(7 * s), qRound(2 * s), qRound(2 * s));
+
+        painter.setPen(QPen(QColor(255, 255, 255, 140), 1));
+        QFont logoFont = painter.font();
+        logoFont.setPointSize(qRound(2.2 * s));
+        logoFont.setBold(true);
+        logoFont.setLetterSpacing(QFont::AbsoluteSpacing, qRound(0.4 * s));
+        painter.setFont(logoFont);
+        painter.drawText(QRect(0, qRound(3 * s), caseW, qRound(6 * s)), Qt::AlignCenter, "BLU-RAY");
+
+        painter.setBrush(Qt::NoBrush);
+        painter.setPen(QPen(QColor(255, 255, 255, 45), qMax(1, qRound(1 * s))));
+        painter.drawRoundedRect(qRound(3 * s), qRound(3 * s), caseW - qRound(6 * s), caseH - qRound(6 * s), qRound(3 * s), qRound(3 * s));
+
+        QLinearGradient gradient(0, 0, caseW, caseH);
+        gradient.setColorAt(0.0, QColor(255, 255, 255, 60));
+        gradient.setColorAt(0.25, QColor(255, 255, 255, 90));
+        gradient.setColorAt(0.3, QColor(255, 255, 255, 0));
+        gradient.setColorAt(1.0, QColor(255, 255, 255, 0));
+
+        painter.setBrush(gradient);
+        painter.setPen(Qt::NoPen);
+        QPolygon gloss;
+        gloss << QPoint(qRound(4 * s), qRound(4 * s))
+              << QPoint(caseW - qRound(4 * s), qRound(4 * s))
+              << QPoint(qRound(4 * s), caseH - qRound(4 * s));
+        painter.drawPolygon(gloss);
+    }
+    
+    painter.end();
+
+    QMetaObject::invokeMethod(m_model.data(), "onCasingRendered", Qt::QueuedConnection,
+                              Q_ARG(QString, m_path),
+                              Q_ARG(QString, artPath),
+                              Q_ARG(int, casingInt),
+                              Q_ARG(QImage, caseImage));
+}
+
+void FileFilterProxyModel::onCasingRendered(const QString& path, const QString& artPath, int casingType, const QImage& image) {
+    m_pendingCasingChecks.remove(path);
+    m_casingCache.insert(path, qMakePair(artPath, casingType));
+    
+    if (!artPath.isEmpty() && !image.isNull()) {
+        QString cacheKey = artPath + "_" + QString::number(casingType);
+        m_iconCache.insert(cacheKey, QIcon(QPixmap::fromImage(image)));
+    }
+    
+    QFileSystemModel* fileModel = qobject_cast<QFileSystemModel*>(sourceModel());
+    if (fileModel) {
+        QModelIndex srcIndex = fileModel->index(path);
+        if (srcIndex.isValid()) {
+            QModelIndex proxyIndex = mapFromSource(srcIndex);
+            if (proxyIndex.isValid()) {
+                emit dataChanged(proxyIndex, proxyIndex, {Qt::DecorationRole});
+            }
+        }
+    }
+}

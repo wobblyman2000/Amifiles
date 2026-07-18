@@ -313,7 +313,7 @@ void HelpDialog::onSectionChanged(int index) {
                     "<li><b>Folder Drop:</b> Drag and drop a folder into the Preview Panel to enqueue all media files inside.</li>"
                     "</ul>"
                     "<li><b>Interactive Audio Visualizers:</b> Under the Equalizer tab, click buttons to choose between retro spectrum bars, circular radial bars, or a real-time oscilloscope waveform graph.</li>"
-                    "<li><b>CD/DVD Case Overlays:</b> Album folders containing audio files and cover art (e.g. <code>cover.jpg</code>, <code>folder.png</code>) automatically render with glossy CD/DVD cases.</li>"
+                    "<li><b>CD/DVD Case Overlays:</b> Album folders containing audio files and cover art (e.g. <code>cover.jpg</code>, <code>folder.png</code>) automatically render with glossy CD/DVD cases. These are rendered asynchronously in a background thread pool for zero-lag scrolling and have realistic physical aspect ratios.</li>"
                     "<li><b>Online Video &amp; TV Scraper:</b> Right-click any folder or video file and select <b>Scrape Video Metadata...</b> to search online databases (TVmaze or TMDb) for movies or show information.</li>"
                     "<ul>"
                     "<li><b>Poster Art:</b> Automatically downloads and writes artwork to <code>poster.jpg</code> and <code>folder.jpg</code>, rendering as a 3D physical sleeve casing.</li>"
