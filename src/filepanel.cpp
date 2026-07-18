@@ -280,9 +280,7 @@ void FilePanel::setupUI() {
     connect(m_filmstripView, &FilmstripView::fileDoubleClicked, this, &FilePanel::onDoubleClickedPath);
     connect(m_filmstripView, &FilmstripView::customContextMenuRequested, this, &FilePanel::onCustomContextMenu);
 
-    m_treeView->setModel(m_groupProxy);
-    m_listView->setModel(m_groupProxy);
-    m_listView->setSelectionModel(m_treeView->selectionModel()); // sync selections
+    updateActiveViewModel();
 
     // Header formatting
     QHeaderView* header = m_treeView->header();
@@ -580,6 +578,34 @@ void FilePanel::setPath(const QString& path) {
     navigateTo(path, true);
 }
 
+QAbstractItemModel* FilePanel::activeBaseModel() const {
+    if (m_archiveViewActive) return m_archiveModel;
+    if (m_smartViewActive) return m_smartModel;
+    if (m_flatViewEnabled) return m_flatProxyModel;
+    return m_proxyModel;
+}
+
+void FilePanel::updateActiveViewModel() {
+    if (m_treeView->selectionModel()) {
+        disconnect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
+    }
+    
+    QAbstractItemModel* base = activeBaseModel();
+    if (m_groupProxy && m_groupProxy->isGroupingActive()) {
+        m_groupProxy->setSourceModel(base);
+        m_treeView->setModel(m_groupProxy);
+        m_listView->setModel(m_groupProxy);
+    } else {
+        m_treeView->setModel(base);
+        m_listView->setModel(base);
+    }
+    m_listView->setSelectionModel(m_treeView->selectionModel());
+    
+    if (m_treeView->selectionModel()) {
+        connect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
+    }
+}
+
 void FilePanel::focusActiveView() {
     QWidget* view = nullptr;
     if (m_flatViewEnabled && m_listView) {
@@ -658,16 +684,9 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
             }
         }
         if (found) {
-            if (m_treeView->selectionModel()) {
-                disconnect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
-            }
             m_smartViewActive = true;
             m_archiveViewActive = false;
-            m_groupProxy->setSourceModel(m_smartModel);
-            m_listView->setSelectionModel(m_treeView->selectionModel());
-            if (m_treeView->selectionModel()) {
-                connect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
-            }
+            updateActiveViewModel();
             m_smartModel->setQueryRule(matchedRule);
             m_currentPath = path;
             m_pathEdit->setText(path);
@@ -693,26 +712,15 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
 
         QFileInfo archInfo(archiveFile);
         if (archInfo.exists() && archInfo.isFile()) {
-            if (!m_archiveViewActive) {
-                if (m_treeView->selectionModel()) {
-                    disconnect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
-                }
-                
-                m_archiveViewActive = true;
-                m_smartViewActive = false;
-                m_groupProxy->setSourceModel(m_archiveModel);
-                m_listView->setSelectionModel(m_treeView->selectionModel());
+            m_archiveViewActive = true;
+            m_smartViewActive = false;
+            updateActiveViewModel();
 
-                if (m_treeView->selectionModel()) {
-                    connect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
-                }
+            if (m_categoryWidget) m_categoryWidget->hide();
 
-                if (m_categoryWidget) m_categoryWidget->hide();
-
-                // Enable interactive resizing for all columns
-                for (int i = 0; i < 4; ++i) {
-                    m_treeView->header()->setSectionResizeMode(i, QHeaderView::Interactive);
-                }
+            // Enable interactive resizing for all columns
+            for (int i = 0; i < 4; ++i) {
+                m_treeView->header()->setSectionResizeMode(i, QHeaderView::Interactive);
             }
 
             m_archiveModel->loadArchive(archiveFile);
@@ -723,9 +731,6 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
             return;
         }
     } else if (m_archiveViewActive || m_smartViewActive || m_dashboardActive) {
-        if (m_treeView->selectionModel()) {
-            disconnect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
-        }
         m_archiveViewActive = false;
         m_smartViewActive = false;
         m_dashboardActive = false;
@@ -733,11 +738,7 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
         // Restore active view stack widget
         onViewModeChanged(viewModeIndex());
 
-        m_groupProxy->setSourceModel(m_proxyModel);
-        m_listView->setSelectionModel(m_treeView->selectionModel());
-        if (m_treeView->selectionModel()) {
-            connect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
-        }
+        updateActiveViewModel();
 
         if (m_categoryWidget) m_categoryWidget->setVisible(m_categoryButtonsVisible);
 
@@ -833,15 +834,8 @@ void FilePanel::onNavigateUp() {
             emit pathChanged(m_currentPath);
             updateStatusText();
         } else {
-            if (m_treeView->selectionModel()) {
-                disconnect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
-            }
-
-            m_groupProxy->setSourceModel(m_proxyModel);
-
-            if (m_treeView->selectionModel()) {
-                connect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
-            }
+            m_archiveViewActive = false;
+            updateActiveViewModel();
 
             if (m_categoryWidget) m_categoryWidget->setVisible(m_categoryButtonsVisible);
 
@@ -1025,15 +1019,7 @@ void FilePanel::onDoubleClicked(const QModelIndex& index) {
             updateStatusText();
 
             if (ok) {
-                if (m_treeView->selectionModel()) {
-                    disconnect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
-                }
-                
-                m_groupProxy->setSourceModel(m_archiveModel);
-
-                if (m_treeView->selectionModel()) {
-                    connect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
-                }
+                updateActiveViewModel();
 
                 m_pathEdit->setText(QDir::toNativeSeparators(path) + "//");
                 
@@ -1874,13 +1860,8 @@ void FilePanel::setFlatViewEnabled(bool enabled) {
         m_btnFlatView->blockSignals(false);
     }
 
-    if (m_treeView->selectionModel()) {
-        disconnect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
-    }
-
     if (enabled) {
-        m_groupProxy->setSourceModel(m_flatProxyModel);
-        m_listView->setSelectionModel(m_treeView->selectionModel());
+        updateActiveViewModel();
         m_flatModel->setRootPath(m_currentPath);
         if (m_categoryWidget) m_categoryWidget->hide();
 
@@ -1889,13 +1870,8 @@ void FilePanel::setFlatViewEnabled(bool enabled) {
         });
         connect(m_flatModel, &FlatFileSystemModel::scanFinished, this, &FilePanel::updateStatusText);
     } else {
-        m_groupProxy->setSourceModel(m_proxyModel);
-        m_listView->setSelectionModel(m_treeView->selectionModel());
+        updateActiveViewModel();
         if (m_categoryWidget) m_categoryWidget->setVisible(m_categoryButtonsVisible);
-    }
-
-    if (m_treeView->selectionModel()) {
-        connect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
     }
 
     // Enable interactive resizing for main columns

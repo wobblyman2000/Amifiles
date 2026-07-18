@@ -622,6 +622,8 @@ public:
     // Age Coloring support
     FileFilterProxyModel* proxyModel() const { return m_proxyModel; }
     class GroupProxyModel* groupProxy() const { return m_groupProxy; }
+    QAbstractItemModel* activeBaseModel() const;
+    void updateActiveViewModel();
 
     // View modular filter components
     void setCategoryButtonsVisible(bool visible);
