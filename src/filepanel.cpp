@@ -781,14 +781,17 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
     // Update tree view root
     if (m_flatViewEnabled) {
         m_flatModel->setRootPath(m_currentPath);
+        m_groupProxy->setSourceRoot(QModelIndex());
         m_treeView->setRootIndex(QModelIndex());
         m_listView->setRootIndex(QModelIndex());
     } else {
         m_proxyModel->setCurrentPath(m_currentPath);
         QModelIndex srcIndex = m_fileModel->index(m_currentPath);
         QModelIndex proxyIndex = m_proxyModel->mapFromSource(srcIndex);
-        m_treeView->setRootIndex(proxyIndex);
-        m_listView->setRootIndex(proxyIndex);
+        m_groupProxy->setSourceRoot(proxyIndex);
+        QModelIndex groupRootIndex = m_groupProxy->mapFromSource(proxyIndex);
+        m_treeView->setRootIndex(groupRootIndex);
+        m_listView->setRootIndex(groupRootIndex);
     }
 
     // Update History

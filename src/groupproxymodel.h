@@ -1,11 +1,11 @@
 #pragma once
 
-#include <QAbstractProxyModel>
+#include <QIdentityProxyModel>
 #include <QModelIndex>
 #include <QList>
 #include <QMap>
 
-class GroupProxyModel : public QAbstractProxyModel {
+class GroupProxyModel : public QIdentityProxyModel {
     Q_OBJECT
 public:
     explicit GroupProxyModel(QObject* parent = nullptr);
@@ -27,6 +27,9 @@ public:
 
     bool isGroupingActive() const { return m_groupingActive; }
     void setGrouping(bool active, const QString& type, const QString& customKey = "");
+
+    void setSourceRoot(const QModelIndex& root);
+    QModelIndex sourceRoot() const { return m_sourceRoot; }
 
 public slots:
     void rebuildGroups();

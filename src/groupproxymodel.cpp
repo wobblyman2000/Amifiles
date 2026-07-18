@@ -4,7 +4,7 @@
 #include <QFont>
 #include <QColor>
 
-GroupProxyModel::GroupProxyModel(QObject* parent) : QAbstractProxyModel(parent) {}
+GroupProxyModel::GroupProxyModel(QObject* parent) : QIdentityProxyModel(parent) {}
 
 void GroupProxyModel::setSourceModel(QAbstractItemModel* sourceModel) {
     if (this->sourceModel()) {
@@ -15,7 +15,7 @@ void GroupProxyModel::setSourceModel(QAbstractItemModel* sourceModel) {
         disconnect(this->sourceModel(), &QAbstractItemModel::rowsRemoved, this, &GroupProxyModel::rebuildGroups);
     }
     
-    QAbstractProxyModel::setSourceModel(sourceModel);
+    QIdentityProxyModel::setSourceModel(sourceModel);
     
     if (this->sourceModel()) {
         connect(this->sourceModel(), &QAbstractItemModel::modelReset, this, &GroupProxyModel::rebuildGroups);
@@ -109,10 +109,10 @@ QString GroupProxyModel::getGroupValue(const QModelIndex& sourceIndex) const {
 }
 
 QModelIndex GroupProxyModel::mapToSource(const QModelIndex& proxyIndex) const {
-    if (!proxyIndex.isValid() || !m_groupingActive || !sourceModel()) {
-        if (sourceModel() && proxyIndex.isValid()) {
-            return sourceModel()->index(proxyIndex.row(), proxyIndex.column(), proxyIndex.parent());
-        }
+    if (!m_groupingActive) {
+        return QIdentityProxyModel::mapToSource(proxyIndex);
+    }
+    if (!proxyIndex.isValid() || !sourceModel()) {
         return QModelIndex();
     }
 
@@ -139,7 +139,7 @@ QModelIndex GroupProxyModel::mapFromSource(const QModelIndex& sourceIndex) const
     if (!sourceIndex.isValid() || !sourceModel()) return QModelIndex();
 
     if (!m_groupingActive) {
-        return createIndex(sourceIndex.row(), sourceIndex.column(), sourceIndex.internalPointer());
+        return QIdentityProxyModel::mapFromSource(sourceIndex);
     }
 
     for (int g = 0; g < m_groups.size(); ++g) {
@@ -159,7 +159,7 @@ QModelIndex GroupProxyModel::index(int row, int column, const QModelIndex& paren
     if (!sourceModel()) return QModelIndex();
 
     if (!m_groupingActive) {
-        return sourceModel()->index(row, column, parent);
+        return QIdentityProxyModel::index(row, column, parent);
     }
 
     if (!parent.isValid()) {
@@ -185,7 +185,10 @@ QModelIndex GroupProxyModel::index(int row, int column, const QModelIndex& paren
 }
 
 QModelIndex GroupProxyModel::parent(const QModelIndex& child) const {
-    if (!m_groupingActive || !child.isValid()) return QModelIndex();
+    if (!m_groupingActive) {
+        return QIdentityProxyModel::parent(child);
+    }
+    if (!child.isValid()) return QModelIndex();
 
     quintptr id = child.internalId();
     if (id > 0 && id <= 10000) {
@@ -203,7 +206,7 @@ int GroupProxyModel::rowCount(const QModelIndex& parent) const {
     if (!sourceModel()) return 0;
 
     if (!m_groupingActive) {
-        return sourceModel()->rowCount(parent);
+        return QIdentityProxyModel::rowCount(parent);
     }
 
     if (!parent.isValid()) {
@@ -224,7 +227,7 @@ int GroupProxyModel::columnCount(const QModelIndex& parent) const {
     if (!sourceModel()) return 0;
     
     if (!m_groupingActive) {
-        return sourceModel()->columnCount(parent);
+        return QIdentityProxyModel::columnCount(parent);
     }
     
     return sourceModel()->columnCount();
@@ -234,7 +237,7 @@ QVariant GroupProxyModel::data(const QModelIndex& index, int role) const {
     if (!index.isValid() || !sourceModel()) return QVariant();
 
     if (!m_groupingActive) {
-        return sourceModel()->data(index, role);
+        return QIdentityProxyModel::data(index, role);
     }
 
     quintptr id = index.internalId();
@@ -267,6 +270,12 @@ QVariant GroupProxyModel::data(const QModelIndex& index, int role) const {
 }
 
 QVariant GroupProxyModel::headerData(int section, Qt::Orientation orientation, int role) const {
-    if (!sourceModel()) return QVariant();
-    return sourceModel()->headerData(section, orientation, role);
+    return QIdentityProxyModel::headerData(section, orientation, role);
+}
+
+void GroupProxyModel::setSourceRoot(const QModelIndex& root) {
+    if (m_sourceRoot != root) {
+        m_sourceRoot = root;
+        rebuildGroups();
+    }
 }
