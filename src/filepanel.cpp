@@ -1,4 +1,5 @@
 #include "filepanel.h"
+#include <QDebug>
 #include "theme.h"
 #include "favoritesmanager.h"
 #include "archivemodel.h"
@@ -2548,7 +2549,6 @@ CasingRunnable::CasingRunnable(QPointer<FileFilterProxyModel> model, const QStri
 
 void CasingRunnable::run() {
     if (!m_model) return;
-    
     QString artPath;
     int casingInt = 0; // CasingCD = 0, CasingDVD = 1, CasingBluRay = 2
     

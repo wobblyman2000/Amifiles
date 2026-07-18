@@ -69,11 +69,11 @@ void TheaterViewDelegate::paint(QPainter* painter, const QStyleOptionViewItem& o
 
     QRect imageRect(rect.x() + 8, rect.y() + 8, rect.width() - 16, 205);
 
-    if (hasCover) {
-        QIcon icon = col0.data(Qt::DecorationRole).value<QIcon>();
-        if (!icon.isNull()) {
-            icon.paint(painter, imageRect, Qt::AlignCenter);
-        }
+    // Query DecorationRole to trigger the asynchronous casing runnable inside the model
+    QIcon icon = col0.data(Qt::DecorationRole).value<QIcon>();
+
+    if (hasCover && !icon.isNull()) {
+        icon.paint(painter, imageRect, Qt::AlignCenter);
     } else {
         QLinearGradient posterGrad(imageRect.topLeft(), imageRect.bottomRight());
         posterGrad.setColorAt(0.0, QColor("#1e1e2e"));
