@@ -1094,8 +1094,16 @@ void FilePanel::onDoubleClicked(const QModelIndex& index) {
     }
 
     QFileInfo info(path);
-    QSettings settings("Amifiles", "Amifiles");
-    bool builtinPlayerDoubleclick = settings.value("preferences/builtin_player_doubleclick", false).toBool();
+    bool builtinPlayerDoubleclick = false;
+    {
+        QWidget* p = parentWidget();
+        while (p && !p->inherits("MainWindow")) {
+            p = p->parentWidget();
+        }
+        if (p) {
+            QMetaObject::invokeMethod(p, "isBuiltinPlayerDoubleclickActive", Q_RETURN_ARG(bool, builtinPlayerDoubleclick));
+        }
+    }
 
     if (info.isDir()) {
         if (builtinPlayerDoubleclick) {
@@ -1115,6 +1123,7 @@ void FilePanel::onDoubleClicked(const QModelIndex& index) {
             return;
         }
 
+        QSettings settings("Amifiles", "Amifiles");
         bool archiveNavEnabled = settings.value("preferences/archive_nav", true).toBool();
         QStringList archiveExts = { "zip", "tar", "gz", "xz", "bz2", "tgz", "rar", "7z", "adf", "d64", "iso", "img" };
 
@@ -1790,6 +1799,11 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     }
 
     menu.addSeparator();
+    QAction* actSaveDefaultProfile = menu.addAction("Save Current Layout as Default Profile");
+    QAction* actLoadDefaultProfile = menu.addAction("Load Default Profile");
+    QAction* actSaveFolderProfile = menu.addAction("Save Current Layout as Folder Profile...");
+    menu.addSeparator();
+
     QAction* actProp = menu.addAction(style->standardIcon(QStyle::SP_MessageBoxInformation), "Properties");
 
     bool hasSelection = index.isValid();
@@ -1895,6 +1909,17 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     QPoint globalPos = QCursor::pos();
     QAction* selected = menu.exec(globalPos);
     if (!selected) return;
+
+    if (selected == actSaveDefaultProfile) {
+        emit saveDefaultProfileRequested();
+        return;
+    } else if (selected == actLoadDefaultProfile) {
+        emit loadDefaultProfileRequested();
+        return;
+    } else if (selected == actSaveFolderProfile) {
+        emit saveFolderProfileRequested();
+        return;
+    }
 
     if (selected == actOpen) {
         if (isNewView) {

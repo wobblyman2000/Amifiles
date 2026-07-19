@@ -160,7 +160,16 @@ private:
     bool m_isVideo = false;
 };
 
+bool MainWindow::isBuiltinPlayerDoubleclickActive() const {
+    if (m_hasActiveFolderRule && m_activeFolderRule.overrideBuiltinPlayerDoubleclick) {
+        return m_activeFolderRule.builtinPlayerDoubleclick;
+    }
+    QSettings settings("Amifiles", "Amifiles");
+    return settings.value("preferences/builtin_player_doubleclick", false).toBool();
+}
+
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
+    m_isInitializing = true;
     setWindowTitle("Amifiles - File Manager");
     resize(1200, 800);
 
@@ -290,30 +299,78 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     // Default active panel is Left
     onPanelActivated(leftPanel());
 
-    // Restore window layout geometry & state
+    // Load folder rules first to determine if we should restore custom folder layout state
+    loadFolderRules();
+
+    FolderLayoutRule matchedRule;
+    bool foundMatch = false;
+    if (m_activePanel) {
+        QString startingPath = m_activePanel->currentPath();
+        for (const auto& r : m_folderRules) {
+            if (!r.autoApply) continue;
+            if (r.ruleType == "Path" && r.value == startingPath) {
+                matchedRule = r;
+                foundMatch = true;
+                break;
+            }
+        }
+        if (!foundMatch) {
+            QString category = detectFolderCategory(startingPath);
+            if (!category.isEmpty()) {
+                for (const auto& r : m_folderRules) {
+                    if (!r.autoApply) continue;
+                    if (r.ruleType == "Category" && r.value == category) {
+                        matchedRule = r;
+                        foundMatch = true;
+                        break;
+                    }
+                }
+            }
+        }
+        if (!foundMatch) {
+            for (const auto& r : m_folderRules) {
+                if (r.name.toLower() == "default") {
+                    matchedRule = r;
+                    foundMatch = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    // Determine state to restore
     bool autoSaveLayout = settings.value("layout/auto_save", true).toBool();
     if (m_actAutoSaveLayout) {
         m_actAutoSaveLayout->setChecked(autoSaveLayout);
     }
+
+    QByteArray stateToRestore;
+    if (foundMatch && !matchedRule.windowState.isEmpty()) {
+        stateToRestore = matchedRule.windowState;
+    } else {
+        stateToRestore = settings.value("window/state").toByteArray();
+    }
+
     if (autoSaveLayout || settings.contains("window/geometry")) {
         QByteArray geom = settings.value("window/geometry").toByteArray();
-        QByteArray state = settings.value("window/state").toByteArray();
         if (!geom.isEmpty()) {
             restoreGeometry(geom);
         }
-        if (!state.isEmpty()) {
-            restoreState(state);
+        if (!stateToRestore.isEmpty()) {
+            restoreState(stateToRestore);
         }
     }
 
     bool zenActive = settings.value("preferences/zen_mode", false).toBool();
     setZenMode(zenActive);
 
-    // Load and apply folder layout rules
-    loadFolderRules();
+    // Apply remaining folder profile options (skipping redundant restoreState)
     if (m_activePanel) {
         applyFolderRules(m_activePanel->currentPath());
     }
+
+    m_isInitializing = false;
+
     updateWidgetStylesheets();
     updateTooltips();
 }
@@ -776,6 +833,21 @@ void MainWindow::setupActions() {
     m_actConfigureFolderLayouts->setStatusTip("Create, manage, or restore UI layout and theme profiles for specific folders");
     connect(m_actConfigureFolderLayouts, &QAction::triggered, this, &MainWindow::onConfigureFolderLayouts);
 
+    m_actSaveFolderProfileForCurrentDir = new QAction("Save Current Layout as Folder Profile...", this);
+    m_actSaveFolderProfileForCurrentDir->setToolTip("Save the current panel view mode, toolbars, and menus configuration as a profile for this folder path");
+    m_actSaveFolderProfileForCurrentDir->setStatusTip("Save the current panel view mode, toolbars, and menus configuration as a profile for this folder path");
+    connect(m_actSaveFolderProfileForCurrentDir, &QAction::triggered, this, &MainWindow::onSaveFolderProfileForCurrentDir);
+
+    m_actSaveDefaultProfile = new QAction("Save Current Layout as Default Profile", this);
+    m_actSaveDefaultProfile->setToolTip("Save the current layout settings (views, toolbars, sidebars) as the global Default Profile");
+    m_actSaveDefaultProfile->setStatusTip("Save the current layout settings (views, toolbars, sidebars) as the global Default Profile");
+    connect(m_actSaveDefaultProfile, &QAction::triggered, this, &MainWindow::onSaveDefaultProfile);
+
+    m_actLoadDefaultProfile = new QAction("Load Default Profile", this);
+    m_actLoadDefaultProfile->setToolTip("Reset the layout configuration to the global Default Profile");
+    m_actLoadDefaultProfile->setStatusTip("Reset the layout configuration to the global Default Profile");
+    connect(m_actLoadDefaultProfile, &QAction::triggered, this, &MainWindow::onLoadDefaultProfile);
+
     m_actAutoSizeColumns = new QAction("Auto-Size All Columns", this);
     m_actAutoSizeColumns->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_A));
     m_actAutoSizeColumns->setToolTip("Auto-fit all column widths to their contents (Ctrl+Shift+A)");
@@ -972,6 +1044,7 @@ void MainWindow::setupActions() {
     registerKeybindableAction("shred", m_actSecureShred);
     registerKeybindableAction("checksum", m_actCalculateChecksum);
     registerKeybindableAction("configure_layouts", m_actConfigureFolderLayouts);
+    registerKeybindableAction("save_folder_profile", m_actSaveFolderProfileForCurrentDir);
     registerKeybindableAction("configure_age_styles", m_actConfigureAgeStyling);
     registerKeybindableAction("configure_autotags", m_actConfigureAutoTags);
 }
@@ -1008,6 +1081,9 @@ void MainWindow::setupMenus() {
     // Settings -> Layouts & Rules
     QMenu* menuLayoutSettings = menuSettings->addMenu("Layouts & Rules");
     menuLayoutSettings->addAction(m_actConfigureFolderLayouts);
+    menuLayoutSettings->addAction(m_actSaveFolderProfileForCurrentDir);
+    menuLayoutSettings->addAction(m_actSaveDefaultProfile);
+    menuLayoutSettings->addAction(m_actLoadDefaultProfile);
     menuLayoutSettings->addSeparator();
     menuLayoutSettings->addAction(m_actSaveLayoutNow);
     menuLayoutSettings->addAction(m_actResetLayout);
@@ -2245,6 +2321,9 @@ FilePanel* MainWindow::createTab(QTabWidget* tabWidget, const QString& path) {
     connect(panel, &FilePanel::playlistPlayRequested, this, [this](const QStringList& paths) {
         if (m_previewPanel) m_previewPanel->playPlaylist(paths);
     });
+    connect(panel, &FilePanel::saveDefaultProfileRequested, this, &MainWindow::onSaveDefaultProfile);
+    connect(panel, &FilePanel::loadDefaultProfileRequested, this, &MainWindow::onLoadDefaultProfile);
+    connect(panel, &FilePanel::saveFolderProfileRequested, this, &MainWindow::onSaveFolderProfileForCurrentDir);
 
     panel->proxyModel()->setAgeColoringEnabled(m_ageColoringEnabled);
 
@@ -2727,6 +2806,24 @@ void MainWindow::closeEvent(QCloseEvent* event) {
     QMainWindow::closeEvent(event);
 }
 
+QMenu* MainWindow::createPopupMenu() {
+    QMenu* menu = QMainWindow::createPopupMenu();
+    if (!menu) {
+        menu = new QMenu(this);
+    }
+    
+    menu->addSeparator();
+    QAction* actSaveDefault = menu->addAction("Save Current Layout as Default Profile");
+    QAction* actLoadDefault = menu->addAction("Load Default Profile");
+    QAction* actSaveFolder = menu->addAction("Save Current Layout as Folder Profile...");
+    
+    connect(actSaveDefault, &QAction::triggered, this, &MainWindow::onSaveDefaultProfile);
+    connect(actLoadDefault, &QAction::triggered, this, &MainWindow::onLoadDefaultProfile);
+    connect(actSaveFolder, &QAction::triggered, this, &MainWindow::onSaveFolderProfileForCurrentDir);
+    
+    return menu;
+}
+
 void MainWindow::onSaveLayoutNow() {
     QSettings settings("Amifiles", "Amifiles");
     settings.setValue("window/geometry", saveGeometry());
@@ -2745,7 +2842,7 @@ void MainWindow::onResetLayout() {
     QMessageBox::information(this, "Reset Layout", "Window geometry and toolbar layouts reset to default successfully!");
 }
 
-static QJsonObject ruleToJson(const FolderLayoutRule& r) {
+QJsonObject MainWindow::ruleToJson(const FolderLayoutRule& r) {
     QJsonObject obj;
     obj["name"] = r.name;
     obj["ruleType"] = r.ruleType;
@@ -2766,9 +2863,17 @@ static QJsonObject ruleToJson(const FolderLayoutRule& r) {
     obj["favoritesSidebarVisible"] = r.favoritesSidebarVisible;
     obj["overrideZenMode"] = r.overrideZenMode;
     obj["zenModeActive"] = r.zenModeActive;
+    obj["overrideBuiltinPlayerDoubleclick"] = r.overrideBuiltinPlayerDoubleclick;
+    obj["builtinPlayerDoubleclick"] = r.builtinPlayerDoubleclick;
+
+    obj["overrideToolbars"] = r.overrideToolbars;
+    obj["selectedToolbars"] = QJsonArray::fromStringList(r.selectedToolbars);
+    obj["overrideMenus"] = r.overrideMenus;
+    obj["selectedMenus"] = QJsonArray::fromStringList(r.selectedMenus);
     
     obj["useBgColor"] = r.useBgColor;
     obj["bgColor"] = r.bgColor;
+    obj["windowState"] = QString::fromLatin1(r.windowState.toBase64());
     
     obj["hasTabsSnapshot"] = r.hasTabsSnapshot;
     obj["leftPaths"] = QJsonArray::fromStringList(r.leftPaths);
@@ -2778,7 +2883,7 @@ static QJsonObject ruleToJson(const FolderLayoutRule& r) {
     return obj;
 }
 
-static FolderLayoutRule jsonToRule(const QJsonObject& obj) {
+FolderLayoutRule MainWindow::jsonToRule(const QJsonObject& obj) {
     FolderLayoutRule r;
     r.name = obj["name"].toString();
     r.ruleType = obj["ruleType"].toString();
@@ -2802,9 +2907,20 @@ static FolderLayoutRule jsonToRule(const QJsonObject& obj) {
     r.favoritesSidebarVisible = obj["favoritesSidebarVisible"].toBool(false);
     r.overrideZenMode = obj["overrideZenMode"].toBool(false);
     r.zenModeActive = obj["zenModeActive"].toBool(false);
+    r.overrideBuiltinPlayerDoubleclick = obj["overrideBuiltinPlayerDoubleclick"].toBool(false);
+    r.builtinPlayerDoubleclick = obj["builtinPlayerDoubleclick"].toBool(false);
+
+    r.overrideToolbars = obj["overrideToolbars"].toBool(false);
+    QJsonArray tbs = obj["selectedToolbars"].toArray();
+    for (auto tb : tbs) r.selectedToolbars.append(tb.toString());
+    
+    r.overrideMenus = obj["overrideMenus"].toBool(false);
+    QJsonArray mns = obj["selectedMenus"].toArray();
+    for (auto mn : mns) r.selectedMenus.append(mn.toString());
     
     r.useBgColor = obj["useBgColor"].toBool(false);
     r.bgColor = obj["bgColor"].toString();
+    r.windowState = QByteArray::fromBase64(obj["windowState"].toString().toLatin1());
     
     r.hasTabsSnapshot = obj["hasTabsSnapshot"].toBool(false);
     
@@ -2890,6 +3006,82 @@ void MainWindow::loadFolderRules() {
         
         saveFolderRules();
     }
+
+    // Ensure "Default" profile and helper preset profiles exist
+    bool defaultExists = false;
+    bool theaterExists = false;
+    bool musicExists = false;
+
+    for (const auto& r : m_folderRules) {
+        if (r.name.toLower() == "default") defaultExists = true;
+        if (r.name.toLower().contains("theater mode")) theaterExists = true;
+        if (r.name.toLower().contains("music player")) musicExists = true;
+    }
+
+    bool addedPreset = false;
+
+    if (!defaultExists) {
+        FolderLayoutRule r;
+        r.name = "Default";
+        r.ruleType = "Path";
+        r.value = "";
+        r.autoApply = true;
+        r.viewMode = "List";
+        r.overrideConsole = true;
+        r.consoleVisible = false;
+        r.overrideDrivesToolbar = true;
+        r.drivesToolbarVisible = true;
+        r.overridePreview = true;
+        r.previewVisible = false;
+        r.overrideCenterOps = true;
+        r.centerOpsVisible = true;
+        r.overrideFavoritesSidebar = true;
+        r.favoritesSidebarVisible = true;
+        m_folderRules.prepend(r); // Keep Default at the very top
+        addedPreset = true;
+    }
+
+    if (!theaterExists) {
+        FolderLayoutRule r;
+        r.name = "Theater Mode";
+        r.ruleType = "Category";
+        r.value = "Videos";
+        r.autoApply = true;
+        r.viewMode = "Theater";
+        r.overridePreview = true;
+        r.previewVisible = true;
+        r.overrideDrivesToolbar = true;
+        r.drivesToolbarVisible = false;
+        r.overrideConsole = true;
+        r.consoleVisible = false;
+        r.overrideFavoritesSidebar = true;
+        r.favoritesSidebarVisible = false;
+        m_folderRules.append(r);
+        addedPreset = true;
+    }
+
+    if (!musicExists) {
+        FolderLayoutRule r;
+        r.name = "Music Player";
+        r.ruleType = "Category";
+        r.value = "Music";
+        r.autoApply = true;
+        r.viewMode = "Theater";
+        r.overridePreview = true;
+        r.previewVisible = true;
+        r.overrideDrivesToolbar = true;
+        r.drivesToolbarVisible = false;
+        r.overrideConsole = true;
+        r.consoleVisible = false;
+        r.overrideFavoritesSidebar = true;
+        r.favoritesSidebarVisible = false;
+        m_folderRules.append(r);
+        addedPreset = true;
+    }
+
+    if (addedPreset) {
+        saveFolderRules();
+    }
 }
 
 void MainWindow::saveFolderRules() {
@@ -2902,9 +3094,32 @@ void MainWindow::saveFolderRules() {
     settings.setValue("folder_profiles_v1", QString::fromUtf8(doc.toJson(QJsonDocument::Compact)));
 }
 
+bool MainWindow::isToolbarDefaultVisible(const QString& toolbarId) {
+    QSettings settings("Amifiles", "Amifiles");
+    QString jsonStr = settings.value("custom_toolbars_v1").toString();
+    if (!jsonStr.isEmpty()) {
+        QJsonDocument doc = QJsonDocument::fromJson(jsonStr.toUtf8());
+        QJsonArray arr = doc.array();
+        for (int i = 0; i < arr.size(); ++i) {
+            QJsonObject tbObj = arr[i].toObject();
+            if (tbObj["id"].toString() == toolbarId) {
+                return tbObj["visible"].toBool(true);
+            }
+        }
+    }
+    return true;
+}
+
 void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel) {
     if (!targetPanel) targetPanel = m_activePanel;
     if (!targetPanel) return;
+
+    m_activeFolderRule = r;
+    m_hasActiveFolderRule = true;
+
+    if (!m_isInitializing && !r.windowState.isEmpty()) {
+        restoreState(r.windowState);
+    }
 
     // 1. View Mode
     if (r.viewMode != "No Change" && !r.viewMode.isEmpty()) {
@@ -2944,6 +3159,50 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
     }
     if (r.overrideZenMode) {
         setZenMode(r.zenModeActive);
+    }
+
+    // 3b. Custom Toolbars visibility overrides
+    if (r.overrideToolbars) {
+        for (QToolBar* tb : m_dynamicToolBars) {
+            tb->setVisible(r.selectedToolbars.contains(tb->objectName()));
+        }
+    } else {
+        QSettings settings("Amifiles", "Amifiles");
+        QString jsonStr = settings.value("custom_toolbars_v1").toString();
+        if (!jsonStr.isEmpty()) {
+            QJsonDocument doc = QJsonDocument::fromJson(jsonStr.toUtf8());
+            QJsonArray arr = doc.array();
+            for (int i = 0; i < arr.size(); ++i) {
+                QJsonObject tbObj = arr[i].toObject();
+                QString id = tbObj["id"].toString();
+                bool visible = tbObj["visible"].toBool(true);
+                for (QToolBar* tb : m_dynamicToolBars) {
+                    if (tb->objectName() == id) {
+                        tb->setVisible(visible);
+                        break;
+                    }
+                }
+            }
+        } else {
+            for (QToolBar* tb : m_dynamicToolBars) {
+                tb->setVisible(true);
+            }
+        }
+    }
+
+    // 3c. Custom Menus visibility overrides
+    if (r.overrideMenus) {
+        for (QMenu* menu : m_customMenus) {
+            if (menu->menuAction()) {
+                menu->menuAction()->setVisible(r.selectedMenus.contains(menu->title()));
+            }
+        }
+    } else {
+        for (QMenu* menu : m_customMenus) {
+            if (menu->menuAction()) {
+                menu->menuAction()->setVisible(true);
+            }
+        }
     }
 
     // 4. Background styling
@@ -3016,32 +3275,85 @@ void MainWindow::applyFolderRules(const QString& path) {
     if (foundMatch) {
         applyProfile(matchedRule, m_activePanel);
     } else {
-        m_activePanel->setCustomBgColor("");
-        if (!m_activeToolbarFilter.isEmpty()) {
-            m_activeToolbarFilter.clear();
-            rebuildCustomToolBar();
+        FolderLayoutRule defaultRule;
+        bool foundDefault = false;
+        for (const auto& r : m_folderRules) {
+            if (r.name.toLower() == "default") {
+                defaultRule = r;
+                foundDefault = true;
+                break;
+            }
         }
-        
-        QSettings settings("Amifiles", "Amifiles");
-        bool drivesToolbar = settings.value("drives/toolbar_visible", true).toBool();
-        bool centerOps = settings.value("layout/center_ops_visible", true).toBool();
-        bool console = settings.value("console/visible", true).toBool();
-        bool favorites = settings.value("favorites/sidebar_visible", false).toBool();
-        bool zen = settings.value("preferences/zen_mode", false).toBool();
+        if (foundDefault) {
+            applyProfile(defaultRule, m_activePanel);
+        } else {
+            m_hasActiveFolderRule = false;
+            
+            QSettings settings("Amifiles", "Amifiles");
+            QByteArray defaultState = settings.value("window/state").toByteArray();
+            if (!defaultState.isEmpty()) {
+                restoreState(defaultState);
+            }
 
-        m_actToggleDrivesToolbar->setChecked(drivesToolbar);
-        if (m_tbDrives) m_tbDrives->setVisible(drivesToolbar);
-        
-        m_actToggleCenterOps->setChecked(centerOps);
-        if (m_tbCenterOps) m_tbCenterOps->setVisible(centerOps && m_isDualPane);
-        
-        m_actToggleConsole->setChecked(console);
-        if (m_bottomTabWidget) m_bottomTabWidget->setVisible(console);
-        
-        m_actToggleFavoritesSidebar->setChecked(favorites);
-        if (m_sidebarTabWidget) m_sidebarTabWidget->setVisible(favorites);
-        
-        setZenMode(zen);
+            m_activePanel->setCustomBgColor("");
+            if (!m_activeToolbarFilter.isEmpty()) {
+                m_activeToolbarFilter.clear();
+                rebuildCustomToolBar();
+            }
+            
+            // Revert View Mode to default preferred view mode
+            int defaultViewMode = settings.value("file_panel/view_mode_index", 0).toInt();
+            m_activePanel->setViewModeIndex(defaultViewMode);
+
+            // Revert Toolbars to default config visibility
+            QString tbJsonStr = settings.value("custom_toolbars_v1").toString();
+            if (!tbJsonStr.isEmpty()) {
+                QJsonDocument doc = QJsonDocument::fromJson(tbJsonStr.toUtf8());
+                QJsonArray arr = doc.array();
+                for (int i = 0; i < arr.size(); ++i) {
+                    QJsonObject tbObj = arr[i].toObject();
+                    QString id = tbObj["id"].toString();
+                    bool visible = tbObj["visible"].toBool(true);
+                    for (QToolBar* tb : m_dynamicToolBars) {
+                        if (tb->objectName() == id) {
+                            tb->setVisible(visible);
+                            break;
+                        }
+                    }
+                }
+            } else {
+                for (QToolBar* tb : m_dynamicToolBars) {
+                    tb->setVisible(true);
+                }
+            }
+
+            // Revert Custom Menus to all visible
+            for (QMenu* menu : m_customMenus) {
+                if (menu->menuAction()) {
+                    menu->menuAction()->setVisible(true);
+                }
+            }
+
+            bool drivesToolbar = settings.value("drives/toolbar_visible", true).toBool();
+            bool centerOps = settings.value("layout/center_ops_visible", true).toBool();
+            bool console = settings.value("console/visible", true).toBool();
+            bool favorites = settings.value("favorites/sidebar_visible", false).toBool();
+            bool zen = settings.value("preferences/zen_mode", false).toBool();
+
+            m_actToggleDrivesToolbar->setChecked(drivesToolbar);
+            if (m_tbDrives) m_tbDrives->setVisible(drivesToolbar);
+            
+            m_actToggleCenterOps->setChecked(centerOps);
+            if (m_tbCenterOps) m_tbCenterOps->setVisible(centerOps && m_isDualPane);
+            
+            m_actToggleConsole->setChecked(console);
+            if (m_bottomTabWidget) m_bottomTabWidget->setVisible(console);
+            
+            m_actToggleFavoritesSidebar->setChecked(favorites);
+            if (m_sidebarTabWidget) m_sidebarTabWidget->setVisible(favorites);
+            
+            setZenMode(zen);
+        }
     }
 }
 
@@ -3089,6 +3401,257 @@ void MainWindow::onConfigureFolderLayouts() {
             applyFolderRules(m_activePanel->currentPath());
         }
     }
+}
+
+void MainWindow::onSaveFolderProfileForCurrentDir() {
+    if (!m_activePanel) return;
+    QString currentPath = m_activePanel->currentPath();
+    if (currentPath.isEmpty()) {
+        QMessageBox::warning(this, "Save Folder Profile", "Cannot save profile: Current directory path is empty!");
+        return;
+    }
+
+    // Find if a rule for this path already exists
+    int existingIndex = -1;
+    for (int i = 0; i < m_folderRules.size(); ++i) {
+        if (m_folderRules[i].ruleType == "Path" && m_folderRules[i].value == currentPath) {
+            existingIndex = i;
+            break;
+        }
+    }
+
+    QString profileName;
+    bool isUpdate = (existingIndex != -1);
+
+    if (isUpdate) {
+        profileName = m_folderRules[existingIndex].name;
+        auto button = QMessageBox::question(this, "Save Folder Profile",
+            QString("A profile named '%1' already exists for this directory:\n%2\n\nDo you want to update it with your current layout settings?").arg(profileName, currentPath),
+            QMessageBox::Yes | QMessageBox::No);
+        if (button != QMessageBox::Yes) {
+            return;
+        }
+    } else {
+        bool ok = false;
+        QString defaultName = QFileInfo(currentPath).fileName();
+        if (defaultName.isEmpty()) defaultName = "Root Folder";
+        profileName = QInputDialog::getText(this, "Save Folder Profile",
+            QString("Create new layout profile for directory:\n%1\n\nEnter profile name:").arg(currentPath),
+            QLineEdit::Normal, defaultName, &ok).trimmed();
+        if (!ok) return;
+        if (profileName.isEmpty()) {
+            profileName = defaultName;
+        }
+    }
+
+    FolderLayoutRule r;
+    r.name = profileName;
+    r.ruleType = "Path";
+    r.value = currentPath;
+    r.autoApply = true;
+
+    // 1. Capture View Mode
+    int idx = m_activePanel->viewModeIndex();
+    if (idx == 0) r.viewMode = "List";
+    else if (idx == 1) r.viewMode = "Grid";
+    else if (idx == 2) r.viewMode = "Card";
+    else if (idx == 3) r.viewMode = "Miller";
+    else if (idx == 4) r.viewMode = "Timeline";
+    else if (idx == 5) r.viewMode = "Filmstrip";
+    else if (idx == 6) r.viewMode = "Theater";
+    else r.viewMode = "No Change";
+
+    // 2. Capture custom buttons filter list
+    r.customButtons = m_activeToolbarFilter;
+
+    // 3. Capture Visibility Overrides
+    r.overrideDrivesToolbar = true;
+    r.drivesToolbarVisible = (m_actToggleDrivesToolbar && m_actToggleDrivesToolbar->isChecked());
+
+    r.overrideCenterOps = true;
+    r.centerOpsVisible = (m_actToggleCenterOps && m_actToggleCenterOps->isChecked());
+
+    r.overrideConsole = true;
+    r.consoleVisible = (m_actToggleConsole && m_actToggleConsole->isChecked());
+
+    r.overridePreview = true;
+    r.previewVisible = (m_actTogglePreview && m_actTogglePreview->isChecked());
+
+    r.overrideFavoritesSidebar = true;
+    r.favoritesSidebarVisible = (m_actToggleFavoritesSidebar && m_actToggleFavoritesSidebar->isChecked());
+
+    r.overrideZenMode = true;
+    r.zenModeActive = m_zenMode;
+
+    r.overrideBuiltinPlayerDoubleclick = true;
+    r.builtinPlayerDoubleclick = isBuiltinPlayerDoubleclickActive();
+
+    // 4. Capture Custom Background Color
+    QString customBg = m_activePanel->customBgColor();
+    if (!customBg.isEmpty()) {
+        r.useBgColor = true;
+        r.bgColor = customBg;
+    } else {
+        r.useBgColor = false;
+        r.bgColor = "";
+    }
+
+    // 5. Capture Custom Toolbars visibility
+    r.overrideToolbars = true;
+    for (QToolBar* tb : m_dynamicToolBars) {
+        if (tb && tb->isVisible()) {
+            r.selectedToolbars.append(tb->objectName());
+        }
+    }
+
+    // 6. Capture Custom Menus visibility
+    r.overrideMenus = true;
+    for (QMenu* menu : m_customMenus) {
+        if (menu && menu->menuAction() && menu->menuAction()->isVisible()) {
+            r.selectedMenus.append(menu->title());
+        }
+    }
+
+    // 7. Capture Window/Toolbar states and positions
+    r.windowState = saveState();
+
+    // Save to list
+    if (isUpdate) {
+        m_folderRules[existingIndex] = r;
+    } else {
+        m_folderRules.append(r);
+    }
+
+    saveFolderRules();
+
+    QMessageBox::information(this, "Save Folder Profile",
+        QString("Folder layout profile '%1' has been saved successfully for folder:\n%2").arg(r.name, currentPath));
+}
+
+void MainWindow::onSaveDefaultProfile() {
+    int defaultIndex = -1;
+    for (int i = 0; i < m_folderRules.size(); ++i) {
+        if (m_folderRules[i].name.toLower() == "default") {
+            defaultIndex = i;
+            break;
+        }
+    }
+
+    auto button = QMessageBox::question(this, "Save as Default Layout Profile",
+        "Do you want to save the current window layout (views, toolbars positions, sidebars, et cetera) as your default layout profile?\n\nThis will apply to all directories that do not have a custom profile.",
+        QMessageBox::Yes | QMessageBox::No);
+    if (button != QMessageBox::Yes) {
+        return;
+    }
+
+    FolderLayoutRule r;
+    r.name = "Default";
+    r.ruleType = "Path";
+    r.value = "";
+    r.autoApply = true;
+
+    // 1. Capture View Mode
+    if (m_activePanel) {
+        int idx = m_activePanel->viewModeIndex();
+        if (idx == 0) r.viewMode = "List";
+        else if (idx == 1) r.viewMode = "Grid";
+        else if (idx == 2) r.viewMode = "Card";
+        else if (idx == 3) r.viewMode = "Miller";
+        else if (idx == 4) r.viewMode = "Timeline";
+        else if (idx == 5) r.viewMode = "Filmstrip";
+        else if (idx == 6) r.viewMode = "Theater";
+        else r.viewMode = "No Change";
+        
+        // 4. Capture Custom Background Color
+        QString customBg = m_activePanel->customBgColor();
+        if (!customBg.isEmpty()) {
+            r.useBgColor = true;
+            r.bgColor = customBg;
+        } else {
+            r.useBgColor = false;
+            r.bgColor = "";
+        }
+    } else {
+        r.viewMode = "List";
+        r.useBgColor = false;
+        r.bgColor = "";
+    }
+
+    // 2. Capture custom buttons filter list
+    r.customButtons = m_activeToolbarFilter;
+
+    // 3. Capture Visibility Overrides
+    r.overrideDrivesToolbar = true;
+    r.drivesToolbarVisible = (m_actToggleDrivesToolbar && m_actToggleDrivesToolbar->isChecked());
+
+    r.overrideCenterOps = true;
+    r.centerOpsVisible = (m_actToggleCenterOps && m_actToggleCenterOps->isChecked());
+
+    r.overrideConsole = true;
+    r.consoleVisible = (m_actToggleConsole && m_actToggleConsole->isChecked());
+
+    r.overridePreview = true;
+    r.previewVisible = (m_actTogglePreview && m_actTogglePreview->isChecked());
+
+    r.overrideFavoritesSidebar = true;
+    r.favoritesSidebarVisible = (m_actToggleFavoritesSidebar && m_actToggleFavoritesSidebar->isChecked());
+
+    r.overrideZenMode = true;
+    r.zenModeActive = m_zenMode;
+
+    r.overrideBuiltinPlayerDoubleclick = true;
+    r.builtinPlayerDoubleclick = isBuiltinPlayerDoubleclickActive();
+
+    // 5. Capture Custom Toolbars visibility
+    r.overrideToolbars = true;
+    for (QToolBar* tb : m_dynamicToolBars) {
+        if (tb && tb->isVisible()) {
+            r.selectedToolbars.append(tb->objectName());
+        }
+    }
+
+    // 6. Capture Custom Menus visibility
+    r.overrideMenus = true;
+    for (QMenu* menu : m_customMenus) {
+        if (menu && menu->menuAction() && menu->menuAction()->isVisible()) {
+            r.selectedMenus.append(menu->title());
+        }
+    }
+
+    // 7. Capture Window/Toolbar states and positions
+    r.windowState = saveState();
+
+    // Save to list
+    if (defaultIndex != -1) {
+        m_folderRules[defaultIndex] = r;
+    } else {
+        m_folderRules.prepend(r);
+    }
+
+    saveFolderRules();
+
+    QMessageBox::information(this, "Save Default Layout Profile",
+        "The Default Layout Profile has been updated successfully with your current layout settings.");
+}
+
+void MainWindow::onLoadDefaultProfile() {
+    FolderLayoutRule defaultRule;
+    bool foundDefault = false;
+    for (const auto& r : m_folderRules) {
+        if (r.name.toLower() == "default") {
+            defaultRule = r;
+            foundDefault = true;
+            break;
+        }
+    }
+
+    if (!foundDefault) {
+        QMessageBox::warning(this, "Load Default Layout Profile", "No Default layout profile found in the profiles list!");
+        return;
+    }
+
+    applyProfile(defaultRule, m_activePanel);
+    QMessageBox::information(this, "Load Default Layout Profile", "Loaded and applied your Default layout profile settings.");
 }
 
 void MainWindow::adjustSplitterSizes() {
@@ -4010,10 +4573,6 @@ void MainWindow::onTabContextMenuRequested(const QPoint& pos) {
     if (!tabWidget) return;
 
     int tabIndex = static_cast<TabWidgetEx*>(tabWidget)->tabBar()->tabAt(pos);
-    if (tabIndex == -1) return;
-
-    FilePanel* panel = qobject_cast<FilePanel*>(tabWidget->widget(tabIndex));
-    if (!panel) return;
 
     QMenu menu(this);
     menu.setStyleSheet(
@@ -4022,51 +4581,77 @@ void MainWindow::onTabContextMenuRequested(const QPoint& pos) {
         "QMenu::item:selected { background-color: #313244; color: #a6e3a1; }"
     );
 
-    QAction* actPin = menu.addAction("Pin Tab");
-    actPin->setCheckable(true);
-    actPin->setChecked(panel->isPinned());
+    QAction* actPin = nullptr;
+    QAction* actLockPath = nullptr;
+    QAction* actLockSubdirs = nullptr;
+    FilePanel* panel = nullptr;
 
-    QAction* actLockPath = menu.addAction("Lock Path");
-    actLockPath->setCheckable(true);
-    actLockPath->setChecked(panel->isPathLocked());
+    if (tabIndex != -1) {
+        panel = qobject_cast<FilePanel*>(tabWidget->widget(tabIndex));
+        if (panel) {
+            actPin = menu.addAction("Pin Tab");
+            actPin->setCheckable(true);
+            actPin->setChecked(panel->isPinned());
 
-    QAction* actLockSubdirs = menu.addAction("Lock Path with Subdirs");
-    actLockSubdirs->setCheckable(true);
-    actLockSubdirs->setChecked(panel->isPathLockedWithSubdirs());
+            actLockPath = menu.addAction("Lock Path");
+            actLockPath->setCheckable(true);
+            actLockPath->setChecked(panel->isPathLocked());
+
+            actLockSubdirs = menu.addAction("Lock Path with Subdirs");
+            actLockSubdirs->setCheckable(true);
+            actLockSubdirs->setChecked(panel->isPathLockedWithSubdirs());
+            
+            menu.addSeparator();
+        }
+    }
+
+    QAction* actSaveDefault = menu.addAction("Save Current Layout as Default Profile");
+    QAction* actLoadDefault = menu.addAction("Load Default Profile");
+    QAction* actSaveFolder = menu.addAction("Save Current Layout as Folder Profile...");
 
     QAction* selected = menu.exec(tabWidget->mapToGlobal(pos));
-    if (selected == actPin) {
-        panel->setPinned(actPin->isChecked());
-        QString name = QFileInfo(panel->currentPath()).fileName();
-        if (name.isEmpty()) name = panel->currentPath();
-        if (panel->isPinned()) name = "📌 " + name;
-        if (panel->isPathLocked()) name += " 🔒";
-        else if (panel->isPathLockedWithSubdirs()) name += " 📂🔒";
-        tabWidget->setTabText(tabIndex, name);
-    } else if (selected == actLockPath) {
-        bool lock = actLockPath->isChecked();
-        panel->setPathLocked(lock);
-        if (lock) {
-            panel->setPathLockedWithSubdirs(false);
+    if (!selected) return;
+
+    if (selected == actSaveDefault) {
+        onSaveDefaultProfile();
+    } else if (selected == actLoadDefault) {
+        onLoadDefaultProfile();
+    } else if (selected == actSaveFolder) {
+        onSaveFolderProfileForCurrentDir();
+    } else if (panel) {
+        if (selected == actPin) {
+            panel->setPinned(actPin->isChecked());
+            QString name = QFileInfo(panel->currentPath()).fileName();
+            if (name.isEmpty()) name = panel->currentPath();
+            if (panel->isPinned()) name = "📌 " + name;
+            if (panel->isPathLocked()) name += " 🔒";
+            else if (panel->isPathLockedWithSubdirs()) name += " 📂🔒";
+            tabWidget->setTabText(tabIndex, name);
+        } else if (selected == actLockPath) {
+            bool lock = actLockPath->isChecked();
+            panel->setPathLocked(lock);
+            if (lock) {
+                panel->setPathLockedWithSubdirs(false);
+            }
+            QString name = QFileInfo(panel->currentPath()).fileName();
+            if (name.isEmpty()) name = panel->currentPath();
+            if (panel->isPinned()) name = "📌 " + name;
+            if (panel->isPathLocked()) name += " 🔒";
+            else if (panel->isPathLockedWithSubdirs()) name += " 📂🔒";
+            tabWidget->setTabText(tabIndex, name);
+        } else if (selected == actLockSubdirs) {
+            bool lock = actLockSubdirs->isChecked();
+            panel->setPathLockedWithSubdirs(lock);
+            if (lock) {
+                panel->setPathLocked(false);
+            }
+            QString name = QFileInfo(panel->currentPath()).fileName();
+            if (name.isEmpty()) name = panel->currentPath();
+            if (panel->isPinned()) name = "📌 " + name;
+            if (panel->isPathLocked()) name += " 🔒";
+            else if (panel->isPathLockedWithSubdirs()) name += " 📂🔒";
+            tabWidget->setTabText(tabIndex, name);
         }
-        QString name = QFileInfo(panel->currentPath()).fileName();
-        if (name.isEmpty()) name = panel->currentPath();
-        if (panel->isPinned()) name = "📌 " + name;
-        if (panel->isPathLocked()) name += " 🔒";
-        else if (panel->isPathLockedWithSubdirs()) name += " 📂🔒";
-        tabWidget->setTabText(tabIndex, name);
-    } else if (selected == actLockSubdirs) {
-        bool lock = actLockSubdirs->isChecked();
-        panel->setPathLockedWithSubdirs(lock);
-        if (lock) {
-            panel->setPathLocked(false);
-        }
-        QString name = QFileInfo(panel->currentPath()).fileName();
-        if (name.isEmpty()) name = panel->currentPath();
-        if (panel->isPinned()) name = "📌 " + name;
-        if (panel->isPathLocked()) name += " 🔒";
-        else if (panel->isPathLockedWithSubdirs()) name += " 📂🔒";
-        tabWidget->setTabText(tabIndex, name);
     }
 }
 
@@ -4186,10 +4771,18 @@ void MainWindow::setZenMode(bool enabled) {
     if (m_customToolBar) m_customToolBar->setVisible(!enabled);
     if (m_tbDrives) m_tbDrives->setVisible(!enabled && m_actToggleDrivesToolbar->isChecked());
     if (m_tbCenterOps) m_tbCenterOps->setVisible(!enabled && m_actToggleCenterOps->isChecked() && m_isDualPane);
-    if (m_bottomTabWidget) m_bottomTabWidget->setVisible(!enabled);
+    if (m_bottomTabWidget) m_bottomTabWidget->setVisible(!enabled && m_actToggleConsole->isChecked());
     if (statusBar()) statusBar()->setVisible(!enabled);
     for (QToolBar* tb : m_dynamicToolBars) {
-        if (tb) tb->setVisible(!enabled);
+        if (tb) {
+            bool shouldBeVisible = false;
+            if (m_hasActiveFolderRule && m_activeFolderRule.overrideToolbars) {
+                shouldBeVisible = m_activeFolderRule.selectedToolbars.contains(tb->objectName());
+            } else {
+                shouldBeVisible = isToolbarDefaultVisible(tb->objectName());
+            }
+            tb->setVisible(!enabled && shouldBeVisible);
+        }
     }
     
     // Hide/show navigation and filter bars in all open tabs on both left and right sides

@@ -13,6 +13,10 @@
 #include <QColorDialog>
 #include <QStackedWidget>
 #include <QScrollArea>
+#include <QSettings>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
 
 class ButtonChooserDialog : public QDialog {
 public:
@@ -53,6 +57,54 @@ public:
             QListWidgetItem* item = m_listWidget->item(i);
             if (item->checkState() == Qt::Checked) {
                 res.append(item->text());
+            }
+        }
+        return res;
+    }
+private:
+    QListWidget* m_listWidget;
+};
+
+class MultiSelectDialog : public QDialog {
+public:
+    MultiSelectDialog(const QString& title, const QString& labelText, const QList<QPair<QString, QString>>& items, const QStringList& initiallySelected, QWidget* parent) : QDialog(parent) {
+        setWindowTitle(title);
+        QVBoxLayout* layout = new QVBoxLayout(this);
+        
+        QLabel* label = new QLabel(labelText, this);
+        layout->addWidget(label);
+        
+        m_listWidget = new QListWidget(this);
+        for (const auto& pair : items) {
+            QListWidgetItem* item = new QListWidgetItem(pair.first, m_listWidget);
+            item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+            item->setData(Qt::UserRole, pair.second);
+            item->setCheckState(initiallySelected.contains(pair.second) ? Qt::Checked : Qt::Unchecked);
+        }
+        layout->addWidget(m_listWidget);
+        
+        QHBoxLayout* btnLayout = new QHBoxLayout();
+        QPushButton* okBtn = new QPushButton("OK", this);
+        QPushButton* cancelBtn = new QPushButton("Cancel", this);
+        connect(okBtn, &QPushButton::clicked, this, &QDialog::accept);
+        connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
+        btnLayout->addWidget(okBtn);
+        btnLayout->addWidget(cancelBtn);
+        layout->addLayout(btnLayout);
+        
+        setStyleSheet("QDialog { background-color: #1e1e2e; color: #cdd6f4; }"
+                      "QLabel { color: #cdd6f4; }"
+                      "QListWidget { background-color: #11111b; color: #cdd6f4; border: 1px solid #313244; padding: 4px; }"
+                      "QPushButton { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; padding: 6px 12px; border-radius: 4px; }"
+                      "QPushButton:hover { background-color: #89b4fa; color: #11111b; }");
+    }
+    
+    QStringList selectedIds() const {
+        QStringList res;
+        for (int i = 0; i < m_listWidget->count(); ++i) {
+            QListWidgetItem* item = m_listWidget->item(i);
+            if (item->checkState() == Qt::Checked) {
+                res.append(item->data(Qt::UserRole).toString());
             }
         }
         return res;
@@ -128,6 +180,21 @@ void FolderLayoutDialog::setupUI() {
     orderButtons->addWidget(m_btnMoveUp);
     orderButtons->addWidget(m_btnMoveDown);
     leftLayout->addLayout(orderButtons);
+
+    QHBoxLayout* backupRestoreButtons = new QHBoxLayout();
+    m_btnBackup = new QPushButton("Backup", this);
+    m_btnBackup->setStyleSheet("QPushButton { background-color: #313244; color: #89b4fa; border: 1px solid #45475a; }"
+                               "QPushButton:hover { background-color: #89b4fa; color: #11111b; }");
+    connect(m_btnBackup, &QPushButton::clicked, this, &FolderLayoutDialog::onBackupProfiles);
+
+    m_btnRestore = new QPushButton("Restore", this);
+    m_btnRestore->setStyleSheet("QPushButton { background-color: #313244; color: #f9e2af; border: 1px solid #45475a; }"
+                                "QPushButton:hover { background-color: #f9e2af; color: #11111b; }");
+    connect(m_btnRestore, &QPushButton::clicked, this, &FolderLayoutDialog::onRestoreProfiles);
+
+    backupRestoreButtons->addWidget(m_btnBackup);
+    backupRestoreButtons->addWidget(m_btnRestore);
+    leftLayout->addLayout(backupRestoreButtons);
 
     mainLayout->addLayout(leftLayout);
 
@@ -260,6 +327,34 @@ void FolderLayoutDialog::setupUI() {
     visGrid->addWidget(m_stateZen, 6, 2);
     connect(m_overrideZen, &QCheckBox::toggled, m_stateZen, &QCheckBox::setEnabled);
 
+    // Built-in Fullscreen Playback
+    m_overrideBuiltinPlayerDoubleclick = new QCheckBox(this);
+    m_stateBuiltinPlayerDoubleclick = new QCheckBox("Double-click plays media in built-in player", this);
+    visGrid->addWidget(new QLabel("Built-in Fullscreen", this), 7, 0);
+    visGrid->addWidget(m_overrideBuiltinPlayerDoubleclick, 7, 1);
+    visGrid->addWidget(m_stateBuiltinPlayerDoubleclick, 7, 2);
+    connect(m_overrideBuiltinPlayerDoubleclick, &QCheckBox::toggled, m_stateBuiltinPlayerDoubleclick, &QCheckBox::setEnabled);
+
+    // Custom Toolbars Override
+    m_overrideToolbars = new QCheckBox(this);
+    m_btnSelectToolbars = new QPushButton("Select Active Toolbars...", this);
+    m_btnSelectToolbars->setEnabled(false);
+    connect(m_btnSelectToolbars, &QPushButton::clicked, this, &FolderLayoutDialog::onSelectToolbars);
+    connect(m_overrideToolbars, &QCheckBox::toggled, m_btnSelectToolbars, &QPushButton::setEnabled);
+    visGrid->addWidget(new QLabel("Custom Toolbars", this), 8, 0);
+    visGrid->addWidget(m_overrideToolbars, 8, 1);
+    visGrid->addWidget(m_btnSelectToolbars, 8, 2);
+
+    // Custom Menus Override
+    m_overrideMenus = new QCheckBox(this);
+    m_btnSelectMenus = new QPushButton("Select Custom Menus...", this);
+    m_btnSelectMenus->setEnabled(false);
+    connect(m_btnSelectMenus, &QPushButton::clicked, this, &FolderLayoutDialog::onSelectMenus);
+    connect(m_overrideMenus, &QCheckBox::toggled, m_btnSelectMenus, &QPushButton::setEnabled);
+    visGrid->addWidget(new QLabel("Custom Menus", this), 9, 0);
+    visGrid->addWidget(m_overrideMenus, 9, 1);
+    visGrid->addWidget(m_btnSelectMenus, 9, 2);
+
     scrollLayout->addWidget(visGroup);
 
     // 4. Styling (Custom Background Color)
@@ -385,6 +480,21 @@ void FolderLayoutDialog::populateFields(const FolderLayoutRule& r) {
     m_stateZen->setChecked(r.zenModeActive);
     m_stateZen->setEnabled(r.overrideZenMode);
 
+    m_overrideBuiltinPlayerDoubleclick->setChecked(r.overrideBuiltinPlayerDoubleclick);
+    m_stateBuiltinPlayerDoubleclick->setChecked(r.builtinPlayerDoubleclick);
+    m_stateBuiltinPlayerDoubleclick->setEnabled(r.overrideBuiltinPlayerDoubleclick);
+
+    // Toolbar & Menu Overrides
+    m_overrideToolbars->setChecked(r.overrideToolbars);
+    m_btnSelectToolbars->setEnabled(r.overrideToolbars);
+    m_selectedToolbars = r.selectedToolbars;
+    m_btnSelectToolbars->setText(r.selectedToolbars.isEmpty() ? "Select Toolbars..." : QString("%1 Selected").arg(r.selectedToolbars.size()));
+
+    m_overrideMenus->setChecked(r.overrideMenus);
+    m_btnSelectMenus->setEnabled(r.overrideMenus);
+    m_selectedMenus = r.selectedMenus;
+    m_btnSelectMenus->setText(r.selectedMenus.isEmpty() ? "Select Custom Menus..." : QString("%1 Selected").arg(r.selectedMenus.size()));
+
     // Appearance styling
     m_useBgColor->setChecked(r.useBgColor);
     m_selectedBgColor = r.bgColor;
@@ -400,6 +510,7 @@ void FolderLayoutDialog::populateFields(const FolderLayoutRule& r) {
     // Tabs Snapshot
     m_hasTabsSnapshot->setChecked(r.hasTabsSnapshot);
     updateTabsLabel(r);
+    m_capturedWindowState = r.windowState;
 }
 
 void FolderLayoutDialog::harvestCurrentProfile(int index) {
@@ -433,10 +544,20 @@ void FolderLayoutDialog::harvestCurrentProfile(int index) {
     r.overrideZenMode = m_overrideZen->isChecked();
     r.zenModeActive = m_stateZen->isChecked();
 
+    r.overrideBuiltinPlayerDoubleclick = m_overrideBuiltinPlayerDoubleclick->isChecked();
+    r.builtinPlayerDoubleclick = m_stateBuiltinPlayerDoubleclick->isChecked();
+
+    r.overrideToolbars = m_overrideToolbars->isChecked();
+    r.selectedToolbars = m_selectedToolbars;
+
+    r.overrideMenus = m_overrideMenus->isChecked();
+    r.selectedMenus = m_selectedMenus;
+
     r.useBgColor = m_useBgColor->isChecked();
     r.bgColor = m_selectedBgColor;
 
     r.hasTabsSnapshot = m_hasTabsSnapshot->isChecked();
+    r.windowState = m_capturedWindowState;
 
     // Update list widget item text dynamically
     QListWidgetItem* item = m_listWidget->item(index);
@@ -541,6 +662,60 @@ void FolderLayoutDialog::onChooseButtons() {
     }
 }
 
+void FolderLayoutDialog::onSelectToolbars() {
+    QSettings settings("Amifiles", "Amifiles");
+    QString jsonStr = settings.value("custom_toolbars_v1").toString();
+    QList<QPair<QString, QString>> items;
+    if (!jsonStr.isEmpty()) {
+        QJsonDocument doc = QJsonDocument::fromJson(jsonStr.toUtf8());
+        QJsonArray arr = doc.array();
+        for (int i = 0; i < arr.size(); ++i) {
+            QJsonObject tbObj = arr[i].toObject();
+            QString name = tbObj["name"].toString();
+            QString id = tbObj["id"].toString();
+            items.append({name, id});
+        }
+    } else {
+        items = {
+            {"File Operations", "tb_file_ops"},
+            {"View Options", "tb_view_ops"},
+            {"Drives", "tb_drives"},
+            {"Custom Commands", "customToolBar"}
+        };
+    }
+
+    MultiSelectDialog dlg("Select Active Toolbars", "Select which toolbars should be visible under this profile:", items, m_selectedToolbars, this);
+    if (dlg.exec() == QDialog::Accepted) {
+        m_selectedToolbars = dlg.selectedIds();
+        m_btnSelectToolbars->setText(m_selectedToolbars.isEmpty() ? "Select Toolbars..." : QString("%1 Selected").arg(m_selectedToolbars.size()));
+    }
+}
+
+void FolderLayoutDialog::onSelectMenus() {
+    QSettings settings("Amifiles", "Amifiles");
+    QString jsonStr = settings.value("custom_menus_v2").toString();
+    QList<QPair<QString, QString>> items;
+    if (!jsonStr.isEmpty()) {
+        QJsonDocument doc = QJsonDocument::fromJson(jsonStr.toUtf8());
+        QJsonArray arr = doc.array();
+        for (int i = 0; i < arr.size(); ++i) {
+            QJsonObject mObj = arr[i].toObject();
+            QString title = mObj["title"].toString();
+            items.append({title, title});
+        }
+    } else {
+        items = {
+            {"Custom commands", "Custom commands"}
+        };
+    }
+
+    MultiSelectDialog dlg("Select Active Custom Menus", "Select which custom menus should be visible in the menu bar under this profile:", items, m_selectedMenus, this);
+    if (dlg.exec() == QDialog::Accepted) {
+        m_selectedMenus = dlg.selectedIds();
+        m_btnSelectMenus->setText(m_selectedMenus.isEmpty() ? "Select Custom Menus..." : QString("%1 Selected").arg(m_selectedMenus.size()));
+    }
+}
+
 void FolderLayoutDialog::onSelectBgColor() {
     QColor initialCol = m_selectedBgColor.isEmpty() ? QColor("#1e1e2e") : QColor(m_selectedBgColor);
     QColor col = QColorDialog::getColor(initialCol, this, "Select Folder Panel Background Color");
@@ -573,22 +748,27 @@ void FolderLayoutDialog::onCaptureUI() {
 
     // 3. Visibilities
     m_overrideDrives->setChecked(true);
-    m_stateDrives->setChecked(mw->m_tbDrives && mw->m_tbDrives->isVisible());
+    m_stateDrives->setChecked(mw->m_actToggleDrivesToolbar && mw->m_actToggleDrivesToolbar->isChecked());
 
     m_overrideCenterOps->setChecked(true);
-    m_stateCenterOps->setChecked(mw->m_tbCenterOps && mw->m_tbCenterOps->isVisible());
+    m_stateCenterOps->setChecked(mw->m_actToggleCenterOps && mw->m_actToggleCenterOps->isChecked());
 
     m_overrideConsole->setChecked(true);
-    m_stateConsole->setChecked(mw->m_bottomTabWidget && mw->m_bottomTabWidget->isVisible());
+    m_stateConsole->setChecked(mw->m_actToggleConsole && mw->m_actToggleConsole->isChecked());
 
     m_overridePreview->setChecked(true);
-    m_statePreview->setChecked(mw->m_previewDock && mw->m_previewDock->isVisible());
+    m_statePreview->setChecked(mw->m_actTogglePreview && mw->m_actTogglePreview->isChecked());
 
     m_overrideFavorites->setChecked(true);
-    m_stateFavorites->setChecked(mw->m_sidebarTabWidget && mw->m_sidebarTabWidget->isVisible());
+    m_stateFavorites->setChecked(mw->m_actToggleFavoritesSidebar && mw->m_actToggleFavoritesSidebar->isChecked());
 
     m_overrideZen->setChecked(true);
     m_stateZen->setChecked(mw->m_zenMode);
+
+    m_overrideBuiltinPlayerDoubleclick->setChecked(true);
+    m_stateBuiltinPlayerDoubleclick->setChecked(mw->isBuiltinPlayerDoubleclickActive());
+
+    m_capturedWindowState = mw->saveState();
 }
 
 void FolderLayoutDialog::onApplyNow() {
@@ -664,10 +844,10 @@ void FolderLayoutDialog::onSave() {
         harvestCurrentProfile(m_currentIndex);
     }
     
-    // Validate rules condition path/values are configured
+    // Validate rules condition path/values are configured (excluding "Default")
     for (int i = 0; i < m_rules.size(); ++i) {
         const auto& r = m_rules[i];
-        if (r.autoApply && r.value.isEmpty()) {
+        if (r.autoApply && r.value.isEmpty() && r.name.toLower() != "default") {
             QMessageBox::warning(this, "Validation Failed", 
                                  QString("Profile '%1' is set to auto-apply but has an empty match value. Please fill or disable auto-apply.").arg(r.name));
             m_listWidget->setCurrentRow(i);
@@ -676,4 +856,82 @@ void FolderLayoutDialog::onSave() {
     }
 
     accept();
+}
+
+#include <QFile>
+
+void FolderLayoutDialog::onBackupProfiles() {
+    if (m_currentIndex >= 0 && m_currentIndex < m_rules.size()) {
+        harvestCurrentProfile(m_currentIndex);
+    }
+    if (m_rules.isEmpty()) {
+        QMessageBox::information(this, "Backup Profiles", "No profiles to backup!");
+        return;
+    }
+    QString fileName = QFileDialog::getSaveFileName(this, "Backup Folder Profiles", QDir::homePath(), "JSON Files (*.json)");
+    if (fileName.isEmpty()) return;
+
+    QJsonArray arr;
+    for (const auto& r : m_rules) {
+        arr.append(MainWindow::ruleToJson(r));
+    }
+    QJsonDocument doc(arr);
+
+    QFile file(fileName);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QMessageBox::critical(this, "Backup Failed", "Cannot open file for writing: " + file.errorString());
+        return;
+    }
+    file.write(doc.toJson(QJsonDocument::Indented));
+    file.close();
+    QMessageBox::information(this, "Backup Successful", "All folder profiles backed up successfully to:\n" + fileName);
+}
+
+void FolderLayoutDialog::onRestoreProfiles() {
+    QString fileName = QFileDialog::getOpenFileName(this, "Restore Folder Profiles", QDir::homePath(), "JSON Files (*.json)");
+    if (fileName.isEmpty()) return;
+
+    QFile file(fileName);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QMessageBox::critical(this, "Restore Failed", "Cannot open file for reading: " + file.errorString());
+        return;
+    }
+    QByteArray data = file.readAll();
+    file.close();
+
+    QJsonDocument doc = QJsonDocument::fromJson(data);
+    if (doc.isNull() || !doc.isArray()) {
+        QMessageBox::critical(this, "Restore Failed", "Invalid JSON format in the backup file.");
+        return;
+    }
+
+    QMessageBox::StandardButton reply = QMessageBox::question(
+        this, "Confirm Restore", 
+        "Restoring profiles will merge them with your current profiles. Would you like to proceed?",
+        QMessageBox::Yes | QMessageBox::No
+    );
+    if (reply == QMessageBox::No) return;
+
+    if (m_currentIndex >= 0 && m_currentIndex < m_rules.size()) {
+        harvestCurrentProfile(m_currentIndex);
+    }
+
+    QJsonArray arr = doc.array();
+    for (int i = 0; i < arr.size(); ++i) {
+        FolderLayoutRule restoredRule = MainWindow::jsonToRule(arr[i].toObject());
+        // Avoid adding duplicate names by removing existing rule if it has the same name
+        for (int j = 0; j < m_rules.size(); ++j) {
+            if (m_rules[j].name.toLower() == restoredRule.name.toLower()) {
+                m_rules.removeAt(j);
+                break;
+            }
+        }
+        m_rules.append(restoredRule);
+    }
+
+    populateList();
+    if (m_rules.size() > 0) {
+        m_listWidget->setCurrentRow(0);
+    }
+    QMessageBox::information(this, "Restore Successful", "Folder profiles restored and merged successfully!");
 }

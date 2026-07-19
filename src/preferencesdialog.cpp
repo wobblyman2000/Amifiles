@@ -163,6 +163,10 @@ void PreferencesDialog::setupUI() {
     m_chkMutePreview->setToolTip("Mutes audio tracks when double-clicking files.");
     layMedia->addWidget(m_chkMutePreview);
 
+    m_chkBuiltinPlayerDoubleclick = new QCheckBox("Double-click plays media in built-in player", this);
+    m_chkBuiltinPlayerDoubleclick->setToolTip("Built-in player starts playback in borderless fullscreen window upon double-clicks.");
+    layMedia->addWidget(m_chkBuiltinPlayerDoubleclick);
+
     layMedia->addStretch(1);
     m_stackPages->addWidget(pageMedia);
 
@@ -260,6 +264,7 @@ void PreferencesDialog::loadPreferences() {
     m_chkAudioCoverArt->setChecked(settings.value("preview/show_audio_cover_art", true).toBool());
     m_chkSpectrumVisualizer->setChecked(settings.value("preview/show_spectrum_visualizer", true).toBool());
     m_chkMutePreview->setChecked(settings.value("preview/muted", false).toBool());
+    m_chkBuiltinPlayerDoubleclick->setChecked(settings.value("preferences/builtin_player_doubleclick", false).toBool());
 
     m_editTmdbApiKey->setText(settings.value("services/tmdb_api_key", "").toString());
 }
@@ -281,6 +286,7 @@ void PreferencesDialog::savePreferences() {
     settings.setValue("preview/show_audio_cover_art", m_chkAudioCoverArt->isChecked());
     settings.setValue("preview/show_spectrum_visualizer", m_chkSpectrumVisualizer->isChecked());
     settings.setValue("preview/muted", m_chkMutePreview->isChecked());
+    settings.setValue("preferences/builtin_player_doubleclick", m_chkBuiltinPlayerDoubleclick->isChecked());
 
     settings.setValue("services/tmdb_api_key", m_editTmdbApiKey->text().trimmed());
 

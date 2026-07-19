@@ -71,10 +71,6 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
         "QSlider::handle:horizontal { background: #cdd6f4; width: 14px; margin-top: -4px; margin-bottom: -4px; border-radius: 7px; }"
     );
 
-    QHBoxLayout* hudLayout = new QHBoxLayout(m_hudWidget);
-    hudLayout->setContentsMargins(15, 10, 15, 10);
-    hudLayout->setSpacing(10);
-
     QStyle* style = QApplication::style();
 
     // HUD buttons
@@ -114,7 +110,7 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
     m_sliderVolume = new QSlider(Qt::Horizontal, m_hudWidget);
     m_sliderVolume->setRange(0, 100);
     m_sliderVolume->setValue(70);
-    m_sliderVolume->setMaximumWidth(80);
+    m_sliderVolume->setFixedWidth(120);
     m_sliderVolume->setFocusPolicy(Qt::NoFocus);
     connect(m_sliderVolume, &QSlider::valueChanged, this, &FullscreenWidget::onHudVolumeChanged);
 
@@ -146,21 +142,61 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
     btnExit->setFocusPolicy(Qt::NoFocus);
     connect(btnExit, &QPushButton::clicked, this, &FullscreenWidget::exitRequested);
 
-    hudLayout->addWidget(btnPrev);
-    hudLayout->addWidget(m_btnPlayPause);
-    hudLayout->addWidget(btnStop);
-    hudLayout->addWidget(btnNext);
-    hudLayout->addWidget(m_btnShuffle);
-    hudLayout->addWidget(m_btnRepeat);
-    hudLayout->addWidget(m_btnSubtitles);
-    hudLayout->addWidget(m_sliderProgress, 1);
-    hudLayout->addWidget(m_lblTime);
-    hudLayout->addWidget(lblVol);
-    hudLayout->addWidget(m_sliderVolume);
-    hudLayout->addWidget(btnExit);
+    // Build two-row layout
+    QVBoxLayout* hudMainLayout = new QVBoxLayout(m_hudWidget);
+    hudMainLayout->setContentsMargins(15, 12, 15, 12);
+    hudMainLayout->setSpacing(8);
+
+    QHBoxLayout* row1Layout = new QHBoxLayout();
+    row1Layout->setContentsMargins(0, 0, 0, 0);
+    row1Layout->setSpacing(10);
+    row1Layout->addWidget(m_sliderProgress, 1);
+    row1Layout->addWidget(m_lblTime);
+    hudMainLayout->addLayout(row1Layout);
+
+    QHBoxLayout* row2Layout = new QHBoxLayout();
+    row2Layout->setContentsMargins(0, 0, 0, 0);
+    row2Layout->setSpacing(10);
+    row2Layout->addWidget(btnPrev);
+    row2Layout->addWidget(m_btnPlayPause);
+    row2Layout->addWidget(btnStop);
+    row2Layout->addWidget(btnNext);
+    row2Layout->addWidget(m_btnShuffle);
+    row2Layout->addWidget(m_btnRepeat);
+    row2Layout->addWidget(m_btnSubtitles);
+    
+    row2Layout->addStretch(1);
+
+    // Built-in doubleclick auto fullscreen control on the HUD itself
+    QPushButton* btnToggleAutoFS = new QPushButton(m_hudWidget);
+    btnToggleAutoFS->setCheckable(true);
+    btnToggleAutoFS->setFocusPolicy(Qt::NoFocus);
+    connect(btnToggleAutoFS, &QPushButton::clicked, this, [this, btnToggleAutoFS]() {
+        QSettings settings("Amifiles", "Amifiles");
+        bool val = settings.value("preferences/builtin_player_doubleclick", false).toBool();
+        settings.setValue("preferences/builtin_player_doubleclick", !val);
+        btnToggleAutoFS->setChecked(!val);
+        btnToggleAutoFS->setText(!val ? "📺 Auto-FS: ON" : "📺 Auto-FS: OFF");
+        btnToggleAutoFS->setStyleSheet(!val ? "QPushButton { color: #a6e3a1; font-weight: bold; border: 1px solid #a6e3a1; border-radius: 4px; padding: 2px 6px; }"
+                                            : "QPushButton { color: #f38ba8; font-weight: bold; border: 1px solid #f38ba8; border-radius: 4px; padding: 2px 6px; }");
+    });
+    QSettings settings("Amifiles", "Amifiles");
+    bool autoFS = settings.value("preferences/builtin_player_doubleclick", false).toBool();
+    btnToggleAutoFS->setChecked(autoFS);
+    btnToggleAutoFS->setText(autoFS ? "📺 Auto-FS: ON" : "📺 Auto-FS: OFF");
+    btnToggleAutoFS->setStyleSheet(autoFS ? "QPushButton { color: #a6e3a1; font-weight: bold; border: 1px solid #a6e3a1; border-radius: 4px; padding: 2px 6px; }"
+                                          : "QPushButton { color: #f38ba8; font-weight: bold; border: 1px solid #f38ba8; border-radius: 4px; padding: 2px 6px; }");
+    row2Layout->addWidget(btnToggleAutoFS);
+
+    row2Layout->addSpacing(10);
+    row2Layout->addWidget(lblVol);
+    row2Layout->addWidget(m_sliderVolume);
+    row2Layout->addSpacing(10);
+    row2Layout->addWidget(btnExit);
+    hudMainLayout->addLayout(row2Layout);
 
     // Position HUD at the bottom center of the screen
-    m_hudWidget->resize(800, 50);
+    m_hudWidget->resize(900, 90);
 
     // Auto-hide Timer (3 seconds)
     m_hideTimer = new QTimer(this);
@@ -874,8 +910,7 @@ void PreviewPanel::previewFile(const QString& filePath, const QStringList& sibli
     }
 
     if (m_fullscreenWidget) {
-        exitFullscreen();
-        toggleFullscreen();
+        updateFullscreenTrack();
     }
 }
 
@@ -1820,6 +1855,109 @@ void PreviewPanel::exitFullscreen() {
     m_fullscreenVideoWidget = nullptr;
     m_fullscreenAudioLabel = nullptr;
     m_fullscreenTextLabel = nullptr;
+}
+
+void PreviewPanel::updateFullscreenTrack() {
+    if (!m_fullscreenWidget) return;
+
+    QString activePath = !m_currentAudioPath.isEmpty() ? m_currentAudioPath : m_previewedFilePath;
+    if (activePath.isEmpty()) return;
+
+    bool isVideo = m_videoWidget->isVisible();
+
+    if (isVideo) {
+        if (m_fullscreenAudioLabel) {
+            delete m_fullscreenAudioLabel;
+            m_fullscreenAudioLabel = nullptr;
+        }
+        if (m_fullscreenTextLabel) {
+            delete m_fullscreenTextLabel;
+            m_fullscreenTextLabel = nullptr;
+        }
+        if (!m_fullscreenVideoWidget) {
+            m_fullscreenVideoWidget = new QVideoWidget(m_fullscreenWidget);
+            m_fullscreenVideoWidget->setStyleSheet("background-color: #000000;");
+            QVBoxLayout* layout = qobject_cast<QVBoxLayout*>(m_fullscreenWidget->layout());
+            if (layout) {
+                layout->insertWidget(0, m_fullscreenVideoWidget);
+            }
+            m_fullscreenVideoWidget->setMouseTracking(true);
+            m_fullscreenVideoWidget->installEventFilter(m_fullscreenWidget);
+        }
+        m_player->setVideoOutput(m_fullscreenVideoWidget);
+    } else {
+        if (m_fullscreenVideoWidget) {
+            m_player->setVideoOutput(m_videoWidget);
+            delete m_fullscreenVideoWidget;
+            m_fullscreenVideoWidget = nullptr;
+        }
+        
+        QVBoxLayout* layout = qobject_cast<QVBoxLayout*>(m_fullscreenWidget->layout());
+        
+        if (!m_fullscreenAudioLabel) {
+            m_fullscreenAudioLabel = new QLabel(m_fullscreenWidget);
+            m_fullscreenAudioLabel->setAlignment(Qt::AlignCenter);
+            m_fullscreenAudioLabel->setMouseTracking(true);
+            m_fullscreenAudioLabel->installEventFilter(m_fullscreenWidget);
+            if (layout) layout->insertWidget(0, m_fullscreenAudioLabel);
+        }
+        if (!m_fullscreenTextLabel) {
+            m_fullscreenTextLabel = new QLabel(m_fullscreenWidget);
+            m_fullscreenTextLabel->setAlignment(Qt::AlignCenter);
+            m_fullscreenTextLabel->setStyleSheet("color: #cdd6f4; font-size: 24px; font-weight: bold; padding: 20px;");
+            m_fullscreenTextLabel->setMouseTracking(true);
+            m_fullscreenTextLabel->installEventFilter(m_fullscreenWidget);
+            if (layout) layout->insertWidget(1, m_fullscreenTextLabel);
+        }
+
+        QPixmap cover;
+        QProcess proc;
+        proc.start("exiftool", {"-Picture", "-b", activePath});
+        if (proc.waitForFinished(5000)) {
+            QByteArray imgData = proc.readAllStandardOutput();
+            if (!imgData.isEmpty()) {
+                cover.loadFromData(imgData);
+            }
+        }
+        
+        if (cover.isNull()) {
+            QDir dir(QFileInfo(activePath).absolutePath());
+            QStringList coverNames = {"folder.jpg", "folder.png", "cover.jpg", "cover.png", "album.jpg", "album.png"};
+            for (const QString& name : coverNames) {
+                QString path = dir.filePath(name);
+                if (QFile::exists(path)) {
+                    cover.load(path);
+                    break;
+                }
+            }
+        }
+
+        if (cover.isNull()) {
+            cover = QPixmap(512, 512);
+            cover.fill(QColor("#11111b"));
+            QPainter painter(&cover);
+            painter.setRenderHint(QPainter::Antialiasing);
+            painter.setBrush(QBrush(QColor("#313244")));
+            painter.setPen(Qt::NoPen);
+            painter.drawRoundedRect(16, 16, 480, 480, 64, 64);
+            painter.setPen(QPen(QColor("#cdd6f4"), 4));
+            QFont font("Outfit", 90, QFont::Bold);
+            painter.setFont(font);
+            painter.drawText(QRect(16, 16, 480, 480), Qt::AlignCenter, "🎵");
+        }
+
+        int screenH = QGuiApplication::primaryScreen()->geometry().height();
+        int size = qMin(600, screenH - 250);
+        m_fullscreenAudioLabel->setPixmap(cover.scaled(size, size, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+
+        FileMetadata meta = MetadataExtractor::extract(activePath);
+        QString displayTitle = !meta.title.isEmpty() ? meta.title : QFileInfo(activePath).completeBaseName();
+        QString displayArtist = !meta.artist.isEmpty() ? meta.artist : "Unknown Artist";
+        m_fullscreenTextLabel->setText(QString("%1\n%2").arg(displayTitle).arg(displayArtist));
+    }
+
+    m_fullscreenWidget->setMediaState(isVideo, m_player, m_audioOutput);
+    m_fullscreenWidget->updateProgress(m_player->position(), m_player->duration());
 }
 
 #include <QRandomGenerator>

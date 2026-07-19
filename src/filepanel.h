@@ -432,6 +432,7 @@ public:
 
     QString currentPath() const;
     void setCustomBgColor(const QString& hexColor);
+    QString customBgColor() const { return m_customBgColor; }
     void setPath(const QString& path);
     void focusActiveView();
     class QScrollBar* activeVerticalScrollBar() const;
@@ -512,6 +513,9 @@ signals:
     void tabPressed();
     void viewModeChanged();
     void openNewTabRequested(const QString& path);
+    void saveDefaultProfileRequested();
+    void loadDefaultProfileRequested();
+    void saveFolderProfileRequested();
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;

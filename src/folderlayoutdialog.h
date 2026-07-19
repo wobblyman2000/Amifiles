@@ -27,11 +27,15 @@ private slots:
     void onBrowseFolder();
     void onUseActivePath();
     void onChooseButtons();
+    void onSelectToolbars();
+    void onSelectMenus();
     void onSelectBgColor();
     void onCaptureUI();
     void onApplyNow();
     void onCaptureTabs();
     void onClearTabs();
+    void onBackupProfiles();
+    void onRestoreProfiles();
     void onSave();
 
 private:
@@ -47,6 +51,8 @@ private:
     QPushButton* m_btnDelete = nullptr;
     QPushButton* m_btnMoveUp = nullptr;
     QPushButton* m_btnMoveDown = nullptr;
+    QPushButton* m_btnBackup = nullptr;
+    QPushButton* m_btnRestore = nullptr;
 
     // Right Pane (Detail Editor)
     QWidget* m_editorWidget = nullptr;
@@ -72,6 +78,16 @@ private:
     QCheckBox* m_stateFavorites = nullptr;
     QCheckBox* m_overrideZen = nullptr;
     QCheckBox* m_stateZen = nullptr;
+    QCheckBox* m_overrideBuiltinPlayerDoubleclick = nullptr;
+    QCheckBox* m_stateBuiltinPlayerDoubleclick = nullptr;
+
+    // Toolbar & Menu overrides
+    QCheckBox* m_overrideToolbars = nullptr;
+    QPushButton* m_btnSelectToolbars = nullptr;
+    QStringList m_selectedToolbars;
+    QCheckBox* m_overrideMenus = nullptr;
+    QPushButton* m_btnSelectMenus = nullptr;
+    QStringList m_selectedMenus;
 
     // Appearance Color Styling
     QCheckBox* m_useBgColor = nullptr;
@@ -91,5 +107,6 @@ private:
     // Data lists
     QList<FolderLayoutRule> m_rules;
     QList<CustomButton> m_availableButtons;
+    QByteArray m_capturedWindowState;
     int m_currentIndex = -1;
 };

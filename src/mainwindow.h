@@ -111,6 +111,14 @@ struct FolderLayoutRule {
     bool favoritesSidebarVisible = false;
     bool overrideZenMode = false;
     bool zenModeActive = false;
+    bool overrideBuiltinPlayerDoubleclick = false;
+    bool builtinPlayerDoubleclick = false;
+
+    // Toolbar & Menu Overrides
+    bool overrideToolbars = false;
+    QStringList selectedToolbars;
+    bool overrideMenus = false;
+    QStringList selectedMenus;
 
     // Appearance
     bool useBgColor = false;
@@ -122,6 +130,7 @@ struct FolderLayoutRule {
     int leftActiveIndex = 0;
     QStringList rightPaths;
     int rightActiveIndex = 0;
+    QByteArray windowState;
 };
 
 class MiniMediaControls;
@@ -134,10 +143,14 @@ class MainWindow : public QMainWindow {
     friend class FolderLayoutDialog;
 public:
     explicit MainWindow(QWidget* parent = nullptr);
+    Q_INVOKABLE bool isBuiltinPlayerDoubleclickActive() const;
+    static QJsonObject ruleToJson(const FolderLayoutRule& r);
+    static FolderLayoutRule jsonToRule(const QJsonObject& obj);
     ~MainWindow() override;
 
 protected:
     void closeEvent(class QCloseEvent* event) override;
+    QMenu* createPopupMenu() override;
 
 private slots:
     // Event Routing Slots
@@ -247,6 +260,9 @@ private slots:
     void onBackupSettings();
     void onRestoreSettings();
     void onConfigureFolderLayouts();
+    void onSaveFolderProfileForCurrentDir();
+    void onSaveDefaultProfile();
+    void onLoadDefaultProfile();
     void onConfigureBackupSchedule();
     void onConfigureAutoTags();
     void onConfigureAutoOrganizer();
@@ -359,6 +375,9 @@ private:
     QAction* m_actBackupSettings = nullptr;
     QAction* m_actRestoreSettings = nullptr;
     QAction* m_actConfigureFolderLayouts = nullptr;
+    QAction* m_actSaveFolderProfileForCurrentDir = nullptr;
+    QAction* m_actSaveDefaultProfile = nullptr;
+    QAction* m_actLoadDefaultProfile = nullptr;
     QAction* m_actConfigureBackupSchedule = nullptr;
     QAction* m_actCreateSmartCollection = nullptr;
     QAction* m_actCopyToSibling = nullptr;
@@ -368,6 +387,10 @@ private:
     QAction* m_actToggleSyncScroll = nullptr;
     bool m_syncScrollEnabled = false;
     bool m_zenMode = false;
+    FolderLayoutRule m_activeFolderRule;
+    bool m_hasActiveFolderRule = false;
+    bool m_isInitializing = false;
+    bool isToolbarDefaultVisible(const QString& toolbarId);
     QScrollBar* m_leftScrollConnected = nullptr;
     QScrollBar* m_rightScrollConnected = nullptr;
     QAction* m_actLeftShowFilterText = nullptr;

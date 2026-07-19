@@ -141,6 +141,7 @@ public:
 public slots:
     void toggleFullscreen();
     void exitFullscreen();
+    void updateFullscreenTrack();
 
 signals:
     void tagsChanged(const QString& filePath);

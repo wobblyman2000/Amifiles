@@ -52,6 +52,7 @@ private:
     QCheckBox* m_chkAudioCoverArt = nullptr;
     QCheckBox* m_chkSpectrumVisualizer = nullptr;
     QCheckBox* m_chkMutePreview = nullptr;
+    QCheckBox* m_chkBuiltinPlayerDoubleclick = nullptr;
 
     // Services & API keys
     QLineEdit* m_editTmdbApiKey = nullptr;
