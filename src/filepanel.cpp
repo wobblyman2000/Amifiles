@@ -33,6 +33,7 @@
 #include <QStyle>
 #include <QApplication>
 #include <QDir>
+#include <QSet>
 
 static void scanMediaFilesRecursively(const QString& folderPath, QStringList& playlistPaths, int depth = 0);
 static bool hasAudioFilesRecursively(const QString& folderPath, int depth = 0);
@@ -1187,7 +1188,15 @@ QStringList FilePanel::selectedPaths() const {
         selModel = m_treeView->selectionModel();
     }
     if (!selModel) return paths;
-    QModelIndexList selectedRows = selModel->selectedRows();
+    QModelIndexList selectedIndexes = selModel->selectedIndexes();
+    QModelIndexList selectedRows;
+    QSet<int> rowsSeen;
+    for (const QModelIndex& idx : selectedIndexes) {
+        if (idx.column() == 0 && !rowsSeen.contains(idx.row())) {
+            rowsSeen.insert(idx.row());
+            selectedRows.append(idx);
+        }
+    }
     for (const QModelIndex& index : selectedRows) {
         QModelIndex mappedIndex = index;
         if (m_groupProxy->isGroupingActive()) {
