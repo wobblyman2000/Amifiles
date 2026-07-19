@@ -4,6 +4,8 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QLineEdit>
+#include <QDesktopServices>
+#include <QUrl>
 
 HelpDialog::HelpDialog(QWidget* parent) : QDialog(parent) {
     setWindowTitle("Amifiles User Manual & Guide");
@@ -43,7 +45,10 @@ void HelpDialog::setupUI() {
         "5. Media Preview & Covers",
         "6. Custom Script Buttons",
         "7. Disk Utilities",
-        "8. Keyboard Shortcuts"
+        "8. Keyboard Shortcuts",
+        "9. Settings & Preferences",
+        "10. Automation & Rules",
+        "11. Remote Connections"
     });
     contentLayout->addWidget(m_sidebar);
 
@@ -69,8 +74,18 @@ void HelpDialog::setupUI() {
     browserLayout->addLayout(searchLayout);
 
     m_browser = new QTextBrowser(this);
-    m_browser->setOpenExternalLinks(true);
+    m_browser->setOpenLinks(false);
     m_browser->setSearchPaths({":"});
+    connect(m_browser, &QTextBrowser::anchorClicked, this, [this](const QUrl& url) {
+        if (url.scheme() == "section") {
+            int index = url.path().toInt();
+            if (index >= 0 && index < m_sidebar->count()) {
+                m_sidebar->setCurrentRow(index);
+            }
+        } else if (url.scheme() == "http" || url.scheme() == "https") {
+            QDesktopServices::openUrl(url);
+        }
+    });
     browserLayout->addWidget(m_browser, 1);
     
     contentLayout->addLayout(browserLayout, 1);
@@ -144,14 +159,17 @@ void HelpDialog::onSectionChanged(int index) {
                     "<h3>User Guide Index &amp; Sitemap</h3>"
                     "<table>"
                     "<tr><th>Section</th><th>Key Topics Covered</th></tr>"
-                    "<tr><td><b>1. Welcome &amp; Overview</b></td><td>System architecture, sitemap, third-party dependencies (VICE, amitools, poppler, rclone), and SVG graphics integration.</td></tr>"
-                    "<tr><td><b>2. Layout &amp; Tabs</b></td><td>Tab management, horizontal/vertical split orientation, view styles (details, cards, miller, timeline), and flat recursion mode.</td></tr>"
-                    "<tr><td><b>3. File Transfer Queue</b></td><td>Pausable background file copy/move threads, transfer queues, and collision resolution sheets.</td></tr>"
-                    "<tr><td><b>4. Advanced Search</b></td><td>Regex search filters, file size/date thresholds, tags matching, and search history presets.</td></tr>"
-                    "<tr><td><b>5. Media Preview &amp; Covers</b></td><td>CD/DVD glassmorphic casing overlays, audio cover art extraction, real-time spectrum visualizer, hex editor, and PDF viewer.</td></tr>"
-                    "<tr><td><b>6. Custom Script Buttons</b></td><td>Interactive macros, custom commands, terminal variables ($f, $d, $p), and execution shell logs.</td></tr>"
-                    "<tr><td><b>7. Disk Utilities</b></td><td>Secure file shredding, checksum hash calculators, ADF/D64 disk modification tools, and FTP/SFTP/Cloud mounts.</td></tr>"
-                    "<tr><td><b>8. Keyboard Shortcuts</b></td><td>Dynamic keybindings mapper and default system-wide hotkeys (F1-F6, Ctrl+D, Ctrl+P, Ctrl+F).</td></tr>"
+                    "<tr><td><b><a href=\"section:0\">1. Welcome &amp; Overview</a></b></td><td>System architecture, sitemap, third-party dependencies (VICE, amitools, poppler, rclone), and SVG graphics integration.</td></tr>"
+                    "<tr><td><b><a href=\"section:1\">2. Layout &amp; Tabs</a></b></td><td>Tab management, horizontal/vertical split orientation, view styles (details, cards, miller, timeline), and flat recursion mode.</td></tr>"
+                    "<tr><td><b><a href=\"section:2\">3. File Transfer Queue</a></b></td><td>Pausable background file copy/move threads, transfer queues, and collision resolution sheets.</td></tr>"
+                    "<tr><td><b><a href=\"section:3\">4. Advanced Search</a></b></td><td>Regex search filters, file size/date thresholds, tags matching, and search history presets.</td></tr>"
+                    "<tr><td><b><a href=\"section:4\">5. Media Preview &amp; Covers</a></b></td><td>CD/DVD glassmorphic casing overlays, audio cover art extraction, real-time spectrum visualizer, hex editor, and PDF viewer.</td></tr>"
+                    "<tr><td><b><a href=\"section:5\">6. Custom Script Buttons</a></b></td><td>Interactive macros, custom commands, terminal variables ($f, $d, $p), and execution shell logs.</td></tr>"
+                    "<tr><td><b><a href=\"section:6\">7. Disk Utilities</a></b></td><td>Secure file shredding, checksum hash calculators, ADF/D64 disk modification tools, and FTP/SFTP/Cloud mounts.</td></tr>"
+                    "<tr><td><b><a href=\"section:7\">8. Keyboard Shortcuts</a></b></td><td>Dynamic keybindings mapper and default system-wide hotkeys (F1-F6, Ctrl+D, Ctrl+P, Ctrl+F).</td></tr>"
+                    "<tr><td><b><a href=\"section:8\">9. Settings &amp; Preferences</a></b></td><td>Centralized Settings menu hierarchy, general preferences, theme customization, hotkey mapping, and backup recovery.</td></tr>"
+                    "<tr><td><b><a href=\"section:9\">10. Automation &amp; Rules</a></b></td><td>Dynamic folder-specific layouts, auto-tagging, smart organizer filters, and cron-based synchronization.</td></tr>"
+                    "<tr><td><b><a href=\"section:10\">11. Remote Connections</a></b></td><td>Configuring cloud/remote VFS connections, mounting directories, and sync operations.</td></tr>"
                     "</table>"
                     "<h3>Interactive Graphic Diagrams (Image Support)</h3>"
                     "<p>Amifiles Help Center natively supports scalable vector graphic illustrations (SVG). These images are rendered directly on the manual pages to depict system components, directories hierarchy reconstruction pipelines, and space treemaps. You can see these drawings on several sections below!</p>"
@@ -580,6 +598,43 @@ void HelpDialog::onSectionChanged(int index) {
                     "<tr><td><b>Theme Studio</b></td><td><code>Ctrl+Shift+T</code></td><td>Open Catppuccin Theme Studio &amp; Customizer</td></tr>"
                     "<tr><td><b>Show Properties</b></td><td><code>Alt+Enter</code></td><td>Show properties for selected item</td></tr>"
                     "</table>";
+            break;
+
+        case 8: // Settings & Preferences
+            html += "<h2>9. Settings &amp; Preferences</h2>"
+                    "<p>All customization option panels are centralized inside the <b>Edit -&gt; Settings</b> menu, divided into logical workspaces:</p>"
+                    "<ul>"
+                    "<li><b>Preferences:</b> Configure general panel layouts, startup paths, default system text editor, and detailed tooltips options.</li>"
+                    "<li><b>Layouts &amp; Rules:</b> Load/save workspace window geometry arrangements, customize folder-specific rule triggers, or trigger layout resets.</li>"
+                    "<li><b>Themes &amp; Styling:</b> Launch Catppuccin Theme Studio or configure custom file age-coloring rules and emoji markers.</li>"
+                    "<li><b>Toolbars &amp; Hotkeys:</b> Rebuild menu layouts, customize toolbar button arrays, and map custom keyboard shortcuts.</li>"
+                    "<li><b>Automations &amp; Mounts:</b> Set up background folder organizers, automated tagging filters, or cloud remote VFS connections.</li>"
+                    "</ul>"
+                    "<h3>Configuration Import &amp; Export</h3>"
+                    "<p>Select <b>Edit -&gt; Settings -&gt; Save Settings to Backup File...</b> to export your complete configuration. "
+                    "Use <b>Load Settings from Backup File...</b> to load a <code>.conf</code> backup, which automatically exits the application to apply the settings cleanly on the next launch.</p>";
+            break;
+
+        case 9: // Automation & Rules
+            html += "<h2>10. Automation &amp; Rules</h2>"
+                    "<p>Amifiles includes advanced automation systems to keep your directories structured and visually organized:</p>"
+                    "<h3>Dynamic Folder-Specific Layouts</h3>"
+                    "<p>Define rule chains that automatically switch view modes (e.g. Details, Chronological Timeline, Card Grid) and show/hide toolbars when you enter specific directories. This is useful for automatically showing grids and CD cases inside music folders, and details tables inside documents directories.</p>"
+                    "<h3>Smart Auto-Organizer</h3>"
+                    "<p>Run automated background tasks that scan folders (like your Downloads directory) and route files into organized subfolders (e.g. <code>Documents/</code>, <code>Images/</code>, <code>Archives/</code>) based on wildcard patterns, file sizes, or mime-types.</p>"
+                    "<h3>Auto-Tagging Rules</h3>"
+                    "<p>Set up rules to automatically attach custom tags and highlight colors to files based on name matches, type categories, or date thresholds.</p>"
+                    "<h3>Scheduled Synchronization</h3>"
+                    "<p>Set up cron-based periodic background transfers (Sync Scheduler) to backup critical directories automatically at regular intervals.</p>";
+            break;
+
+        case 10: // Remote Connections
+            html += "<h2>11. Remote Connections &amp; Mounts</h2>"
+                    "<p>Amifiles integrates with the standard <code>rclone</code> subsystem to mount and manage remote filesystems directly inside the file panels:</p>"
+                    "<h3>FTP / SFTP Mounts</h3>"
+                    "<p>Select <b>Tools -&gt; FTP/SFTP Mount...</b> or configure connections inside the <b>Remote Mounts Manager</b>. Authenticated directories will mount as virtual VFS nodes, letting you copy and move files transparently to remote hosts.</p>"
+                    "<h3>Cloud Storage Integrations</h3>"
+                    "<p>Connect Google Drive, Dropbox, Amazon S3, WebDAV, or Samba folders. Once configured, cloud mounts appear under the dynamic <b>Drives</b> menu, and sync tasks can be automated via the Sync Scheduler.</p>";
             break;
     }
 

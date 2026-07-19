@@ -767,11 +767,11 @@ void MainWindow::setupActions() {
     m_actResetLayout->setToolTip("Restore all toolbars and panels to their factory positions");
     connect(m_actResetLayout, &QAction::triggered, this, &MainWindow::onResetLayout);
 
-    m_actBackupSettings = new QAction("Backup Settings...", this);
+    m_actBackupSettings = new QAction("Save Settings to Backup File...", this);
     m_actBackupSettings->setToolTip("Export all settings and layouts to a backup file");
     connect(m_actBackupSettings, &QAction::triggered, this, &MainWindow::onBackupSettings);
 
-    m_actRestoreSettings = new QAction("Restore Settings...", this);
+    m_actRestoreSettings = new QAction("Load Settings from Backup File...", this);
     m_actRestoreSettings->setToolTip("Import settings and layouts from a backup file");
     connect(m_actRestoreSettings, &QAction::triggered, this, &MainWindow::onRestoreSettings);
 
@@ -988,9 +988,6 @@ void MainWindow::setupMenus() {
     m_menuFile->addAction(m_actNewFolder);
     m_menuFile->addAction(m_actProperties);
     m_menuFile->addSeparator();
-    m_menuFile->addAction(m_actBackupSettings);
-    m_menuFile->addAction(m_actRestoreSettings);
-    m_menuFile->addSeparator();
     m_menuFile->addAction("Exit", this, &QWidget::close);
 
     m_menuEdit = menuBar()->addMenu("Edit");
@@ -1006,12 +1003,47 @@ void MainWindow::setupMenus() {
     m_menuEdit->addAction(m_actEdit);
     m_menuEdit->addAction(m_actBulkRename);
     m_menuEdit->addSeparator();
-    m_menuEdit->addAction(m_actKeybindings);
-    m_menuEdit->addSeparator();
-    m_menuEdit->addAction(m_actConfigureCustomMenus);
-    m_menuEdit->addAction(m_actConfigureToolbars);
-    m_menuEdit->addAction(m_actThemeStudio);
-    m_menuEdit->addAction(m_actPreferences);
+
+    // Centralized Settings Sub-menu
+    QMenu* menuSettings = m_menuEdit->addMenu("Settings");
+    menuSettings->addAction(m_actPreferences);
+    menuSettings->addSeparator();
+
+    // Settings -> Layouts & Rules
+    QMenu* menuLayoutSettings = menuSettings->addMenu("Layouts & Rules");
+    menuLayoutSettings->addAction(m_actWorkspaceProfiles);
+    menuLayoutSettings->addAction(m_actSaveLayoutNow);
+    menuLayoutSettings->addAction(m_actResetLayout);
+    menuLayoutSettings->addAction(m_actAutoSaveLayout);
+    menuLayoutSettings->addSeparator();
+    menuLayoutSettings->addAction(m_actConfigureFolderLayouts);
+
+    // Settings -> Themes & Styling
+    QMenu* menuThemeSettings = menuSettings->addMenu("Themes & Styling");
+    menuThemeSettings->addAction(m_actThemeStudio);
+    menuThemeSettings->addSeparator();
+    menuThemeSettings->addAction(m_actConfigureAgeStyling);
+    menuThemeSettings->addAction(m_actToggleAgeColoring);
+
+    // Settings -> Toolbars & Hotkeys
+    QMenu* menuControlSettings = menuSettings->addMenu("Toolbars & Hotkeys");
+    menuControlSettings->addAction(m_actConfigureToolbars);
+    menuControlSettings->addAction(m_actConfigureCustomMenus);
+    menuControlSettings->addAction(m_actKeybindings);
+
+    // Settings -> Automations & Mounts
+    QMenu* menuAutomations = menuSettings->addMenu("Automations & Mounts");
+    menuAutomations->addAction(m_actConfigureBackupSchedule);
+    menuAutomations->addAction(m_actConfigureAutoTags);
+    menuAutomations->addAction(m_actConfigureAutoOrganizer);
+    menuAutomations->addAction(m_actCreateSmartCollection);
+    menuAutomations->addSeparator();
+    menuAutomations->addAction(m_actRemoteMountsManager);
+
+    // Settings -> Save/Load Config
+    menuSettings->addSeparator();
+    menuSettings->addAction(m_actBackupSettings);
+    menuSettings->addAction(m_actRestoreSettings);
 
     m_menuView = menuBar()->addMenu("View");
     m_menuView->addAction(m_actToggleDualPane);
@@ -1026,12 +1058,6 @@ void MainWindow::setupMenus() {
     m_menuView->addAction(m_actToggleCasingOverlays);
     
     m_menuView->addSeparator();
-    QMenu* menuSaveLayout = m_menuView->addMenu("Save Layout");
-    menuSaveLayout->addAction(m_actAutoSaveLayout);
-    menuSaveLayout->addAction(m_actSaveLayoutNow);
-    menuSaveLayout->addAction(m_actWorkspaceProfiles);
-    menuSaveLayout->addSeparator();
-    menuSaveLayout->addAction(m_actResetLayout);
     
     QMenu* menuFilterToggles = m_menuView->addMenu("Filter Bars");
     menuFilterToggles->addAction(m_actLeftShowFilterText);
@@ -1061,12 +1087,6 @@ void MainWindow::setupMenus() {
     m_menuTools->addAction(m_actCloudMount);
     m_menuTools->addAction(m_actImageConvert);
     m_menuTools->addAction(m_actProcessManager);
-    m_menuTools->addAction(m_actConfigureFolderLayouts);
-    m_menuTools->addAction(m_actConfigureBackupSchedule);
-    m_menuTools->addAction(m_actConfigureAutoTags);
-    m_menuTools->addAction(m_actConfigureAutoOrganizer);
-    m_menuTools->addAction(m_actCreateSmartCollection);
-    m_menuTools->addAction(m_actRemoteMountsManager);
     m_menuTools->addSeparator();
     m_menuTools->addAction(m_actEncryptVault);
     m_menuTools->addAction(m_actDecryptVault);
