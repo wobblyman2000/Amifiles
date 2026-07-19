@@ -33,6 +33,7 @@ public:
 
 public slots:
     void rebuildGroups();
+    void onSourceDataChanged(const QModelIndex& topLeft, const QModelIndex& bottomRight, const QList<int>& roles);
 
 private:
     QString getGroupValue(const QModelIndex& sourceIndex) const;

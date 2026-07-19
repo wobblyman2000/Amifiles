@@ -10,7 +10,7 @@ void GroupProxyModel::setSourceModel(QAbstractItemModel* sourceModel) {
     if (this->sourceModel()) {
         disconnect(this->sourceModel(), &QAbstractItemModel::modelReset, this, &GroupProxyModel::rebuildGroups);
         disconnect(this->sourceModel(), &QAbstractItemModel::layoutChanged, this, &GroupProxyModel::rebuildGroups);
-        disconnect(this->sourceModel(), &QAbstractItemModel::dataChanged, this, &GroupProxyModel::rebuildGroups);
+        disconnect(this->sourceModel(), &QAbstractItemModel::dataChanged, this, &GroupProxyModel::onSourceDataChanged);
         disconnect(this->sourceModel(), &QAbstractItemModel::rowsInserted, this, &GroupProxyModel::rebuildGroups);
         disconnect(this->sourceModel(), &QAbstractItemModel::rowsRemoved, this, &GroupProxyModel::rebuildGroups);
     }
@@ -20,7 +20,7 @@ void GroupProxyModel::setSourceModel(QAbstractItemModel* sourceModel) {
     if (this->sourceModel()) {
         connect(this->sourceModel(), &QAbstractItemModel::modelReset, this, &GroupProxyModel::rebuildGroups);
         connect(this->sourceModel(), &QAbstractItemModel::layoutChanged, this, &GroupProxyModel::rebuildGroups);
-        connect(this->sourceModel(), &QAbstractItemModel::dataChanged, this, &GroupProxyModel::rebuildGroups);
+        connect(this->sourceModel(), &QAbstractItemModel::dataChanged, this, &GroupProxyModel::onSourceDataChanged);
         connect(this->sourceModel(), &QAbstractItemModel::rowsInserted, this, &GroupProxyModel::rebuildGroups);
         connect(this->sourceModel(), &QAbstractItemModel::rowsRemoved, this, &GroupProxyModel::rebuildGroups);
     }
@@ -278,4 +278,16 @@ void GroupProxyModel::setSourceRoot(const QModelIndex& root) {
         m_sourceRoot = root;
         rebuildGroups();
     }
+}
+
+void GroupProxyModel::onSourceDataChanged(const QModelIndex& topLeft, const QModelIndex& bottomRight, const QList<int>& roles) {
+    if (roles.size() == 1 && roles.first() == Qt::DecorationRole) {
+        QModelIndex proxyTopLeft = mapFromSource(topLeft);
+        QModelIndex proxyBottomRight = mapFromSource(bottomRight);
+        if (proxyTopLeft.isValid() && proxyBottomRight.isValid()) {
+            emit dataChanged(proxyTopLeft, proxyBottomRight, roles);
+        }
+        return;
+    }
+    rebuildGroups();
 }
