@@ -34,7 +34,7 @@
 #include <QApplication>
 #include <QDir>
 
-static void scanMediaFilesRecursively(const QString& folderPath, QStringList& playlistPaths);
+static void scanMediaFilesRecursively(const QString& folderPath, QStringList& playlistPaths, int depth = 0);
 #include <QFileInfo>
 #include <QRegularExpression>
 #include <QKeyEvent>
@@ -1510,12 +1510,17 @@ void FilePanel::onShowProperties() {
     QMessageBox::information(this, "Properties", details);
 }
 
-static void scanMediaFilesRecursively(const QString& folderPath, QStringList& playlistPaths) {
+static void scanMediaFilesRecursively(const QString& folderPath, QStringList& playlistPaths, int depth) {
+    if (depth > 3) return;
+    QFileInfo fi(folderPath);
+    if (fi.isSymLink()) return;
+
     QDir dir(folderPath);
     QStringList mediaExts = { "mp3", "wav", "flac", "ogg", "m4a", "mp4", "avi", "mkv", "mov", "webm", "mpeg", "mpg" };
     
     QFileInfoList files = dir.entryInfoList(QDir::Files, QDir::Name);
     for (const QFileInfo& fInfo : files) {
+        if (fInfo.isSymLink()) continue;
         if (mediaExts.contains(fInfo.suffix().toLower())) {
             playlistPaths.append(fInfo.absoluteFilePath());
         }
@@ -1523,7 +1528,7 @@ static void scanMediaFilesRecursively(const QString& folderPath, QStringList& pl
     
     QFileInfoList subdirs = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
     for (const QFileInfo& sub : subdirs) {
-        scanMediaFilesRecursively(sub.absoluteFilePath(), playlistPaths);
+        scanMediaFilesRecursively(sub.absoluteFilePath(), playlistPaths, depth + 1);
     }
 }
 
@@ -1634,11 +1639,22 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
             }
         }
     }
-    // Scan selected folder or current folder recursively for playable audio & video files
+    // Scan selected folder recursively, or current folder non-recursively, for playable audio & video files
     QString folderToCheck = isFolder ? selectedPath : m_currentPath;
     QStringList playlistPaths;
     if (!folderToCheck.isEmpty()) {
-        scanMediaFilesRecursively(folderToCheck, playlistPaths);
+        if (isFolder) {
+            scanMediaFilesRecursively(folderToCheck, playlistPaths, 0);
+        } else {
+            QDir dir(folderToCheck);
+            QStringList mediaExts = { "mp3", "wav", "flac", "ogg", "m4a", "mp4", "avi", "mkv", "mov", "webm", "mpeg", "mpg" };
+            QFileInfoList files = dir.entryInfoList(QDir::Files, QDir::Name);
+            for (const QFileInfo& fInfo : files) {
+                if (mediaExts.contains(fInfo.suffix().toLower())) {
+                    playlistPaths.append(fInfo.absoluteFilePath());
+                }
+            }
+        }
     }
 
     QAction* actPlayPlaylist = nullptr;
