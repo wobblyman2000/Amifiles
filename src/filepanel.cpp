@@ -142,11 +142,16 @@ void FilePanel::setupUI() {
 
     m_btnFavorite = new QToolButton(this);
     m_btnFavorite->setText("☆");
-    m_btnFavorite->setToolTip("Add/Remove Favorite (Right-click to manage all favorites)");
+    m_btnFavorite->setToolTip("Add/Remove Favorite");
     m_btnFavorite->setStyleSheet("QToolButton { font-size: 16px; font-weight: bold; color: #f9e2af; }");
-    m_btnFavorite->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(m_btnFavorite, &QToolButton::clicked, this, &FilePanel::onFavoriteClicked);
-    connect(m_btnFavorite, &QToolButton::customContextMenuRequested, this, &FilePanel::onFavoriteButtonContextMenu);
+
+    m_btnHome = new QToolButton(this);
+    m_btnHome->setIcon(style->standardIcon(QStyle::SP_DirHomeIcon));
+    m_btnHome->setToolTip("Go Home (Right-click to set current folder as Home)");
+    m_btnHome->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_btnHome, &QToolButton::clicked, this, &FilePanel::onHomeClicked);
+    connect(m_btnHome, &QToolButton::customContextMenuRequested, this, &FilePanel::onHomeContextMenu);
 
     m_btnClonePath = new QToolButton(this);
     m_btnClonePath->setIcon(style->standardIcon(QStyle::SP_ArrowRight));
@@ -192,9 +197,10 @@ void FilePanel::setupUI() {
     navLayout->addWidget(m_btnBack);
     navLayout->addWidget(m_btnForward);
     navLayout->addWidget(m_btnUp);
+    navLayout->addWidget(m_btnHome);
+    navLayout->addWidget(m_btnFavorite);
     navLayout->addWidget(m_pathEdit, 1);
     navLayout->addWidget(m_btnGo);
-    navLayout->addWidget(m_btnFavorite);
     navLayout->addWidget(m_btnClonePath);
     navLayout->addWidget(m_btnFlatView);
     navLayout->addWidget(m_comboViewMode);
@@ -969,6 +975,28 @@ void FilePanel::onFavoriteClicked() {
         fm.addFavorite(m_currentPath);
     }
     updateFavoritesUI();
+}
+
+void FilePanel::onHomeClicked() {
+    QSettings settings("Amifiles", "Amifiles");
+    QString homePath = settings.value("preferences/home_path", QDir::homePath()).toString();
+    navigateTo(homePath);
+}
+
+void FilePanel::onHomeContextMenu(const QPoint& pos) {
+    QMenu menu(this);
+    menu.setStyleSheet(
+        "QMenu { background-color: #11111b; color: #cdd6f4; border: 1px solid #313244; border-radius: 4px; padding: 4px; }"
+        "QMenu::item { padding: 4px 20px 4px 20px; border-radius: 2px; }"
+        "QMenu::item:selected { background-color: #313244; color: #a6e3a1; }"
+    );
+    QAction* actSetHome = menu.addAction("Set Current Folder as Home");
+    QAction* selected = menu.exec(m_btnHome->mapToGlobal(pos));
+    if (selected == actSetHome) {
+        QSettings settings("Amifiles", "Amifiles");
+        settings.setValue("preferences/home_path", m_currentPath);
+        QMessageBox::information(this, "Set Home Directory", QString("Home directory set to:\n%1").arg(m_currentPath));
+    }
 }
 
 void FilePanel::onClonePathClicked() {

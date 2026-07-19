@@ -1497,18 +1497,6 @@ void MainWindow::updateFavoritesMenu() {
     m_menuFavorites->addAction("Configure Dynamic Bookmarks...", this, &MainWindow::onConfigureDynamicBookmarks);
 
     QStringList favs = FavoritesManager::instance().getFavorites();
-    QMenu* menuRemove = m_menuFavorites->addMenu("Remove from Favorites...");
-    if (favs.isEmpty()) {
-        QAction* actNone = menuRemove->addAction("(No Favorites Configured)");
-        actNone->setEnabled(false);
-    } else {
-        for (const QString& path : favs) {
-            QAction* actRemove = menuRemove->addAction(QDir::toNativeSeparators(path));
-            connect(actRemove, &QAction::triggered, this, [path]() {
-                FavoritesManager::instance().removeFavorite(path);
-            });
-        }
-    }
 
     m_menuFavorites->addSeparator();
 

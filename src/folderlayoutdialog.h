@@ -36,6 +36,8 @@ private slots:
     void onClearTabs();
     void onBackupProfiles();
     void onRestoreProfiles();
+    void onEditToolbarsShortcut();
+    void onEditMenusShortcut();
     void onSave();
 
 private:

@@ -1,4 +1,7 @@
 #include "folderlayoutdialog.h"
+#include "toolbareditordialog.h"
+#include "custommenueditordialog.h"
+#include "mainwindow.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
@@ -195,6 +198,21 @@ void FolderLayoutDialog::setupUI() {
     backupRestoreButtons->addWidget(m_btnBackup);
     backupRestoreButtons->addWidget(m_btnRestore);
     leftLayout->addLayout(backupRestoreButtons);
+
+    QHBoxLayout* shortcutButtons = new QHBoxLayout();
+    QPushButton* btnEditToolbars = new QPushButton("Edit Toolbars...", this);
+    btnEditToolbars->setStyleSheet("QPushButton { background-color: #313244; color: #a6e3a1; border: 1px solid #45475a; }"
+                                   "QPushButton:hover { background-color: #a6e3a1; color: #11111b; }");
+    connect(btnEditToolbars, &QPushButton::clicked, this, &FolderLayoutDialog::onEditToolbarsShortcut);
+
+    QPushButton* btnEditMenus = new QPushButton("Edit Menus...", this);
+    btnEditMenus->setStyleSheet("QPushButton { background-color: #313244; color: #cba6f7; border: 1px solid #45475a; }"
+                                "QPushButton:hover { background-color: #cba6f7; color: #11111b; }");
+    connect(btnEditMenus, &QPushButton::clicked, this, &FolderLayoutDialog::onEditMenusShortcut);
+
+    shortcutButtons->addWidget(btnEditToolbars);
+    shortcutButtons->addWidget(btnEditMenus);
+    leftLayout->addLayout(shortcutButtons);
 
     mainLayout->addLayout(leftLayout);
 
@@ -934,4 +952,25 @@ void FolderLayoutDialog::onRestoreProfiles() {
         m_listWidget->setCurrentRow(0);
     }
     QMessageBox::information(this, "Restore Successful", "Folder profiles restored and merged successfully!");
+}
+
+void FolderLayoutDialog::onEditToolbarsShortcut() {
+    MainWindow* mainWin = qobject_cast<MainWindow*>(parentWidget());
+    if (mainWin) {
+        ToolbarEditorDialog dlg(mainWin);
+        if (dlg.exec() == QDialog::Accepted) {
+            mainWin->rebuildToolBars();
+            // Re-harvest current profile layout if they wish
+        }
+    }
+}
+
+void FolderLayoutDialog::onEditMenusShortcut() {
+    MainWindow* mainWin = qobject_cast<MainWindow*>(parentWidget());
+    if (mainWin) {
+        CustomMenuEditorDialog dlg(mainWin);
+        if (dlg.exec() == QDialog::Accepted) {
+            mainWin->rebuildCustomMenus();
+        }
+    }
 }

@@ -531,6 +531,8 @@ public slots:
 private slots:
     void onPathEntered();
     void onFavoriteClicked();
+    void onHomeClicked();
+    void onHomeContextMenu(const QPoint& pos);
     void onClonePathClicked();
     void onFilterChanged(const QString& filterText);
     void onFilterTypeChanged();
@@ -589,6 +591,7 @@ private:
     QLineEdit* m_pathEdit = nullptr;
     QToolButton* m_btnGo = nullptr;
     QToolButton* m_btnFavorite = nullptr;
+    QToolButton* m_btnHome = nullptr;
     QToolButton* m_btnClonePath = nullptr;
     QToolButton* m_btnFlatView = nullptr;
     QToolButton* m_btnViewMode = nullptr; // keep single instance
