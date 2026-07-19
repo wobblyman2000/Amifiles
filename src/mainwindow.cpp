@@ -203,6 +203,11 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 
     // Load drives menu & toolbar visibility from settings
     QSettings settings("Amifiles", "Amifiles");
+    bool dualPaneVisible = settings.value("preferences/dual_pane", true).toBool();
+    m_actToggleDualPane->setChecked(dualPaneVisible);
+    m_isDualPane = dualPaneVisible;
+    if (m_rightTabWidget) m_rightTabWidget->setVisible(dualPaneVisible);
+
     bool drivesMenuVisible = settings.value("drives/menu_visible", true).toBool();
     bool drivesToolbarVisible = settings.value("drives/toolbar_visible", true).toBool();
 
@@ -1196,6 +1201,9 @@ void MainWindow::onToggleDualPane(bool checked) {
         onPanelActivated(leftPanel());
     }
 
+    QSettings settings("Amifiles", "Amifiles");
+    settings.setValue("preferences/dual_pane", checked);
+
     adjustSplitterSizes();
 }
 
@@ -1756,6 +1764,9 @@ void MainWindow::onToggleHorizontalSplit(bool checked) {
             m_dualSplitter->insertWidget(0, m_leftTabWidget);
             m_dualSplitter->insertWidget(1, m_tbCenterOps);
             m_dualSplitter->insertWidget(2, m_rightTabWidget);
+            if (m_tbCenterOps) {
+                m_tbCenterOps->setVisible(m_actToggleCenterOps->isChecked() && m_isDualPane);
+            }
         } else {
             m_dualSplitter->setOrientation(Qt::Horizontal);
             if (m_tbCenterOps) {
@@ -1773,6 +1784,9 @@ void MainWindow::onToggleHorizontalSplit(bool checked) {
             m_dualSplitter->insertWidget(0, m_leftTabWidget);
             m_dualSplitter->insertWidget(1, m_tbCenterOps);
             m_dualSplitter->insertWidget(2, m_rightTabWidget);
+            if (m_tbCenterOps) {
+                m_tbCenterOps->setVisible(m_actToggleCenterOps->isChecked() && m_isDualPane);
+            }
         }
     }
 }
@@ -1854,8 +1868,8 @@ void MainWindow::onToggleRightCategoryButtons(bool checked) {
 }
 
 void MainWindow::onToggleConsole(bool checked) {
-    if (m_consolePanel) {
-        m_consolePanel->setVisible(checked);
+    if (m_bottomTabWidget) {
+        m_bottomTabWidget->setVisible(checked);
     }
     QSettings settings("Amifiles", "Amifiles");
     settings.setValue("console/visible", checked);
