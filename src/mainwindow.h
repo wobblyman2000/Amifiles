@@ -217,6 +217,8 @@ private slots:
     void onConfigureAgeStyling();
     void onSaveLayoutNow();
     void onResetLayout();
+    void onBackupSettings();
+    void onRestoreSettings();
     void onConfigureFolderLayouts();
     void onConfigureBackupSchedule();
     void onConfigureAutoTags();
@@ -327,6 +329,8 @@ private:
     QAction* m_actThemeStudio = nullptr;
     QAction* m_actSaveLayoutNow = nullptr;
     QAction* m_actResetLayout = nullptr;
+    QAction* m_actBackupSettings = nullptr;
+    QAction* m_actRestoreSettings = nullptr;
     QAction* m_actConfigureFolderLayouts = nullptr;
     QAction* m_actConfigureBackupSchedule = nullptr;
     QAction* m_actCreateSmartCollection = nullptr;

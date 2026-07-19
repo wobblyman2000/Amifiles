@@ -165,6 +165,12 @@ void HelpDialog::onSectionChanged(int index) {
                     "<li><b>PDF Page Viewer:</b> <code>pdftoppm</code> (part of the <b>poppler-utils</b> suite).</li>"
                     "<li><b>Document Text Extractor:</b> <code>pdftotext</code> (part of the <b>poppler-utils</b> suite).</li>"
                     "<li><b>Remote &amp; Cloud VFS Mounts:</b> <code>rclone</code> (for FTP, SFTP, Samba, and Google Drive mounts).</li>"
+                    "</ul>"
+                    "<h3>Configuration Backup &amp; Restore</h3>"
+                    "<p>To protect your view configurations, layout structures, age colors, and custom script buttons from accidental loss or corruption, you can back up and restore your settings at any time:</p>"
+                    "<ul>"
+                    "<li><b>Backup Settings:</b> Select <b>File -> Backup Settings...</b> to export your active configuration to a <code>.conf</code> backup file of your choice.</li>"
+                    "<li><b>Restore Settings:</b> Select <b>File -> Restore Settings...</b> to load a previously exported configuration file. The application will safely close so the new configuration can load cleanly upon next startup.</li>"
                     "</ul>";
             break;
 
@@ -292,7 +298,14 @@ void HelpDialog::onSectionChanged(int index) {
                     "  <line x1=\"20\" y1=\"20\" x2=\"20\" y2=\"80\" stroke=\"#313244\"/>"
                     "  <line x1=\"20\" y1=\"50\" x2=\"300\" y2=\"50\" stroke=\"#313244\" stroke-dasharray=\"3,3\"/>"
                     "  <text x=\"280\" y=\"90\" fill=\"#bac2de\" font-size=\"7\" font-family=\"sans-serif\">60s</text>"
-                    "</svg></p>";
+                    "</svg></p>"
+                    "<h3>Prioritized Small File Transfers</h3>"
+                    "<p>If a copy or move operation is initiated while a large background transfer is active, the application calculates the total size of the new files. If the new batch is small (less than 50 MB), you will receive a prompt asking if you want to prioritize the transfer. If confirmed:</p>"
+                    "<ul>"
+                    "<li>The active background transfer is automatically paused.</li>"
+                    "<li>A modal progress dialog runs and completes the small file transfer immediately.</li>"
+                    "<li>The background transfer resumes processing its remaining items once the priority transfer completes.</li>"
+                    "</ul>";
             break;
 
         case 3: // Advanced Search

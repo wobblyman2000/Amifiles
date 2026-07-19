@@ -8,6 +8,7 @@
 #include <QApplication>
 #include <QStyle>
 #include <QMessageBox>
+#include <QProgressDialog>
 #include <QTime>
 #include <QPainter>
 #include <QPainterPath>
@@ -17,7 +18,7 @@
 // ================= CopyQueueWorker =================
 
 CopyQueueWorker::CopyQueueWorker(QObject* parent)
-    : QThread(parent), m_paused(false), m_cancelled(false), m_skipCurrent(false), m_running(true) {
+    : QThread(parent), m_paused(false), m_cancelled(false), m_skipCurrent(false), m_running(true), m_isBusy(false) {
     m_currentFileIndex = 0;
     m_totalFileCount = 0;
     m_batchBytesCopied = 0;
@@ -65,15 +66,22 @@ QList<CopyJob> CopyQueueWorker::getPendingJobs() const {
     return QList<CopyJob>(m_queue.begin(), m_queue.end());
 }
 
+bool CopyQueueWorker::isBusy() const {
+    QMutexLocker locker(&m_mutex);
+    return !m_queue.isEmpty() || m_isBusy;
+}
+
 void CopyQueueWorker::run() {
     while (m_running) {
         CopyJob job;
         {
             QMutexLocker locker(&m_mutex);
             while (m_queue.isEmpty() && m_running) {
+                m_isBusy = false;
                 m_cond.wait(&m_mutex);
             }
             if (!m_running) break;
+            m_isBusy = true;
             job = m_queue.dequeue();
         }
 
@@ -351,21 +359,108 @@ CopyQueueManager::CopyQueueManager(QObject* parent) : QObject(parent) {
     m_worker->start();
 }
 
-void CopyQueueManager::queueCopy(const QStringList& srcPaths, const QString& destDir, bool isMove) {
-    QDir dest(destDir);
+static bool copyPrioritized(const QString& src, const QString& dest, bool isMove, QProgressDialog& progress) {
+    QFileInfo info(src);
+    if (info.isDir()) {
+        QDir srcDir(src);
+        QDir destDir(dest);
+        if (!destDir.exists() && !destDir.mkpath(".")) return false;
+        
+        QStringList entries = srcDir.entryList(QDir::NoDotAndDotDot | QDir::AllEntries | QDir::Hidden);
+        for (const QString& entry : entries) {
+            if (progress.wasCanceled()) return false;
+            QCoreApplication::processEvents();
+            if (!copyPrioritized(srcDir.filePath(entry), destDir.filePath(entry), isMove, progress)) {
+                return false;
+            }
+        }
+        if (isMove) {
+            srcDir.removeRecursively();
+        }
+        return true;
+    } else {
+        if (QFile::exists(dest)) {
+            QFile::remove(dest);
+        }
+        bool success = false;
+        if (isMove) {
+            success = QFile::rename(src, dest);
+        } else {
+            success = QFile::copy(src, dest);
+        }
+        return success;
+    }
+}
+
+void CopyQueueManager::queueCopy(const QStringList& srcPaths, const QString& destDir, bool isMove, QWidget* parent) {
+    bool isBusy = m_worker->isBusy();
+    qint64 totalNewSize = 0;
     for (const QString& src : srcPaths) {
         QFileInfo info(src);
-        QString destPath = dest.filePath(info.fileName());
-        
-        CopyJob job;
-        job.srcPath = src;
-        job.destPath = destPath;
-        job.isMove = isMove;
-        m_worker->addJob(job);
+        if (info.isDir()) {
+            QDirIterator it(src, QDir::Files, QDirIterator::Subdirectories);
+            while (it.hasNext()) {
+                it.next();
+                totalNewSize += it.fileInfo().size();
+            }
+        } else {
+            totalNewSize += info.size();
+        }
+    }
+
+    bool prioritize = false;
+    if (isBusy && totalNewSize > 0 && totalNewSize < 50 * 1024 * 1024) {
+        QMessageBox::StandardButton reply = QMessageBox::question(
+            parent, "Prioritize Transfer?",
+            "An active background transfer is currently running.\n\n"
+            "Would you like to temporarily pause it and copy this smaller item first?",
+            QMessageBox::Yes | QMessageBox::No
+        );
+        if (reply == QMessageBox::Yes) {
+            prioritize = true;
+        }
+    }
+
+    if (prioritize) {
+        m_worker->pause();
+
+        QProgressDialog progress("Prioritizing small transfer...", "Cancel", 0, srcPaths.size(), parent);
+        progress.setWindowModality(Qt::WindowModal);
+        progress.show();
+
+        for (int i = 0; i < srcPaths.size(); ++i) {
+            if (progress.wasCanceled()) break;
+            progress.setValue(i);
+            progress.setLabelText(QString("Prioritizing: %1").arg(QFileInfo(srcPaths[i]).fileName()));
+            QCoreApplication::processEvents();
+
+            QFileInfo info(srcPaths[i]);
+            QString destPath = QDir(destDir).filePath(info.fileName());
+            copyPrioritized(srcPaths[i], destPath, isMove, progress);
+        }
+        progress.setValue(srcPaths.size());
+
+        m_worker->resume();
+    } else {
+        QDir dest(destDir);
+        for (const QString& src : srcPaths) {
+            QFileInfo info(src);
+            QString destPath = dest.filePath(info.fileName());
+            
+            CopyJob job;
+            job.srcPath = src;
+            job.destPath = destPath;
+            job.isMove = isMove;
+            m_worker->addJob(job);
+        }
+        showQueueDialog(parent);
     }
 }
 
 void CopyQueueManager::showQueueDialog(QWidget* parent) {
+    if (!m_worker->isBusy()) {
+        return;
+    }
     if (!m_activeDialog) {
         m_activeDialog = new CopyQueueDialog(parent);
         m_activeDialog->setAttribute(Qt::WA_DeleteOnClose);

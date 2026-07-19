@@ -454,6 +454,7 @@ void MainWindow::setupCentralWidget() {
     m_dualSplitter->setHandleWidth(4);
     m_dualSplitter->addWidget(m_leftTabWidget);
     m_dualSplitter->addWidget(m_tbCenterOps);
+    m_tbCenterOps->setVisible(m_actToggleCenterOps->isChecked() && m_isDualPane);
     m_dualSplitter->addWidget(m_rightTabWidget);
 
     m_splitter->addWidget(m_sidebarTabWidget);
@@ -761,6 +762,14 @@ void MainWindow::setupActions() {
     m_actResetLayout->setToolTip("Restore all toolbars and panels to their factory positions");
     connect(m_actResetLayout, &QAction::triggered, this, &MainWindow::onResetLayout);
 
+    m_actBackupSettings = new QAction("Backup Settings...", this);
+    m_actBackupSettings->setToolTip("Export all settings and layouts to a backup file");
+    connect(m_actBackupSettings, &QAction::triggered, this, &MainWindow::onBackupSettings);
+
+    m_actRestoreSettings = new QAction("Restore Settings...", this);
+    m_actRestoreSettings->setToolTip("Import settings and layouts from a backup file");
+    connect(m_actRestoreSettings, &QAction::triggered, this, &MainWindow::onRestoreSettings);
+
     m_actConfigureFolderLayouts = new QAction("Configure Folder-Specific Layouts...", this);
     m_actConfigureFolderLayouts->setToolTip("Define custom view modes and toolbars for specific folders or media categories");
     m_actConfigureFolderLayouts->setStatusTip("Define custom view modes and toolbars for specific folders or media categories");
@@ -973,6 +982,9 @@ void MainWindow::setupMenus() {
     m_menuFile->addSeparator();
     m_menuFile->addAction(m_actNewFolder);
     m_menuFile->addAction(m_actProperties);
+    m_menuFile->addSeparator();
+    m_menuFile->addAction(m_actBackupSettings);
+    m_menuFile->addAction(m_actRestoreSettings);
     m_menuFile->addSeparator();
     m_menuFile->addAction("Exit", this, &QWidget::close);
 
@@ -1336,8 +1348,7 @@ void MainWindow::onCopyToSiblingAction() {
             return;
         }
         
-        CopyQueueManager::instance().queueCopy(paths, destDir, false);
-        CopyQueueManager::instance().showQueueDialog(this);
+        CopyQueueManager::instance().queueCopy(paths, destDir, false, this);
     }
 }
 
@@ -1365,8 +1376,7 @@ void MainWindow::onMoveToSiblingAction() {
             return;
         }
         
-        CopyQueueManager::instance().queueCopy(paths, destDir, true);
-        CopyQueueManager::instance().showQueueDialog(this);
+        CopyQueueManager::instance().queueCopy(paths, destDir, true, this);
     }
 }
 
@@ -4022,6 +4032,59 @@ void MainWindow::onPlayMediaBuiltin(const QStringList& filePaths) {
     
     // Go fullscreen!
     m_previewPanel->toggleFullscreen();
+}
+
+void MainWindow::onBackupSettings() {
+    QSettings settings("Amifiles", "Amifiles");
+    QString srcFile = settings.fileName();
+    if (srcFile.isEmpty() || !QFile::exists(srcFile)) {
+        QMessageBox::warning(this, "Backup Failed", "No settings file found to back up yet.");
+        return;
+    }
+    
+    QString destFile = QFileDialog::getSaveFileName(this, "Backup Settings", QDir::homePath() + "/Amifiles_backup.conf", "Configuration Files (*.conf);;All Files (*)");
+    if (destFile.isEmpty()) return;
+    
+    if (QFile::exists(destFile)) {
+        QFile::remove(destFile);
+    }
+    
+    if (QFile::copy(srcFile, destFile)) {
+        QMessageBox::information(this, "Backup Successful", QString("Settings successfully backed up to:\n%1").arg(destFile));
+    } else {
+        QMessageBox::critical(this, "Backup Failed", "Failed to copy settings file. Please check file permissions.");
+    }
+}
+
+void MainWindow::onRestoreSettings() {
+    QString srcFile = QFileDialog::getOpenFileName(this, "Restore Settings", QDir::homePath(), "Configuration Files (*.conf);;All Files (*)");
+    if (srcFile.isEmpty()) return;
+    
+    QMessageBox::StandardButton reply = QMessageBox::question(
+        this, "Confirm Restore", 
+        "Restoring settings will overwrite your current configuration. The application will close to apply changes.\n\nAre you sure you want to proceed?",
+        QMessageBox::Yes | QMessageBox::No
+    );
+    if (reply != QMessageBox::Yes) return;
+    
+    QSettings settings("Amifiles", "Amifiles");
+    QString destFile = settings.fileName();
+    
+    settings.sync();
+    
+    if (QFile::exists(destFile)) {
+        if (!QFile::remove(destFile)) {
+            QMessageBox::critical(this, "Restore Failed", "Could not remove the existing configuration file. Please check file permissions.");
+            return;
+        }
+    }
+    
+    if (QFile::copy(srcFile, destFile)) {
+        QMessageBox::information(this, "Restore Successful", "Settings successfully restored. The application will now close. Please restart it to apply the changes.");
+        QApplication::quit();
+    } else {
+        QMessageBox::critical(this, "Restore Failed", "Failed to restore settings file. Please check file permissions.");
+    }
 }
 
 #include "mainwindow.moc"

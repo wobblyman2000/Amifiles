@@ -611,11 +611,9 @@ bool FilePanel::eventFilter(QObject* watched, QEvent* event) {
                     
                     QAction* chosen = menu.exec(QCursor::pos());
                     if (chosen == actCopy) {
-                        CopyQueueManager::instance().queueCopy(srcPaths, destDir, false);
-                        CopyQueueManager::instance().showQueueDialog(this);
+                        CopyQueueManager::instance().queueCopy(srcPaths, destDir, false, this);
                     } else if (chosen == actMove) {
-                        CopyQueueManager::instance().queueCopy(srcPaths, destDir, true);
-                        CopyQueueManager::instance().showQueueDialog(this);
+                        CopyQueueManager::instance().queueCopy(srcPaths, destDir, true, this);
                     }
                 }
                 dropEvent->acceptProposedAction();
@@ -1402,14 +1400,11 @@ void FilePanel::onPaste() {
                  mimeData->hasFormat("application/x-kde-cutselection");
 
     // Queue copy/move operations
-    CopyQueueManager::instance().queueCopy(srcPaths, m_currentPath, isCut);
+    CopyQueueManager::instance().queueCopy(srcPaths, m_currentPath, isCut, this);
 
     if (isCut) {
         clipboard->clear();
     }
-
-    // Launch the centralized modeless monitor dialog
-    CopyQueueManager::instance().showQueueDialog(this);
 }
 
 void FilePanel::onDelete() {

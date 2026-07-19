@@ -44,6 +44,7 @@ public:
 
     bool isPaused() const { return m_paused; }
     QList<CopyJob> getPendingJobs() const;
+    bool isBusy() const;
 
 signals:
     void jobStarted(const QString& src, const QString& dest, bool isMove);
@@ -77,6 +78,7 @@ private:
     std::atomic<bool> m_cancelled;
     std::atomic<bool> m_skipCurrent;
     std::atomic<bool> m_running;
+    std::atomic<bool> m_isBusy;
 
     // Batch details
     int m_currentFileIndex;
@@ -100,7 +102,7 @@ class CopyQueueManager : public QObject {
 public:
     static CopyQueueManager& instance();
 
-    void queueCopy(const QStringList& srcPaths, const QString& destDir, bool isMove);
+    void queueCopy(const QStringList& srcPaths, const QString& destDir, bool isMove, QWidget* parent = nullptr);
     void showQueueDialog(QWidget* parent = nullptr);
     CopyQueueWorker* worker() const { return m_worker; }
 
