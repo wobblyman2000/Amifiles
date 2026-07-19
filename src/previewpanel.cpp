@@ -36,6 +36,7 @@
 #include <QTableWidgetItem>
 #include <QPainter>
 #include <QTabWidget>
+#include <QTabBar>
 #include <QListWidget>
 #include <QMenu>
 #include <QAction>
@@ -1986,6 +1987,18 @@ void PreviewPanel::setSpectrumVisualizerVisible(bool visible) {
     if (m_visualizer) {
         bool shouldBeVisible = visible && (m_stack->currentWidget() == m_mediaView) && !m_videoWidget->isVisible();
         m_visualizer->setVisible(shouldBeVisible);
+    }
+}
+
+void PreviewPanel::setZenMode(bool enabled) {
+    if (!m_bottomTab) return;
+    
+    QTabBar* bar = m_bottomTab->findChild<QTabBar*>();
+    if (enabled) {
+        m_bottomTab->setCurrentIndex(1); // Playlist Queue index
+        if (bar) bar->setVisible(false);
+    } else {
+        if (bar) bar->setVisible(true);
     }
 }
 

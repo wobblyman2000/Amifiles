@@ -135,6 +135,7 @@ public:
     bool isMuted() const;
     void setAudioCoverArtVisible(bool visible);
     void setSpectrumVisualizerVisible(bool visible);
+    void setZenMode(bool enabled);
 
 public slots:
     void toggleFullscreen();

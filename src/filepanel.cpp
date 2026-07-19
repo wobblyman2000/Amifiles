@@ -35,6 +35,7 @@
 #include <QDir>
 
 static void scanMediaFilesRecursively(const QString& folderPath, QStringList& playlistPaths, int depth = 0);
+static bool hasAudioFilesRecursively(const QString& folderPath, int depth = 0);
 #include <QFileInfo>
 #include <QRegularExpression>
 #include <QKeyEvent>
@@ -1179,8 +1180,14 @@ QStringList FilePanel::selectedPaths() const {
     }
 
     QStringList paths;
-    if (!m_treeView->selectionModel()) return paths;
-    QModelIndexList selectedRows = m_treeView->selectionModel()->selectedRows();
+    QItemSelectionModel* selModel = nullptr;
+    if (active == m_theaterListView) {
+        selModel = m_theaterListView->selectionModel();
+    } else {
+        selModel = m_treeView->selectionModel();
+    }
+    if (!selModel) return paths;
+    QModelIndexList selectedRows = selModel->selectedRows();
     for (const QModelIndex& index : selectedRows) {
         QModelIndex mappedIndex = index;
         if (m_groupProxy->isGroupingActive()) {
@@ -1532,6 +1539,26 @@ static void scanMediaFilesRecursively(const QString& folderPath, QStringList& pl
     }
 }
 
+static bool hasAudioFilesRecursively(const QString& folderPath, int depth) {
+    if (depth > 3) return false;
+    QFileInfo fi(folderPath);
+    if (fi.isSymLink()) return false;
+
+    QDir dir(folderPath);
+    QFileInfoList files = dir.entryInfoList(QDir::Files, QDir::Name);
+    for (const QFileInfo& fInfo : files) {
+        if (fInfo.isSymLink()) continue;
+        QString ext = fInfo.suffix().toLower();
+        if (ext == "mp3" || ext == "flac") return true;
+    }
+
+    QFileInfoList subdirs = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+    for (const QFileInfo& sub : subdirs) {
+        if (hasAudioFilesRecursively(sub.absoluteFilePath(), depth + 1)) return true;
+    }
+    return false;
+}
+
 void FilePanel::onCustomContextMenu(const QPoint& pos) {
     QModelIndex index;
     if (m_viewStack->currentWidget() == m_listView) {
@@ -1775,14 +1802,8 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     for (const QString& sPath : curSelected) {
         QFileInfo info(sPath);
         if (info.isDir()) {
-            QDir dir(sPath);
-            QFileInfoList files = dir.entryInfoList(QDir::Files | QDir::NoDotAndDotDot);
-            for (const QFileInfo& f : files) {
-                QString ext = f.suffix().toLower();
-                if (ext == "mp3" || ext == "flac") {
-                    hasAudioFiles = true;
-                    break;
-                }
+            if (hasAudioFilesRecursively(sPath, 0)) {
+                hasAudioFiles = true;
             }
         } else if (info.isFile()) {
             QString ext = info.suffix().toLower();
@@ -1944,30 +1965,9 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
             refresh();
         }
     } else if (selected == actFetchMusicBrainz) {
-        QStringList pathsToFetch;
-        for (const QString& path : curSelected) {
-            QFileInfo info(path);
-            if (info.isDir()) {
-                QDir dir(path);
-                QFileInfoList files = dir.entryInfoList(QDir::Files, QDir::Name);
-                for (const QFileInfo& f : files) {
-                    QString ext = f.suffix().toLower();
-                    if (ext == "mp3" || ext == "flac") {
-                        pathsToFetch.append(f.absoluteFilePath());
-                    }
-                }
-            } else if (info.isFile()) {
-                QString ext = info.suffix().toLower();
-                if (ext == "mp3" || ext == "flac") {
-                    pathsToFetch.append(path);
-                }
-            }
-        }
-        if (!pathsToFetch.isEmpty()) {
-            TagEditorDialog dlg(pathsToFetch, this, true);
-            if (dlg.exec() == QDialog::Accepted) {
-                refresh();
-            }
+        TagEditorDialog dlg(curSelected, this, true);
+        if (dlg.exec() == QDialog::Accepted) {
+            refresh();
         }
     } else if (selected == actScrapeVideo) {
         VideoScraperDialog dlg(curSelected, this);

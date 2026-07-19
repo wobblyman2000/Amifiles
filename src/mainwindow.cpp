@@ -377,6 +377,7 @@ void MainWindow::setupCentralWidget() {
     m_rightTabWidget->setStyleSheet(m_leftTabWidget->styleSheet());
 
     m_previewPanel = new PreviewPanel(this);
+    m_previewPanel->setZenMode(m_zenMode);
     connect(m_previewPanel, &PreviewPanel::spectrumVisualizerToggled, this, &MainWindow::onToggleSpectrum);
     connect(m_previewPanel, &PreviewPanel::tagsChanged, this, [this](const QString&) {
         // Refresh active panel to show modified tags
@@ -3984,6 +3985,9 @@ void MainWindow::setZenMode(bool enabled) {
             FilePanel* p = qobject_cast<FilePanel*>(m_rightTabWidget->widget(i));
             if (p) p->setNavigationAndFilterVisible(!enabled);
         }
+    }
+    if (m_previewPanel) {
+        m_previewPanel->setZenMode(enabled);
     }
 }
 

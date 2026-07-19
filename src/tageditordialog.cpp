@@ -16,8 +16,40 @@
 #include <QBuffer>
 #include <QTimer>
 
+static void resolveAudioFilesRecursively(const QString& folderPath, QStringList& resolved, int depth = 0) {
+    if (depth > 3) return;
+    QFileInfo fi(folderPath);
+    if (fi.isSymLink()) return;
+
+    QDir dir(folderPath);
+    QStringList extensions = { "mp3", "flac", "jpg", "jpeg", "png" };
+    
+    QFileInfoList files = dir.entryInfoList(QDir::Files, QDir::Name);
+    for (const QFileInfo& fInfo : files) {
+        if (fInfo.isSymLink()) continue;
+        if (extensions.contains(fInfo.suffix().toLower())) {
+            resolved.append(fInfo.absoluteFilePath());
+        }
+    }
+    
+    QFileInfoList subdirs = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+    for (const QFileInfo& sub : subdirs) {
+        resolveAudioFilesRecursively(sub.absoluteFilePath(), resolved, depth + 1);
+    }
+}
+
 TagEditorDialog::TagEditorDialog(const QStringList& filePaths, QWidget* parent, bool autoStartFetch)
-    : QDialog(parent), m_filePaths(filePaths) {
+    : QDialog(parent) {
+    QStringList resolvedPaths;
+    for (const QString& path : filePaths) {
+        QFileInfo fi(path);
+        if (fi.isDir()) {
+            resolveAudioFilesRecursively(path, resolvedPaths, 0);
+        } else {
+            resolvedPaths.append(path);
+        }
+    }
+    m_filePaths = resolvedPaths;
     setWindowTitle("Batch Metadata Tag Editor");
     resize(580, 520);
     setStyleSheet("QDialog { background-color: #1e1e2e; color: #cdd6f4; }"
