@@ -516,6 +516,7 @@ signals:
     void saveDefaultProfileRequested();
     void loadDefaultProfileRequested();
     void saveFolderProfileRequested();
+    void configureFolderLayoutsRequested();
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;

@@ -1799,9 +1799,10 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     }
 
     menu.addSeparator();
+    QAction* actConfigureFolderLayouts = menu.addAction("Folder Profiles & Layouts...");
+    QAction* actSaveFolderProfile = menu.addAction("Save Current Layout as Folder Profile...");
     QAction* actSaveDefaultProfile = menu.addAction("Save Current Layout as Default Profile");
     QAction* actLoadDefaultProfile = menu.addAction("Load Default Profile");
-    QAction* actSaveFolderProfile = menu.addAction("Save Current Layout as Folder Profile...");
     menu.addSeparator();
 
     QAction* actProp = menu.addAction(style->standardIcon(QStyle::SP_MessageBoxInformation), "Properties");
@@ -1910,14 +1911,17 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     QAction* selected = menu.exec(globalPos);
     if (!selected) return;
 
-    if (selected == actSaveDefaultProfile) {
+    if (selected == actConfigureFolderLayouts) {
+        emit configureFolderLayoutsRequested();
+        return;
+    } else if (selected == actSaveFolderProfile) {
+        emit saveFolderProfileRequested();
+        return;
+    } else if (selected == actSaveDefaultProfile) {
         emit saveDefaultProfileRequested();
         return;
     } else if (selected == actLoadDefaultProfile) {
         emit loadDefaultProfileRequested();
-        return;
-    } else if (selected == actSaveFolderProfile) {
-        emit saveFolderProfileRequested();
         return;
     }
 

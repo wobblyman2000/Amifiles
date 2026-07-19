@@ -1073,37 +1073,34 @@ void MainWindow::setupMenus() {
     m_menuEdit->addAction(m_actBulkRename);
     m_menuEdit->addSeparator();
 
-    // Centralized Settings Sub-menu
-    QMenu* menuSettings = m_menuEdit->addMenu("Settings");
-    menuSettings->addAction(m_actPreferences);
-    menuSettings->addSeparator();
+    m_menuSettings = menuBar()->addMenu("Settings");
+    m_menuSettings->addAction(m_actPreferences);
+    m_menuSettings->addSeparator();
 
     // Settings -> Layouts & Rules
-    QMenu* menuLayoutSettings = menuSettings->addMenu("Layouts & Rules");
+    QMenu* menuLayoutSettings = m_menuSettings->addMenu("Layouts & Rules");
     menuLayoutSettings->addAction(m_actConfigureFolderLayouts);
     menuLayoutSettings->addAction(m_actSaveFolderProfileForCurrentDir);
     menuLayoutSettings->addAction(m_actSaveDefaultProfile);
     menuLayoutSettings->addAction(m_actLoadDefaultProfile);
     menuLayoutSettings->addSeparator();
-    menuLayoutSettings->addAction(m_actSaveLayoutNow);
-    menuLayoutSettings->addAction(m_actResetLayout);
     menuLayoutSettings->addAction(m_actAutoSaveLayout);
 
     // Settings -> Themes & Styling
-    QMenu* menuThemeSettings = menuSettings->addMenu("Themes & Styling");
+    QMenu* menuThemeSettings = m_menuSettings->addMenu("Themes & Styling");
     menuThemeSettings->addAction(m_actThemeStudio);
     menuThemeSettings->addSeparator();
     menuThemeSettings->addAction(m_actConfigureAgeStyling);
     menuThemeSettings->addAction(m_actToggleAgeColoring);
 
     // Settings -> Toolbars & Hotkeys
-    QMenu* menuControlSettings = menuSettings->addMenu("Toolbars & Hotkeys");
+    QMenu* menuControlSettings = m_menuSettings->addMenu("Toolbars & Hotkeys");
     menuControlSettings->addAction(m_actConfigureToolbars);
     menuControlSettings->addAction(m_actConfigureCustomMenus);
     menuControlSettings->addAction(m_actKeybindings);
 
     // Settings -> Automations & Mounts
-    QMenu* menuAutomations = menuSettings->addMenu("Automations & Mounts");
+    QMenu* menuAutomations = m_menuSettings->addMenu("Automations & Mounts");
     menuAutomations->addAction(m_actConfigureBackupSchedule);
     menuAutomations->addAction(m_actConfigureAutoTags);
     menuAutomations->addAction(m_actConfigureAutoOrganizer);
@@ -1112,9 +1109,9 @@ void MainWindow::setupMenus() {
     menuAutomations->addAction(m_actRemoteMountsManager);
 
     // Settings -> Save/Load Config
-    menuSettings->addSeparator();
-    menuSettings->addAction(m_actBackupSettings);
-    menuSettings->addAction(m_actRestoreSettings);
+    m_menuSettings->addSeparator();
+    m_menuSettings->addAction(m_actBackupSettings);
+    m_menuSettings->addAction(m_actRestoreSettings);
 
     m_menuView = menuBar()->addMenu("View");
     m_menuView->addAction(m_actToggleDualPane);
@@ -2324,6 +2321,7 @@ FilePanel* MainWindow::createTab(QTabWidget* tabWidget, const QString& path) {
     connect(panel, &FilePanel::saveDefaultProfileRequested, this, &MainWindow::onSaveDefaultProfile);
     connect(panel, &FilePanel::loadDefaultProfileRequested, this, &MainWindow::onLoadDefaultProfile);
     connect(panel, &FilePanel::saveFolderProfileRequested, this, &MainWindow::onSaveFolderProfileForCurrentDir);
+    connect(panel, &FilePanel::configureFolderLayoutsRequested, this, &MainWindow::onConfigureFolderLayouts);
 
     panel->proxyModel()->setAgeColoringEnabled(m_ageColoringEnabled);
 
@@ -2813,13 +2811,15 @@ QMenu* MainWindow::createPopupMenu() {
     }
     
     menu->addSeparator();
+    QAction* actConfigure = menu->addAction("Folder Profiles & Layouts...");
+    QAction* actSaveFolder = menu->addAction("Save Current Layout as Folder Profile...");
     QAction* actSaveDefault = menu->addAction("Save Current Layout as Default Profile");
     QAction* actLoadDefault = menu->addAction("Load Default Profile");
-    QAction* actSaveFolder = menu->addAction("Save Current Layout as Folder Profile...");
     
+    connect(actConfigure, &QAction::triggered, this, &MainWindow::onConfigureFolderLayouts);
+    connect(actSaveFolder, &QAction::triggered, this, &MainWindow::onSaveFolderProfileForCurrentDir);
     connect(actSaveDefault, &QAction::triggered, this, &MainWindow::onSaveDefaultProfile);
     connect(actLoadDefault, &QAction::triggered, this, &MainWindow::onLoadDefaultProfile);
-    connect(actSaveFolder, &QAction::triggered, this, &MainWindow::onSaveFolderProfileForCurrentDir);
     
     return menu;
 }
@@ -4605,19 +4605,22 @@ void MainWindow::onTabContextMenuRequested(const QPoint& pos) {
         }
     }
 
+    QAction* actConfigure = menu.addAction("Folder Profiles & Layouts...");
+    QAction* actSaveFolder = menu.addAction("Save Current Layout as Folder Profile...");
     QAction* actSaveDefault = menu.addAction("Save Current Layout as Default Profile");
     QAction* actLoadDefault = menu.addAction("Load Default Profile");
-    QAction* actSaveFolder = menu.addAction("Save Current Layout as Folder Profile...");
 
     QAction* selected = menu.exec(tabWidget->mapToGlobal(pos));
     if (!selected) return;
 
-    if (selected == actSaveDefault) {
+    if (selected == actConfigure) {
+        onConfigureFolderLayouts();
+    } else if (selected == actSaveFolder) {
+        onSaveFolderProfileForCurrentDir();
+    } else if (selected == actSaveDefault) {
         onSaveDefaultProfile();
     } else if (selected == actLoadDefault) {
         onLoadDefaultProfile();
-    } else if (selected == actSaveFolder) {
-        onSaveFolderProfileForCurrentDir();
     } else if (panel) {
         if (selected == actPin) {
             panel->setPinned(actPin->isChecked());

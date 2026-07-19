@@ -330,6 +330,7 @@ private:
     // Menus
     QMenu* m_menuFile = nullptr;
     QMenu* m_menuEdit = nullptr;
+    QMenu* m_menuSettings = nullptr;
     QMenu* m_menuView = nullptr;
     QMenu* m_menuFavorites = nullptr;
     QMenu* m_menuDrives = nullptr;
