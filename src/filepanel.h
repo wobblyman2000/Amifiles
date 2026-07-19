@@ -451,6 +451,7 @@ public:
 
     void refresh();
     void updateStyles();
+    void autoSizeAllColumns();
 
     // Clipboard and File Operations
     void onCopy();
@@ -551,6 +552,12 @@ private:
     void updateStatusText();
     void navigateTo(const QString& path, bool addHistory = true);
     bool copyRecursively(const QString& srcPath, const QString& destPath);
+    void loadSortSettings();
+    void loadColumnWidths();
+    void saveColumnWidth(int logicalIndex, int width);
+
+    int m_sortColumn = 0;
+    Qt::SortOrder m_sortOrder = Qt::AscendingOrder;
 
     bool m_isActive = false;
     bool m_categoryButtonsVisible = true;

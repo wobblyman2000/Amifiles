@@ -320,6 +320,17 @@ void FilePanel::setupUI() {
     header->setStretchLastSection(true);
     header->setSectionResizeMode(QHeaderView::Interactive);
 
+    connect(header, &QHeaderView::sectionResized, this, [this](int logicalIndex, int /*oldSize*/, int newSize) {
+        saveColumnWidth(logicalIndex, newSize);
+    });
+    connect(header, &QHeaderView::sortIndicatorChanged, this, [this](int logicalIndex, Qt::SortOrder order) {
+        m_sortColumn = logicalIndex;
+        m_sortOrder = order;
+        QSettings settings("Amifiles", "Amifiles");
+        settings.setValue("file_panel/sort_column", m_sortColumn);
+        settings.setValue("file_panel/sort_order", (int)m_sortOrder);
+    });
+
     connect(m_treeView, &QTreeView::doubleClicked, this, &FilePanel::onDoubleClicked);
     connect(m_treeView, &QTreeView::customContextMenuRequested, this, &FilePanel::onCustomContextMenu);
     connect(m_listView, &QListView::doubleClicked, this, &FilePanel::onDoubleClicked);
@@ -856,11 +867,10 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
         m_historyIndex = m_history.size() - 1;
     }
 
-    // Set column widths nicely for initial load
-    m_treeView->setColumnWidth(0, 250); // Name
-    m_treeView->setColumnWidth(1, 80);  // Size
-    m_treeView->setColumnWidth(2, 100); // Type
-    m_treeView->setColumnWidth(3, 140); // Date Modified
+    // Load column widths and sort settings
+    loadColumnWidths();
+    loadSortSettings();
+    m_treeView->sortByColumn(m_sortColumn, m_sortOrder);
 
     m_millerView->setRootPath(m_currentPath);
     m_timelineView->setRootPath(m_currentPath);
@@ -2272,10 +2282,25 @@ void FilePanel::onHeaderContextMenu(const QPoint& pos) {
     }
 
     menu.addSeparator();
+
+    int logicalIndex = header->logicalIndexAt(pos);
+    QAction* actAutoSizeThis = nullptr;
+    if (logicalIndex >= 0) {
+        QString colName = header->model()->headerData(logicalIndex, Qt::Horizontal).toString();
+        actAutoSizeThis = menu.addAction(QString("Auto-Size '%1'").arg(colName));
+    }
+    QAction* actAutoSizeAll = menu.addAction("Auto-Size All Columns");
+
+    menu.addSeparator();
     QAction* actCustomize = menu.addAction("Customize Columns...");
 
     QAction* selected = menu.exec(m_treeView->header()->mapToGlobal(pos));
-    if (selected == actCustomize) {
+    if (selected && selected == actAutoSizeThis && logicalIndex >= 0) {
+        m_treeView->resizeColumnToContents(logicalIndex);
+        saveColumnWidth(logicalIndex, m_treeView->columnWidth(logicalIndex));
+    } else if (selected && selected == actAutoSizeAll) {
+        autoSizeAllColumns();
+    } else if (selected && selected == actCustomize) {
         ColumnsCustomizerDialog dlg(activeCustom, this);
         if (dlg.exec() == QDialog::Accepted) {
             m_fileModel->setActiveColumns(dlg.getSelectedColumns());
@@ -2823,4 +2848,37 @@ void FileFilterProxyModel::onCasingRendered(const QString& path, const QString& 
             }
         }
     }
+}
+
+void FilePanel::loadColumnWidths() {
+    QSettings settings("Amifiles", "Amifiles");
+    int count = m_treeView->model()->columnCount();
+    for (int i = 0; i < count; ++i) {
+        int defaultWidth = 100;
+        if (i == 0) defaultWidth = 250;      // Name
+        else if (i == 1) defaultWidth = 80;   // Size
+        else if (i == 2) defaultWidth = 100;  // Type
+        else if (i == 3) defaultWidth = 140;  // Date Modified
+
+        int width = settings.value(QString("columns/width_%1").arg(i), defaultWidth).toInt();
+        m_treeView->setColumnWidth(i, width);
+    }
+}
+
+void FilePanel::saveColumnWidth(int logicalIndex, int width) {
+    QSettings settings("Amifiles", "Amifiles");
+    settings.setValue(QString("columns/width_%1").arg(logicalIndex), width);
+}
+
+void FilePanel::autoSizeAllColumns() {
+    for (int i = 0; i < m_treeView->model()->columnCount(); ++i) {
+        m_treeView->resizeColumnToContents(i);
+        saveColumnWidth(i, m_treeView->columnWidth(i));
+    }
+}
+
+void FilePanel::loadSortSettings() {
+    QSettings settings("Amifiles", "Amifiles");
+    m_sortColumn = settings.value("file_panel/sort_column", 0).toInt();
+    m_sortOrder = (Qt::SortOrder)settings.value("file_panel/sort_order", (int)Qt::AscendingOrder).toInt();
 }

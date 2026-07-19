@@ -128,6 +128,7 @@ private slots:
     void onClonePathRequested(const QString& path);
     void onTabPressed();
     void onToggleSyncScroll(bool checked);
+    void onAutoSizeColumns();
     void updateScrollSyncConnections();
     void onTabContextMenuRequested(const QPoint& pos);
     
@@ -339,6 +340,7 @@ private:
     QAction* m_actLeftShowCategoryButtons = nullptr;
     QAction* m_actRightShowFilterText = nullptr;
     QAction* m_actRightShowCategoryButtons = nullptr;
+    QAction* m_actAutoSizeColumns = nullptr;
 
     QAction* m_actNewTab = nullptr;
     QAction* m_actCloseTab = nullptr;

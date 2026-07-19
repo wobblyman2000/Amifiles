@@ -38,6 +38,7 @@
 #include <QApplication>
 #include <QStyle>
 #include <QMessageBox>
+#include <QMouseEvent>
 #include <QDebug>
 #include <QDir>
 #include <QProcess>
@@ -761,6 +762,12 @@ void MainWindow::setupActions() {
     m_actConfigureFolderLayouts->setStatusTip("Define custom view modes and toolbars for specific folders or media categories");
     connect(m_actConfigureFolderLayouts, &QAction::triggered, this, &MainWindow::onConfigureFolderLayouts);
 
+    m_actAutoSizeColumns = new QAction("Auto-Size All Columns", this);
+    m_actAutoSizeColumns->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_A));
+    m_actAutoSizeColumns->setToolTip("Auto-fit all column widths to their contents (Ctrl+Shift+A)");
+    m_actAutoSizeColumns->setStatusTip("Auto-fit all column widths to their contents (Ctrl+Shift+A)");
+    connect(m_actAutoSizeColumns, &QAction::triggered, this, &MainWindow::onAutoSizeColumns);
+
     m_actConfigureBackupSchedule = new QAction("Configure Backup Schedule...", this);
     m_actConfigureBackupSchedule->setToolTip("Define automated copy and sync backup schedules for directories");
     m_actConfigureBackupSchedule->setStatusTip("Define automated copy and sync backup schedules for directories");
@@ -1003,10 +1010,12 @@ void MainWindow::setupMenus() {
     menuFilterToggles->addAction(m_actRightShowFilterText);
     menuFilterToggles->addAction(m_actRightShowCategoryButtons);
 
+    m_menuView->addAction(m_actAutoSizeColumns);
     m_menuView->addSeparator();
     m_menuView->addAction(m_actRefresh);
 
     m_menuFavorites = menuBar()->addMenu("Favorites");
+    m_menuFavorites->installEventFilter(this);
     m_menuDrives = menuBar()->addMenu("Drives");
 
     m_menuTools = menuBar()->addMenu("Tools");
@@ -3125,6 +3134,30 @@ QIcon MainWindow::getFolderIcon(const QString& folderName) {
 }
 
 bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
+    if (watched == m_menuFavorites) {
+        if (event->type() == QEvent::MouseButtonRelease) {
+            QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
+            if (mouseEvent->button() == Qt::RightButton) {
+                QAction* action = m_menuFavorites->actionAt(mouseEvent->pos());
+                if (action) {
+                    QString path = action->data().toString();
+                    if (!path.isEmpty()) {
+                        QMessageBox::StandardButton reply = QMessageBox::question(
+                            this, "Remove Favorite",
+                            QString("Are you sure you want to remove '%1' from Favorites?").arg(QDir::toNativeSeparators(path)),
+                            QMessageBox::Yes | QMessageBox::No
+                        );
+                        if (reply == QMessageBox::Yes) {
+                            FavoritesManager::instance().removeFavorite(path);
+                            m_menuFavorites->close();
+                        }
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+
     if (watched == m_tbDrives) {
         if (event->type() == QEvent::DragEnter) {
             QDragEnterEvent* dragEvent = static_cast<QDragEnterEvent*>(event);
@@ -3684,6 +3717,13 @@ void MainWindow::onTabPressed() {
         targetPanel->focusActiveView();
         onPanelActivated(targetPanel);
     }
+}
+
+void MainWindow::onAutoSizeColumns() {
+    FilePanel* left = leftPanel();
+    FilePanel* right = rightPanel();
+    if (left) left->autoSizeAllColumns();
+    if (right) right->autoSizeAllColumns();
 }
 
 void MainWindow::onToggleSyncScroll(bool checked) {
