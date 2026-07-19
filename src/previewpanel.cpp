@@ -1559,6 +1559,18 @@ AudioPlaceholderWidget::AudioPlaceholderWidget(QWidget* parent) : QWidget(parent
 void AudioPlaceholderWidget::setFilePath(const QString& filePath) {
     m_filePath = filePath;
     m_metadata = MetadataExtractor::extract(filePath);
+    m_embeddedCover = QPixmap();
+    
+    if (!filePath.isEmpty() && m_coverArtVisible) {
+        QProcess proc;
+        proc.start("exiftool", {"-Picture", "-b", filePath});
+        if (proc.waitForFinished(1500)) {
+            QByteArray imgData = proc.readAllStandardOutput();
+            if (!imgData.isEmpty()) {
+                m_embeddedCover.loadFromData(imgData);
+            }
+        }
+    }
     update();
 }
 
@@ -1581,26 +1593,35 @@ void AudioPlaceholderWidget::paintEvent(QPaintEvent* event) {
         return;
     }
 
-    QString artPath;
+    bool hasCover = false;
+    QPixmap cover;
     if (m_coverArtVisible) {
-        QString dirPath = QFileInfo(m_filePath).absolutePath();
-        QDir dir(dirPath);
-        QStringList artNames = { "folder", "cover", "album", "poster" };
-        QStringList artExts = { "jpg", "jpeg", "png", "webp" };
-        for (const QString& name : artNames) {
-            for (const QString& ext : artExts) {
-                QString path = dir.filePath(name + "." + ext);
-                if (QFile::exists(path)) {
-                    artPath = path;
-                    break;
+        if (!m_embeddedCover.isNull()) {
+            cover = m_embeddedCover;
+            hasCover = true;
+        } else {
+            QString dirPath = QFileInfo(m_filePath).absolutePath();
+            QDir dir(dirPath);
+            QStringList artNames = { "folder", "cover", "album", "poster" };
+            QStringList artExts = { "jpg", "jpeg", "png", "webp" };
+            for (const QString& name : artNames) {
+                for (const QString& ext : artExts) {
+                    QString path = dir.filePath(name + "." + ext);
+                    if (QFile::exists(path)) {
+                        QPixmap p(path);
+                        if (!p.isNull()) {
+                            cover = p;
+                            hasCover = true;
+                            break;
+                        }
+                    }
                 }
+                if (hasCover) break;
             }
-            if (!artPath.isEmpty()) break;
         }
     }
 
-    if (!artPath.isEmpty()) {
-        QPixmap cover(artPath);
+    if (hasCover) {
         if (!cover.isNull()) {
             // Draw cover art filling the widget area (preserving aspect ratio)
             QRect fgRect = r.adjusted(12, 12, -12, -12);

@@ -31,6 +31,7 @@ private:
     QString m_filePath;
     FileMetadata m_metadata;
     bool m_coverArtVisible = true;
+    QPixmap m_embeddedCover;
 };
 
 class FullscreenWidget : public QWidget {
