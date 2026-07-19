@@ -177,12 +177,22 @@ void FolderLayoutDialog::populateTable() {
         // 4. View Mode Combo
         QComboBox* modeCombo = new QComboBox(this);
         modeCombo->addItem("Keep Default", "Default");
-        modeCombo->addItem("Details List View", "List");
-        modeCombo->addItem("Icon Grid View", "Grid");
+        modeCombo->addItem("Details Table", "List");
+        modeCombo->addItem("Grid / Icons", "Grid");
+        modeCombo->addItem("Card / Tiles", "Card");
+        modeCombo->addItem("Miller Columns", "Miller");
+        modeCombo->addItem("Chronological Timeline", "Timeline");
+        modeCombo->addItem("Filmstrip View", "Filmstrip");
+        modeCombo->addItem("Theater View", "Theater");
         modeCombo->setStyleSheet("QComboBox { background-color: #11111b; color: #cdd6f4; border: 1px solid #313244; }");
         int modeIdx = 0;
         if (r.viewMode == "List") modeIdx = 1;
         else if (r.viewMode == "Grid") modeIdx = 2;
+        else if (r.viewMode == "Card") modeIdx = 3;
+        else if (r.viewMode == "Miller") modeIdx = 4;
+        else if (r.viewMode == "Timeline") modeIdx = 5;
+        else if (r.viewMode == "Filmstrip") modeIdx = 6;
+        else if (r.viewMode == "Theater") modeIdx = 7;
         modeCombo->setCurrentIndex(modeIdx);
         m_table->setCellWidget(i, 3, modeCombo);
 
@@ -200,6 +210,7 @@ void FolderLayoutDialog::populateTable() {
 }
 
 void FolderLayoutDialog::onAddRule() {
+    harvestRules();
     FolderLayoutRule r;
     r.ruleType = "Path";
     r.value = "";
@@ -211,10 +222,11 @@ void FolderLayoutDialog::onAddRule() {
 
 void FolderLayoutDialog::onDeleteRule() {
     int row = m_table->currentRow();
-    if (row < 0 || row >= m_rules.size()) {
+    if (row < 0 || row >= m_table->rowCount()) {
         QMessageBox::warning(this, "No Selection", "Please click a row to delete.");
         return;
     }
+    harvestRules();
     m_rules.removeAt(row);
     populateTable();
 }
@@ -280,4 +292,29 @@ void FolderLayoutDialog::onSave() {
 
     m_rules = nextRules;
     accept();
+}
+
+void FolderLayoutDialog::harvestRules() {
+    QList<FolderLayoutRule> nextRules;
+    for (int i = 0; i < m_table->rowCount(); ++i) {
+        FolderLayoutRule r;
+        QComboBox* typeCombo = qobject_cast<QComboBox*>(m_table->cellWidget(i, 0));
+        r.ruleType = typeCombo ? typeCombo->currentData().toString() : "Path";
+        QWidget* w = m_table->cellWidget(i, 1);
+        if (w) {
+            QLineEdit* pathEdit = w->findChild<QLineEdit*>();
+            QComboBox* categoryCombo = w->findChild<QComboBox*>();
+            if (r.ruleType == "Path") {
+                r.value = pathEdit ? pathEdit->text().trimmed() : "";
+            } else {
+                r.value = categoryCombo ? categoryCombo->currentData().toString() : "Music";
+            }
+        }
+        QComboBox* modeCombo = qobject_cast<QComboBox*>(m_table->cellWidget(i, 3));
+        r.viewMode = modeCombo ? modeCombo->currentData().toString() : "Default";
+        QPushButton* buttonsBtn = qobject_cast<QPushButton*>(m_table->cellWidget(i, 4));
+        r.customButtons = buttonsBtn ? buttonsBtn->property("selectedButtons").toStringList() : QStringList();
+        nextRules.append(r);
+    }
+    m_rules = nextRules;
 }

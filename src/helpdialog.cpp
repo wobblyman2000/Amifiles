@@ -249,6 +249,18 @@ void HelpDialog::onSectionChanged(int index) {
                     "<li><b>Drag &amp; Drop Shortcuts:</b> Drag any folder from either list view and drop it directly onto the <b>Drives Toolbar</b>. It automatically registers a persistent navigation shortcut button.</li>"
                     "<li><b>Remove Shortcut:</b> Right-click any custom shortcut button on the Drives Toolbar and select **Remove Shortcut** to delete it.</li>"
                     "<li><b>Built-in Thematic Icons:</b> Directories named with common keywords (e.g. <i>Games</i>, <i>Code</i>, <i>Programming</i>, <i>Dev</i>, <i>Music</i>, <i>Videos</i>, <i>Pictures</i>, <i>Documents</i>, and <i>Downloads</i>) automatically render with distinct, modern category icons in both the Drives Toolbar and the main file panels.</li>"
+                    "</ul>"
+                    "<h3>Folder-Specific Layouts &amp; Toolbars</h3>"
+                    "<ul>"
+                    "<li><b>Configuration:</b> Select <b>Tools -> Configure Folder-Specific Layouts...</b> to launch the layout rules manager.</li>"
+                    "<li><b>Rules Setup:</b> Click <b>Add Rule</b>. Under the <i>Rule Type</i> column, select:</li>"
+                    "<ul>"
+                    "<li><b>Exact Path:</b> Matches a specific folder path (e.g. <code>/home/dave/Music/CD1</code>). Click the Browse button to select a folder directory.</li>"
+                    "<li><b>Folder Category:</b> Automatically matches any directory matching file type distributions. Category filters include <b>Music</b> (mostly audio tracks), <b>Videos</b> (mostly clips and film clips), <b>Images</b> (photos and graphic designs), and <b>Documents</b> (mostly text and source files).</li>"
+                    "</ul>"
+                    "<li><b>Custom View Mode:</b> Choose which layout view style to apply automatically upon entering the folder (Details Table, Grid / Icons, Card / Tiles, Miller Columns, Chronological Timeline, Filmstrip View, or Theater View).</li>"
+                    "<li><b>Custom Toolbar Filters:</b> Click the pink button in the <i>Toolbar Buttons</i> column to choose exactly which custom script buttons are loaded in the custom commands toolbar when browsing that specific folder. This allows you to have a completely clean toolbar for some folders while displaying administrative scripts in others.</li>"
+                    "<li>Click <b>Save</b> to store rules. Navigation triggers these parameters in real time!</li>"
                     "</ul>";
             break;
 

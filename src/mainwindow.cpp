@@ -2810,9 +2810,19 @@ void MainWindow::applyFolderRules(const QString& path) {
 
     if (foundMatch) {
         if (matchedRule.viewMode == "List") {
-            m_activePanel->setViewModeGrid(false);
+            m_activePanel->setViewModeIndex(0);
         } else if (matchedRule.viewMode == "Grid") {
-            m_activePanel->setViewModeGrid(true);
+            m_activePanel->setViewModeIndex(1);
+        } else if (matchedRule.viewMode == "Card") {
+            m_activePanel->setViewModeIndex(2);
+        } else if (matchedRule.viewMode == "Miller") {
+            m_activePanel->setViewModeIndex(3);
+        } else if (matchedRule.viewMode == "Timeline") {
+            m_activePanel->setViewModeIndex(4);
+        } else if (matchedRule.viewMode == "Filmstrip") {
+            m_activePanel->setViewModeIndex(5);
+        } else if (matchedRule.viewMode == "Theater") {
+            m_activePanel->setViewModeIndex(6);
         }
         
         m_activeToolbarFilter = matchedRule.customButtons;

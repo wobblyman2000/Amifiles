@@ -22,6 +22,7 @@ private slots:
 private:
     void setupUI();
     void populateTable();
+    void harvestRules();
 
     QTableWidget* m_table = nullptr;
     QList<FolderLayoutRule> m_rules;
