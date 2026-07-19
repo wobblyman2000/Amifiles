@@ -3985,8 +3985,8 @@ void MainWindow::setZenMode(bool enabled) {
     if (m_tbFile) m_tbFile->setVisible(!enabled);
     if (m_tbView) m_tbView->setVisible(!enabled);
     if (m_customToolBar) m_customToolBar->setVisible(!enabled);
-    if (m_tbDrives) m_tbDrives->setVisible(!enabled);
-    if (m_tbCenterOps) m_tbCenterOps->setVisible(!enabled && m_isDualPane);
+    if (m_tbDrives) m_tbDrives->setVisible(!enabled && m_actToggleDrivesToolbar->isChecked());
+    if (m_tbCenterOps) m_tbCenterOps->setVisible(!enabled && m_actToggleCenterOps->isChecked() && m_isDualPane);
     if (m_bottomTabWidget) m_bottomTabWidget->setVisible(!enabled);
     if (statusBar()) statusBar()->setVisible(!enabled);
     for (QToolBar* tb : m_dynamicToolBars) {
