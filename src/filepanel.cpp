@@ -1730,29 +1730,31 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
 
     bool hasSelection = index.isValid();
     actOpen->setEnabled(hasSelection);
-    actCopy->setEnabled(hasSelection);
-    actCut->setEnabled(hasSelection);
-    actDelete->setEnabled(hasSelection);
-    actCalculateChecksum->setEnabled(hasSelection && QFileInfo(selectedPath).isFile());
-    actSecureShred->setEnabled(hasSelection);
-    actRename->setEnabled(hasSelection);
-    actBulkRename->setEnabled(hasSelection);
-    menuColorLabel->setEnabled(hasSelection);
-    actFileTags->setEnabled(hasSelection);
+    if (actFileTags) actFileTags->setEnabled(hasSelection);
+    if (!isTheater) {
+        actCopy->setEnabled(hasSelection);
+        actCut->setEnabled(hasSelection);
+        actDelete->setEnabled(hasSelection);
+        actCalculateChecksum->setEnabled(hasSelection && QFileInfo(selectedPath).isFile());
+        actSecureShred->setEnabled(hasSelection);
+        actRename->setEnabled(hasSelection);
+        actBulkRename->setEnabled(hasSelection);
+        menuColorLabel->setEnabled(hasSelection);
 
-    bool canCompareSelected = (curSelected.size() == 2 && QFileInfo(curSelected[0]).isFile() && QFileInfo(curSelected[1]).isFile());
-    actCompareSelected->setEnabled(canCompareSelected);
+        bool canCompareSelected = (curSelected.size() == 2 && QFileInfo(curSelected[0]).isFile() && QFileInfo(curSelected[1]).isFile());
+        actCompareSelected->setEnabled(canCompareSelected);
 
-    bool canCompareSibling = false;
-    QString sibSelectedPath;
-    if (m_siblingPanel && m_siblingPanel->isVisible() && curSelected.size() == 1 && QFileInfo(curSelected[0]).isFile()) {
-        QStringList sibSelected = m_siblingPanel->selectedPaths();
-        if (sibSelected.size() == 1 && QFileInfo(sibSelected[0]).isFile()) {
-            canCompareSibling = true;
-            sibSelectedPath = sibSelected[0];
+        bool canCompareSibling = false;
+        QString sibSelectedPath;
+        if (m_siblingPanel && m_siblingPanel->isVisible() && curSelected.size() == 1 && QFileInfo(curSelected[0]).isFile()) {
+            QStringList sibSelected = m_siblingPanel->selectedPaths();
+            if (sibSelected.size() == 1 && QFileInfo(sibSelected[0]).isFile()) {
+                canCompareSibling = true;
+                sibSelectedPath = sibSelected[0];
+            }
         }
+        actCompareSibling->setEnabled(canCompareSibling);
     }
-    actCompareSibling->setEnabled(canCompareSibling);
     bool hasAudioFiles = false;
     for (const QString& sPath : curSelected) {
         QFileInfo info(sPath);
@@ -1794,21 +1796,23 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     }
     actScrapeVideo->setEnabled(hasSelection && hasVideoFilesOrDirs);
 
-    bool isArchive = false;
-    if (curSelected.size() == 1) {
-        QString ext = QFileInfo(curSelected.first()).suffix().toLower();
-        isArchive = (ext == "zip" || ext == "tar" || ext == "gz" || ext == "xz" || ext == "bz2" || ext == "tgz" || ext == "7z" || ext == "rar" || ext == "adf" || ext == "d64" || ext == "iso" || ext == "img");
+    if (!isTheater) {
+        bool isArchive = false;
+        if (curSelected.size() == 1) {
+            QString ext = QFileInfo(curSelected.first()).suffix().toLower();
+            isArchive = (ext == "zip" || ext == "tar" || ext == "gz" || ext == "xz" || ext == "bz2" || ext == "tgz" || ext == "7z" || ext == "rar" || ext == "adf" || ext == "d64" || ext == "iso" || ext == "img");
+        }
+        actCreateArchive->setEnabled(!curSelected.isEmpty());
+        actExtractArchive->setEnabled(isArchive);
+
+        bool hasSibling = m_siblingPanel && m_siblingPanel->isVisible();
+        actCopyToSibling->setEnabled(hasSelection && hasSibling);
+        actMoveToSibling->setEnabled(hasSelection && hasSibling);
+
+        QClipboard* clipboard = QApplication::clipboard();
+        const QMimeData* mimeData = clipboard->mimeData();
+        actPaste->setEnabled(mimeData && mimeData->hasUrls());
     }
-    actCreateArchive->setEnabled(!curSelected.isEmpty());
-    actExtractArchive->setEnabled(isArchive);
-
-    bool hasSibling = m_siblingPanel && m_siblingPanel->isVisible();
-    actCopyToSibling->setEnabled(hasSelection && hasSibling);
-    actMoveToSibling->setEnabled(hasSelection && hasSibling);
-
-    QClipboard* clipboard = QApplication::clipboard();
-    const QMimeData* mimeData = clipboard->mimeData();
-    actPaste->setEnabled(mimeData && mimeData->hasUrls());
 
     QAction* actToggleZen = nullptr;
     QAction* actToggleDoubleclick = nullptr;
@@ -1909,6 +1913,13 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         VisualDiffDialog dlg(curSelected[0], curSelected[1], this);
         dlg.exec();
     } else if (selected == actCompareSibling) {
+        QString sibSelectedPath;
+        if (m_siblingPanel) {
+            QStringList sibSelected = m_siblingPanel->selectedPaths();
+            if (!sibSelected.isEmpty()) {
+                sibSelectedPath = sibSelected.first();
+            }
+        }
         VisualDiffDialog dlg(curSelected[0], sibSelectedPath, this);
         dlg.exec();
     } else if (selected == actEditTags) {
