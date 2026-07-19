@@ -129,6 +129,8 @@ private slots:
     void onTabPressed();
     void onToggleSyncScroll(bool checked);
     void onAutoSizeColumns();
+    void setZenMode(bool enabled);
+    void onPlayMediaBuiltin(const QString& filePath);
     void updateScrollSyncConnections();
     void onTabContextMenuRequested(const QPoint& pos);
     
@@ -334,6 +336,7 @@ private:
     QAction* m_actEdit = nullptr;
     QAction* m_actToggleSyncScroll = nullptr;
     bool m_syncScrollEnabled = false;
+    bool m_zenMode = false;
     QScrollBar* m_leftScrollConnected = nullptr;
     QScrollBar* m_rightScrollConnected = nullptr;
     QAction* m_actLeftShowFilterText = nullptr;
@@ -341,6 +344,7 @@ private:
     QAction* m_actRightShowFilterText = nullptr;
     QAction* m_actRightShowCategoryButtons = nullptr;
     QAction* m_actAutoSizeColumns = nullptr;
+    QAction* m_actToggleZenMode = nullptr;
 
     QAction* m_actNewTab = nullptr;
     QAction* m_actCloseTab = nullptr;

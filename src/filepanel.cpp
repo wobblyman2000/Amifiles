@@ -105,7 +105,9 @@ void FilePanel::setupUI() {
     mainLayout->setSpacing(4);
 
     // Top Navigation Bar
-    QHBoxLayout* navLayout = new QHBoxLayout();
+    m_navContainer = new QWidget(this);
+    QHBoxLayout* navLayout = new QHBoxLayout(m_navContainer);
+    navLayout->setContentsMargins(0, 0, 0, 0);
     navLayout->setSpacing(2);
 
     QStyle* style = QApplication::style();
@@ -277,6 +279,7 @@ void FilePanel::setupUI() {
     m_archiveModel = new ArchiveModel(this);
     m_dashboardWidget = new DiskDashboardWidget(this);
     m_theaterListView = new TheaterListView(this);
+    m_theaterListView->setContextMenuPolicy(Qt::CustomContextMenu);
     m_theaterDelegate = new TheaterViewDelegate(m_theaterListView);
     m_theaterListView->setItemDelegate(m_theaterDelegate);
     m_theaterListView->installEventFilter(this);
@@ -476,7 +479,7 @@ void FilePanel::setupUI() {
     bottomLayout->addWidget(m_statusWidget);
 
     mainLayout->addWidget(m_globalSearchEdit);
-    mainLayout->addLayout(navLayout);
+    mainLayout->addWidget(m_navContainer);
     mainLayout->addWidget(m_searchResultsView, 1);
     mainLayout->addWidget(m_viewStack, 1);
     mainLayout->addLayout(bottomLayout);
@@ -1074,6 +1077,14 @@ void FilePanel::onDoubleClicked(const QModelIndex& index) {
     } else {
         QString ext = info.suffix().toLower();
         QSettings settings("Amifiles", "Amifiles");
+
+        QStringList mediaExts = { "mp3", "wav", "flac", "ogg", "m4a", "mp4", "avi", "mkv", "mov", "webm" };
+        bool builtinPlayerDoubleclick = settings.value("preferences/builtin_player_doubleclick", false).toBool();
+        if (builtinPlayerDoubleclick && mediaExts.contains(ext)) {
+            emit playMediaBuiltinRequested(path);
+            return;
+        }
+
         bool archiveNavEnabled = settings.value("preferences/archive_nav", true).toBool();
         QStringList archiveExts = { "zip", "tar", "gz", "xz", "bz2", "tgz", "rar", "7z", "adf", "d64", "iso", "img" };
 
@@ -1480,6 +1491,8 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     QModelIndex index;
     if (m_viewStack->currentWidget() == m_listView) {
         index = m_listView->indexAt(pos);
+    } else if (m_viewStack->currentWidget() == m_theaterListView) {
+        index = m_theaterListView->indexAt(pos);
     } else {
         index = m_treeView->indexAt(pos);
     }
@@ -1521,7 +1534,7 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     bool isFavorite = false;
 
     QWidget* activeViewWidget = m_viewStack->currentWidget();
-    bool isNewView = (activeViewWidget == m_millerView || activeViewWidget == m_timelineView || activeViewWidget == m_filmstripView);
+    bool isNewView = (activeViewWidget == m_millerView || activeViewWidget == m_timelineView || activeViewWidget == m_filmstripView || activeViewWidget == m_theaterListView);
 
     if (isNewView) {
         if (!curSelected.isEmpty()) {
@@ -1720,6 +1733,25 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     QClipboard* clipboard = QApplication::clipboard();
     const QMimeData* mimeData = clipboard->mimeData();
     actPaste->setEnabled(mimeData && mimeData->hasUrls());
+
+    QAction* actToggleZen = nullptr;
+    QAction* actToggleDoubleclick = nullptr;
+
+    if (m_viewStack->currentWidget() == m_theaterListView) {
+        menu.addSeparator();
+
+        QSettings settings("Amifiles", "Amifiles");
+        bool zenActive = settings.value("preferences/zen_mode", false).toBool();
+        bool builtinDoubleclick = settings.value("preferences/builtin_player_doubleclick", false).toBool();
+
+        actToggleZen = menu.addAction("Clean Interface Mode (Zen Mode)");
+        actToggleZen->setCheckable(true);
+        actToggleZen->setChecked(zenActive);
+
+        actToggleDoubleclick = menu.addAction("Double-click Plays Media in Built-in Fullscreen Player");
+        actToggleDoubleclick->setCheckable(true);
+        actToggleDoubleclick->setChecked(builtinDoubleclick);
+    }
 
     // Execute menu on the active view layout widget
     QPoint globalPos = QCursor::pos();
@@ -1959,6 +1991,15 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         }
     } else if (selected == actProp) {
         onShowProperties();
+    } else if (selected && selected == actToggleZen) {
+        QSettings settings("Amifiles", "Amifiles");
+        bool current = settings.value("preferences/zen_mode", false).toBool();
+        settings.setValue("preferences/zen_mode", !current);
+        emit zenModeToggled(!current);
+    } else if (selected && selected == actToggleDoubleclick) {
+        QSettings settings("Amifiles", "Amifiles");
+        bool current = settings.value("preferences/builtin_player_doubleclick", false).toBool();
+        settings.setValue("preferences/builtin_player_doubleclick", !current);
     }
 }
 
@@ -2881,4 +2922,11 @@ void FilePanel::loadSortSettings() {
     QSettings settings("Amifiles", "Amifiles");
     m_sortColumn = settings.value("file_panel/sort_column", 0).toInt();
     m_sortOrder = (Qt::SortOrder)settings.value("file_panel/sort_order", (int)Qt::AscendingOrder).toInt();
+}
+
+void FilePanel::setNavigationAndFilterVisible(bool visible) {
+    if (m_navContainer) m_navContainer->setVisible(visible);
+    if (m_categoryWidget) m_categoryWidget->setVisible(visible && m_categoryButtonsVisible);
+    if (m_filterTextWidget) m_filterTextWidget->setVisible(visible && m_filterTextBarVisible);
+    if (m_statusWidget) m_statusWidget->setVisible(visible);
 }

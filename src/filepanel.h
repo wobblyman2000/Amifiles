@@ -452,6 +452,7 @@ public:
     void refresh();
     void updateStyles();
     void autoSizeAllColumns();
+    void setNavigationAndFilterVisible(bool visible);
 
     // Clipboard and File Operations
     void onCopy();
@@ -497,6 +498,8 @@ public:
     QString searchQuery() const;
 
 signals:
+    void playMediaBuiltinRequested(const QString& filePath);
+    void zenModeToggled(bool enabled);
     void pathChanged(const QString& path);
     void fileSelected(const QString& filePath);
     void folderArtDetected(const QString& artPath);
@@ -572,6 +575,7 @@ private:
     QString m_lockedPath;
 
     // UI Elements
+    QWidget* m_navContainer = nullptr;
     QToolButton* m_btnBack = nullptr;
     QToolButton* m_btnForward = nullptr;
     QToolButton* m_btnUp = nullptr;

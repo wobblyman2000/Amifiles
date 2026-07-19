@@ -136,6 +136,10 @@ public:
     void setAudioCoverArtVisible(bool visible);
     void setSpectrumVisualizerVisible(bool visible);
 
+public slots:
+    void toggleFullscreen();
+    void exitFullscreen();
+
 signals:
     void tagsChanged(const QString& filePath);
     void spectrumVisualizerToggled(bool checked);
@@ -161,8 +165,6 @@ private slots:
     void onMediaMetadataChanged();
     void onMediaStatusChanged(QMediaPlayer::MediaStatus status);
     void onPlaybackStateChanged(QMediaPlayer::PlaybackState state);
-    void toggleFullscreen();
-    void exitFullscreen();
     void onSubtitleMenuRequested();
     void onShuffleToggled();
     void onRepeatClicked();

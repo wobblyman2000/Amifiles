@@ -298,6 +298,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
         }
     }
 
+    bool zenActive = settings.value("preferences/zen_mode", false).toBool();
+    setZenMode(zenActive);
+
     // Load and apply folder layout rules
     loadFolderRules();
     if (m_activePanel) {
@@ -768,6 +771,14 @@ void MainWindow::setupActions() {
     m_actAutoSizeColumns->setStatusTip("Auto-fit all column widths to their contents (Ctrl+Shift+A)");
     connect(m_actAutoSizeColumns, &QAction::triggered, this, &MainWindow::onAutoSizeColumns);
 
+    m_actToggleZenMode = new QAction("Toggle Clean Zen Interface", this);
+    m_actToggleZenMode->setShortcut(QKeySequence(Qt::Key_F11));
+    m_actToggleZenMode->setToolTip("Toggle distraction-free Zen Mode (F11)");
+    m_actToggleZenMode->setStatusTip("Toggle distraction-free Zen Mode (F11)");
+    connect(m_actToggleZenMode, &QAction::triggered, this, [this]() {
+        setZenMode(!m_zenMode);
+    });
+
     m_actConfigureBackupSchedule = new QAction("Configure Backup Schedule...", this);
     m_actConfigureBackupSchedule->setToolTip("Define automated copy and sync backup schedules for directories");
     m_actConfigureBackupSchedule->setStatusTip("Define automated copy and sync backup schedules for directories");
@@ -1011,6 +1022,7 @@ void MainWindow::setupMenus() {
     menuFilterToggles->addAction(m_actRightShowCategoryButtons);
 
     m_menuView->addAction(m_actAutoSizeColumns);
+    m_menuView->addAction(m_actToggleZenMode);
     m_menuView->addSeparator();
     m_menuView->addAction(m_actRefresh);
 
@@ -1129,8 +1141,14 @@ void MainWindow::onFileSelected(const QString& filePath) {
     if (sender() != m_activePanel) return;
 
     if (filePath.isEmpty()) {
+        if (m_previewPanel->player() && m_previewPanel->player()->playbackState() == QMediaPlayer::PlayingState) {
+            return;
+        }
         m_previewPanel->clearPreview();
     } else {
+        if (QFileInfo(filePath).isDir() && m_previewPanel->player() && m_previewPanel->player()->playbackState() == QMediaPlayer::PlayingState) {
+            return;
+        }
         m_previewPanel->previewFile(filePath, m_activePanel->selectedPaths());
     }
     updateMiniPlayer();
@@ -2216,6 +2234,8 @@ FilePanel* MainWindow::createTab(QTabWidget* tabWidget, const QString& path) {
 
     connect(panel, &FilePanel::panelActivated, this, &MainWindow::onPanelActivated);
     connect(panel, &FilePanel::fileSelected, this, &MainWindow::onFileSelected);
+    connect(panel, &FilePanel::zenModeToggled, this, &MainWindow::setZenMode);
+    connect(panel, &FilePanel::playMediaBuiltinRequested, this, &MainWindow::onPlayMediaBuiltin);
     connect(panel, &FilePanel::folderArtDetected, this, &MainWindow::onFolderArtDetected);
     connect(panel, &FilePanel::pathChanged, this, &MainWindow::onPathChanged);
     connect(panel, &FilePanel::clonePathRequested, this, &MainWindow::onClonePathRequested);
@@ -3932,6 +3952,56 @@ void MainWindow::onToggleDetailedTooltips(bool enabled) {
     QSettings settings("Amifiles", "Amifiles");
     settings.setValue("help/detailed_tooltips", enabled);
     updateTooltips();
+}
+
+void MainWindow::setZenMode(bool enabled) {
+    m_zenMode = enabled;
+    QSettings settings("Amifiles", "Amifiles");
+    settings.setValue("preferences/zen_mode", enabled);
+
+    // Hide/show main window menu bar, toolbars, center ops, bottom tabs, status bar
+    if (menuBar()) menuBar()->setVisible(!enabled);
+    if (m_tbFile) m_tbFile->setVisible(!enabled);
+    if (m_tbView) m_tbView->setVisible(!enabled);
+    if (m_customToolBar) m_customToolBar->setVisible(!enabled);
+    if (m_tbDrives) m_tbDrives->setVisible(!enabled);
+    if (m_tbCenterOps) m_tbCenterOps->setVisible(!enabled && m_isDualPane);
+    if (m_bottomTabWidget) m_bottomTabWidget->setVisible(!enabled);
+    if (statusBar()) statusBar()->setVisible(!enabled);
+    
+    // Hide/show navigation and filter bars in all open tabs on both left and right sides
+    if (m_leftTabWidget) {
+        for (int i = 0; i < m_leftTabWidget->count(); ++i) {
+            FilePanel* p = qobject_cast<FilePanel*>(m_leftTabWidget->widget(i));
+            if (p) p->setNavigationAndFilterVisible(!enabled);
+        }
+    }
+    if (m_rightTabWidget) {
+        for (int i = 0; i < m_rightTabWidget->count(); ++i) {
+            FilePanel* p = qobject_cast<FilePanel*>(m_rightTabWidget->widget(i));
+            if (p) p->setNavigationAndFilterVisible(!enabled);
+        }
+    }
+}
+
+void MainWindow::onPlayMediaBuiltin(const QString& filePath) {
+    if (!m_previewPanel) return;
+
+    // Show preview panel if it is hidden
+    if (m_actTogglePreview && !m_actTogglePreview->isChecked()) {
+        m_actTogglePreview->setChecked(true);
+    }
+
+    // Force the file to be previewed/played
+    m_previewPanel->previewFile(filePath, {});
+    
+    // Start playback
+    if (m_previewPanel->player()) {
+        m_previewPanel->player()->play();
+    }
+    
+    // Go fullscreen!
+    m_previewPanel->toggleFullscreen();
 }
 
 #include "mainwindow.moc"
