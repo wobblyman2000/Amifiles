@@ -431,6 +431,7 @@ public:
     void setViewModeIndex(int index);
 
     QString currentPath() const;
+    void setCustomBgColor(const QString& hexColor);
     void setPath(const QString& path);
     void focusActiveView();
     class QScrollBar* activeVerticalScrollBar() const;
@@ -566,6 +567,7 @@ private:
     bool m_categoryButtonsVisible = true;
     bool m_filterTextBarVisible = true;
     QString m_currentPath;
+    QString m_customBgColor;
     QStringList m_history;
     int m_historyIndex = -1;
 

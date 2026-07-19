@@ -91,10 +91,37 @@ struct CustomButton {
 };
 
 struct FolderLayoutRule {
+    QString name;
     QString ruleType; // "Path" or "Category"
     QString value;    // Exact path or Category name (Music, Video, Documents, Images)
-    QString viewMode; // "Default", "List", "Grid"
+    QString viewMode; // "No Change", "List", "Grid", etc.
     QStringList customButtons; // Button names subset
+    bool autoApply = true;
+
+    // Visibility Overrides
+    bool overrideDrivesToolbar = false;
+    bool drivesToolbarVisible = false;
+    bool overrideCenterOps = false;
+    bool centerOpsVisible = false;
+    bool overrideConsole = false;
+    bool consoleVisible = false;
+    bool overridePreview = false;
+    bool previewVisible = false;
+    bool overrideFavoritesSidebar = false;
+    bool favoritesSidebarVisible = false;
+    bool overrideZenMode = false;
+    bool zenModeActive = false;
+
+    // Appearance
+    bool useBgColor = false;
+    QString bgColor; // Hex value
+
+    // Tab Snapshot
+    bool hasTabsSnapshot = false;
+    QStringList leftPaths;
+    int leftActiveIndex = 0;
+    QStringList rightPaths;
+    int rightActiveIndex = 0;
 };
 
 class MiniMediaControls;
@@ -104,7 +131,7 @@ class QListWidgetItem;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
-    friend class WorkspaceProfileDialog;
+    friend class FolderLayoutDialog;
 public:
     explicit MainWindow(QWidget* parent = nullptr);
     ~MainWindow() override;
@@ -249,6 +276,7 @@ private:
     void loadFolderRules();
     void saveFolderRules();
     void applyFolderRules(const QString& path);
+    void applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel = nullptr);
     QString detectFolderCategory(const QString& path);
     void adjustSplitterSizes();
 
@@ -324,7 +352,6 @@ private:
     QAction* m_actShowAudioCoverArt = nullptr;
     QAction* m_actToggleSpectrum = nullptr;
     QAction* m_actAutoSaveLayout = nullptr;
-    QAction* m_actWorkspaceProfiles = nullptr;
     QAction* m_actPreferences = nullptr;
     QAction* m_actThemeStudio = nullptr;
     QAction* m_actSaveLayoutNow = nullptr;

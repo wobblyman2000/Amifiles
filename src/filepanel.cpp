@@ -637,6 +637,13 @@ QString FilePanel::currentPath() const {
     return m_currentPath;
 }
 
+void FilePanel::setCustomBgColor(const QString& hexColor) {
+    if (m_customBgColor != hexColor) {
+        m_customBgColor = hexColor;
+        updateStyles();
+    }
+}
+
 void FilePanel::setPath(const QString& path) {
     navigateTo(path, true);
 }
@@ -2375,22 +2382,23 @@ void FilePanel::updateStyles() {
     if (fontSize < 8) fontSize = 8;
 
     if (preset == "System Theme") {
-        m_viewStack->setStyleSheet("");
-        m_treeView->setStyleSheet(QString("QTreeView { border: none; font-size: %1px; }").arg(fontSize));
-        m_listView->setStyleSheet(QString("QListView { border: none; font-size: %1px; }").arg(fontSize));
+        QString bgStyle = m_customBgColor.isEmpty() ? "" : QString("background-color: %1;").arg(m_customBgColor);
+        m_viewStack->setStyleSheet(m_customBgColor.isEmpty() ? "" : QString("QStackedWidget { background-color: %1; }").arg(m_customBgColor));
+        m_treeView->setStyleSheet(QString("QTreeView { border: none; %1 font-size: %2px; }").arg(bgStyle).arg(fontSize));
+        m_listView->setStyleSheet(QString("QListView { border: none; %1 font-size: %2px; }").arg(bgStyle).arg(fontSize));
         m_theaterListView->setStyleSheet(QString("QListView { background: transparent; border: none; font-size: %1px; }"
                                                  "QListView::item { border: none; }"
                                                  "QListView::item:hover { background: transparent; }"
                                                  "QListView::item:selected { background: transparent; }").arg(fontSize));
-        m_millerView->setStyleSheet("");
-        m_timelineView->setStyleSheet(QString("QTreeWidget { border: none; font-size: %1px; }").arg(fontSize));
-        m_filmstripView->setStyleSheet("");
+        m_millerView->setStyleSheet(m_customBgColor.isEmpty() ? "" : QString("MillerColumnsView { %1 }").arg(bgStyle));
+        m_timelineView->setStyleSheet(QString("QTreeWidget { border: none; %1 font-size: %2px; }").arg(bgStyle).arg(fontSize));
+        m_filmstripView->setStyleSheet(m_customBgColor.isEmpty() ? "" : QString("FilmstripView { %1 }").arg(bgStyle));
         if (m_searchResultsView) {
-            m_searchResultsView->setStyleSheet(QString("QListView { font-size: %1px; }").arg(fontSize));
+            m_searchResultsView->setStyleSheet(QString("QListView { %1 font-size: %2px; }").arg(bgStyle).arg(fontSize));
         }
     } else {
         Theme::ThemeColors colors = Theme::getThemeColors();
-        QString bg = colors.bg;
+        QString bg = m_customBgColor.isEmpty() ? colors.bg : m_customBgColor;
         QString border = colors.border;
         QString text = colors.text;
         QString accent = colors.accent;
@@ -2399,15 +2407,15 @@ void FilePanel::updateStyles() {
 
         m_viewStack->setStyleSheet(QString("QStackedWidget { border: 2px solid %1; border-radius: 4px; background-color: %2; }").arg(borderColor).arg(bg));
 
-        m_treeView->setStyleSheet(QString("QTreeView { border: none; font-size: %1px; }").arg(fontSize));
-        m_listView->setStyleSheet(QString("QListView { border: none; font-size: %1px; }").arg(fontSize));
+        m_treeView->setStyleSheet(QString("QTreeView { border: none; background-color: %1; font-size: %2px; }").arg(bg).arg(fontSize));
+        m_listView->setStyleSheet(QString("QListView { border: none; background-color: %1; font-size: %2px; }").arg(bg).arg(fontSize));
         m_theaterListView->setStyleSheet(QString("QListView { background: transparent; color: %1; border: none; font-size: %2px; }"
                                                  "QListView::item { border: none; }"
                                                  "QListView::item:hover { background: transparent; }"
                                                  "QListView::item:selected { background: transparent; }").arg(text).arg(fontSize));
-        m_millerView->setStyleSheet(QString("MillerColumnsView { border: none; }"));
-        m_timelineView->setStyleSheet(QString("QTreeWidget { border: none; font-size: %1px; }").arg(fontSize));
-        m_filmstripView->setStyleSheet(QString("FilmstripView { border: none; }"));
+        m_millerView->setStyleSheet(QString("MillerColumnsView { border: none; background-color: %1; }").arg(bg));
+        m_timelineView->setStyleSheet(QString("QTreeWidget { border: none; background-color: %1; font-size: %2px; }").arg(bg).arg(fontSize));
+        m_filmstripView->setStyleSheet(QString("FilmstripView { border: none; background-color: %1; }").arg(bg));
 
         if (m_searchResultsView) {
             m_searchResultsView->setStyleSheet(QString("QListView { border: 2px solid %1; background-color: %2; color: %3; font-size: %4px; }").arg(borderColor).arg(bg).arg(text).arg(fontSize));

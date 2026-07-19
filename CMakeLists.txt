@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(Amifiles VERSION 1.3.36 LANGUAGES CXX)
+project(Amifiles VERSION 1.3.37 LANGUAGES CXX)
 
 configure_file(
     "${PROJECT_SOURCE_DIR}/src/version.h.in"
@@ -131,8 +131,7 @@ add_executable(Amifiles
     src/smartfoldermodel.cpp
     src/filetagsdialog.h
     src/filetagsdialog.cpp
-    src/workspaceprofiledialog.h
-    src/workspaceprofiledialog.cpp
+
     src/diskdashboardwidget.h
     src/diskdashboardwidget.cpp
     src/autoorganizerdialog.h
