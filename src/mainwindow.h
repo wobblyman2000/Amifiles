@@ -130,7 +130,7 @@ private slots:
     void onToggleSyncScroll(bool checked);
     void onAutoSizeColumns();
     void setZenMode(bool enabled);
-    void onPlayMediaBuiltin(const QString& filePath);
+    void onPlayMediaBuiltin(const QStringList& filePaths);
     void updateScrollSyncConnections();
     void onTabContextMenuRequested(const QPoint& pos);
     

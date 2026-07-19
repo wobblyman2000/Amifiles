@@ -498,7 +498,7 @@ public:
     QString searchQuery() const;
 
 signals:
-    void playMediaBuiltinRequested(const QString& filePath);
+    void playMediaBuiltinRequested(const QStringList& filePaths);
     void zenModeToggled(bool enabled);
     void pathChanged(const QString& path);
     void fileSelected(const QString& filePath);

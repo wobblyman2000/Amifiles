@@ -3968,6 +3968,9 @@ void MainWindow::setZenMode(bool enabled) {
     if (m_tbCenterOps) m_tbCenterOps->setVisible(!enabled && m_isDualPane);
     if (m_bottomTabWidget) m_bottomTabWidget->setVisible(!enabled);
     if (statusBar()) statusBar()->setVisible(!enabled);
+    for (QToolBar* tb : m_dynamicToolBars) {
+        if (tb) tb->setVisible(!enabled);
+    }
     
     // Hide/show navigation and filter bars in all open tabs on both left and right sides
     if (m_leftTabWidget) {
@@ -3984,16 +3987,19 @@ void MainWindow::setZenMode(bool enabled) {
     }
 }
 
-void MainWindow::onPlayMediaBuiltin(const QString& filePath) {
-    if (!m_previewPanel) return;
+void MainWindow::onPlayMediaBuiltin(const QStringList& filePaths) {
+    if (!m_previewPanel || filePaths.isEmpty()) return;
 
     // Show preview panel if it is hidden
     if (m_actTogglePreview && !m_actTogglePreview->isChecked()) {
         m_actTogglePreview->setChecked(true);
     }
 
-    // Force the file to be previewed/played
-    m_previewPanel->previewFile(filePath, {});
+    if (filePaths.size() == 1) {
+        m_previewPanel->previewFile(filePaths.first(), {});
+    } else {
+        m_previewPanel->playPlaylist(filePaths);
+    }
     
     // Start playback
     if (m_previewPanel->player()) {
