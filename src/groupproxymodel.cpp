@@ -1,5 +1,6 @@
 #include "groupproxymodel.h"
 #include "tagmanager.h"
+#include "flatmodel.h"
 #include <QFileInfo>
 #include <QFont>
 #include <QColor>
@@ -67,18 +68,13 @@ QString GroupProxyModel::getGroupValue(const QModelIndex& sourceIndex) const {
     if (!sourceIndex.isValid() || !sourceModel()) return "";
     
     QString filePath;
-    QAbstractItemModel* m = sourceModel();
-    QModelIndex mappedIndex = sourceIndex;
-    while (m) {
-        if (QFileSystemModel* fsm = qobject_cast<QFileSystemModel*>(m)) {
-            filePath = fsm->filePath(mappedIndex);
-            break;
-        }
-        if (QAbstractProxyModel* pm = qobject_cast<QAbstractProxyModel*>(m)) {
-            mappedIndex = pm->mapToSource(mappedIndex);
-            m = pm->sourceModel();
-        } else {
-            break;
+    if (QAbstractProxyModel* pm = qobject_cast<QAbstractProxyModel*>(sourceModel())) {
+        QModelIndex srcIndex = pm->mapToSource(sourceIndex);
+        QAbstractItemModel* srcModel = pm->sourceModel();
+        if (QFileSystemModel* fsm = qobject_cast<QFileSystemModel*>(srcModel)) {
+            filePath = fsm->filePath(srcIndex);
+        } else if (FlatFileSystemModel* ffsm = qobject_cast<FlatFileSystemModel*>(srcModel)) {
+            filePath = ffsm->filePath(srcIndex);
         }
     }
     
