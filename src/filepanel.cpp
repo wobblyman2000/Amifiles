@@ -1354,8 +1354,30 @@ void FilePanel::onDoubleClicked(const QModelIndex& index) {
 
     if (info.isDir()) {
         if (shouldPlayOnDoubleclick && isPlayableAlbumFolder(path)) {
+            QSettings settings("Amifiles", "Amifiles");
+            bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool() && (m_viewStack->currentWidget() == m_theaterContainer);
+
+            QStringList scanPaths;
+            if (groupMultiDisc) {
+                QString folderName = info.fileName();
+                QString parentDir = info.absolutePath();
+                QDir dir(parentDir);
+                QStringList subDirs = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+                QString currentCleaned = FileFilterProxyModel::cleanAlbumFolderName(folderName);
+                for (const QString& subDirName : subDirs) {
+                    if (FileFilterProxyModel::cleanAlbumFolderName(subDirName) == currentCleaned) {
+                        scanPaths.append(dir.filePath(subDirName));
+                    }
+                }
+            } else {
+                scanPaths.append(path);
+            }
+
             QStringList playlistPaths;
-            scanMediaFilesRecursively(path, playlistPaths);
+            for (const QString& scanPath : scanPaths) {
+                scanMediaFilesRecursively(scanPath, playlistPaths);
+            }
+
             if (!playlistPaths.isEmpty()) {
                 emit playMediaBuiltinRequested(playlistPaths);
                 return;
@@ -1428,16 +1450,43 @@ void FilePanel::onSelectionChanged() {
         if (!paths.isEmpty() && QFileInfo(paths.first()).isDir()) {
             QString path = paths.first();
             m_drawerFolderPath = path;
-            m_drawerTitle->setText(QFileInfo(path).fileName());
+
+            QSettings settings("Amifiles", "Amifiles");
+            bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool() && (m_viewStack->currentWidget() == m_theaterContainer);
+
+            QString folderName = QFileInfo(path).fileName();
+            QString cleanedTitle = groupMultiDisc ? FileFilterProxyModel::cleanAlbumFolderName(folderName) : folderName;
+            m_drawerTitle->setText(cleanedTitle);
             m_drawerList->clear();
 
-            QDir dir(path);
+            QStringList scanPaths;
+            if (groupMultiDisc) {
+                QString parentDir = QFileInfo(path).absolutePath();
+                QDir dir(parentDir);
+                QStringList subDirs = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+                QString currentCleaned = FileFilterProxyModel::cleanAlbumFolderName(folderName);
+                for (const QString& subDirName : subDirs) {
+                    if (FileFilterProxyModel::cleanAlbumFolderName(subDirName) == currentCleaned) {
+                        scanPaths.append(dir.filePath(subDirName));
+                    }
+                }
+            } else {
+                scanPaths.append(path);
+            }
+
             QStringList mediaExts = { "mp3", "wav", "flac", "ogg", "m4a", "wma", "aac", "mp4", "mkv", "avi", "mov", "webm" };
-            QFileInfoList files = dir.entryInfoList(QDir::Files, QDir::Name);
-            for (const QFileInfo& fInfo : files) {
-                if (mediaExts.contains(fInfo.suffix().toLower())) {
-                    QListWidgetItem* item = new QListWidgetItem(fInfo.fileName(), m_drawerList);
-                    item->setData(Qt::UserRole, fInfo.absoluteFilePath());
+            for (const QString& scanPath : scanPaths) {
+                QDir dir(scanPath);
+                QFileInfoList files = dir.entryInfoList(QDir::Files, QDir::Name);
+                for (const QFileInfo& fInfo : files) {
+                    if (mediaExts.contains(fInfo.suffix().toLower())) {
+                        QString displayName = fInfo.fileName();
+                        if (groupMultiDisc && scanPaths.size() > 1) {
+                            displayName = QString("[%1] %2").arg(QFileInfo(scanPath).fileName()).arg(fInfo.fileName());
+                        }
+                        QListWidgetItem* item = new QListWidgetItem(displayName, m_drawerList);
+                        item->setData(Qt::UserRole, fInfo.absoluteFilePath());
+                    }
                 }
             }
 
@@ -1991,7 +2040,22 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     QStringList playlistPaths;
     if (!folderToCheck.isEmpty()) {
         if (isFolder) {
-            scanMediaFilesRecursively(folderToCheck, playlistPaths, 0);
+            QSettings settings("Amifiles", "Amifiles");
+            bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool() && (m_viewStack->currentWidget() == m_theaterContainer);
+            if (groupMultiDisc) {
+                QFileInfo folderInfo(folderToCheck);
+                QString parentDir = folderInfo.absolutePath();
+                QDir dir(parentDir);
+                QStringList subDirs = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+                QString currentCleaned = FileFilterProxyModel::cleanAlbumFolderName(folderInfo.fileName());
+                for (const QString& subDirName : subDirs) {
+                    if (FileFilterProxyModel::cleanAlbumFolderName(subDirName) == currentCleaned) {
+                        scanMediaFilesRecursively(dir.filePath(subDirName), playlistPaths, 0);
+                    }
+                }
+            } else {
+                scanMediaFilesRecursively(folderToCheck, playlistPaths, 0);
+            }
         } else {
             QDir dir(folderToCheck);
             QStringList mediaExts = { "mp3", "wav", "flac", "ogg", "m4a", "mp4", "avi", "mkv", "mov", "webm", "mpeg", "mpg" };
@@ -2202,6 +2266,7 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
 
     QAction* actToggleZen = nullptr;
     QAction* actToggleDoubleclick = nullptr;
+    QAction* actGroupMultiDisc = nullptr;
 
     if (m_viewStack->currentWidget() == m_theaterListView || m_viewStack->currentWidget() == m_theaterContainer) {
         menu.addSeparator();
@@ -2209,6 +2274,7 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         QSettings settings("Amifiles", "Amifiles");
         bool zenActive = settings.value("preferences/zen_mode", false).toBool();
         bool builtinDoubleclick = settings.value("preferences/builtin_player_doubleclick", false).toBool();
+        bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool();
 
         actToggleZen = menu.addAction("Clean Interface Mode (Zen Mode)");
         actToggleZen->setCheckable(true);
@@ -2217,6 +2283,10 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         actToggleDoubleclick = menu.addAction("Double-click Plays Media in Built-in Fullscreen Player");
         actToggleDoubleclick->setCheckable(true);
         actToggleDoubleclick->setChecked(builtinDoubleclick);
+
+        actGroupMultiDisc = menu.addAction("Group Multi-Disc Albums");
+        actGroupMultiDisc->setCheckable(true);
+        actGroupMultiDisc->setChecked(groupMultiDisc);
     }
 
     // Execute menu on the active view layout widget
@@ -2487,6 +2557,17 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
             bool current = false;
             QMetaObject::invokeMethod(p, "isBuiltinPlayerDoubleclickActive", Q_RETURN_ARG(bool, current));
             QMetaObject::invokeMethod(p, "setBuiltinPlayerDoubleclickActive", Q_ARG(bool, !current));
+        }
+    } else if (selected && selected == actGroupMultiDisc) {
+        QSettings settings("Amifiles", "Amifiles");
+        bool current = settings.value("theater/group_multi_disc", true).toBool();
+        settings.setValue("theater/group_multi_disc", !current);
+        if (m_proxyModel) {
+            m_proxyModel->setGroupMultiDiscActive(!current && (viewModeIndex() == 6));
+        }
+        refresh();
+        if (m_groupProxy && m_groupProxy->isGroupingActive() && m_viewStack->currentWidget() == m_theaterContainer) {
+            rebuildTheaterGroups();
         }
     }
 }
@@ -3378,6 +3459,10 @@ void FilePanel::onViewModeChanged(int index) {
     
     // Save view mode index choice in preferences
     QSettings settings("Amifiles", "Amifiles");
+    bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool() && (index == 6);
+    if (m_proxyModel) {
+        m_proxyModel->setGroupMultiDiscActive(groupMultiDisc);
+    }
     settings.setValue("file_panel/view_mode_index", index);
     emit viewModeChanged();
 }
@@ -3399,8 +3484,30 @@ void FilePanel::onDoubleClickedPath(const QString& path) {
 
     if (info.isDir()) {
         if (shouldPlayOnDoubleclick && isPlayableAlbumFolder(path)) {
+            QSettings settings("Amifiles", "Amifiles");
+            bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool() && (m_viewStack->currentWidget() == m_theaterContainer);
+
+            QStringList scanPaths;
+            if (groupMultiDisc) {
+                QString folderName = info.fileName();
+                QString parentDir = info.absolutePath();
+                QDir dir(parentDir);
+                QStringList subDirs = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+                QString currentCleaned = FileFilterProxyModel::cleanAlbumFolderName(folderName);
+                for (const QString& subDirName : subDirs) {
+                    if (FileFilterProxyModel::cleanAlbumFolderName(subDirName) == currentCleaned) {
+                        scanPaths.append(dir.filePath(subDirName));
+                    }
+                }
+            } else {
+                scanPaths.append(path);
+            }
+
             QStringList playlistPaths;
-            scanMediaFilesRecursively(path, playlistPaths);
+            for (const QString& scanPath : scanPaths) {
+                scanMediaFilesRecursively(scanPath, playlistPaths);
+            }
+
             if (!playlistPaths.isEmpty()) {
                 emit playMediaBuiltinRequested(playlistPaths);
                 return;
@@ -3583,6 +3690,36 @@ void CasingRunnable::run() {
         artPath = findFirstCaseInsensitiveFile(dirPath, cdChecks);
         if (!artPath.isEmpty()) {
             casingInt = 0; // CasingCD
+        }
+    }
+
+    // 5. If still empty, check sibling disc folders if groupMultiDisc is active
+    QSettings settings("Amifiles", "Amifiles");
+    bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool();
+    if (artPath.isEmpty() && isDir && groupMultiDisc) {
+        QString parentDir = fileInfo.absolutePath();
+        QDir dir(parentDir);
+        QStringList subDirs = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+        QString currentCleaned = FileFilterProxyModel::cleanAlbumFolderName(fileInfo.fileName());
+        for (const QString& subDirName : subDirs) {
+            if (subDirName != fileInfo.fileName() && FileFilterProxyModel::cleanAlbumFolderName(subDirName) == currentCleaned) {
+                QString siblingPath = dir.filePath(subDirName);
+                
+                // 1. Blu-ray
+                QStringList blurayChecks = { "bluray_cover.jpg", "bluray_cover.jpeg", "bluray_cover.png", "bluray.jpg", "bluray.jpeg", "bluray.png" };
+                artPath = findFirstCaseInsensitiveFile(siblingPath, blurayChecks);
+                if (!artPath.isEmpty()) { casingInt = 2; break; }
+                
+                // 2. DVD
+                QStringList dvdChecks = { "dvd_cover.jpg", "dvd_cover.jpeg", "dvd_cover.png", "dvd.jpg", "dvd.jpeg", "dvd.png", "movie.jpg", "movie.jpeg", "movie.png", "poster.jpg", "poster.jpeg", "poster.png" };
+                artPath = findFirstCaseInsensitiveFile(siblingPath, dvdChecks);
+                if (!artPath.isEmpty()) { casingInt = 1; break; }
+                
+                // 3. CD
+                QStringList cdChecks = { "folder.jpg", "folder.jpeg", "folder.png", "cover.jpg", "cover.jpeg", "cover.png" };
+                artPath = findFirstCaseInsensitiveFile(siblingPath, cdChecks);
+                if (!artPath.isEmpty()) { casingInt = 0; break; }
+            }
         }
     }
 

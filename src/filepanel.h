@@ -3,6 +3,7 @@
 
 #include <QWidget>
 #include <QDialog>
+#include <QRegularExpression>
 #include <QStringListModel>
 #include <QTimer>
 #include <QThread>
@@ -206,6 +207,29 @@ public:
         emit layoutChanged();
     }
 
+    void setGroupMultiDiscActive(bool active) {
+        if (m_groupMultiDiscActive != active) {
+            m_groupMultiDiscActive = active;
+            invalidate();
+        }
+    }
+    bool isGroupMultiDiscActive() const { return m_groupMultiDiscActive; }
+
+    static QString cleanAlbumFolderName(const QString& name) {
+        static const QRegularExpression re(
+            R"(\b(?:cd|disc|disk|d)\s*\d+\b|[\(\[]\s*(?:cd|disc|disk|d)\s*\d+\s*[\)\]])", 
+            QRegularExpression::CaseInsensitiveOption
+        );
+        QString cleaned = name;
+        cleaned.remove(re);
+        cleaned = cleaned.trimmed();
+        while (!cleaned.isEmpty() && (cleaned.endsWith('-') || cleaned.endsWith('_') || cleaned.endsWith(' '))) {
+            cleaned.chop(1);
+            cleaned = cleaned.trimmed();
+        }
+        return cleaned;
+    }
+
     void clearCasingCache() {
         m_casingCache.clear();
         m_iconCache.clear();
@@ -226,6 +250,15 @@ public:
         }
         if (m_labelRules.isEmpty()) {
             const_cast<FileFilterProxyModel*>(this)->loadLabelRules();
+        }
+
+        if (role == Qt::DisplayRole && m_groupMultiDiscActive) {
+            QModelIndex srcIndex = mapToSource(index);
+            QFileSystemModel* fileModel = qobject_cast<QFileSystemModel*>(sourceModel());
+            if (fileModel && fileModel->isDir(srcIndex)) {
+                QString name = fileModel->fileName(srcIndex);
+                return cleanAlbumFolderName(name);
+            }
         }
 
         if (role == Qt::ForegroundRole && m_ageColoringEnabled) {
@@ -462,6 +495,23 @@ protected:
         QString fileName = fileModel->fileName(index);
         bool isDir = fileModel->isDir(index);
 
+        if (m_groupMultiDiscActive && isDir) {
+            QString parentDir = QFileInfo(filePath).absolutePath();
+            QDir dir(parentDir);
+            QStringList subDirs = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+            QString currentCleaned = cleanAlbumFolderName(fileName);
+            QString firstMatch;
+            for (const QString& subDirName : subDirs) {
+                if (cleanAlbumFolderName(subDirName) == currentCleaned) {
+                    firstMatch = subDirName;
+                    break;
+                }
+            }
+            if (!firstMatch.isEmpty() && firstMatch != fileName) {
+                return false;
+            }
+        }
+
         if (!isDir) {
             qint64 size = fileModel->size(index);
             if (m_minSize != -1 && size < m_minSize) {
@@ -545,6 +595,7 @@ private:
     QString m_filterText;
     QString m_currentPath;
     bool m_ageColoringEnabled = true; // Enabled by default
+    bool m_groupMultiDiscActive = false;
     qint64 m_minSize = -1;
     qint64 m_maxSize = -1;
     QDateTime m_minDate;
