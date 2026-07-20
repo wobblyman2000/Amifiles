@@ -209,9 +209,9 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
     btnNext->setFocusPolicy(Qt::NoFocus);
     connect(btnNext, &QPushButton::clicked, this, &FullscreenWidget::nextRequested);
 
-    m_sliderProgress = new QSlider(Qt::Horizontal, m_hudWidget);
+    m_sliderProgress = new ScrubSlider(Qt::Horizontal, m_hudWidget);
     m_sliderProgress->setRange(0, 100);
-    m_sliderProgress->setFocusPolicy(Qt::NoFocus);
+    m_sliderProgress->setFocusPolicy(Qt::StrongFocus);
     connect(m_sliderProgress, &QSlider::sliderMoved, this, &FullscreenWidget::onHudSliderMoved);
 
     m_lblTime = new QLabel("00:00 / 00:00", m_hudWidget);
@@ -471,6 +471,22 @@ void FullscreenWidget::keyPressEvent(QKeyEvent* event) {
         emit exitRequested();
     } else if (event->key() == Qt::Key_Space) {
         emit playPauseRequested();
+    } else if (event->key() == Qt::Key_Left) {
+        if (m_sliderProgress) {
+            int step = (event->modifiers() & Qt::ShiftModifier) ? 1000 : 5000;
+            int val = qMax(m_sliderProgress->minimum(), m_sliderProgress->value() - step);
+            m_sliderProgress->setValue(val);
+            emit m_sliderProgress->sliderMoved(val);
+            event->accept();
+        }
+    } else if (event->key() == Qt::Key_Right) {
+        if (m_sliderProgress) {
+            int step = (event->modifiers() & Qt::ShiftModifier) ? 1000 : 5000;
+            int val = qMin(m_sliderProgress->maximum(), m_sliderProgress->value() + step);
+            m_sliderProgress->setValue(val);
+            emit m_sliderProgress->sliderMoved(val);
+            event->accept();
+        }
     } else {
         QWidget::keyPressEvent(event);
     }
@@ -707,8 +723,9 @@ void PreviewPanel::setupUI() {
     m_btnSubtitles->setStyleSheet("QPushButton { font-weight: bold; background-color: transparent; }");
     connect(m_btnSubtitles, &QPushButton::clicked, this, &PreviewPanel::onSubtitleMenuRequested);
 
-    m_sliderProgress = new QSlider(Qt::Horizontal, this);
+    m_sliderProgress = new ScrubSlider(Qt::Horizontal, this);
     m_sliderProgress->setRange(0, 0);
+    m_sliderProgress->setFocusPolicy(Qt::StrongFocus);
     connect(m_sliderProgress, &QSlider::sliderMoved, this, &PreviewPanel::onSliderMoved);
 
     m_lblProgressTime = new QLabel("00:00 / 00:00", this);
@@ -1216,6 +1233,27 @@ void PreviewPanel::resizeEvent(QResizeEvent* event) {
     }
     if (!m_currentAudioPath.isEmpty()) {
         updateAudioPlaceholder(m_currentAudioPath);
+    }
+}
+
+void PreviewPanel::keyPressEvent(QKeyEvent* event) {
+    if (event->key() == Qt::Key_Left) {
+        if (m_player) {
+            int step = (event->modifiers() & Qt::ShiftModifier) ? 1000 : 5000;
+            m_player->setPosition(qMax(qint64(0), m_player->position() - step));
+            event->accept();
+        }
+    } else if (event->key() == Qt::Key_Right) {
+        if (m_player) {
+            int step = (event->modifiers() & Qt::ShiftModifier) ? 1000 : 5000;
+            m_player->setPosition(qMin(m_player->duration(), m_player->position() + step));
+            event->accept();
+        }
+    } else if (event->key() == Qt::Key_Space) {
+        onPlayPause();
+        event->accept();
+    } else {
+        QWidget::keyPressEvent(event);
     }
 }
 

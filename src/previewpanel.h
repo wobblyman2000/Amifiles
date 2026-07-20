@@ -15,6 +15,45 @@
 #include <QPixmap>
 #include "metadataextractor.h"
 
+class ScrubSlider : public QSlider {
+    Q_OBJECT
+public:
+    explicit ScrubSlider(Qt::Orientation orientation, QWidget* parent = nullptr)
+        : QSlider(orientation, parent) {
+        setFocusPolicy(Qt::StrongFocus);
+    }
+protected:
+    void mousePressEvent(class QMouseEvent* event) override {
+        if (event->button() == Qt::LeftButton) {
+            double fraction = double(event->pos().x()) / double(width());
+            int val = minimum() + fraction * (maximum() - minimum());
+            setValue(val);
+            emit sliderMoved(val);
+            event->accept();
+        }
+        QSlider::mousePressEvent(event);
+    }
+    void keyPressEvent(class QKeyEvent* event) override {
+        int step = 5000;
+        if (event->modifiers() & Qt::ShiftModifier) {
+            step = 1000;
+        }
+        if (event->key() == Qt::Key_Left) {
+            int val = qMax(minimum(), value() - step);
+            setValue(val);
+            emit sliderMoved(val);
+            event->accept();
+        } else if (event->key() == Qt::Key_Right) {
+            int val = qMin(maximum(), value() + step);
+            setValue(val);
+            emit sliderMoved(val);
+            event->accept();
+        } else {
+            QSlider::keyPressEvent(event);
+        }
+    }
+};
+
 class AudioPlaceholderWidget : public QWidget {
     Q_OBJECT
 public:
@@ -81,7 +120,7 @@ private:
     class QPushButton* m_btnSubtitles = nullptr;
     class QPushButton* m_btnShuffle = nullptr;
     class QPushButton* m_btnRepeat = nullptr;
-    class QSlider* m_sliderProgress = nullptr;
+    class ScrubSlider* m_sliderProgress = nullptr;
     class QLabel* m_lblTime = nullptr;
     class QSlider* m_sliderVolume = nullptr;
     class QPushButton* m_btnToggleAutoFS = nullptr;
@@ -158,6 +197,7 @@ signals:
 
 protected:
     void resizeEvent(QResizeEvent* event) override;
+    void keyPressEvent(class QKeyEvent* event) override;
     bool eventFilter(QObject* watched, class QEvent* event) override;
     void dragEnterEvent(class QDragEnterEvent* event) override;
     void dragMoveEvent(class QDragMoveEvent* event) override;
@@ -238,7 +278,7 @@ private:
     QPushButton* m_btnStop = nullptr;
     QPushButton* m_btnPrevTrack = nullptr;
     QPushButton* m_btnNextTrack = nullptr;
-    QSlider* m_sliderProgress = nullptr;
+    ScrubSlider* m_sliderProgress = nullptr;
     QLabel* m_lblProgressTime = nullptr;
     QSlider* m_sliderVolume = nullptr;
     QPushButton* m_btnFullscreen = nullptr;
