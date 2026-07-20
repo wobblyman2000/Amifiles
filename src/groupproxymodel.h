@@ -1,11 +1,11 @@
 #pragma once
 
-#include <QIdentityProxyModel>
+#include <QAbstractProxyModel>
 #include <QModelIndex>
 #include <QList>
 #include <QMap>
 
-class GroupProxyModel : public QIdentityProxyModel {
+class GroupProxyModel : public QAbstractProxyModel {
     Q_OBJECT
 public:
     explicit GroupProxyModel(QObject* parent = nullptr);

@@ -4,7 +4,7 @@
 #include <QFont>
 #include <QColor>
 
-GroupProxyModel::GroupProxyModel(QObject* parent) : QIdentityProxyModel(parent) {}
+GroupProxyModel::GroupProxyModel(QObject* parent) : QAbstractProxyModel(parent) {}
 
 void GroupProxyModel::setSourceModel(QAbstractItemModel* sourceModel) {
     if (this->sourceModel()) {
@@ -15,7 +15,7 @@ void GroupProxyModel::setSourceModel(QAbstractItemModel* sourceModel) {
         disconnect(this->sourceModel(), &QAbstractItemModel::rowsRemoved, this, &GroupProxyModel::rebuildGroups);
     }
     
-    QIdentityProxyModel::setSourceModel(sourceModel);
+    QAbstractProxyModel::setSourceModel(sourceModel);
     
     if (this->sourceModel()) {
         connect(this->sourceModel(), &QAbstractItemModel::modelReset, this, &GroupProxyModel::rebuildGroups);
@@ -109,11 +109,11 @@ QString GroupProxyModel::getGroupValue(const QModelIndex& sourceIndex) const {
 }
 
 QModelIndex GroupProxyModel::mapToSource(const QModelIndex& proxyIndex) const {
-    if (!m_groupingActive) {
-        return QIdentityProxyModel::mapToSource(proxyIndex);
-    }
     if (!proxyIndex.isValid() || !sourceModel()) {
         return QModelIndex();
+    }
+    if (!m_groupingActive) {
+        return sourceModel()->index(proxyIndex.row(), proxyIndex.column(), mapToSource(proxyIndex.parent()));
     }
 
     quintptr id = proxyIndex.internalId();
@@ -139,7 +139,7 @@ QModelIndex GroupProxyModel::mapFromSource(const QModelIndex& sourceIndex) const
     if (!sourceIndex.isValid() || !sourceModel()) return QModelIndex();
 
     if (!m_groupingActive) {
-        return QIdentityProxyModel::mapFromSource(sourceIndex);
+        return createIndex(sourceIndex.row(), sourceIndex.column(), sourceIndex.internalPointer());
     }
 
     for (int g = 0; g < m_groups.size(); ++g) {
@@ -159,7 +159,7 @@ QModelIndex GroupProxyModel::index(int row, int column, const QModelIndex& paren
     if (!sourceModel()) return QModelIndex();
 
     if (!m_groupingActive) {
-        return QIdentityProxyModel::index(row, column, parent);
+        return sourceModel()->index(row, column, mapToSource(parent));
     }
 
     if (!parent.isValid()) {
@@ -185,8 +185,10 @@ QModelIndex GroupProxyModel::index(int row, int column, const QModelIndex& paren
 }
 
 QModelIndex GroupProxyModel::parent(const QModelIndex& child) const {
+    if (!sourceModel()) return QModelIndex();
+
     if (!m_groupingActive) {
-        return QIdentityProxyModel::parent(child);
+        return mapFromSource(sourceModel()->parent(mapToSource(child)));
     }
     if (!child.isValid()) return QModelIndex();
 
@@ -206,7 +208,7 @@ int GroupProxyModel::rowCount(const QModelIndex& parent) const {
     if (!sourceModel()) return 0;
 
     if (!m_groupingActive) {
-        return QIdentityProxyModel::rowCount(parent);
+        return sourceModel()->rowCount(mapToSource(parent));
     }
 
     if (!parent.isValid()) {
@@ -227,7 +229,7 @@ int GroupProxyModel::columnCount(const QModelIndex& parent) const {
     if (!sourceModel()) return 0;
     
     if (!m_groupingActive) {
-        return QIdentityProxyModel::columnCount(parent);
+        return sourceModel()->columnCount(mapToSource(parent));
     }
     
     return sourceModel()->columnCount();
@@ -237,7 +239,7 @@ QVariant GroupProxyModel::data(const QModelIndex& index, int role) const {
     if (!index.isValid() || !sourceModel()) return QVariant();
 
     if (!m_groupingActive) {
-        return QIdentityProxyModel::data(index, role);
+        return sourceModel()->data(mapToSource(index), role);
     }
 
     quintptr id = index.internalId();
@@ -270,7 +272,8 @@ QVariant GroupProxyModel::data(const QModelIndex& index, int role) const {
 }
 
 QVariant GroupProxyModel::headerData(int section, Qt::Orientation orientation, int role) const {
-    return QIdentityProxyModel::headerData(section, orientation, role);
+    if (!sourceModel()) return QVariant();
+    return sourceModel()->headerData(section, orientation, role);
 }
 
 void GroupProxyModel::setSourceRoot(const QModelIndex& root) {
