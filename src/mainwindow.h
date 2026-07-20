@@ -113,6 +113,10 @@ struct FolderLayoutRule {
     bool zenModeActive = false;
     bool overrideBuiltinPlayerDoubleclick = false;
     bool builtinPlayerDoubleclick = false;
+    bool overrideFullScreenPlayer = false;
+    bool fullScreenPlayerActive = false;
+    bool overrideVisualizer = false;
+    bool visualizerActive = false;
 
     // Toolbar & Menu Overrides
     bool overrideToolbars = false;
@@ -227,6 +231,7 @@ private slots:
     void onToggleAudioCoverArt(bool checked);
     void onSaveSearchPreset();
     void onPreferencesAction();
+    void onMediaPreferences();
     void onThemeStudioAction();
     void onCreateSmartCollectionAction();
     void updateSearchPresetsMenu();
@@ -273,10 +278,13 @@ private slots:
     Q_INVOKABLE void refreshTagsSidebar();
 
 public:
+    void onApplyProfileToCurrentFolder(const QString& profileName);
     QTabWidget* leftTabWidget() const { return m_leftTabWidget; }
     QTabWidget* rightTabWidget() const { return m_rightTabWidget; }
     FilePanel* leftPanel() const;
     FilePanel* rightPanel() const;
+    FilePanel* activePanel() const { return m_activePanel; }
+    const QList<FolderLayoutRule>& folderRules() const { return m_folderRules; }
     FilePanel* createTab(QTabWidget* tabWidget, const QString& path);
     void updateSiblingLinks();
 
@@ -371,6 +379,8 @@ private:
     QAction* m_actToggleSpectrum = nullptr;
     QAction* m_actAutoSaveLayout = nullptr;
     QAction* m_actPreferences = nullptr;
+    QAction* m_actMediaPreferences = nullptr;
+    QAction* m_actBypassFolderProfiles = nullptr;
     QAction* m_actThemeStudio = nullptr;
     QAction* m_actSaveLayoutNow = nullptr;
     QAction* m_actResetLayout = nullptr;

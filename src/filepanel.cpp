@@ -1,4 +1,5 @@
 #include "filepanel.h"
+#include "mainwindow.h"
 #include <QDebug>
 #include "theme.h"
 #include "favoritesmanager.h"
@@ -1144,6 +1145,42 @@ void FilePanel::onFilterTypeChanged() {
     }
 }
 
+static bool containsMediaFilesDirectly(const QString& folderPath) {
+    QDir dir(folderPath);
+    QStringList mediaExts = { "mp3", "wav", "flac", "ogg", "m4a", "mp4", "avi", "mkv", "mov", "webm", "mpeg", "mpg" };
+    QFileInfoList files = dir.entryInfoList(QDir::Files);
+    for (const QFileInfo& fInfo : files) {
+        if (fInfo.isSymLink()) continue;
+        if (mediaExts.contains(fInfo.suffix().toLower())) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool isMultiDiscAlbumFolder(const QString& folderPath) {
+    QDir dir(folderPath);
+    QFileInfoList subdirs = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+    if (subdirs.isEmpty()) return false;
+
+    QRegularExpression discRegex("^(cd|disc|disk|dvd)[\\s_\\-]*[0-9]+$", QRegularExpression::CaseInsensitiveOption);
+    bool hasDiscSubdir = false;
+    for (const QFileInfo& sub : subdirs) {
+        if (discRegex.match(sub.fileName()).hasMatch()) {
+            hasDiscSubdir = true;
+            break;
+        }
+    }
+    return hasDiscSubdir;
+}
+
+static bool isPlayableAlbumFolder(const QString& folderPath) {
+    if (containsMediaFilesDirectly(folderPath)) {
+        return true;
+    }
+    return isMultiDiscAlbumFolder(folderPath);
+}
+
 void FilePanel::onDoubleClicked(const QModelIndex& index) {
     if (m_archiveViewActive) {
         if (m_archiveModel->isDir(index)) {
@@ -1194,8 +1231,11 @@ void FilePanel::onDoubleClicked(const QModelIndex& index) {
         }
     }
 
+    bool isTheater = (m_viewStack->currentWidget() == m_theaterListView);
+    bool shouldPlayOnDoubleclick = builtinPlayerDoubleclick || isTheater;
+
     if (info.isDir()) {
-        if (builtinPlayerDoubleclick) {
+        if (shouldPlayOnDoubleclick && isPlayableAlbumFolder(path)) {
             QStringList playlistPaths;
             scanMediaFilesRecursively(path, playlistPaths);
             if (!playlistPaths.isEmpty()) {
@@ -1809,8 +1849,10 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     }
 
     QAction* actPlayPlaylist = nullptr;
+    QAction* actPlayFullscreen = nullptr;
     if (!playlistPaths.isEmpty()) {
         actPlayPlaylist = menu.addAction(style->standardIcon(QStyle::SP_MediaPlay), "Play Folder/Album in Preview");
+        actPlayFullscreen = menu.addAction(style->standardIcon(QStyle::SP_MediaPlay), "Play Folder/Album in Fullscreen");
     }
     QAction* actCompareSelected = nullptr;
     QAction* actCompareSibling = nullptr;
@@ -1897,6 +1939,25 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     QAction* actSaveFolderProfile = menu.addAction("Save Current Layout as Folder Profile...");
     QAction* actSaveDefaultProfile = menu.addAction("Save Current Layout as Default Profile");
     QAction* actLoadDefaultProfile = menu.addAction("Load Default Profile");
+
+    QWidget* parentW = parentWidget();
+    while (parentW && !parentW->inherits("MainWindow")) {
+        parentW = parentW->parentWidget();
+    }
+    MainWindow* mw = qobject_cast<MainWindow*>(parentW);
+    if (mw) {
+        QMenu* menuApplyProfile = menu.addMenu("Apply Profile Layout to Current Folder");
+        for (const auto& r : mw->folderRules()) {
+            if (!r.name.isEmpty()) {
+                QString profileName = r.name;
+                QAction* act = menuApplyProfile->addAction(profileName);
+                connect(act, &QAction::triggered, this, [mw, profileName]() {
+                    mw->onApplyProfileToCurrentFolder(profileName);
+                });
+            }
+        }
+    }
+
     menu.addSeparator();
 
     QAction* actProp = menu.addAction(style->standardIcon(QStyle::SP_MessageBoxInformation), "Properties");
@@ -2078,6 +2139,8 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         onNewFolder();
     } else if (selected == actPlayPlaylist) {
         emit playlistPlayRequested(playlistPaths);
+    } else if (selected == actPlayFullscreen) {
+        emit playMediaBuiltinRequested(playlistPaths);
     } else if (selected == actFav) {
         if (isFolder && !selectedPath.isEmpty()) {
             FavoritesManager& fm = FavoritesManager::instance();
@@ -3140,7 +3203,29 @@ void FilePanel::onViewModeChanged(int index) {
 
 void FilePanel::onDoubleClickedPath(const QString& path) {
     QFileInfo info(path);
+    bool builtinPlayerDoubleclick = false;
+    {
+        QWidget* p = parentWidget();
+        while (p && !p->inherits("MainWindow")) {
+            p = p->parentWidget();
+        }
+        if (p) {
+            QMetaObject::invokeMethod(p, "isBuiltinPlayerDoubleclickActive", Q_RETURN_ARG(bool, builtinPlayerDoubleclick));
+        }
+    }
+
+    bool isTheater = (m_viewStack->currentWidget() == m_theaterListView);
+    bool shouldPlayOnDoubleclick = builtinPlayerDoubleclick || isTheater;
+
     if (info.isDir()) {
+        if (shouldPlayOnDoubleclick && isPlayableAlbumFolder(path)) {
+            QStringList playlistPaths;
+            scanMediaFilesRecursively(path, playlistPaths);
+            if (!playlistPaths.isEmpty()) {
+                emit playMediaBuiltinRequested(playlistPaths);
+                return;
+            }
+        }
         navigateTo(path, true);
     } else {
         QString ext = info.suffix().toLower();

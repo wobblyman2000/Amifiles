@@ -199,6 +199,12 @@ void FolderLayoutDialog::setupUI() {
     backupRestoreButtons->addWidget(m_btnRestore);
     leftLayout->addLayout(backupRestoreButtons);
 
+    m_btnApplyCurrentFolder = new QPushButton("Apply to Current Folder", this);
+    m_btnApplyCurrentFolder->setStyleSheet("QPushButton { background-color: #313244; color: #b4befe; border: 1px solid #45475a; }"
+                                           "QPushButton:hover { background-color: #b4befe; color: #11111b; }");
+    connect(m_btnApplyCurrentFolder, &QPushButton::clicked, this, &FolderLayoutDialog::onApplyToCurrentFolder);
+    leftLayout->addWidget(m_btnApplyCurrentFolder);
+
     QHBoxLayout* shortcutButtons = new QHBoxLayout();
     QPushButton* btnEditToolbars = new QPushButton("Edit Toolbars...", this);
     btnEditToolbars->setStyleSheet("QPushButton { background-color: #313244; color: #a6e3a1; border: 1px solid #45475a; }"
@@ -244,8 +250,12 @@ void FolderLayoutDialog::setupUI() {
     m_editName = new QLineEdit(this);
     triggerGrid->addWidget(m_editName, 0, 1, 1, 2);
 
-    m_checkAutoApply = new QCheckBox("Auto-apply when browsing matching folders", this);
-    triggerGrid->addWidget(m_checkAutoApply, 1, 0, 1, 3);
+    QHBoxLayout* autoApplyLayout = new QHBoxLayout();
+    m_checkAutoApply = new ToggleSwitch(this);
+    autoApplyLayout->addWidget(m_checkAutoApply);
+    autoApplyLayout->addWidget(new QLabel("Auto-apply when browsing matching folders", this));
+    autoApplyLayout->addStretch();
+    triggerGrid->addLayout(autoApplyLayout, 1, 0, 1, 3);
 
     triggerGrid->addWidget(new QLabel("Match Condition:", this), 2, 0);
     m_comboRuleType = new QComboBox(this);
@@ -320,110 +330,131 @@ void FolderLayoutDialog::setupUI() {
     visGrid->addWidget(hdrState, 0, 2);
 
     // Drives
-    m_overrideDrives = new QCheckBox(this);
+    m_overrideDrives = new ToggleSwitch(this);
     m_overrideDrives->setToolTip("Force custom Drives Toolbar visibility.");
-    m_stateDrives = new QCheckBox("Drives Toolbar", this);
-    m_stateDrives->setToolTip("Checked = Force Drives Toolbar visible, Unchecked = Force hidden.");
+    m_stateDrives = new ToggleSwitch(this);
+    m_stateDrives->setToolTip("Toggle slide switch to force visible (ON) or hidden (OFF).");
     visGrid->addWidget(new QLabel("Drives Toolbar", this), 1, 0);
     visGrid->addWidget(m_overrideDrives, 1, 1);
     visGrid->addWidget(m_stateDrives, 1, 2);
-    connect(m_overrideDrives, &QCheckBox::toggled, m_stateDrives, &QCheckBox::setEnabled);
+    connect(m_overrideDrives, &ToggleSwitch::toggled, m_stateDrives, &ToggleSwitch::setEnabled);
 
     // Center Ops
-    m_overrideCenterOps = new QCheckBox(this);
+    m_overrideCenterOps = new ToggleSwitch(this);
     m_overrideCenterOps->setToolTip("Force custom Operations Bar visibility.");
-    m_stateCenterOps = new QCheckBox("Operations Bar", this);
-    m_stateCenterOps->setToolTip("Checked = Force Operations Bar visible, Unchecked = Force hidden.");
+    m_stateCenterOps = new ToggleSwitch(this);
+    m_stateCenterOps->setToolTip("Toggle slide switch to force visible (ON) or hidden (OFF).");
     visGrid->addWidget(new QLabel("Operations Bar", this), 2, 0);
     visGrid->addWidget(m_overrideCenterOps, 2, 1);
     visGrid->addWidget(m_stateCenterOps, 2, 2);
-    connect(m_overrideCenterOps, &QCheckBox::toggled, m_stateCenterOps, &QCheckBox::setEnabled);
+    connect(m_overrideCenterOps, &ToggleSwitch::toggled, m_stateCenterOps, &ToggleSwitch::setEnabled);
 
     // Console
-    m_overrideConsole = new QCheckBox(this);
+    m_overrideConsole = new ToggleSwitch(this);
     m_overrideConsole->setToolTip("Force custom Console Panel visibility.");
-    m_stateConsole = new QCheckBox("Console / Bash Shell Panel", this);
-    m_stateConsole->setToolTip("Checked = Force Console visible, Unchecked = Force hidden.");
+    m_stateConsole = new ToggleSwitch(this);
+    m_stateConsole->setToolTip("Toggle slide switch to force visible (ON) or hidden (OFF).");
     visGrid->addWidget(new QLabel("Console Panel", this), 3, 0);
     visGrid->addWidget(m_overrideConsole, 3, 1);
     visGrid->addWidget(m_stateConsole, 3, 2);
-    connect(m_overrideConsole, &QCheckBox::toggled, m_stateConsole, &QCheckBox::setEnabled);
+    connect(m_overrideConsole, &ToggleSwitch::toggled, m_stateConsole, &ToggleSwitch::setEnabled);
 
     // Preview Pane
-    m_overridePreview = new QCheckBox(this);
+    m_overridePreview = new ToggleSwitch(this);
     m_overridePreview->setToolTip("Force custom Preview Pane visibility.");
-    m_statePreview = new QCheckBox("Preview Pane", this);
-    m_statePreview->setToolTip("Checked = Force Preview Pane visible, Unchecked = Force hidden.");
+    m_statePreview = new ToggleSwitch(this);
+    m_statePreview->setToolTip("Toggle slide switch to force visible (ON) or hidden (OFF).");
     visGrid->addWidget(new QLabel("Preview Pane", this), 4, 0);
     visGrid->addWidget(m_overridePreview, 4, 1);
     visGrid->addWidget(m_statePreview, 4, 2);
-    connect(m_overridePreview, &QCheckBox::toggled, m_statePreview, &QCheckBox::setEnabled);
+    connect(m_overridePreview, &ToggleSwitch::toggled, m_statePreview, &ToggleSwitch::setEnabled);
 
     // Favorites
-    m_overrideFavorites = new QCheckBox(this);
+    m_overrideFavorites = new ToggleSwitch(this);
     m_overrideFavorites->setToolTip("Force custom Favorites/Bookmarks Sidebar visibility.");
-    m_stateFavorites = new QCheckBox("Favorites Sidebar", this);
-    m_stateFavorites->setToolTip("Checked = Force Favorites sidebar visible, Unchecked = Force hidden.");
+    m_stateFavorites = new ToggleSwitch(this);
+    m_stateFavorites->setToolTip("Toggle slide switch to force visible (ON) or hidden (OFF).");
     visGrid->addWidget(new QLabel("Favorites Sidebar", this), 5, 0);
     visGrid->addWidget(m_overrideFavorites, 5, 1);
     visGrid->addWidget(m_stateFavorites, 5, 2);
-    connect(m_overrideFavorites, &QCheckBox::toggled, m_stateFavorites, &QCheckBox::setEnabled);
+    connect(m_overrideFavorites, &ToggleSwitch::toggled, m_stateFavorites, &ToggleSwitch::setEnabled);
 
     // Zen
-    m_overrideZen = new QCheckBox(this);
+    m_overrideZen = new ToggleSwitch(this);
     m_overrideZen->setToolTip("Force custom Zen Mode state.");
-    m_stateZen = new QCheckBox("Enable Zen Mode", this);
-    m_stateZen->setToolTip("Checked = Enable Zen Mode (hides all surrounding toolbars/panels for minimalist viewing), Unchecked = Normal layout.");
+    m_stateZen = new ToggleSwitch(this);
+    m_stateZen->setToolTip("Toggle slide switch to enable Zen Mode (ON) or disable it (OFF).");
     visGrid->addWidget(new QLabel("Zen Mode State", this), 6, 0);
     visGrid->addWidget(m_overrideZen, 6, 1);
     visGrid->addWidget(m_stateZen, 6, 2);
-    connect(m_overrideZen, &QCheckBox::toggled, m_stateZen, &QCheckBox::setEnabled);
+    connect(m_overrideZen, &ToggleSwitch::toggled, m_stateZen, &ToggleSwitch::setEnabled);
 
     // Built-in Fullscreen Playback
-    m_overrideBuiltinPlayerDoubleclick = new QCheckBox(this);
+    m_overrideBuiltinPlayerDoubleclick = new ToggleSwitch(this);
     m_overrideBuiltinPlayerDoubleclick->setToolTip("Force double-click playback preference.");
-    m_stateBuiltinPlayerDoubleclick = new QCheckBox("Double-click plays media in built-in player", this);
-    m_stateBuiltinPlayerDoubleclick->setToolTip("Checked = Double-clicking media files plays in the internal media player, Unchecked = Open in external system player.");
+    m_stateBuiltinPlayerDoubleclick = new ToggleSwitch(this);
+    m_stateBuiltinPlayerDoubleclick->setToolTip("Toggle slide switch to force media to play in the built-in player (ON) or external system player (OFF).");
     visGrid->addWidget(new QLabel("Built-in Fullscreen", this), 7, 0);
     visGrid->addWidget(m_overrideBuiltinPlayerDoubleclick, 7, 1);
     visGrid->addWidget(m_stateBuiltinPlayerDoubleclick, 7, 2);
-    connect(m_overrideBuiltinPlayerDoubleclick, &QCheckBox::toggled, m_stateBuiltinPlayerDoubleclick, &QCheckBox::setEnabled);
+    connect(m_overrideBuiltinPlayerDoubleclick, &ToggleSwitch::toggled, m_stateBuiltinPlayerDoubleclick, &ToggleSwitch::setEnabled);
+
+    // Auto-Fullscreen playback
+    m_overrideFullScreenPlayer = new ToggleSwitch(this);
+    m_overrideFullScreenPlayer->setToolTip("Force auto-fullscreen settings when starting playback.");
+    m_stateFullScreenPlayer = new ToggleSwitch(this);
+    m_stateFullScreenPlayer->setToolTip("Toggle slide switch to force open fullscreen media player (ON) or standard panel player (OFF).");
+    visGrid->addWidget(new QLabel("Auto Fullscreen", this), 8, 0);
+    visGrid->addWidget(m_overrideFullScreenPlayer, 8, 1);
+    visGrid->addWidget(m_stateFullScreenPlayer, 8, 2);
+    connect(m_overrideFullScreenPlayer, &ToggleSwitch::toggled, m_stateFullScreenPlayer, &ToggleSwitch::setEnabled);
+
+    // Audio Visualizer
+    m_overrideVisualizer = new ToggleSwitch(this);
+    m_overrideVisualizer->setToolTip("Force spectrum visualizer visibility settings.");
+    m_stateVisualizer = new ToggleSwitch(this);
+    m_stateVisualizer->setToolTip("Toggle slide switch to force show spectrum visualizer (ON) or keep visualizer hidden (OFF).");
+    visGrid->addWidget(new QLabel("Audio Visualizer", this), 9, 0);
+    visGrid->addWidget(m_overrideVisualizer, 9, 1);
+    visGrid->addWidget(m_stateVisualizer, 9, 2);
+    connect(m_overrideVisualizer, &ToggleSwitch::toggled, m_stateVisualizer, &ToggleSwitch::setEnabled);
 
     // Custom Toolbars Override
-    m_overrideToolbars = new QCheckBox(this);
+    m_overrideToolbars = new ToggleSwitch(this);
     m_overrideToolbars->setToolTip("Force custom active toolbars list.");
     m_btnSelectToolbars = new QPushButton("Select Active Toolbars...", this);
     m_btnSelectToolbars->setToolTip("Choose which toolbar panels are displayed.");
     m_btnSelectToolbars->setEnabled(false);
     connect(m_btnSelectToolbars, &QPushButton::clicked, this, &FolderLayoutDialog::onSelectToolbars);
-    connect(m_overrideToolbars, &QCheckBox::toggled, m_btnSelectToolbars, &QPushButton::setEnabled);
-    visGrid->addWidget(new QLabel("Custom Toolbars", this), 8, 0);
-    visGrid->addWidget(m_overrideToolbars, 8, 1);
-    visGrid->addWidget(m_btnSelectToolbars, 8, 2);
+    connect(m_overrideToolbars, &ToggleSwitch::toggled, m_btnSelectToolbars, &QPushButton::setEnabled);
+    visGrid->addWidget(new QLabel("Custom Toolbars", this), 10, 0);
+    visGrid->addWidget(m_overrideToolbars, 10, 1);
+    visGrid->addWidget(m_btnSelectToolbars, 10, 2);
 
     // Custom Menus Override
-    m_overrideMenus = new QCheckBox(this);
+    m_overrideMenus = new ToggleSwitch(this);
     m_overrideMenus->setToolTip("Force custom active context menus list.");
     m_btnSelectMenus = new QPushButton("Select Custom Menus...", this);
     m_btnSelectMenus->setToolTip("Choose which custom right-click context menus are active.");
     m_btnSelectMenus->setEnabled(false);
     connect(m_btnSelectMenus, &QPushButton::clicked, this, &FolderLayoutDialog::onSelectMenus);
-    connect(m_overrideMenus, &QCheckBox::toggled, m_btnSelectMenus, &QPushButton::setEnabled);
-    visGrid->addWidget(new QLabel("Custom Menus", this), 9, 0);
-    visGrid->addWidget(m_overrideMenus, 9, 1);
-    visGrid->addWidget(m_btnSelectMenus, 9, 2);
+    connect(m_overrideMenus, &ToggleSwitch::toggled, m_btnSelectMenus, &QPushButton::setEnabled);
+    visGrid->addWidget(new QLabel("Custom Menus", this), 11, 0);
+    visGrid->addWidget(m_overrideMenus, 11, 1);
+    visGrid->addWidget(m_btnSelectMenus, 11, 2);
 
     scrollLayout->addWidget(m_visGroup);
 
     // 4. Styling (Custom Background Color)
     m_styleGroup = new QGroupBox("4. Look & Feel Custom Background", this);
     QHBoxLayout* styleLayout = new QHBoxLayout(m_styleGroup);
-    m_useBgColor = new QCheckBox("Use Custom Background Color", this);
+    m_useBgColor = new ToggleSwitch(this);
     m_btnSelectBgColor = new QPushButton("Select Color...", this);
     connect(m_btnSelectBgColor, &QPushButton::clicked, this, &FolderLayoutDialog::onSelectBgColor);
-    connect(m_useBgColor, &QCheckBox::toggled, m_btnSelectBgColor, &QPushButton::setEnabled);
+    connect(m_useBgColor, &ToggleSwitch::toggled, m_btnSelectBgColor, &QPushButton::setEnabled);
     
     styleLayout->addWidget(m_useBgColor);
+    styleLayout->addWidget(new QLabel("Use Custom Background Color", this));
     styleLayout->addWidget(m_btnSelectBgColor);
     styleLayout->addStretch();
     scrollLayout->addWidget(m_styleGroup);
@@ -433,8 +464,12 @@ void FolderLayoutDialog::setupUI() {
     QVBoxLayout* tabsLayout = new QVBoxLayout(m_tabsGroup);
     tabsLayout->setSpacing(6);
 
-    m_hasTabsSnapshot = new QCheckBox("Include Open Tabs Snapshot", this);
-    tabsLayout->addWidget(m_hasTabsSnapshot);
+    QHBoxLayout* tabsSnapshotHeaderLayout = new QHBoxLayout();
+    m_hasTabsSnapshot = new ToggleSwitch(this);
+    tabsSnapshotHeaderLayout->addWidget(m_hasTabsSnapshot);
+    tabsSnapshotHeaderLayout->addWidget(new QLabel("Include Open Tabs Snapshot", this));
+    tabsSnapshotHeaderLayout->addStretch();
+    tabsLayout->addLayout(tabsSnapshotHeaderLayout);
 
     QHBoxLayout* tabsButtons = new QHBoxLayout();
     m_btnCaptureTabs = new QPushButton("Capture Current Open Tabs", this);
@@ -495,8 +530,21 @@ void FolderLayoutDialog::setupUI() {
 
 void FolderLayoutDialog::populateList() {
     m_listWidget->clear();
-    for (const auto& r : m_rules) {
-        m_listWidget->addItem(r.name.isEmpty() ? "(Unnamed Profile)" : r.name);
+    for (int i = 0; i < m_rules.size(); ++i) {
+        const auto& r = m_rules[i];
+        QListWidgetItem* item = new QListWidgetItem(m_listWidget);
+        item->setSizeHint(QSize(200, 36));
+        m_listWidget->addItem(item);
+
+        QString displayName = r.name.isEmpty() ? "(Unnamed Profile)" : r.name;
+        ProfileListItemWidget* widget = new ProfileListItemWidget(displayName, r.autoApply, this);
+        connect(widget, &ProfileListItemWidget::toggled, this, [this, i](bool checked) {
+            m_rules[i].autoApply = checked;
+            if (m_currentIndex == i) {
+                m_checkAutoApply->setChecked(checked);
+            }
+        });
+        m_listWidget->setItemWidget(item, widget);
     }
 }
 
@@ -565,6 +613,14 @@ void FolderLayoutDialog::populateFields(const FolderLayoutRule& r) {
     m_stateBuiltinPlayerDoubleclick->setChecked(r.builtinPlayerDoubleclick);
     m_stateBuiltinPlayerDoubleclick->setEnabled(r.overrideBuiltinPlayerDoubleclick);
 
+    m_overrideFullScreenPlayer->setChecked(r.overrideFullScreenPlayer);
+    m_stateFullScreenPlayer->setChecked(r.fullScreenPlayerActive);
+    m_stateFullScreenPlayer->setEnabled(r.overrideFullScreenPlayer);
+
+    m_overrideVisualizer->setChecked(r.overrideVisualizer);
+    m_stateVisualizer->setChecked(r.visualizerActive);
+    m_stateVisualizer->setEnabled(r.overrideVisualizer);
+
     // Toolbar & Menu Overrides
     m_overrideToolbars->setChecked(r.overrideToolbars);
     m_btnSelectToolbars->setEnabled(r.overrideToolbars);
@@ -629,6 +685,12 @@ void FolderLayoutDialog::harvestCurrentProfile(int index) {
     r.overrideBuiltinPlayerDoubleclick = m_overrideBuiltinPlayerDoubleclick->isChecked();
     r.builtinPlayerDoubleclick = m_stateBuiltinPlayerDoubleclick->isChecked();
 
+    r.overrideFullScreenPlayer = m_overrideFullScreenPlayer->isChecked();
+    r.fullScreenPlayerActive = m_stateFullScreenPlayer->isChecked();
+
+    r.overrideVisualizer = m_overrideVisualizer->isChecked();
+    r.visualizerActive = m_stateVisualizer->isChecked();
+
     r.overrideToolbars = m_overrideToolbars->isChecked();
     r.selectedToolbars = m_selectedToolbars;
 
@@ -641,10 +703,14 @@ void FolderLayoutDialog::harvestCurrentProfile(int index) {
     r.hasTabsSnapshot = m_hasTabsSnapshot->isChecked();
     r.windowState = m_capturedWindowState;
 
-    // Update list widget item text dynamically
+    // Update list widget item text and state dynamically
     QListWidgetItem* item = m_listWidget->item(index);
     if (item) {
-        item->setText(r.name);
+        ProfileListItemWidget* widget = qobject_cast<ProfileListItemWidget*>(m_listWidget->itemWidget(item));
+        if (widget) {
+            widget->setName(r.name.isEmpty() ? "(Unnamed Profile)" : r.name);
+            widget->setChecked(r.autoApply);
+        }
     }
 }
 
@@ -654,7 +720,6 @@ void FolderLayoutDialog::updateLinkedProfileCombo() {
     m_comboLinkedProfile->addItem("(None - Configure Custom Layout)", QString());
     
     for (int i = 0; i < m_rules.size(); ++i) {
-        if (i == m_currentIndex) continue;
         QString name = m_rules[i].name;
         if (!name.isEmpty()) {
             m_comboLinkedProfile->addItem(name, name);
@@ -1074,4 +1139,61 @@ void FolderLayoutDialog::onEditMenusShortcut() {
             mainWin->rebuildCustomMenus();
         }
     }
+}
+
+void FolderLayoutDialog::onApplyToCurrentFolder() {
+    if (m_currentIndex < 0 || m_currentIndex >= m_rules.size()) {
+        QMessageBox::warning(this, "No Profile Selected", "Please select a profile on the left list first.");
+        return;
+    }
+
+    // Harvest current active edits to the rule before making changes
+    harvestCurrentProfile(m_currentIndex);
+
+    QString profileName = m_rules[m_currentIndex].name;
+    if (profileName.isEmpty()) return;
+
+    MainWindow* mainWin = qobject_cast<MainWindow*>(parent());
+    if (!mainWin || !mainWin->activePanel()) {
+        QMessageBox::warning(this, "Error", "Cannot access MainWindow active panel.");
+        return;
+    }
+
+    QString currentPath = mainWin->activePanel()->currentPath();
+    if (currentPath.isEmpty()) {
+        QMessageBox::warning(this, "Empty Folder", "Cannot apply to current folder: Active folder path is empty.");
+        return;
+    }
+
+    // Check if a path-matching rule already exists for this path
+    bool foundExisting = false;
+    for (int i = 0; i < m_rules.size(); ++i) {
+        if (m_rules[i].ruleType == "Path" && QDir::cleanPath(m_rules[i].value) == QDir::cleanPath(currentPath)) {
+            m_rules[i].linkedProfile = profileName;
+            foundExisting = true;
+            m_listWidget->setCurrentRow(i);
+            break;
+        }
+    }
+
+    if (!foundExisting) {
+        FolderLayoutRule r;
+        r.name = QString("%1 (%2)").arg(QFileInfo(currentPath).fileName()).arg(profileName);
+        if (r.name.isEmpty()) {
+            r.name = QString("Path (%1)").arg(profileName);
+        }
+        r.ruleType = "Path";
+        r.value = currentPath;
+        r.autoApply = true;
+        r.linkedProfile = profileName;
+        m_rules.append(r);
+        
+        populateList();
+        m_listWidget->setCurrentRow(m_rules.size() - 1);
+    }
+
+    QMessageBox::information(this, "Profile Linked", 
+        QString("Successfully linked folder '%1' to profile '%2'.\nPress OK to save changes.")
+        .arg(QFileInfo(currentPath).fileName())
+        .arg(profileName));
 }

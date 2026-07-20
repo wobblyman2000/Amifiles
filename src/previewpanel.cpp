@@ -1915,7 +1915,6 @@ void PreviewPanel::toggleFullscreen() {
         int screenH = QGuiApplication::primaryScreen()->geometry().height();
         int size = qMin(600, screenH - 250);
         m_fullscreenAudioLabel->setPixmap(cover.scaled(size, size, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-        layout->addWidget(m_fullscreenAudioLabel);
 
         m_fullscreenTextLabel = new QLabel(m_fullscreenWidget);
         m_fullscreenTextLabel->setAlignment(Qt::AlignCenter);
@@ -1925,7 +1924,12 @@ void PreviewPanel::toggleFullscreen() {
         QString displayTitle = !meta.title.isEmpty() ? meta.title : QFileInfo(activePath).completeBaseName();
         QString displayArtist = !meta.artist.isEmpty() ? meta.artist : "Unknown Artist";
         m_fullscreenTextLabel->setText(QString("%1\n%2").arg(displayTitle).arg(displayArtist));
+
+        layout->addStretch();
+        layout->addWidget(m_fullscreenAudioLabel);
+        layout->addSpacing(10);
         layout->addWidget(m_fullscreenTextLabel);
+        layout->addStretch();
 
         m_fullscreenAudioLabel->setMouseTracking(true);
         m_fullscreenTextLabel->setMouseTracking(true);
@@ -1952,6 +1956,17 @@ void PreviewPanel::exitFullscreen() {
     m_fullscreenTextLabel = nullptr;
 }
 
+static void clearLayoutOfFullscreen(QLayout* layout) {
+    if (!layout) return;
+    QLayoutItem* item;
+    while ((item = layout->takeAt(0))) {
+        if (item->widget()) {
+            item->widget()->deleteLater();
+        }
+        delete item;
+    }
+}
+
 void PreviewPanel::updateFullscreenTrack() {
     if (!m_fullscreenWidget) return;
 
@@ -1960,50 +1975,29 @@ void PreviewPanel::updateFullscreenTrack() {
 
     bool isVideo = m_videoWidget->isVisible();
 
-    if (isVideo) {
-        if (m_fullscreenAudioLabel) {
-            delete m_fullscreenAudioLabel;
-            m_fullscreenAudioLabel = nullptr;
-        }
-        if (m_fullscreenTextLabel) {
-            delete m_fullscreenTextLabel;
-            m_fullscreenTextLabel = nullptr;
-        }
-        if (!m_fullscreenVideoWidget) {
-            m_fullscreenVideoWidget = new QVideoWidget(m_fullscreenWidget);
-            m_fullscreenVideoWidget->setStyleSheet("background-color: #000000;");
-            QVBoxLayout* layout = qobject_cast<QVBoxLayout*>(m_fullscreenWidget->layout());
-            if (layout) {
-                layout->insertWidget(0, m_fullscreenVideoWidget);
-            }
-            m_fullscreenVideoWidget->setMouseTracking(true);
-            m_fullscreenVideoWidget->installEventFilter(m_fullscreenWidget);
-        }
-        m_player->setVideoOutput(m_fullscreenVideoWidget);
+    QVBoxLayout* layout = qobject_cast<QVBoxLayout*>(m_fullscreenWidget->layout());
+    if (layout) {
+        clearLayoutOfFullscreen(layout);
     } else {
-        if (m_fullscreenVideoWidget) {
-            m_player->setVideoOutput(m_videoWidget);
-            delete m_fullscreenVideoWidget;
-            m_fullscreenVideoWidget = nullptr;
-        }
-        
-        QVBoxLayout* layout = qobject_cast<QVBoxLayout*>(m_fullscreenWidget->layout());
-        
-        if (!m_fullscreenAudioLabel) {
-            m_fullscreenAudioLabel = new QLabel(m_fullscreenWidget);
-            m_fullscreenAudioLabel->setAlignment(Qt::AlignCenter);
-            m_fullscreenAudioLabel->setMouseTracking(true);
-            m_fullscreenAudioLabel->installEventFilter(m_fullscreenWidget);
-            if (layout) layout->insertWidget(0, m_fullscreenAudioLabel);
-        }
-        if (!m_fullscreenTextLabel) {
-            m_fullscreenTextLabel = new QLabel(m_fullscreenWidget);
-            m_fullscreenTextLabel->setAlignment(Qt::AlignCenter);
-            m_fullscreenTextLabel->setStyleSheet("color: #cdd6f4; font-size: 24px; font-weight: bold; padding: 20px;");
-            m_fullscreenTextLabel->setMouseTracking(true);
-            m_fullscreenTextLabel->installEventFilter(m_fullscreenWidget);
-            if (layout) layout->insertWidget(1, m_fullscreenTextLabel);
-        }
+        layout = new QVBoxLayout(m_fullscreenWidget);
+        layout->setContentsMargins(0, 0, 0, 0);
+    }
+
+    m_fullscreenVideoWidget = nullptr;
+    m_fullscreenAudioLabel = nullptr;
+    m_fullscreenTextLabel = nullptr;
+
+    if (isVideo) {
+        m_fullscreenVideoWidget = new QVideoWidget(m_fullscreenWidget);
+        m_fullscreenVideoWidget->setStyleSheet("background-color: #000000;");
+        layout->addWidget(m_fullscreenVideoWidget);
+
+        m_player->setVideoOutput(m_fullscreenVideoWidget);
+        m_fullscreenVideoWidget->setMouseTracking(true);
+        m_fullscreenVideoWidget->installEventFilter(m_fullscreenWidget);
+    } else {
+        m_fullscreenAudioLabel = new QLabel(m_fullscreenWidget);
+        m_fullscreenAudioLabel->setAlignment(Qt::AlignCenter);
 
         QPixmap cover;
         QProcess proc;
@@ -2045,10 +2039,25 @@ void PreviewPanel::updateFullscreenTrack() {
         int size = qMin(600, screenH - 250);
         m_fullscreenAudioLabel->setPixmap(cover.scaled(size, size, Qt::KeepAspectRatio, Qt::SmoothTransformation));
 
+        m_fullscreenTextLabel = new QLabel(m_fullscreenWidget);
+        m_fullscreenTextLabel->setAlignment(Qt::AlignCenter);
+        m_fullscreenTextLabel->setStyleSheet("color: #cdd6f4; font-size: 24px; font-weight: bold; padding: 20px;");
+
         FileMetadata meta = MetadataExtractor::extract(activePath);
         QString displayTitle = !meta.title.isEmpty() ? meta.title : QFileInfo(activePath).completeBaseName();
         QString displayArtist = !meta.artist.isEmpty() ? meta.artist : "Unknown Artist";
         m_fullscreenTextLabel->setText(QString("%1\n%2").arg(displayTitle).arg(displayArtist));
+
+        layout->addStretch();
+        layout->addWidget(m_fullscreenAudioLabel);
+        layout->addSpacing(10);
+        layout->addWidget(m_fullscreenTextLabel);
+        layout->addStretch();
+
+        m_fullscreenAudioLabel->setMouseTracking(true);
+        m_fullscreenTextLabel->setMouseTracking(true);
+        m_fullscreenAudioLabel->installEventFilter(m_fullscreenWidget);
+        m_fullscreenTextLabel->installEventFilter(m_fullscreenWidget);
     }
 
     m_fullscreenWidget->setMediaState(isVideo, m_player, m_audioOutput);

@@ -132,6 +132,7 @@ public:
     void clearPreview();
     void playPlaylist(const QStringList& filePaths);
     QMediaPlayer* player() const { return m_player; }
+    bool isFullscreen() const { return m_fullscreenWidget != nullptr; }
     void setMuted(bool muted);
     bool isMuted() const;
     void setAudioCoverArtVisible(bool visible);

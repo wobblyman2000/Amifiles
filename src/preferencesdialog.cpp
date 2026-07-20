@@ -167,6 +167,10 @@ void PreferencesDialog::setupUI() {
     m_chkBuiltinPlayerDoubleclick->setToolTip("Built-in player starts playback in borderless fullscreen window upon double-clicks.");
     layMedia->addWidget(m_chkBuiltinPlayerDoubleclick);
 
+    m_chkAutoFullscreen = new QCheckBox("Auto-open full screen media player on playback", this);
+    m_chkAutoFullscreen->setToolTip("Opens the full screen borderless media player HUD automatically when starting audio/video playback.");
+    layMedia->addWidget(m_chkAutoFullscreen);
+
     layMedia->addStretch(1);
     m_stackPages->addWidget(pageMedia);
 
@@ -247,6 +251,12 @@ void PreferencesDialog::onCategoryChanged(int index) {
     m_stackPages->setCurrentIndex(index);
 }
 
+void PreferencesDialog::setCurrentPage(int pageIndex) {
+    if (m_listCategory) {
+        m_listCategory->setCurrentRow(pageIndex);
+    }
+}
+
 void PreferencesDialog::loadPreferences() {
     QSettings settings("Amifiles", "Amifiles");
 
@@ -265,6 +275,7 @@ void PreferencesDialog::loadPreferences() {
     m_chkSpectrumVisualizer->setChecked(settings.value("preview/show_spectrum_visualizer", true).toBool());
     m_chkMutePreview->setChecked(settings.value("preview/muted", false).toBool());
     m_chkBuiltinPlayerDoubleclick->setChecked(settings.value("preferences/builtin_player_doubleclick", false).toBool());
+    m_chkAutoFullscreen->setChecked(settings.value("preview/auto_fullscreen", true).toBool());
 
     m_editTmdbApiKey->setText(settings.value("services/tmdb_api_key", "").toString());
 }
@@ -287,6 +298,7 @@ void PreferencesDialog::savePreferences() {
     settings.setValue("preview/show_spectrum_visualizer", m_chkSpectrumVisualizer->isChecked());
     settings.setValue("preview/muted", m_chkMutePreview->isChecked());
     settings.setValue("preferences/builtin_player_doubleclick", m_chkBuiltinPlayerDoubleclick->isChecked());
+    settings.setValue("preview/auto_fullscreen", m_chkAutoFullscreen->isChecked());
 
     settings.setValue("services/tmdb_api_key", m_editTmdbApiKey->text().trimmed());
 

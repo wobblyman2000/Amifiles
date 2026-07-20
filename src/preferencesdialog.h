@@ -14,6 +14,7 @@ class PreferencesDialog : public QDialog {
     Q_OBJECT
 public:
     explicit PreferencesDialog(QWidget* parent = nullptr);
+    void setCurrentPage(int pageIndex);
     ~PreferencesDialog() override = default;
 
 signals:
@@ -53,6 +54,7 @@ private:
     QCheckBox* m_chkSpectrumVisualizer = nullptr;
     QCheckBox* m_chkMutePreview = nullptr;
     QCheckBox* m_chkBuiltinPlayerDoubleclick = nullptr;
+    QCheckBox* m_chkAutoFullscreen = nullptr;
 
     // Services & API keys
     QLineEdit* m_editTmdbApiKey = nullptr;

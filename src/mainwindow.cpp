@@ -302,9 +302,14 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     // Load folder rules first to determine if we should restore custom folder layout state
     loadFolderRules();
 
+    bool bypassRules = settings.value("preferences/bypass_folder_rules", false).toBool();
+    if (m_actBypassFolderProfiles) {
+        m_actBypassFolderProfiles->setChecked(bypassRules);
+    }
+
     FolderLayoutRule matchedRule;
     bool foundMatch = false;
-    if (m_activePanel) {
+    if (m_activePanel && !bypassRules) {
         QString startingPath = m_activePanel->currentPath();
         for (const auto& r : m_folderRules) {
             if (!r.autoApply) continue;
@@ -794,6 +799,23 @@ void MainWindow::setupActions() {
     m_actPreferences->setStatusTip("Open unified preferences control center dialog");
     connect(m_actPreferences, &QAction::triggered, this, &MainWindow::onPreferencesAction);
 
+    m_actMediaPreferences = new QAction("Media Player Preferences...", this);
+    m_actMediaPreferences->setToolTip("Open preferences on the Media Player tab");
+    m_actMediaPreferences->setStatusTip("Open preferences on the Media Player tab");
+    connect(m_actMediaPreferences, &QAction::triggered, this, &MainWindow::onMediaPreferences);
+
+    m_actBypassFolderProfiles = new QAction("Bypass Folder Profiles", this);
+    m_actBypassFolderProfiles->setCheckable(true);
+    m_actBypassFolderProfiles->setToolTip("Temporarily ignore all folder profiles/rules for debugging layout issues");
+    m_actBypassFolderProfiles->setStatusTip("Temporarily ignore all folder profiles/rules for debugging layout issues");
+    connect(m_actBypassFolderProfiles, &QAction::triggered, this, [this](bool checked) {
+        QSettings settings("Amifiles", "Amifiles");
+        settings.setValue("preferences/bypass_folder_rules", checked);
+        if (m_activePanel) {
+            applyFolderRules(m_activePanel->currentPath());
+        }
+    });
+
     m_actThemeStudio = new QAction("Catppuccin Theme Studio...", this);
     m_actThemeStudio->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_T));
     m_actThemeStudio->setToolTip("Open Catppuccin theme customizer (Ctrl+Shift+T)");
@@ -1075,12 +1097,29 @@ void MainWindow::setupMenus() {
 
     m_menuSettings = menuBar()->addMenu("Settings");
     m_menuSettings->addAction(m_actPreferences);
+    m_menuSettings->addAction(m_actMediaPreferences);
+    m_menuSettings->addAction(m_actBypassFolderProfiles);
     m_menuSettings->addSeparator();
 
     // Settings -> Folder Profiles & Layouts
     QMenu* menuLayoutSettings = m_menuSettings->addMenu("Folder Profiles & Layouts");
     menuLayoutSettings->addAction(m_actConfigureFolderLayouts);
     menuLayoutSettings->addAction(m_actSaveFolderProfileForCurrentDir);
+
+    QMenu* menuApplyProfileCurrent = menuLayoutSettings->addMenu("Apply Profile Layout to Current Folder");
+    connect(menuApplyProfileCurrent, &QMenu::aboutToShow, this, [this, menuApplyProfileCurrent]() {
+        menuApplyProfileCurrent->clear();
+        for (const auto& r : m_folderRules) {
+            if (!r.name.isEmpty()) {
+                QString profileName = r.name;
+                QAction* act = menuApplyProfileCurrent->addAction(profileName);
+                connect(act, &QAction::triggered, this, [this, profileName]() {
+                    onApplyProfileToCurrentFolder(profileName);
+                });
+            }
+        }
+    });
+
     menuLayoutSettings->addAction(m_actSaveDefaultProfile);
     menuLayoutSettings->addAction(m_actLoadDefaultProfile);
     menuLayoutSettings->addSeparator();
@@ -2801,6 +2840,18 @@ QMenu* MainWindow::createPopupMenu() {
     menu->addSeparator();
     QAction* actConfigure = menu->addAction("Folder Profiles & Layouts...");
     QAction* actSaveFolder = menu->addAction("Save Current Layout as Folder Profile...");
+
+    QMenu* menuApplyProfile = menu->addMenu("Apply Profile Layout to Current Folder");
+    for (const auto& r : m_folderRules) {
+        if (!r.name.isEmpty()) {
+            QString profileName = r.name;
+            QAction* act = menuApplyProfile->addAction(profileName);
+            connect(act, &QAction::triggered, this, [this, profileName]() {
+                onApplyProfileToCurrentFolder(profileName);
+            });
+        }
+    }
+
     QAction* actSaveDefault = menu->addAction("Save Current Layout as Default Profile");
     QAction* actLoadDefault = menu->addAction("Load Default Profile");
     
@@ -2853,6 +2904,10 @@ QJsonObject MainWindow::ruleToJson(const FolderLayoutRule& r) {
     obj["zenModeActive"] = r.zenModeActive;
     obj["overrideBuiltinPlayerDoubleclick"] = r.overrideBuiltinPlayerDoubleclick;
     obj["builtinPlayerDoubleclick"] = r.builtinPlayerDoubleclick;
+    obj["overrideFullScreenPlayer"] = r.overrideFullScreenPlayer;
+    obj["fullScreenPlayerActive"] = r.fullScreenPlayerActive;
+    obj["overrideVisualizer"] = r.overrideVisualizer;
+    obj["visualizerActive"] = r.visualizerActive;
 
     obj["overrideToolbars"] = r.overrideToolbars;
     obj["selectedToolbars"] = QJsonArray::fromStringList(r.selectedToolbars);
@@ -2899,6 +2954,10 @@ FolderLayoutRule MainWindow::jsonToRule(const QJsonObject& obj) {
     r.zenModeActive = obj["zenModeActive"].toBool(false);
     r.overrideBuiltinPlayerDoubleclick = obj["overrideBuiltinPlayerDoubleclick"].toBool(false);
     r.builtinPlayerDoubleclick = obj["builtinPlayerDoubleclick"].toBool(false);
+    r.overrideFullScreenPlayer = obj["overrideFullScreenPlayer"].toBool(false);
+    r.fullScreenPlayerActive = obj["fullScreenPlayerActive"].toBool(false);
+    r.overrideVisualizer = obj["overrideVisualizer"].toBool(false);
+    r.visualizerActive = obj["visualizerActive"].toBool(false);
 
     r.overrideToolbars = obj["overrideToolbars"].toBool(false);
     QJsonArray tbs = obj["selectedToolbars"].toArray();
@@ -2999,13 +3058,18 @@ void MainWindow::loadFolderRules() {
 
     // Ensure "Default" profile and helper preset profiles exist
     bool defaultExists = false;
-    bool theaterExists = false;
     bool musicExists = false;
+    bool moviesExists = false;
+    bool tvShowsExists = false;
+    bool picturesExists = false;
 
     for (const auto& r : m_folderRules) {
-        if (r.name.toLower() == "default") defaultExists = true;
-        if (r.name.toLower().contains("theater mode")) theaterExists = true;
-        if (r.name.toLower().contains("music player")) musicExists = true;
+        QString name = r.name.toLower().trimmed();
+        if (name == "default") defaultExists = true;
+        else if (name == "music") musicExists = true;
+        else if (name == "movies") moviesExists = true;
+        else if (name == "tv shows") tvShowsExists = true;
+        else if (name == "pictures") picturesExists = true;
     }
 
     bool addedPreset = false;
@@ -3031,9 +3095,28 @@ void MainWindow::loadFolderRules() {
         addedPreset = true;
     }
 
-    if (!theaterExists) {
+    if (!musicExists) {
         FolderLayoutRule r;
-        r.name = "Theater Mode";
+        r.name = "Music";
+        r.ruleType = "Category";
+        r.value = "Music";
+        r.autoApply = true;
+        r.viewMode = "Theater";
+        r.overridePreview = true;
+        r.previewVisible = true;
+        r.overrideDrivesToolbar = true;
+        r.drivesToolbarVisible = false;
+        r.overrideConsole = true;
+        r.consoleVisible = false;
+        r.overrideFavoritesSidebar = true;
+        r.favoritesSidebarVisible = false;
+        m_folderRules.append(r);
+        addedPreset = true;
+    }
+
+    if (!moviesExists) {
+        FolderLayoutRule r;
+        r.name = "Movies";
         r.ruleType = "Category";
         r.value = "Videos";
         r.autoApply = true;
@@ -3050,11 +3133,11 @@ void MainWindow::loadFolderRules() {
         addedPreset = true;
     }
 
-    if (!musicExists) {
+    if (!tvShowsExists) {
         FolderLayoutRule r;
-        r.name = "Music Player";
+        r.name = "TV Shows";
         r.ruleType = "Category";
-        r.value = "Music";
+        r.value = "Videos";
         r.autoApply = true;
         r.viewMode = "Theater";
         r.overridePreview = true;
@@ -3065,6 +3148,25 @@ void MainWindow::loadFolderRules() {
         r.consoleVisible = false;
         r.overrideFavoritesSidebar = true;
         r.favoritesSidebarVisible = false;
+        m_folderRules.append(r);
+        addedPreset = true;
+    }
+
+    if (!picturesExists) {
+        FolderLayoutRule r;
+        r.name = "Pictures";
+        r.ruleType = "Category";
+        r.value = "Images";
+        r.autoApply = true;
+        r.viewMode = "Grid";
+        r.overridePreview = true;
+        r.previewVisible = false;
+        r.overrideDrivesToolbar = true;
+        r.drivesToolbarVisible = true;
+        r.overrideConsole = true;
+        r.consoleVisible = false;
+        r.overrideFavoritesSidebar = true;
+        r.favoritesSidebarVisible = true;
         m_folderRules.append(r);
         addedPreset = true;
     }
@@ -3210,6 +3312,13 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
         targetPanel->setCustomBgColor("");
     }
 
+    // 4b. Visualizer override
+    if (r.overrideVisualizer) {
+        if (m_previewPanel) {
+            m_previewPanel->setSpectrumVisualizerVisible(r.visualizerActive);
+        }
+    }
+
     // 5. Tabs Snapshot
     if (r.hasTabsSnapshot && !r.leftPaths.isEmpty()) {
         while (m_leftTabWidget->count() > 0) {
@@ -3245,33 +3354,38 @@ void MainWindow::applyFolderRules(const QString& path) {
     FolderLayoutRule matchedRule;
     bool foundMatch = false;
 
-    // 1. Exact Path matching
-    for (const auto& r : m_folderRules) {
-        if (!r.autoApply) continue;
-        if (r.ruleType == "Path" && r.value == path) {
-            matchedRule = r;
-            foundMatch = true;
-            break;
-        }
-    }
+    QSettings settings("Amifiles", "Amifiles");
+    bool bypassRules = settings.value("preferences/bypass_folder_rules", false).toBool();
 
-    // 2. Category matching
-    if (!foundMatch) {
-        QString category = detectFolderCategory(path);
-        if (!category.isEmpty()) {
-            for (const auto& r : m_folderRules) {
-                if (!r.autoApply) continue;
-                if (r.ruleType == "Category" && r.value == category) {
-                    matchedRule = r;
-                    foundMatch = true;
-                    break;
+    if (!bypassRules) {
+        // 1. Exact Path matching
+        for (const auto& r : m_folderRules) {
+            if (!r.autoApply) continue;
+            if (r.ruleType == "Path" && r.value == path) {
+                matchedRule = r;
+                foundMatch = true;
+                break;
+            }
+        }
+
+        // 2. Category matching
+        if (!foundMatch) {
+            QString category = detectFolderCategory(path);
+            if (!category.isEmpty()) {
+                for (const auto& r : m_folderRules) {
+                    if (!r.autoApply) continue;
+                    if (r.ruleType == "Category" && r.value == category) {
+                        matchedRule = r;
+                        foundMatch = true;
+                        break;
+                    }
                 }
             }
         }
     }
 
     if (foundMatch) {
-        if (!matchedRule.linkedProfile.isEmpty()) {
+        if (!matchedRule.linkedProfile.isEmpty() && matchedRule.linkedProfile != matchedRule.name) {
             FolderLayoutRule inheritedRule = matchedRule;
             bool foundInherited = false;
             for (const auto& r : m_folderRules) {
@@ -3300,7 +3414,7 @@ void MainWindow::applyFolderRules(const QString& path) {
             }
         }
         if (foundDefault) {
-            if (!defaultRule.linkedProfile.isEmpty()) {
+            if (!defaultRule.linkedProfile.isEmpty() && defaultRule.linkedProfile != defaultRule.name) {
                 FolderLayoutRule inheritedRule = defaultRule;
                 for (const auto& r : m_folderRules) {
                     if (r.name == defaultRule.linkedProfile) {
@@ -3383,6 +3497,11 @@ void MainWindow::applyFolderRules(const QString& path) {
             if (m_sidebarTabWidget) m_sidebarTabWidget->setVisible(favorites);
             
             setZenMode(zen);
+
+            if (m_previewPanel) {
+                bool prefVisualizer = settings.value("preview/show_spectrum_visualizer", true).toBool();
+                m_previewPanel->setSpectrumVisualizerVisible(prefVisualizer);
+            }
         }
     }
 }
@@ -3431,6 +3550,43 @@ void MainWindow::onConfigureFolderLayouts() {
             applyFolderRules(m_activePanel->currentPath());
         }
     }
+}
+
+void MainWindow::onApplyProfileToCurrentFolder(const QString& profileName) {
+    if (!m_activePanel) return;
+    QString currentPath = m_activePanel->currentPath();
+    if (currentPath.isEmpty()) return;
+
+    FolderLayoutRule* existingRule = nullptr;
+    for (auto& r : m_folderRules) {
+        if (r.ruleType == "Path" && QDir::cleanPath(r.value) == QDir::cleanPath(currentPath)) {
+            existingRule = &r;
+            break;
+        }
+    }
+
+    if (existingRule) {
+        existingRule->linkedProfile = profileName;
+    } else {
+        FolderLayoutRule r;
+        r.name = QString("%1 (%2)").arg(QFileInfo(currentPath).fileName()).arg(profileName);
+        if (r.name.isEmpty()) {
+            r.name = QString("Path (%1)").arg(profileName);
+        }
+        r.ruleType = "Path";
+        r.value = currentPath;
+        r.autoApply = true;
+        r.linkedProfile = profileName;
+        m_folderRules.append(r);
+    }
+
+    saveFolderRules();
+    applyFolderRules(currentPath);
+
+    QMessageBox::information(this, "Profile Linked", 
+        QString("Successfully linked folder '%1' to profile '%2'.\nIt will now inherit the '%2' layout settings.")
+        .arg(QFileInfo(currentPath).fileName())
+        .arg(profileName));
 }
 
 void MainWindow::onSaveFolderProfileForCurrentDir() {
@@ -3881,6 +4037,45 @@ void MainWindow::onRemoteMountsManager() {
 
 void MainWindow::onPreferencesAction() {
     PreferencesDialog dlg(this);
+    connect(&dlg, &PreferencesDialog::preferencesChanged, this, [this]() {
+        updateWidgetStylesheets();
+        QSettings settings("Amifiles", "Amifiles");
+        
+        bool horizontalSplit = settings.value("preferences/horizontal_split", false).toBool();
+        if (m_actToggleHorizontalSplit) m_actToggleHorizontalSplit->setChecked(horizontalSplit);
+        onToggleHorizontalSplit(horizontalSplit);
+        
+        bool toolbarVisible = settings.value("layout/drives_toolbar_visible", true).toBool();
+        if (m_actToggleDrivesToolbar) m_actToggleDrivesToolbar->setChecked(toolbarVisible);
+        if (m_tbDrives) m_tbDrives->setVisible(toolbarVisible);
+        
+        bool menuDrivesVisible = settings.value("layout/drives_menu_visible", true).toBool();
+        if (m_menuDrives && m_menuDrives->menuAction()) {
+            m_menuDrives->menuAction()->setVisible(menuDrivesVisible);
+        }
+        
+        bool previewMuted = settings.value("preview/muted", false).toBool();
+        if (m_actMutePreview) m_actMutePreview->setChecked(previewMuted);
+        if (m_previewPanel) {
+            m_previewPanel->setMuted(previewMuted);
+            m_previewPanel->setSpectrumVisualizerVisible(settings.value("preview/show_spectrum_visualizer", true).toBool());
+        }
+        
+        for (int i = 0; i < m_leftTabWidget->count(); ++i) {
+            FilePanel* p = qobject_cast<FilePanel*>(m_leftTabWidget->widget(i));
+            if (p) p->refresh();
+        }
+        for (int i = 0; i < m_rightTabWidget->count(); ++i) {
+            FilePanel* p = qobject_cast<FilePanel*>(m_rightTabWidget->widget(i));
+            if (p) p->refresh();
+        }
+    });
+    dlg.exec();
+}
+
+void MainWindow::onMediaPreferences() {
+    PreferencesDialog dlg(this);
+    dlg.setCurrentPage(3); // Media page index
     connect(&dlg, &PreferencesDialog::preferencesChanged, this, [this]() {
         updateWidgetStylesheets();
         QSettings settings("Amifiles", "Amifiles");
@@ -4637,6 +4832,18 @@ void MainWindow::onTabContextMenuRequested(const QPoint& pos) {
 
     QAction* actConfigure = menu.addAction("Folder Profiles & Layouts...");
     QAction* actSaveFolder = menu.addAction("Save Current Layout as Folder Profile...");
+
+    QMenu* menuApplyProfile = menu.addMenu("Apply Profile Layout to Current Folder");
+    for (const auto& r : m_folderRules) {
+        if (!r.name.isEmpty()) {
+            QString profileName = r.name;
+            QAction* act = menuApplyProfile->addAction(profileName);
+            connect(act, &QAction::triggered, this, [this, profileName]() {
+                onApplyProfileToCurrentFolder(profileName);
+            });
+        }
+    }
+
     QAction* actSaveDefault = menu.addAction("Save Current Layout as Default Profile");
     QAction* actLoadDefault = menu.addAction("Load Default Profile");
 
@@ -4855,8 +5062,23 @@ void MainWindow::onPlayMediaBuiltin(const QStringList& filePaths) {
         m_previewPanel->player()->play();
     }
     
-    // Go fullscreen!
-    m_previewPanel->toggleFullscreen();
+    // Go fullscreen if preferred
+    bool autoFullscreen = true;
+    if (m_hasActiveFolderRule && m_activeFolderRule.overrideFullScreenPlayer) {
+        autoFullscreen = m_activeFolderRule.fullScreenPlayerActive;
+    } else {
+        QSettings settings("Amifiles", "Amifiles");
+        autoFullscreen = settings.value("preview/auto_fullscreen", true).toBool();
+    }
+
+    if (m_previewPanel) {
+        bool currentlyFullscreen = m_previewPanel->isFullscreen();
+        if (autoFullscreen && !currentlyFullscreen) {
+            m_previewPanel->toggleFullscreen();
+        } else if (!autoFullscreen && currentlyFullscreen) {
+            m_previewPanel->toggleFullscreen();
+        }
+    }
 }
 
 void MainWindow::onBackupSettings() {
