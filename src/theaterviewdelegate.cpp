@@ -69,7 +69,8 @@ void TheaterViewDelegate::paint(QPainter* painter, const QStyleOptionViewItem& o
         hasCover = filterModel->hasCasingCover(path);
     }
 
-    QRect imageRect(rect.x() + 8, rect.y() + 8, rect.width() - 16, 205);
+    int imageH = qMax(40, rect.height() - 40);
+    QRect imageRect(rect.x() + 8, rect.y() + 8, rect.width() - 16, imageH);
 
     // Query DecorationRole to trigger the asynchronous casing runnable inside the model
     QIcon icon = col0.data(Qt::DecorationRole).value<QIcon>();
@@ -130,7 +131,7 @@ void TheaterViewDelegate::paint(QPainter* painter, const QStyleOptionViewItem& o
     }
 
     int textX = rect.x() + 8;
-    int textY = rect.y() + 225;
+    int textY = rect.y() + imageH + 12;
     int textW = rect.width() - 16;
 
     QFont font = painter->font();
@@ -158,9 +159,11 @@ void TheaterViewDelegate::paint(QPainter* painter, const QStyleOptionViewItem& o
 }
 
 QSize TheaterViewDelegate::sizeHint(const QStyleOptionViewItem& option, const QModelIndex& index) const {
-    Q_UNUSED(option);
     Q_UNUSED(index);
-    return QSize(170, 270);
+    if (option.rect.isValid()) {
+        return option.rect.size();
+    }
+    return QSize(135, 185);
 }
 
 void TheaterViewDelegate::startHoverAnimation(const QString& path, QWidget* view) const {
