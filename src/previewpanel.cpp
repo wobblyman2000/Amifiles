@@ -264,24 +264,22 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
     QPushButton* btnToggleAutoFS = new QPushButton(m_hudWidget);
     btnToggleAutoFS->setCheckable(true);
     btnToggleAutoFS->setFocusPolicy(Qt::NoFocus);
-    btnToggleAutoFS->setIconSize(QSize(16, 16));
+    btnToggleAutoFS->setIconSize(QSize(18, 18));
+    btnToggleAutoFS->setMaximumWidth(40);
+    btnToggleAutoFS->setStyleSheet("QPushButton { background-color: transparent; border: none; }");
     connect(btnToggleAutoFS, &QPushButton::clicked, this, [this, btnToggleAutoFS]() {
         QSettings settings("Amifiles", "Amifiles");
         bool val = settings.value("preferences/builtin_player_doubleclick", false).toBool();
         settings.setValue("preferences/builtin_player_doubleclick", !val);
         btnToggleAutoFS->setChecked(!val);
         btnToggleAutoFS->setIcon(createAutoFSIcon(!val ? QColor("#a6e3a1") : QColor("#f38ba8")));
-        btnToggleAutoFS->setText(!val ? "Auto-FS: ON" : "Auto-FS: OFF");
-        btnToggleAutoFS->setStyleSheet(!val ? "QPushButton { color: #a6e3a1; font-weight: bold; border: 1px solid #a6e3a1; border-radius: 4px; padding: 2px 6px; }"
-                                            : "QPushButton { color: #f38ba8; font-weight: bold; border: 1px solid #f38ba8; border-radius: 4px; padding: 2px 6px; }");
+        btnToggleAutoFS->setToolTip(!val ? "Auto Full Screen: ON" : "Auto Full Screen: OFF");
     });
     QSettings settings("Amifiles", "Amifiles");
     bool autoFS = settings.value("preferences/builtin_player_doubleclick", false).toBool();
     btnToggleAutoFS->setChecked(autoFS);
     btnToggleAutoFS->setIcon(createAutoFSIcon(autoFS ? QColor("#a6e3a1") : QColor("#f38ba8")));
-    btnToggleAutoFS->setText(autoFS ? "Auto-FS: ON" : "Auto-FS: OFF");
-    btnToggleAutoFS->setStyleSheet(autoFS ? "QPushButton { color: #a6e3a1; font-weight: bold; border: 1px solid #a6e3a1; border-radius: 4px; padding: 2px 6px; }"
-                                          : "QPushButton { color: #f38ba8; font-weight: bold; border: 1px solid #f38ba8; border-radius: 4px; padding: 2px 6px; }");
+    btnToggleAutoFS->setToolTip(autoFS ? "Auto Full Screen: ON" : "Auto Full Screen: OFF");
     row2Layout->addWidget(btnToggleAutoFS);
 
     row2Layout->addSpacing(10);
