@@ -43,4 +43,5 @@ private:
 
     QList<QString> m_groups;
     QMap<QString, QList<QModelIndex>> m_groupMap;
+    mutable bool m_isRebuilding = false;
 };

@@ -41,12 +41,16 @@ void GroupProxyModel::setGrouping(bool active, const QString& type, const QStrin
 }
 
 void GroupProxyModel::rebuildGroups() {
+    if (m_isRebuilding) return;
+    m_isRebuilding = true;
+
     beginResetModel();
     m_groups.clear();
     m_groupMap.clear();
 
     if (!m_groupingActive || !sourceModel()) {
         endResetModel();
+        m_isRebuilding = false;
         return;
     }
 
@@ -77,6 +81,7 @@ void GroupProxyModel::rebuildGroups() {
         m_groupMap[groupVal].append(sourceIdx);
     }
     endResetModel();
+    m_isRebuilding = false;
 }
 
 QString GroupProxyModel::getGroupValue(const QModelIndex& sourceIndex) const {
