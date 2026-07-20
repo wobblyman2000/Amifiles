@@ -734,11 +734,13 @@ void PreviewPanel::setupUI() {
     QLabel* lblVol = new QLabel("🔊", this);
     lblVol->setStyleSheet("font-size: 14px;");
 
+    int savedVolume = settings.value("preview/volume", 70).toInt();
+
     m_sliderVolume = new QSlider(Qt::Horizontal, this);
     m_sliderVolume->setRange(0, 100);
-    m_sliderVolume->setValue(70);
+    m_sliderVolume->setValue(savedVolume);
     m_sliderVolume->setMaximumWidth(80);
-    m_audioOutput->setVolume(0.7f);
+    m_audioOutput->setVolume(savedVolume / 100.0f);
     connect(m_sliderVolume, &QSlider::valueChanged, this, &PreviewPanel::onVolumeChanged);
 
     QHBoxLayout* progressLayout = new QHBoxLayout();
@@ -1007,6 +1009,7 @@ void PreviewPanel::clearPreview() {
 }
 
 void PreviewPanel::previewFile(const QString& filePath, const QStringList& siblingSelections) {
+    m_prePreviewPlaybackState = m_player->playbackState();
     m_previewedFilePaths = siblingSelections;
     if (m_previewedFilePaths.isEmpty() && !filePath.isEmpty()) {
         m_previewedFilePaths.append(filePath);
@@ -1203,7 +1206,7 @@ void PreviewPanel::showMediaPreview(const QString& filePath, bool isVideo) {
     bool muted = settings.value("preview/muted", false).toBool();
     setMuted(muted);
 
-    if (isVisible()) {
+    if (isVisible() || m_prePreviewPlaybackState == QMediaPlayer::PlayingState) {
         m_player->play();
         m_btnPlayPause->setIcon(style()->standardIcon(QStyle::SP_MediaPause));
     } else {
@@ -1379,6 +1382,8 @@ void PreviewPanel::onDurationChanged(qint64 duration) {
 
 void PreviewPanel::onVolumeChanged(int value) {
     m_audioOutput->setVolume(value / 100.0f);
+    QSettings settings("Amifiles", "Amifiles");
+    settings.setValue("preview/volume", value);
 }
 
 void PreviewPanel::onSliderMoved(int value) {

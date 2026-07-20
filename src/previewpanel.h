@@ -245,6 +245,7 @@ private:
     int m_playlistIndex = -1;
     bool m_shuffleEnabled = false;
     int m_repeatMode = 0; // 0 = Off, 1 = Repeat One, 2 = Repeat All
+    QMediaPlayer::PlaybackState m_prePreviewPlaybackState = QMediaPlayer::StoppedState;
     QPixmap m_originalPixmap;
 
     // Media Player Backend (Qt6)
