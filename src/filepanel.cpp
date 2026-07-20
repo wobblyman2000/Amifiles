@@ -50,6 +50,8 @@ static bool hasAudioFilesRecursively(const QString& folderPath, int depth = 0);
 #include <QMessageBox>
 #include <QCheckBox>
 #include <QInputDialog>
+#include <QLabel>
+#include <QDialog>
 #include <QClipboard>
 #include <QMimeData>
 #include <QButtonGroup>
@@ -284,11 +286,13 @@ void FilePanel::setupUI() {
 
     m_searchResultsView = new QListView(this);
     m_searchResultsView->setVisible(false);
+    m_searchResultsView->setContextMenuPolicy(Qt::CustomContextMenu);
     m_searchResultsView->installEventFilter(this);
     m_searchResultModel = new QStringListModel(this);
     m_searchResultsView->setModel(m_searchResultModel);
     connect(m_searchResultsView, &QListView::clicked, this, &FilePanel::onSearchResultSelected);
     connect(m_searchResultsView, &QListView::doubleClicked, this, &FilePanel::onSearchResultDoubleClicked);
+    connect(m_searchResultsView, &QListView::customContextMenuRequested, this, &FilePanel::onSearchContextMenu);
 
     m_searchDebounceTimer = new QTimer(this);
     m_searchDebounceTimer->setSingleShot(true);
@@ -413,8 +417,10 @@ void FilePanel::setupUI() {
     m_globalSearchEdit->setPlaceholderText("🔍 Search files & subfolders... (Esc to clear)");
     m_globalSearchEdit->setClearButtonEnabled(true);
     m_globalSearchEdit->installEventFilter(this);
+    m_globalSearchEdit->setContextMenuPolicy(Qt::CustomContextMenu);
     m_globalSearchEdit->setVisible(false);
     connect(m_globalSearchEdit, &QLineEdit::textChanged, this, &FilePanel::onGlobalSearchChanged);
+    connect(m_globalSearchEdit, &QLineEdit::customContextMenuRequested, this, &FilePanel::onSearchEditContextMenu);
 
     // Flat Category Buttons
     m_btnFilterAll = new QToolButton(this);
@@ -2700,6 +2706,318 @@ void FilePanel::onToggleSearchFilterMode() {
         m_viewStack->setVisible(true);
         
         onFilterChanged(m_filterEdit->text());
+    }
+}
+
+void FilePanel::onSearchContextMenu(const QPoint& pos) {
+    QModelIndexList selectedIndexes = m_searchResultsView->selectionModel()->selectedIndexes();
+    if (selectedIndexes.isEmpty()) return;
+
+    QStringList selectedFiles;
+    for (const QModelIndex& idx : selectedIndexes) {
+        QString f = idx.data().toString();
+        if (QFile::exists(f)) {
+            selectedFiles.append(f);
+        }
+    }
+    if (selectedFiles.isEmpty()) return;
+
+    QString firstFile = selectedFiles.first();
+    QFileInfo info(firstFile);
+
+    QMenu menu(this);
+    QStyle* style = QApplication::style();
+
+    QAction* actOpen = nullptr;
+    QAction* actOpenFolder = nullptr;
+    QAction* actOpenFolderSibling = nullptr;
+    QAction* actCopyPath = nullptr;
+    QAction* actCopy = nullptr;
+    QAction* actCut = nullptr;
+    QAction* actCopyToSibling = nullptr;
+    QAction* actMoveToSibling = nullptr;
+    QAction* actDelete = nullptr;
+    QAction* actRename = nullptr;
+    QAction* actEditTags = nullptr;
+    QAction* actScrapeVideo = nullptr;
+    QAction* actCalculateChecksum = nullptr;
+    QAction* actSecureShred = nullptr;
+    QAction* actProp = nullptr;
+
+    if (selectedFiles.size() == 1) {
+        actOpen = menu.addAction(style->standardIcon(QStyle::SP_DialogOpenButton), "Open File");
+        actOpenFolder = menu.addAction(style->standardIcon(QStyle::SP_DirOpenIcon), "Open Containing Folder");
+        actOpenFolderSibling = menu.addAction(style->standardIcon(QStyle::SP_DirOpenIcon), "Open Containing Folder in Sibling Panel");
+        actCopyPath = menu.addAction("Copy Absolute Path");
+        
+        menu.addSeparator();
+
+        actCopy = menu.addAction(style->standardIcon(QStyle::SP_DialogSaveButton), "Copy");
+        actCopy->setShortcut(QKeySequence::Copy);
+        
+        actCut = menu.addAction("Cut");
+        actCut->setShortcut(QKeySequence::Cut);
+
+        actCopyToSibling = menu.addAction("Copy to Sibling Panel");
+        actMoveToSibling = menu.addAction("Move to Sibling Panel");
+        
+        actDelete = menu.addAction(style->standardIcon(QStyle::SP_TrashIcon), "Delete");
+        actDelete->setShortcut(QKeySequence::Delete);
+
+        actRename = menu.addAction("Rename...");
+        
+        menu.addSeparator();
+
+        QString ext = info.suffix().toLower();
+        if (ext == "mp3" || ext == "wav" || ext == "flac" || ext == "ogg" || ext == "m4a") {
+            actEditTags = menu.addAction("Edit Audio Tags...");
+        } else if (ext == "mp4" || ext == "avi" || ext == "mkv" || ext == "mov" || ext == "webm") {
+            actScrapeVideo = menu.addAction("Scrape Video Metadata...");
+        }
+
+        actCalculateChecksum = menu.addAction("Calculate Checksum Hash...");
+        actSecureShred = menu.addAction(style->standardIcon(QStyle::SP_TrashIcon), "Secure Shred (Delete Permanently)...");
+        
+        menu.addSeparator();
+        actProp = menu.addAction(style->standardIcon(QStyle::SP_MessageBoxInformation), "Properties");
+    } else {
+        actCopyPath = menu.addAction("Copy Absolute Paths");
+        menu.addSeparator();
+        actCopy = menu.addAction(style->standardIcon(QStyle::SP_DialogSaveButton), QString("Copy %1 Files").arg(selectedFiles.size()));
+        actCopyToSibling = menu.addAction(QString("Copy %1 Files to Sibling Panel").arg(selectedFiles.size()));
+        actDelete = menu.addAction(style->standardIcon(QStyle::SP_TrashIcon), QString("Delete %1 Files").arg(selectedFiles.size()));
+        actSecureShred = menu.addAction(style->standardIcon(QStyle::SP_TrashIcon), QString("Secure Shred %1 Files (Delete Permanently)...").arg(selectedFiles.size()));
+    }
+
+    QAction* selected = menu.exec(m_searchResultsView->mapToGlobal(pos));
+    if (!selected) return;
+
+    if (selected == actOpen) {
+        QDesktopServices::openUrl(QUrl::fromLocalFile(firstFile));
+    } else if (selected == actOpenFolder) {
+        QString parentDir = info.absolutePath();
+        navigateTo(parentDir, true);
+        QModelIndex srcIndex = m_fileModel->index(firstFile);
+        if (srcIndex.isValid()) {
+            QModelIndex proxyIndex = m_proxyModel->mapFromSource(srcIndex);
+            if (proxyIndex.isValid()) {
+                m_treeView->setCurrentIndex(proxyIndex);
+                m_treeView->scrollTo(proxyIndex);
+                m_listView->setCurrentIndex(proxyIndex);
+                m_listView->scrollTo(proxyIndex);
+            }
+        }
+    } else if (selected == actOpenFolderSibling) {
+        if (m_siblingPanel) {
+            QString parentDir = info.absolutePath();
+            m_siblingPanel->navigateTo(parentDir, true);
+            QModelIndex srcIndex = m_siblingPanel->m_fileModel->index(firstFile);
+            if (srcIndex.isValid()) {
+                QModelIndex proxyIndex = m_siblingPanel->m_proxyModel->mapFromSource(srcIndex);
+                if (proxyIndex.isValid()) {
+                    m_siblingPanel->m_treeView->setCurrentIndex(proxyIndex);
+                    m_siblingPanel->m_treeView->scrollTo(proxyIndex);
+                    m_siblingPanel->m_listView->setCurrentIndex(proxyIndex);
+                    m_siblingPanel->m_listView->scrollTo(proxyIndex);
+                }
+            }
+            m_siblingPanel->setFocus();
+        }
+    } else if (selected == actCopyPath) {
+        QStringList nativePaths;
+        for (const QString& f : selectedFiles) {
+            nativePaths.append(QDir::toNativeSeparators(f));
+        }
+        QApplication::clipboard()->setText(nativePaths.join("\n"));
+    } else if (selected == actCopy) {
+        QMimeData* mimeData = new QMimeData();
+        QList<QUrl> urls;
+        for (const QString& f : selectedFiles) {
+            urls.append(QUrl::fromLocalFile(f));
+        }
+        mimeData->setUrls(urls);
+        QApplication::clipboard()->setMimeData(mimeData);
+    } else if (selected == actCut) {
+        QMimeData* mimeData = new QMimeData();
+        QList<QUrl> urls = { QUrl::fromLocalFile(firstFile) };
+        mimeData->setUrls(urls);
+        QByteArray cutEffect;
+        cutEffect.append((char)1);
+        mimeData->setData("application/x-kde-cutselection", cutEffect);
+        mimeData->setData("Preferred Drop Effect", "Cut");
+        QApplication::clipboard()->setMimeData(mimeData);
+    } else if (selected == actCopyToSibling) {
+        if (m_siblingPanel) {
+            QString siblingPath = m_siblingPanel->currentPath();
+            if (!siblingPath.isEmpty() && QDir(siblingPath).exists()) {
+                for (const QString& f : selectedFiles) {
+                    QFileInfo fi(f);
+                    QString destPath = QDir(siblingPath).filePath(fi.fileName());
+                    QFile::copy(f, destPath);
+                }
+                m_siblingPanel->refresh();
+            }
+        }
+    } else if (selected == actMoveToSibling) {
+        if (m_siblingPanel) {
+            QString siblingPath = m_siblingPanel->currentPath();
+            if (!siblingPath.isEmpty() && QDir(siblingPath).exists()) {
+                for (const QString& f : selectedFiles) {
+                    QFileInfo fi(f);
+                    QString destPath = QDir(siblingPath).filePath(fi.fileName());
+                    QFile::rename(f, destPath);
+                }
+                refresh();
+                m_siblingPanel->refresh();
+            }
+        }
+    } else if (selected == actDelete) {
+        QString confirmMsg = (selectedFiles.size() == 1)
+            ? QString("Are you sure you want to delete '%1'?").arg(info.fileName())
+            : QString("Are you sure you want to delete these %1 selected files?").arg(selectedFiles.size());
+            
+        if (QMessageBox::question(this, "Delete Files", confirmMsg) == QMessageBox::Yes) {
+            QStringList currentList = m_searchResultModel->stringList();
+            for (const QString& f : selectedFiles) {
+                if (QFile::remove(f)) {
+                    currentList.removeAll(f);
+                }
+            }
+            m_searchResultModel->setStringList(currentList);
+            m_statusLabel->setText(QString("Found %1 items").arg(currentList.size()));
+        }
+    } else if (selected == actRename) {
+        bool ok;
+        QString oldName = info.fileName();
+        QString newName = QInputDialog::getText(this, "Rename File", "New name:", QLineEdit::Normal, oldName, &ok);
+        if (ok && !newName.isEmpty() && newName != oldName) {
+            QString newPath = info.absoluteDir().filePath(newName);
+            if (QFile::rename(firstFile, newPath)) {
+                QStringList currentList = m_searchResultModel->stringList();
+                int idx = currentList.indexOf(firstFile);
+                if (idx != -1) {
+                    currentList[idx] = newPath;
+                    m_searchResultModel->setStringList(currentList);
+                }
+            } else {
+                QMessageBox::warning(this, "Rename File", "Failed to rename file.");
+            }
+        }
+    } else if (selected == actEditTags) {
+        TagEditorDialog dlg({firstFile}, this);
+        dlg.exec();
+    } else if (selected == actScrapeVideo) {
+        VideoScraperDialog dlg({firstFile}, this);
+        dlg.exec();
+    } else if (selected == actCalculateChecksum) {
+        ChecksumDialog dlg(firstFile, this);
+        dlg.exec();
+    } else if (selected == actSecureShred) {
+        ShredDialog dlg(selectedFiles, this);
+        if (dlg.exec() == QDialog::Accepted) {
+            QStringList currentList = m_searchResultModel->stringList();
+            for (const QString& f : selectedFiles) {
+                currentList.removeAll(f);
+            }
+            m_searchResultModel->setStringList(currentList);
+            m_statusLabel->setText(QString("Found %1 items").arg(currentList.size()));
+        }
+    } else if (selected == actProp) {
+        QDialog propDlg(this);
+        propDlg.setWindowTitle("Properties - " + info.fileName());
+        QVBoxLayout* layout = new QVBoxLayout(&propDlg);
+        
+        QLabel* lblName = new QLabel("<b>Name:</b> " + info.fileName(), &propDlg);
+        QLabel* lblPath = new QLabel("<b>Path:</b> " + firstFile, &propDlg);
+        QLabel* lblSize = new QLabel("<b>Size:</b> " + QString::number(info.size()) + " bytes", &propDlg);
+        QLabel* lblModified = new QLabel("<b>Modified:</b> " + info.lastModified().toString(), &propDlg);
+        
+        layout->addWidget(lblName);
+        layout->addWidget(lblPath);
+        layout->addWidget(lblSize);
+        layout->addWidget(lblModified);
+        
+        QPushButton* btnClose = new QPushButton("Close", &propDlg);
+        connect(btnClose, &QPushButton::clicked, &propDlg, &QDialog::accept);
+        layout->addWidget(btnClose);
+        
+        propDlg.exec();
+    }
+}
+
+void FilePanel::onSearchEditContextMenu(const QPoint& pos) {
+    QMenu menu(this);
+    QStyle* style = QApplication::style();
+    
+    QAction* actSavePreset = menu.addAction("Save Current Search as Preset...");
+    QMenu* menuPresets = menu.addMenu("Load Search Preset");
+    
+    QSettings settings("Amifiles", "Amifiles");
+    QVariantList presets = settings.value("search/presets").toList();
+    if (presets.isEmpty()) {
+        QAction* emptyAct = menuPresets->addAction("No presets saved");
+        emptyAct->setEnabled(false);
+    } else {
+        for (const QVariant& pVar : presets) {
+            QVariantMap pMap = pVar.toMap();
+            QString name = pMap["name"].toString();
+            QString query = pMap["query"].toString();
+            QAction* pAct = menuPresets->addAction(QString("%1 (%2)").arg(name, query));
+            pAct->setData(query);
+            connect(pAct, &QAction::triggered, this, [this, pAct]() {
+                setSearchQuery(pAct->data().toString());
+            });
+        }
+    }
+    
+    QAction* actClear = menu.addAction("Clear Search");
+    
+    menu.addSeparator();
+    
+    QAction* actUndo = menu.addAction("Undo");
+    actUndo->setEnabled(m_globalSearchEdit->isUndoAvailable());
+    connect(actUndo, &QAction::triggered, m_globalSearchEdit, &QLineEdit::undo);
+    
+    QAction* actRedo = menu.addAction("Redo");
+    actRedo->setEnabled(m_globalSearchEdit->isRedoAvailable());
+    connect(actRedo, &QAction::triggered, m_globalSearchEdit, &QLineEdit::redo);
+    
+    menu.addSeparator();
+    
+    QAction* actCut = menu.addAction("Cut");
+    actCut->setEnabled(m_globalSearchEdit->hasSelectedText());
+    connect(actCut, &QAction::triggered, m_globalSearchEdit, &QLineEdit::cut);
+    
+    QAction* actCopy = menu.addAction("Copy");
+    actCopy->setEnabled(m_globalSearchEdit->hasSelectedText());
+    connect(actCopy, &QAction::triggered, m_globalSearchEdit, &QLineEdit::copy);
+    
+    QAction* actPaste = menu.addAction("Paste");
+    connect(actPaste, &QAction::triggered, m_globalSearchEdit, &QLineEdit::paste);
+    
+    QAction* actSelectAll = menu.addAction("Select All");
+    connect(actSelectAll, &QAction::triggered, m_globalSearchEdit, &QLineEdit::selectAll);
+
+    actSavePreset->setEnabled(!m_globalSearchEdit->text().trimmed().isEmpty());
+
+    QAction* selected = menu.exec(m_globalSearchEdit->mapToGlobal(pos));
+    if (!selected) return;
+
+    if (selected == actSavePreset) {
+        QString query = m_globalSearchEdit->text().trimmed();
+        bool ok;
+        QString name = QInputDialog::getText(this, "Save Search Preset", 
+                                             "Enter a name for this search preset:", 
+                                             QLineEdit::Normal, "", &ok);
+        if (ok && !name.trimmed().isEmpty()) {
+            QVariantMap newPreset;
+            newPreset["name"] = name.trimmed();
+            newPreset["query"] = query;
+            presets.append(newPreset);
+            settings.setValue("search/presets", presets);
+        }
+    } else if (selected == actClear) {
+        m_globalSearchEdit->clear();
     }
 }
 

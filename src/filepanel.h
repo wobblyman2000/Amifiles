@@ -553,6 +553,8 @@ private slots:
     void onSearchFinished();
     void onSearchResultSelected(const QModelIndex& index);
     void onSearchResultDoubleClicked(const QModelIndex& index);
+    void onSearchContextMenu(const QPoint& pos);
+    void onSearchEditContextMenu(const QPoint& pos);
     void onToggleSearchFilterMode();
     void onSearchUpdateTimeout();
     void zoomIn();
