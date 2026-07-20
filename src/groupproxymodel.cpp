@@ -8,7 +8,7 @@
 #include <QFileSystemModel>
 #include <QDebug>
 
-GroupProxyModel::GroupProxyModel(QObject* parent) : QIdentityProxyModel(parent) {}
+GroupProxyModel::GroupProxyModel(QObject* parent) : QAbstractProxyModel(parent) {}
 
 void GroupProxyModel::setSourceModel(QAbstractItemModel* sourceModel) {
     if (this->sourceModel()) {
@@ -19,7 +19,7 @@ void GroupProxyModel::setSourceModel(QAbstractItemModel* sourceModel) {
         disconnect(this->sourceModel(), &QAbstractItemModel::rowsRemoved, this, &GroupProxyModel::rebuildGroups);
     }
     
-    QIdentityProxyModel::setSourceModel(sourceModel);
+    QAbstractProxyModel::setSourceModel(sourceModel);
     
     if (this->sourceModel()) {
         connect(this->sourceModel(), &QAbstractItemModel::modelReset, this, &GroupProxyModel::rebuildGroups);
@@ -133,10 +133,7 @@ QString GroupProxyModel::getGroupValue(const QModelIndex& sourceIndex) const {
 }
 
 QModelIndex GroupProxyModel::mapToSource(const QModelIndex& proxyIndex) const {
-    if (!m_groupingActive) {
-        return QIdentityProxyModel::mapToSource(proxyIndex);
-    }
-    if (!proxyIndex.isValid() || !sourceModel()) {
+    if (!m_groupingActive || !proxyIndex.isValid() || !sourceModel()) {
         return QModelIndex();
     }
 
@@ -160,11 +157,7 @@ QModelIndex GroupProxyModel::mapToSource(const QModelIndex& proxyIndex) const {
 }
 
 QModelIndex GroupProxyModel::mapFromSource(const QModelIndex& sourceIndex) const {
-    if (!sourceIndex.isValid() || !sourceModel()) return QModelIndex();
-
-    if (!m_groupingActive) {
-        return QIdentityProxyModel::mapFromSource(sourceIndex);
-    }
+    if (!m_groupingActive || !sourceIndex.isValid() || !sourceModel()) return QModelIndex();
 
     for (int g = 0; g < m_groups.size(); ++g) {
         QString gName = m_groups[g];
@@ -180,10 +173,8 @@ QModelIndex GroupProxyModel::mapFromSource(const QModelIndex& sourceIndex) const
 }
 
 QModelIndex GroupProxyModel::index(int row, int column, const QModelIndex& parent) const {
-    if (!sourceModel()) return QModelIndex();
-
-    if (!m_groupingActive) {
-        return QIdentityProxyModel::index(row, column, parent);
+    if (!m_groupingActive || !sourceModel()) {
+        return QModelIndex();
     }
 
     if (!parent.isValid()) {
@@ -209,10 +200,9 @@ QModelIndex GroupProxyModel::index(int row, int column, const QModelIndex& paren
 }
 
 QModelIndex GroupProxyModel::parent(const QModelIndex& child) const {
-    if (!m_groupingActive) {
-        return QIdentityProxyModel::parent(child);
+    if (!m_groupingActive || !sourceModel() || !child.isValid()) {
+        return QModelIndex();
     }
-    if (!child.isValid()) return QModelIndex();
 
     quintptr id = child.internalId();
     if (id > 0 && id <= 10000) {
@@ -227,17 +217,15 @@ QModelIndex GroupProxyModel::parent(const QModelIndex& child) const {
 }
 
 QModelIndex GroupProxyModel::sibling(int row, int column, const QModelIndex& idx) const {
-    if (!m_groupingActive) {
-        return QIdentityProxyModel::sibling(row, column, idx);
+    if (!m_groupingActive || !idx.isValid() || !sourceModel()) {
+        return QModelIndex();
     }
     return index(row, column, idx.parent());
 }
 
 int GroupProxyModel::rowCount(const QModelIndex& parent) const {
-    if (!sourceModel()) return 0;
-
-    if (!m_groupingActive) {
-        return QIdentityProxyModel::rowCount(parent);
+    if (!m_groupingActive || !sourceModel()) {
+        return 0;
     }
 
     if (!parent.isValid()) {
@@ -255,20 +243,15 @@ int GroupProxyModel::rowCount(const QModelIndex& parent) const {
 }
 
 int GroupProxyModel::columnCount(const QModelIndex& parent) const {
-    if (!sourceModel()) return 0;
-    
-    if (!m_groupingActive) {
-        return QIdentityProxyModel::columnCount(parent);
+    if (!m_groupingActive || !sourceModel()) {
+        return 0;
     }
-    
     return sourceModel()->columnCount();
 }
 
 QVariant GroupProxyModel::data(const QModelIndex& index, int role) const {
-    if (!index.isValid() || !sourceModel()) return QVariant();
-
-    if (!m_groupingActive) {
-        return QIdentityProxyModel::data(index, role);
+    if (!m_groupingActive || !index.isValid() || !sourceModel()) {
+        return QVariant();
     }
 
     quintptr id = index.internalId();
@@ -301,14 +284,14 @@ QVariant GroupProxyModel::data(const QModelIndex& index, int role) const {
 }
 
 QVariant GroupProxyModel::headerData(int section, Qt::Orientation orientation, int role) const {
-    return QIdentityProxyModel::headerData(section, orientation, role);
+    if (!sourceModel()) return QVariant();
+    return sourceModel()->headerData(section, orientation, role);
 }
 
 Qt::ItemFlags GroupProxyModel::flags(const QModelIndex& index) const {
-    if (!m_groupingActive) {
-        return QIdentityProxyModel::flags(index);
+    if (!m_groupingActive || !index.isValid() || !sourceModel()) {
+        return Qt::NoItemFlags;
     }
-    if (!index.isValid()) return Qt::NoItemFlags;
     QModelIndex srcIdx = mapToSource(index);
     if (srcIdx.isValid()) {
         return sourceModel()->flags(srcIdx);
@@ -316,14 +299,8 @@ Qt::ItemFlags GroupProxyModel::flags(const QModelIndex& index) const {
     return Qt::ItemIsSelectable | Qt::ItemIsEnabled;
 }
 
-void GroupProxyModel::setSourceRoot(const QModelIndex& root) {
-    if (m_sourceRoot != root) {
-        m_sourceRoot = root;
-        rebuildGroups();
-    }
-}
-
 void GroupProxyModel::onSourceDataChanged(const QModelIndex& topLeft, const QModelIndex& bottomRight, const QList<int>& roles) {
+    if (!m_groupingActive) return;
     if (roles.size() == 1 && roles.first() == Qt::DecorationRole) {
         QModelIndex proxyTopLeft = mapFromSource(topLeft);
         QModelIndex proxyBottomRight = mapFromSource(bottomRight);

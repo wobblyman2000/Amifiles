@@ -1033,7 +1033,7 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
     // Update tree view root
     if (m_flatViewEnabled) {
         m_flatModel->setRootPath(m_currentPath);
-        m_groupProxy->setSourceRoot(QModelIndex());
+        m_groupProxy->rebuildGroups();
         m_treeView->setRootIndex(QModelIndex());
         m_listView->setRootIndex(QModelIndex());
         m_theaterListView->setRootIndex(QModelIndex());
@@ -1042,11 +1042,10 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
         QModelIndex srcIndex = m_fileModel->setRootPath(m_currentPath);
         QModelIndex proxyIndex = m_proxyModel->mapFromSource(srcIndex);
         if (m_groupProxy && m_groupProxy->isGroupingActive()) {
-            m_groupProxy->setSourceRoot(proxyIndex);
-            QModelIndex groupRootIndex = m_groupProxy->mapFromSource(proxyIndex);
-            m_treeView->setRootIndex(groupRootIndex);
-            m_listView->setRootIndex(groupRootIndex);
-            m_theaterListView->setRootIndex(groupRootIndex);
+            m_groupProxy->rebuildGroups();
+            m_treeView->setRootIndex(QModelIndex());
+            m_listView->setRootIndex(QModelIndex());
+            m_theaterListView->setRootIndex(QModelIndex());
             
             if (m_viewStack->currentWidget() == m_theaterContainer) {
                 m_theaterListView->setVisible(false);
