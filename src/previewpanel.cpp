@@ -145,6 +145,23 @@ static QIcon createAutoFSIcon(const QColor& color) {
     return QIcon(pix);
 }
 
+static QIcon createVisualizerIcon(const QColor& color) {
+    QPixmap pix(24, 24);
+    pix.fill(Qt::transparent);
+    QPainter p(&pix);
+    p.setRenderHint(QPainter::Antialiasing);
+    p.setPen(Qt::NoPen);
+    p.setBrush(color);
+    
+    p.drawRoundedRect(4, 14, 3, 6, 1, 1);
+    p.drawRoundedRect(9, 8, 3, 12, 1, 1);
+    p.drawRoundedRect(14, 5, 3, 15, 1, 1);
+    p.drawRoundedRect(19, 10, 3, 10, 1, 1);
+    
+    p.end();
+    return QIcon(pix);
+}
+
 FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window | Qt::FramelessWindowHint) {
     setStyleSheet("background-color: #000000;");
     setMouseTracking(true);
@@ -671,6 +688,18 @@ void PreviewPanel::setupUI() {
     m_btnRepeat->setStyleSheet("QPushButton { background-color: transparent; }");
     connect(m_btnRepeat, &QPushButton::clicked, this, &PreviewPanel::onRepeatClicked);
 
+    m_btnToggleVisualizer = new QPushButton(this);
+    m_btnToggleVisualizer->setCheckable(true);
+    m_btnToggleVisualizer->setMaximumWidth(32);
+    m_btnToggleVisualizer->setStyleSheet("QPushButton { background-color: transparent; }");
+    m_btnToggleVisualizer->setChecked(m_spectrumVisualizerEnabled);
+    m_btnToggleVisualizer->setIcon(createVisualizerIcon(m_spectrumVisualizerEnabled ? QColor("#89b4fa") : QColor("#cdd6f4")));
+    m_btnToggleVisualizer->setToolTip(m_spectrumVisualizerEnabled ? "Spectrum Visualizer: ON (Accent Blue)" : "Spectrum Visualizer: OFF");
+    connect(m_btnToggleVisualizer, &QPushButton::clicked, this, [this](bool checked) {
+        setSpectrumVisualizerVisible(checked);
+        emit spectrumVisualizerToggled(checked);
+    });
+
     m_btnSubtitles = new QPushButton(this);
     m_btnSubtitles->setText("CC");
     m_btnSubtitles->setToolTip("Subtitles");
@@ -709,6 +738,7 @@ void PreviewPanel::setupUI() {
     controlsLayout->addWidget(m_btnFullscreen);
     controlsLayout->addWidget(m_btnShuffle);
     controlsLayout->addWidget(m_btnRepeat);
+    controlsLayout->addWidget(m_btnToggleVisualizer);
     controlsLayout->addWidget(m_btnSubtitles);
     controlsLayout->addStretch(1);
     controlsLayout->addWidget(lblVol);
@@ -1893,7 +1923,7 @@ void PreviewPanel::toggleFullscreen() {
     bool isVideo = m_videoWidget->isVisible();
 
     // Create the borderless fullscreen widget
-    m_fullscreenWidget = new FullscreenWidget();
+    m_fullscreenWidget = new FullscreenWidget(this);
     connect(m_fullscreenWidget, &FullscreenWidget::exitRequested, this, &PreviewPanel::exitFullscreen);
     connect(m_fullscreenWidget, &FullscreenWidget::prevRequested, this, &PreviewPanel::onPrevTrack);
     connect(m_fullscreenWidget, &FullscreenWidget::playPauseRequested, this, &PreviewPanel::onPlayPause);
@@ -1902,6 +1932,20 @@ void PreviewPanel::toggleFullscreen() {
     connect(m_fullscreenWidget, &FullscreenWidget::shuffleToggled, this, &PreviewPanel::onShuffleToggled);
     connect(m_fullscreenWidget, &FullscreenWidget::repeatRequested, this, &PreviewPanel::onRepeatClicked);
     connect(m_fullscreenWidget, &FullscreenWidget::builtinPlayerDoubleclickToggled, this, &PreviewPanel::builtinPlayerDoubleclickToggled);
+
+    // Synchronize initial Auto-FS toggle state to HUD
+    bool autoFS = false;
+    QWidget* pTemp = parentWidget();
+    while (pTemp && !pTemp->inherits("MainWindow")) {
+        pTemp = pTemp->parentWidget();
+    }
+    if (pTemp) {
+        QMetaObject::invokeMethod(pTemp, "isBuiltinPlayerDoubleclickActive", Q_RETURN_ARG(bool, autoFS));
+    } else {
+        QSettings settings("Amifiles", "Amifiles");
+        autoFS = settings.value("preferences/builtin_player_doubleclick", false).toBool();
+    }
+    m_fullscreenWidget->setBuiltinPlayerDoubleclickActive(autoFS);
 
     // Synchronize initial styles to HUD buttons
     if (m_fullscreenWidget->hudShuffleButton()) {
@@ -2299,6 +2343,13 @@ void PreviewPanel::setSpectrumVisualizerVisible(bool visible) {
     m_spectrumVisualizerEnabled = visible;
     if (m_chkShowVisualizer && m_chkShowVisualizer->isChecked() != visible) {
         m_chkShowVisualizer->setChecked(visible);
+    }
+    if (m_btnToggleVisualizer) {
+        m_btnToggleVisualizer->blockSignals(true);
+        m_btnToggleVisualizer->setChecked(visible);
+        m_btnToggleVisualizer->setIcon(createVisualizerIcon(visible ? QColor("#89b4fa") : QColor("#cdd6f4")));
+        m_btnToggleVisualizer->setToolTip(visible ? "Spectrum Visualizer: ON (Accent Blue)" : "Spectrum Visualizer: OFF");
+        m_btnToggleVisualizer->blockSignals(false);
     }
     if (m_visualizer) {
         bool shouldBeVisible = visible && (m_stack->currentWidget() == m_mediaView) && !m_videoWidget->isVisible();

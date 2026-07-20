@@ -245,6 +245,7 @@ private:
     QPushButton* m_btnSubtitles = nullptr;
     QPushButton* m_btnShuffle = nullptr;
     QPushButton* m_btnRepeat = nullptr;
+    QPushButton* m_btnToggleVisualizer = nullptr;
 
     // EQ and Visualizer Elements
     SpectrumVisualizerWidget* m_visualizer = nullptr;

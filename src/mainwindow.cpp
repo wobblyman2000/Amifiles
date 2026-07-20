@@ -5096,6 +5096,9 @@ void MainWindow::onPlayMediaBuiltin(const QStringList& filePaths) {
     } else {
         QSettings settings("Amifiles", "Amifiles");
         autoFullscreen = settings.value("preview/auto_fullscreen", true).toBool();
+        if (isBuiltinPlayerDoubleclickActive()) {
+            autoFullscreen = true;
+        }
     }
 
     if (m_previewPanel) {
