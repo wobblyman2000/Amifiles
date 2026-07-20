@@ -168,6 +168,18 @@ bool MainWindow::isBuiltinPlayerDoubleclickActive() const {
     return settings.value("preferences/builtin_player_doubleclick", false).toBool();
 }
 
+void MainWindow::setBuiltinPlayerDoubleclickActive(bool active) {
+    if (m_hasActiveFolderRule && m_activeFolderRule.overrideBuiltinPlayerDoubleclick) {
+        m_activeFolderRule.builtinPlayerDoubleclick = active;
+        saveFolderRules();
+    }
+    
+    QSettings settings("Amifiles", "Amifiles");
+    settings.setValue("preferences/builtin_player_doubleclick", active);
+    
+    emit builtinPlayerDoubleclickChanged(active);
+}
+
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     m_isInitializing = true;
     setWindowTitle("Amifiles - File Manager");
@@ -453,6 +465,8 @@ void MainWindow::setupCentralWidget() {
         // Refresh active panel to show modified tags
         if (m_activePanel) m_activePanel->refresh();
     });
+    connect(m_previewPanel, &PreviewPanel::builtinPlayerDoubleclickToggled, this, &MainWindow::setBuiltinPlayerDoubleclickActive);
+    connect(this, &MainWindow::builtinPlayerDoubleclickChanged, m_previewPanel, &PreviewPanel::setBuiltinPlayerDoubleclickActive);
 
     m_previewDock = new QDockWidget("File Preview Panel", this);
     m_previewDock->setObjectName("previewDockWidget");
@@ -3346,6 +3360,16 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
         }
         updateSiblingLinks();
     }
+
+    // 6. Doubleclick playback preference override
+    bool isDoubleclickActive = false;
+    if (r.overrideBuiltinPlayerDoubleclick) {
+        isDoubleclickActive = r.builtinPlayerDoubleclick;
+    } else {
+        QSettings settings("Amifiles", "Amifiles");
+        isDoubleclickActive = settings.value("preferences/builtin_player_doubleclick", false).toBool();
+    }
+    emit builtinPlayerDoubleclickChanged(isDoubleclickActive);
 }
 
 void MainWindow::applyFolderRules(const QString& path) {
@@ -3502,6 +3526,7 @@ void MainWindow::applyFolderRules(const QString& path) {
                 bool prefVisualizer = settings.value("preview/show_spectrum_visualizer", true).toBool();
                 m_previewPanel->setSpectrumVisualizerVisible(prefVisualizer);
             }
+            emit builtinPlayerDoubleclickChanged(settings.value("preferences/builtin_player_doubleclick", false).toBool());
         }
     }
 }
@@ -4060,6 +4085,7 @@ void MainWindow::onPreferencesAction() {
             m_previewPanel->setMuted(previewMuted);
             m_previewPanel->setSpectrumVisualizerVisible(settings.value("preview/show_spectrum_visualizer", true).toBool());
         }
+        setBuiltinPlayerDoubleclickActive(settings.value("preferences/builtin_player_doubleclick", false).toBool());
         
         for (int i = 0; i < m_leftTabWidget->count(); ++i) {
             FilePanel* p = qobject_cast<FilePanel*>(m_leftTabWidget->widget(i));
@@ -4099,6 +4125,7 @@ void MainWindow::onMediaPreferences() {
             m_previewPanel->setMuted(previewMuted);
             m_previewPanel->setSpectrumVisualizerVisible(settings.value("preview/show_spectrum_visualizer", true).toBool());
         }
+        setBuiltinPlayerDoubleclickActive(settings.value("preferences/builtin_player_doubleclick", false).toBool());
         
         for (int i = 0; i < m_leftTabWidget->count(); ++i) {
             FilePanel* p = qobject_cast<FilePanel*>(m_leftTabWidget->widget(i));

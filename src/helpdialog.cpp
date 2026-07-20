@@ -410,6 +410,7 @@ void HelpDialog::onSectionChanged(int index) {
                     "<li><b>Entering Fullscreen:</b> Play any media file and double-click the preview area, press <code>F</code>, or enable 'Auto-open full screen player' in a folder layout rule profile.</li>"
                     "<li><b>Exiting Fullscreen:</b> Press <code>Esc</code>, double-click the screen, or click the exit button on the popup HUD control bar.</li>"
                     "<li><b>Right-Click Context Menu:</b> Right-click anywhere on the fullscreen player to open a helper context menu with options to Exit Fullscreen, Play/Pause, Stop, and skip to the Next/Previous track.</li>"
+                    "<li><b>Auto Full Screen Synchronization (TV Icon):</b> Clicking the TV icon in the player HUD toggles the double-click fullscreen playback setting. This setting is fully synchronized with the global preferences and context menus (like a multi-way light switch) and applies to double-clicks in all view modes, including Theater View. The TV icon lights up in accent blue when ON, and dims to dark gray when OFF.</li>"
                     "</ul>";
             break;
 

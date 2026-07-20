@@ -51,6 +51,10 @@ signals:
     void nextRequested();
     void shuffleToggled();
     void repeatRequested();
+    void builtinPlayerDoubleclickToggled(bool active);
+
+public slots:
+    void setBuiltinPlayerDoubleclickActive(bool active);
 
 protected:
     void keyPressEvent(class QKeyEvent* event) override;
@@ -80,6 +84,7 @@ private:
     class QSlider* m_sliderProgress = nullptr;
     class QLabel* m_lblTime = nullptr;
     class QSlider* m_sliderVolume = nullptr;
+    class QPushButton* m_btnToggleAutoFS = nullptr;
     class QTimer* m_hideTimer = nullptr;
     class QTimer* m_mousePollTimer = nullptr;
     QPoint m_lastMousePos;
@@ -144,10 +149,12 @@ public slots:
     void toggleFullscreen();
     void exitFullscreen();
     void updateFullscreenTrack();
+    void setBuiltinPlayerDoubleclickActive(bool active);
 
 signals:
     void tagsChanged(const QString& filePath);
     void spectrumVisualizerToggled(bool checked);
+    void builtinPlayerDoubleclickToggled(bool active);
 
 protected:
     void resizeEvent(QResizeEvent* event) override;

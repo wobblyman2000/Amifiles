@@ -262,26 +262,32 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
     row2Layout->addStretch(1);
 
     // Built-in doubleclick auto fullscreen control on the HUD itself
-    QPushButton* btnToggleAutoFS = new QPushButton(m_hudWidget);
-    btnToggleAutoFS->setCheckable(true);
-    btnToggleAutoFS->setFocusPolicy(Qt::NoFocus);
-    btnToggleAutoFS->setIconSize(QSize(18, 18));
-    btnToggleAutoFS->setMaximumWidth(40);
-    btnToggleAutoFS->setStyleSheet("QPushButton { background-color: transparent; border: none; }");
-    connect(btnToggleAutoFS, &QPushButton::clicked, this, [this, btnToggleAutoFS]() {
-        QSettings settings("Amifiles", "Amifiles");
-        bool val = settings.value("preferences/builtin_player_doubleclick", false).toBool();
-        settings.setValue("preferences/builtin_player_doubleclick", !val);
-        btnToggleAutoFS->setChecked(!val);
-        btnToggleAutoFS->setIcon(createAutoFSIcon(!val ? QColor("#a6e3a1") : QColor("#f38ba8")));
-        btnToggleAutoFS->setToolTip(!val ? "Auto Full Screen: ON" : "Auto Full Screen: OFF");
+    m_btnToggleAutoFS = new QPushButton(m_hudWidget);
+    m_btnToggleAutoFS->setCheckable(true);
+    m_btnToggleAutoFS->setFocusPolicy(Qt::NoFocus);
+    m_btnToggleAutoFS->setIconSize(QSize(18, 18));
+    m_btnToggleAutoFS->setMaximumWidth(40);
+    m_btnToggleAutoFS->setStyleSheet("QPushButton { background-color: transparent; border: none; }");
+    connect(m_btnToggleAutoFS, &QPushButton::clicked, this, [this]() {
+        emit builtinPlayerDoubleclickToggled(m_btnToggleAutoFS->isChecked());
     });
-    QSettings settings("Amifiles", "Amifiles");
-    bool autoFS = settings.value("preferences/builtin_player_doubleclick", false).toBool();
-    btnToggleAutoFS->setChecked(autoFS);
-    btnToggleAutoFS->setIcon(createAutoFSIcon(autoFS ? QColor("#a6e3a1") : QColor("#f38ba8")));
-    btnToggleAutoFS->setToolTip(autoFS ? "Auto Full Screen: ON" : "Auto Full Screen: OFF");
-    row2Layout->addWidget(btnToggleAutoFS);
+
+    // Query active state to set initial color/icon
+    QWidget* pTemp = parentWidget();
+    while (pTemp && !pTemp->inherits("MainWindow")) {
+        pTemp = pTemp->parentWidget();
+    }
+    bool autoFS = false;
+    if (pTemp) {
+        QMetaObject::invokeMethod(pTemp, "isBuiltinPlayerDoubleclickActive", Q_RETURN_ARG(bool, autoFS));
+    } else {
+        QSettings settings("Amifiles", "Amifiles");
+        autoFS = settings.value("preferences/builtin_player_doubleclick", false).toBool();
+    }
+    m_btnToggleAutoFS->setChecked(autoFS);
+    m_btnToggleAutoFS->setIcon(createAutoFSIcon(autoFS ? QColor("#89b4fa") : QColor("#585b70")));
+    m_btnToggleAutoFS->setToolTip(autoFS ? "Auto Full Screen: ON (Accent Blue)" : "Auto Full Screen: OFF (Dim Gray)");
+    row2Layout->addWidget(m_btnToggleAutoFS);
 
     row2Layout->addSpacing(10);
     row2Layout->addWidget(lblVol);
@@ -423,6 +429,16 @@ void FullscreenWidget::onHudShuffle() {
 
 void FullscreenWidget::onHudRepeat() {
     emit repeatRequested();
+}
+
+void FullscreenWidget::setBuiltinPlayerDoubleclickActive(bool active) {
+    if (m_btnToggleAutoFS) {
+        m_btnToggleAutoFS->blockSignals(true);
+        m_btnToggleAutoFS->setChecked(active);
+        m_btnToggleAutoFS->setIcon(createAutoFSIcon(active ? QColor("#89b4fa") : QColor("#585b70")));
+        m_btnToggleAutoFS->setToolTip(active ? "Auto Full Screen: ON (Accent Blue)" : "Auto Full Screen: OFF (Dim Gray)");
+        m_btnToggleAutoFS->blockSignals(false);
+    }
 }
 
 bool FullscreenWidget::eventFilter(QObject* watched, QEvent* event) {
@@ -1434,6 +1450,12 @@ bool PreviewPanel::isMuted() const {
     return false;
 }
 
+void PreviewPanel::setBuiltinPlayerDoubleclickActive(bool active) {
+    if (m_fullscreenWidget) {
+        m_fullscreenWidget->setBuiltinPlayerDoubleclickActive(active);
+    }
+}
+
 void PreviewPanel::setAudioCoverArtVisible(bool visible) {
     if (m_audioPlaceholder) {
         m_audioPlaceholder->setCoverArtVisible(visible);
@@ -1879,6 +1901,7 @@ void PreviewPanel::toggleFullscreen() {
     connect(m_fullscreenWidget, &FullscreenWidget::nextRequested, this, &PreviewPanel::onNextTrack);
     connect(m_fullscreenWidget, &FullscreenWidget::shuffleToggled, this, &PreviewPanel::onShuffleToggled);
     connect(m_fullscreenWidget, &FullscreenWidget::repeatRequested, this, &PreviewPanel::onRepeatClicked);
+    connect(m_fullscreenWidget, &FullscreenWidget::builtinPlayerDoubleclickToggled, this, &PreviewPanel::builtinPlayerDoubleclickToggled);
 
     // Synchronize initial styles to HUD buttons
     if (m_fullscreenWidget->hudShuffleButton()) {

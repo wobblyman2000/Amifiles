@@ -149,9 +149,13 @@ class MainWindow : public QMainWindow {
 public:
     explicit MainWindow(QWidget* parent = nullptr);
     Q_INVOKABLE bool isBuiltinPlayerDoubleclickActive() const;
+    Q_INVOKABLE void setBuiltinPlayerDoubleclickActive(bool active);
     static QJsonObject ruleToJson(const FolderLayoutRule& r);
     static FolderLayoutRule jsonToRule(const QJsonObject& obj);
     ~MainWindow() override;
+
+signals:
+    void builtinPlayerDoubleclickChanged(bool active);
 
 protected:
     void closeEvent(class QCloseEvent* event) override;

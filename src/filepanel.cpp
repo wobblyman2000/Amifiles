@@ -1231,8 +1231,7 @@ void FilePanel::onDoubleClicked(const QModelIndex& index) {
         }
     }
 
-    bool isTheater = (m_viewStack->currentWidget() == m_theaterListView);
-    bool shouldPlayOnDoubleclick = builtinPlayerDoubleclick || isTheater;
+    bool shouldPlayOnDoubleclick = builtinPlayerDoubleclick;
 
     if (info.isDir()) {
         if (shouldPlayOnDoubleclick && isPlayableAlbumFolder(path)) {
@@ -2314,9 +2313,15 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         settings.setValue("preferences/zen_mode", !current);
         emit zenModeToggled(!current);
     } else if (selected && selected == actToggleDoubleclick) {
-        QSettings settings("Amifiles", "Amifiles");
-        bool current = settings.value("preferences/builtin_player_doubleclick", false).toBool();
-        settings.setValue("preferences/builtin_player_doubleclick", !current);
+        QWidget* p = parentWidget();
+        while (p && !p->inherits("MainWindow")) {
+            p = p->parentWidget();
+        }
+        if (p) {
+            bool current = false;
+            QMetaObject::invokeMethod(p, "isBuiltinPlayerDoubleclickActive", Q_RETURN_ARG(bool, current));
+            QMetaObject::invokeMethod(p, "setBuiltinPlayerDoubleclickActive", Q_ARG(bool, !current));
+        }
     }
 }
 
@@ -3214,8 +3219,7 @@ void FilePanel::onDoubleClickedPath(const QString& path) {
         }
     }
 
-    bool isTheater = (m_viewStack->currentWidget() == m_theaterListView);
-    bool shouldPlayOnDoubleclick = builtinPlayerDoubleclick || isTheater;
+    bool shouldPlayOnDoubleclick = builtinPlayerDoubleclick;
 
     if (info.isDir()) {
         if (shouldPlayOnDoubleclick && isPlayableAlbumFolder(path)) {
