@@ -40,6 +40,7 @@
 #include <QStandardPaths>
 #include <QApplication>
 #include <QStyle>
+#include <QToolTip>
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QDebug>
@@ -4319,6 +4320,17 @@ QIcon MainWindow::getFolderIcon(const QString& folderName) {
 }
 
 bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
+    if (QToolBar* tb = qobject_cast<QToolBar*>(watched)) {
+        if (event->type() == QEvent::Move) {
+            if (QApplication::mouseButtons() & Qt::LeftButton) {
+                QToolTip::showText(QCursor::pos(), QString("Toolbar: %1").arg(tb->windowTitle()), tb);
+            }
+        }
+        if (event->type() == QEvent::MouseButtonRelease) {
+            QToolTip::hideText();
+        }
+    }
+
     if (watched == m_menuFavorites) {
         if (event->type() == QEvent::MouseButtonRelease) {
             QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
@@ -4732,6 +4744,7 @@ void MainWindow::rebuildToolBars() {
         QToolBar* tb = new QToolBar(name, this);
         tb->setObjectName(id);
         tb->setMovable(true);
+        tb->setToolTip(QString("%1 (Drag to reposition)").arg(name));
 
         // Apply toolbar button style style
         if (styleStr == "IconOnly") tb->setToolButtonStyle(Qt::ToolButtonIconOnly);
@@ -4806,6 +4819,7 @@ void MainWindow::rebuildToolBars() {
 
         tb->setVisible(visible);
         addToolBar(Qt::TopToolBarArea, tb);
+        tb->installEventFilter(this);
         m_dynamicToolBars.append(tb);
     }
 
