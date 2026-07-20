@@ -553,6 +553,8 @@ private slots:
     void onSearchFinished();
     void onSearchResultSelected(const QModelIndex& index);
     void onSearchResultDoubleClicked(const QModelIndex& index);
+    void onToggleSearchFilterMode();
+    void onSearchUpdateTimeout();
     void zoomIn();
     void zoomOut();
 
@@ -602,8 +604,12 @@ private:
     QTimer* m_searchDebounceTimer = nullptr;
     QThread* m_searchThread = nullptr;
     SearchWorker* m_searchWorker = nullptr;
-    // Model for displaying results
     QStringListModel* m_searchResultModel = nullptr;
+
+    bool m_isSearchModeActive = false;
+    QToolButton* m_btnToggleSearchMode = nullptr;
+    QTimer* m_searchUpdateTimer = nullptr;
+    QStringList m_bufferedSearchResults;
 
     QTreeView* m_treeView = nullptr;
     CustomFileSystemModel* m_fileModel = nullptr;

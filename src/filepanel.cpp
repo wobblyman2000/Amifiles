@@ -57,6 +57,42 @@ static bool hasAudioFilesRecursively(const QString& folderPath, int depth = 0);
 #include <QDragMoveEvent>
 #include <QDropEvent>
 
+#include <QPainter>
+#include <QPen>
+
+static QIcon createSearchIcon(const QColor& color) {
+    QPixmap pix(24, 24);
+    pix.fill(Qt::transparent);
+    QPainter p(&pix);
+    p.setRenderHint(QPainter::Antialiasing);
+    QPen pen(color, 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    p.setPen(pen);
+    p.setBrush(Qt::NoBrush);
+    
+    p.drawEllipse(4, 4, 10, 10);
+    p.drawLine(12, 12, 19, 19);
+    
+    p.end();
+    return QIcon(pix);
+}
+
+static QIcon createFilterIcon(const QColor& color) {
+    QPixmap pix(24, 24);
+    pix.fill(Qt::transparent);
+    QPainter p(&pix);
+    p.setRenderHint(QPainter::Antialiasing);
+    QPen pen(color, 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    p.setPen(pen);
+    p.setBrush(color);
+    
+    QPolygonF funnel;
+    funnel << QPointF(4, 5) << QPointF(20, 5) << QPointF(14, 12) << QPointF(14, 18) << QPointF(10, 20) << QPointF(10, 12);
+    p.drawPolygon(funnel);
+    
+    p.end();
+    return QIcon(pix);
+}
+
 FilePanel::FilePanel(const QString& initialPath, QWidget* parent)
     : QWidget(parent) {
     setupUI();
@@ -89,6 +125,11 @@ FilePanel::FilePanel(const QString& initialPath, QWidget* parent)
         Q_UNUSED(success);
         refresh();
     });
+
+    m_searchUpdateTimer = new QTimer(this);
+    m_searchUpdateTimer->setInterval(150);
+    m_searchUpdateTimer->setSingleShot(true);
+    connect(m_searchUpdateTimer, &QTimer::timeout, this, &FilePanel::onSearchUpdateTimeout);
 
     navigateTo(initialPath, true);
 }
@@ -240,11 +281,6 @@ void FilePanel::setupUI() {
     m_viewStack->addWidget(m_listView);
 
     // Global Search UI Setup
-    m_globalSearchEdit = new QLineEdit(this);
-    m_globalSearchEdit->setPlaceholderText("🔍 Search files & subfolders... (Esc to clear)");
-    m_globalSearchEdit->setClearButtonEnabled(true);
-    m_globalSearchEdit->installEventFilter(this);
-    connect(m_globalSearchEdit, &QLineEdit::textChanged, this, &FilePanel::onGlobalSearchChanged);
 
     m_searchResultsView = new QListView(this);
     m_searchResultsView->setVisible(false);
@@ -373,6 +409,13 @@ void FilePanel::setupUI() {
     m_filterEdit->setPlaceholderText("Filter files & folders (contains)...");
     connect(m_filterEdit, &QLineEdit::textChanged, this, &FilePanel::onFilterChanged);
 
+    m_globalSearchEdit = new QLineEdit(this);
+    m_globalSearchEdit->setPlaceholderText("🔍 Search files & subfolders... (Esc to clear)");
+    m_globalSearchEdit->setClearButtonEnabled(true);
+    m_globalSearchEdit->installEventFilter(this);
+    m_globalSearchEdit->setVisible(false);
+    connect(m_globalSearchEdit, &QLineEdit::textChanged, this, &FilePanel::onGlobalSearchChanged);
+
     // Flat Category Buttons
     m_btnFilterAll = new QToolButton(this);
     m_btnFilterAll->setText("All");
@@ -442,6 +485,14 @@ void FilePanel::setupUI() {
     categoryLayout->addWidget(m_btnFilterPictures);
     categoryLayout->addWidget(m_btnFilterDocs);
     categoryLayout->addWidget(m_btnFilterArchive);
+
+    m_btnToggleSearchMode = new QToolButton(this);
+    m_btnToggleSearchMode->setIcon(createSearchIcon(QColor("#cdd6f4")));
+    m_btnToggleSearchMode->setToolTip("Switch to Search Mode");
+    m_btnToggleSearchMode->setStyleSheet("QToolButton { background-color: transparent; border: none; }");
+    connect(m_btnToggleSearchMode, &QToolButton::clicked, this, &FilePanel::onToggleSearchFilterMode);
+    categoryLayout->addWidget(m_btnToggleSearchMode);
+
     categoryLayout->addStretch(1); // Push buttons to the left
 
     // Wrap Text filter row in a container widget to make it toggleable
@@ -450,6 +501,7 @@ void FilePanel::setupUI() {
     filterTextLayout->setSpacing(6);
     filterTextLayout->setContentsMargins(0, 0, 0, 0);
     filterTextLayout->addWidget(m_filterEdit, 1);
+    filterTextLayout->addWidget(m_globalSearchEdit, 1);
 
     // Status bar row (Always Visible)
     m_statusWidget = new QWidget(this);
@@ -488,7 +540,6 @@ void FilePanel::setupUI() {
     bottomLayout->addWidget(m_filterTextWidget);
     bottomLayout->addWidget(m_statusWidget);
 
-    mainLayout->addWidget(m_globalSearchEdit);
     mainLayout->addWidget(m_navContainer);
     mainLayout->addWidget(m_searchResultsView, 1);
     mainLayout->addWidget(m_viewStack, 1);
@@ -729,6 +780,10 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
     if (m_isPathLockedWithSubdirs && !path.startsWith(m_lockedPath, Qt::CaseInsensitive)) {
         QMessageBox::warning(this, "Locked Path", "This tab is locked to the current folder hierarchy.");
         return;
+    }
+
+    if (m_isSearchModeActive) {
+        onToggleSearchFilterMode();
     }
 
     if (path == "smart://disk_dashboard") {
@@ -2548,6 +2603,9 @@ void FilePanel::onHeaderContextMenu(const QPoint& pos) {
 
 void FilePanel::setSearchQuery(const QString& query) {
     if (m_globalSearchEdit) {
+        if (!m_isSearchModeActive) {
+            onToggleSearchFilterMode();
+        }
         m_globalSearchEdit->setText(query);
     }
 }
@@ -2591,16 +2649,58 @@ void FilePanel::startSearch() {
 }
 
 void FilePanel::onSearchResultsReady(const QStringList& results) {
+    m_bufferedSearchResults.append(results);
+    if (!m_searchUpdateTimer->isActive()) {
+        m_searchUpdateTimer->start();
+    }
+}
+
+void FilePanel::onSearchFinished() {
+    m_searchUpdateTimer->stop();
+    onSearchUpdateTimeout(); // Flush final remaining results
+    
+    int count = m_searchResultModel->stringList().size();
+    m_statusLabel->setText(QString("Search finished. Found %1 items").arg(count));
+}
+
+void FilePanel::onSearchUpdateTimeout() {
+    if (m_bufferedSearchResults.isEmpty()) return;
+
     QStringList currentList = m_searchResultModel->stringList();
-    currentList.append(results);
+    currentList.append(m_bufferedSearchResults);
     m_searchResultModel->setStringList(currentList);
+    m_bufferedSearchResults.clear();
 
     m_statusLabel->setText(QString("Found %1 items").arg(currentList.size()));
 }
 
-void FilePanel::onSearchFinished() {
-    int count = m_searchResultModel->stringList().size();
-    m_statusLabel->setText(QString("Search finished. Found %1 items").arg(count));
+void FilePanel::onToggleSearchFilterMode() {
+    m_isSearchModeActive = !m_isSearchModeActive;
+    
+    if (m_isSearchModeActive) {
+        m_btnToggleSearchMode->setIcon(createFilterIcon(QColor("#a6e3a1"))); // active green filter icon
+        m_btnToggleSearchMode->setToolTip("Switch to Filter Mode");
+        
+        m_filterEdit->setVisible(false);
+        m_globalSearchEdit->setVisible(true);
+        m_globalSearchEdit->setFocus();
+        
+        if (!m_globalSearchEdit->text().isEmpty()) {
+            startSearch();
+        }
+    } else {
+        m_btnToggleSearchMode->setIcon(createSearchIcon(QColor("#cdd6f4"))); // default search icon
+        m_btnToggleSearchMode->setToolTip("Switch to Search Mode");
+        
+        m_filterEdit->setVisible(true);
+        m_globalSearchEdit->setVisible(false);
+        m_filterEdit->setFocus();
+        
+        m_searchResultsView->setVisible(false);
+        m_viewStack->setVisible(true);
+        
+        onFilterChanged(m_filterEdit->text());
+    }
 }
 
 void FilePanel::onSearchResultSelected(const QModelIndex& index) {
@@ -3130,7 +3230,10 @@ void FilePanel::loadSortSettings() {
 void FilePanel::setNavigationAndFilterVisible(bool visible) {
     if (m_navContainer) m_navContainer->setVisible(visible);
     if (m_categoryWidget) m_categoryWidget->setVisible(visible && m_categoryButtonsVisible);
-    if (m_filterTextWidget) m_filterTextWidget->setVisible(visible && m_filterTextBarVisible);
+    if (m_filterTextWidget) {
+        m_filterTextWidget->setVisible(visible && m_filterTextBarVisible);
+        if (m_filterEdit) m_filterEdit->setVisible(!m_isSearchModeActive);
+        if (m_globalSearchEdit) m_globalSearchEdit->setVisible(m_isSearchModeActive);
+    }
     if (m_statusWidget) m_statusWidget->setVisible(visible);
-    if (m_globalSearchEdit) m_globalSearchEdit->setVisible(visible);
 }
