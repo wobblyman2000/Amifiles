@@ -1303,15 +1303,14 @@ void MainWindow::onPanelActivated(FilePanel* panel) {
 void MainWindow::onFileSelected(const QString& filePath) {
     if (sender() != m_activePanel) return;
 
+    // Do not interrupt active media playback (playing or paused)
+    if (m_previewPanel->player() && m_previewPanel->player()->playbackState() != QMediaPlayer::StoppedState) {
+        return;
+    }
+
     if (filePath.isEmpty()) {
-        if (m_previewPanel->player() && m_previewPanel->player()->playbackState() == QMediaPlayer::PlayingState) {
-            return;
-        }
         m_previewPanel->clearPreview();
     } else {
-        if (QFileInfo(filePath).isDir() && m_previewPanel->player() && m_previewPanel->player()->playbackState() == QMediaPlayer::PlayingState) {
-            return;
-        }
         m_previewPanel->previewFile(filePath, m_activePanel->selectedPaths());
     }
     updateMiniPlayer();
@@ -1319,6 +1318,11 @@ void MainWindow::onFileSelected(const QString& filePath) {
 
 void MainWindow::onFolderArtDetected(const QString& artPath) {
     if (sender() != m_activePanel) return;
+
+    // Do not interrupt active media playback (playing or paused)
+    if (m_previewPanel->player() && m_previewPanel->player()->playbackState() != QMediaPlayer::StoppedState) {
+        return;
+    }
 
     if (artPath.isEmpty()) {
         m_previewPanel->clearPreview();
