@@ -51,6 +51,99 @@
 #include <QKeyEvent>
 #include <QMouseEvent>
 
+static QIcon createShuffleIcon(const QColor& color) {
+    QPixmap pix(24, 24);
+    pix.fill(Qt::transparent);
+    QPainter p(&pix);
+    p.setRenderHint(QPainter::Antialiasing);
+    QPen pen(color, 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    p.setPen(pen);
+    
+    QPainterPath path1;
+    path1.moveTo(4, 6);
+    path1.lineTo(10, 6);
+    path1.lineTo(14, 18);
+    path1.lineTo(20, 18);
+    p.drawPath(path1);
+    
+    p.setBrush(color);
+    QPolygonF head1;
+    head1 << QPointF(20, 15) << QPointF(20, 21) << QPointF(23, 18);
+    p.drawPolygon(head1);
+    
+    QPainterPath path2;
+    path2.moveTo(4, 18);
+    path2.lineTo(10, 18);
+    path2.lineTo(14, 6);
+    path2.lineTo(20, 6);
+    p.drawPath(path2);
+    
+    QPolygonF head2;
+    head2 << QPointF(20, 3) << QPointF(20, 9) << QPointF(23, 6);
+    p.drawPolygon(head2);
+    
+    p.end();
+    return QIcon(pix);
+}
+
+static QIcon createRepeatIcon(const QColor& color, bool repeatOne) {
+    QPixmap pix(24, 24);
+    pix.fill(Qt::transparent);
+    QPainter p(&pix);
+    p.setRenderHint(QPainter::Antialiasing);
+    QPen pen(color, 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    p.setPen(pen);
+    p.setBrush(Qt::NoBrush);
+    
+    p.drawLine(8, 7, 16, 7);
+    p.drawArc(12, 7, 8, 10, -90 * 16, 180 * 16);
+    p.drawLine(8, 17, 16, 17);
+    p.drawArc(4, 7, 8, 10, 90 * 16, 180 * 16);
+    
+    p.setBrush(color);
+    QPolygonF head1;
+    head1 << QPointF(8, 4) << QPointF(8, 10) << QPointF(11, 7);
+    p.drawPolygon(head1);
+    
+    QPolygonF head2;
+    head2 << QPointF(16, 14) << QPointF(16, 20) << QPointF(13, 17);
+    p.drawPolygon(head2);
+    
+    if (repeatOne) {
+        p.setPen(QPen(color, 1.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        p.setBrush(color);
+        p.drawLine(11, 11, 12, 10);
+        p.drawLine(12, 10, 12, 14);
+        p.drawLine(10, 14, 14, 14);
+    }
+    
+    p.end();
+    return QIcon(pix);
+}
+
+static QIcon createAutoFSIcon(const QColor& color) {
+    QPixmap pix(24, 24);
+    pix.fill(Qt::transparent);
+    QPainter p(&pix);
+    p.setRenderHint(QPainter::Antialiasing);
+    QPen pen(color, 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    p.setPen(pen);
+    p.setBrush(Qt::NoBrush);
+    
+    p.drawRoundedRect(3, 4, 18, 12, 2, 2);
+    p.drawLine(10, 16, 8, 20);
+    p.drawLine(14, 16, 16, 20);
+    p.drawLine(8, 20, 16, 20);
+    
+    p.setBrush(color);
+    QPolygonF arrow;
+    arrow << QPointF(10, 8) << QPointF(10, 12) << QPointF(14, 10);
+    p.drawPolygon(arrow);
+    
+    p.end();
+    return QIcon(pix);
+}
+
 FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window | Qt::FramelessWindowHint) {
     setStyleSheet("background-color: #000000;");
     setMouseTracking(true);
@@ -123,14 +216,14 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
     connect(m_btnSubtitles, &QPushButton::clicked, this, &FullscreenWidget::onHudSubtitles);
 
     m_btnShuffle = new QPushButton(m_hudWidget);
-    m_btnShuffle->setText("🔀");
+    m_btnShuffle->setIcon(createShuffleIcon(QColor("#cdd6f4")));
     m_btnShuffle->setToolTip("Shuffle Playlist");
     m_btnShuffle->setFocusPolicy(Qt::NoFocus);
     m_btnShuffle->setMaximumWidth(40);
     connect(m_btnShuffle, &QPushButton::clicked, this, &FullscreenWidget::onHudShuffle);
 
     m_btnRepeat = new QPushButton(m_hudWidget);
-    m_btnRepeat->setText("🔁");
+    m_btnRepeat->setIcon(createRepeatIcon(QColor("#cdd6f4"), false));
     m_btnRepeat->setToolTip("Repeat Mode");
     m_btnRepeat->setFocusPolicy(Qt::NoFocus);
     m_btnRepeat->setMaximumWidth(40);
@@ -176,14 +269,16 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
         bool val = settings.value("preferences/builtin_player_doubleclick", false).toBool();
         settings.setValue("preferences/builtin_player_doubleclick", !val);
         btnToggleAutoFS->setChecked(!val);
-        btnToggleAutoFS->setText(!val ? "📺 Auto-FS: ON" : "📺 Auto-FS: OFF");
+        btnToggleAutoFS->setIcon(createAutoFSIcon(!val ? QColor("#a6e3a1") : QColor("#f38ba8")));
+        btnToggleAutoFS->setText(!val ? "Auto-FS: ON" : "Auto-FS: OFF");
         btnToggleAutoFS->setStyleSheet(!val ? "QPushButton { color: #a6e3a1; font-weight: bold; border: 1px solid #a6e3a1; border-radius: 4px; padding: 2px 6px; }"
                                             : "QPushButton { color: #f38ba8; font-weight: bold; border: 1px solid #f38ba8; border-radius: 4px; padding: 2px 6px; }");
     });
     QSettings settings("Amifiles", "Amifiles");
     bool autoFS = settings.value("preferences/builtin_player_doubleclick", false).toBool();
     btnToggleAutoFS->setChecked(autoFS);
-    btnToggleAutoFS->setText(autoFS ? "📺 Auto-FS: ON" : "📺 Auto-FS: OFF");
+    btnToggleAutoFS->setIcon(createAutoFSIcon(autoFS ? QColor("#a6e3a1") : QColor("#f38ba8")));
+    btnToggleAutoFS->setText(autoFS ? "Auto-FS: ON" : "Auto-FS: OFF");
     btnToggleAutoFS->setStyleSheet(autoFS ? "QPushButton { color: #a6e3a1; font-weight: bold; border: 1px solid #a6e3a1; border-radius: 4px; padding: 2px 6px; }"
                                           : "QPushButton { color: #f38ba8; font-weight: bold; border: 1px solid #f38ba8; border-radius: 4px; padding: 2px 6px; }");
     row2Layout->addWidget(btnToggleAutoFS);
@@ -518,14 +613,14 @@ void PreviewPanel::setupUI() {
     connect(m_btnFullscreen, &QPushButton::clicked, this, &PreviewPanel::toggleFullscreen);
 
     m_btnShuffle = new QPushButton(this);
-    m_btnShuffle->setText("🔀");
+    m_btnShuffle->setIcon(createShuffleIcon(QColor("#cdd6f4")));
     m_btnShuffle->setToolTip("Shuffle (Off)");
     m_btnShuffle->setMaximumWidth(32);
     m_btnShuffle->setStyleSheet("QPushButton { background-color: transparent; }");
     connect(m_btnShuffle, &QPushButton::clicked, this, &PreviewPanel::onShuffleToggled);
 
     m_btnRepeat = new QPushButton(this);
-    m_btnRepeat->setText("🔁");
+    m_btnRepeat->setIcon(createRepeatIcon(QColor("#cdd6f4"), false));
     m_btnRepeat->setToolTip("Repeat: Off");
     m_btnRepeat->setMaximumWidth(32);
     m_btnRepeat->setStyleSheet("QPushButton { background-color: transparent; }");
@@ -1417,6 +1512,7 @@ void PreviewPanel::onNextTrack() {
 void PreviewPanel::onShuffleToggled() {
     m_shuffleEnabled = !m_shuffleEnabled;
 
+    m_btnShuffle->setIcon(createShuffleIcon(m_shuffleEnabled ? QColor("#a6e3a1") : QColor("#cdd6f4")));
     if (m_shuffleEnabled) {
         m_btnShuffle->setStyleSheet("QPushButton { color: #a6e3a1; font-weight: bold; background-color: transparent; }");
         m_btnShuffle->setToolTip("Shuffle (On)");
@@ -1426,6 +1522,7 @@ void PreviewPanel::onShuffleToggled() {
     }
 
     if (m_fullscreenWidget && m_fullscreenWidget->hudShuffleButton()) {
+        m_fullscreenWidget->hudShuffleButton()->setIcon(createShuffleIcon(m_shuffleEnabled ? QColor("#a6e3a1") : QColor("#cdd6f4")));
         m_fullscreenWidget->hudShuffleButton()->setStyleSheet(m_shuffleEnabled ? "QPushButton { color: #a6e3a1; font-weight: bold; }" : "");
     }
 }
@@ -1433,22 +1530,20 @@ void PreviewPanel::onShuffleToggled() {
 void PreviewPanel::onRepeatClicked() {
     m_repeatMode = (m_repeatMode + 1) % 3;
 
+    m_btnRepeat->setIcon(createRepeatIcon(m_repeatMode > 0 ? QColor("#a6e3a1") : QColor("#cdd6f4"), m_repeatMode == 1));
     if (m_repeatMode == 0) {
-        m_btnRepeat->setText("🔁");
         m_btnRepeat->setToolTip("Repeat: Off");
         m_btnRepeat->setStyleSheet("QPushButton { background-color: transparent; }");
     } else if (m_repeatMode == 1) {
-        m_btnRepeat->setText("🔂");
         m_btnRepeat->setToolTip("Repeat: One");
         m_btnRepeat->setStyleSheet("QPushButton { color: #a6e3a1; font-weight: bold; background-color: transparent; }");
     } else if (m_repeatMode == 2) {
-        m_btnRepeat->setText("🔁");
         m_btnRepeat->setToolTip("Repeat: All");
         m_btnRepeat->setStyleSheet("QPushButton { color: #a6e3a1; font-weight: bold; background-color: transparent; }");
     }
 
     if (m_fullscreenWidget && m_fullscreenWidget->hudRepeatButton()) {
-        m_fullscreenWidget->hudRepeatButton()->setText(m_repeatMode == 1 ? "🔂" : "🔁");
+        m_fullscreenWidget->hudRepeatButton()->setIcon(createRepeatIcon(m_repeatMode > 0 ? QColor("#a6e3a1") : QColor("#cdd6f4"), m_repeatMode == 1));
         m_fullscreenWidget->hudRepeatButton()->setStyleSheet(m_repeatMode > 0 ? "QPushButton { color: #a6e3a1; font-weight: bold; }" : "");
     }
 }
@@ -1758,10 +1853,11 @@ void PreviewPanel::toggleFullscreen() {
 
     // Synchronize initial styles to HUD buttons
     if (m_fullscreenWidget->hudShuffleButton()) {
+        m_fullscreenWidget->hudShuffleButton()->setIcon(createShuffleIcon(m_shuffleEnabled ? QColor("#a6e3a1") : QColor("#cdd6f4")));
         m_fullscreenWidget->hudShuffleButton()->setStyleSheet(m_shuffleEnabled ? "QPushButton { color: #a6e3a1; font-weight: bold; }" : "");
     }
     if (m_fullscreenWidget->hudRepeatButton()) {
-        m_fullscreenWidget->hudRepeatButton()->setText(m_repeatMode == 1 ? "🔂" : "🔁");
+        m_fullscreenWidget->hudRepeatButton()->setIcon(createRepeatIcon(m_repeatMode > 0 ? QColor("#a6e3a1") : QColor("#cdd6f4"), m_repeatMode == 1));
         m_fullscreenWidget->hudRepeatButton()->setStyleSheet(m_repeatMode > 0 ? "QPushButton { color: #a6e3a1; font-weight: bold; }" : "");
     }
 
