@@ -1077,8 +1077,8 @@ void MainWindow::setupMenus() {
     m_menuSettings->addAction(m_actPreferences);
     m_menuSettings->addSeparator();
 
-    // Settings -> Layouts & Rules
-    QMenu* menuLayoutSettings = m_menuSettings->addMenu("Layouts & Rules");
+    // Settings -> Folder Profiles & Layouts
+    QMenu* menuLayoutSettings = m_menuSettings->addMenu("Folder Profiles & Layouts");
     menuLayoutSettings->addAction(m_actConfigureFolderLayouts);
     menuLayoutSettings->addAction(m_actSaveFolderProfileForCurrentDir);
     menuLayoutSettings->addAction(m_actSaveDefaultProfile);
