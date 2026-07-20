@@ -264,6 +264,7 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
     QPushButton* btnToggleAutoFS = new QPushButton(m_hudWidget);
     btnToggleAutoFS->setCheckable(true);
     btnToggleAutoFS->setFocusPolicy(Qt::NoFocus);
+    btnToggleAutoFS->setIconSize(QSize(16, 16));
     connect(btnToggleAutoFS, &QPushButton::clicked, this, [this, btnToggleAutoFS]() {
         QSettings settings("Amifiles", "Amifiles");
         bool val = settings.value("preferences/builtin_player_doubleclick", false).toBool();
