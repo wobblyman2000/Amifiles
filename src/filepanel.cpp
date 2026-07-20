@@ -1468,8 +1468,14 @@ QStringList FilePanel::selectedPaths() const {
 
     QStringList paths;
     QItemSelectionModel* selModel = nullptr;
-    if (active == m_theaterListView || active == m_theaterContainer) {
+    if (active == m_theaterListView) {
         selModel = m_theaterListView->selectionModel();
+    } else if (active == m_theaterContainer) {
+        if (m_groupProxy && m_groupProxy->isGroupingActive()) {
+            selModel = m_treeView->selectionModel();
+        } else {
+            selModel = m_theaterListView->selectionModel();
+        }
     } else {
         selModel = m_treeView->selectionModel();
     }
