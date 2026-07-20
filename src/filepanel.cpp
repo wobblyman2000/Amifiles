@@ -619,7 +619,7 @@ void FilePanel::setupUI() {
         "Group by Rating",
         "Group by Custom Text..."
     });
-    m_comboGrouping->setFixedWidth(145);
+    m_comboGrouping->setFixedWidth(160);
     m_comboGrouping->setToolTip("Group Files in List View");
     connect(m_comboGrouping, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &FilePanel::onGroupingChanged);
     statusLayout->addWidget(m_comboGrouping);
@@ -2652,6 +2652,7 @@ void FilePanel::onGroupingChanged(int index) {
     if (index == 0) {
         m_groupProxy->setGrouping(false, "");
         m_treeView->expandAll();
+        navigateTo(m_currentPath, false);
         return;
     }
 
@@ -2685,6 +2686,7 @@ void FilePanel::onGroupingChanged(int index) {
 
     m_groupProxy->setGrouping(true, groupType, customKey);
     m_treeView->expandAll();
+    navigateTo(m_currentPath, false);
 }
 
 void FilePanel::syncZoom(int value) {
@@ -3440,6 +3442,13 @@ void FilePanel::setViewModeIndex(int index) {
 void FilePanel::showEvent(QShowEvent* event) {
     QWidget::showEvent(event);
     updateCloneButtonIcon();
+}
+
+void FilePanel::resizeEvent(QResizeEvent* event) {
+    QWidget::resizeEvent(event);
+    if (m_groupProxy && m_groupProxy->isGroupingActive() && m_viewStack->currentWidget() == m_theaterContainer) {
+        rebuildTheaterGroups();
+    }
 }
 
 void FilePanel::updateCloneButtonIcon() {
