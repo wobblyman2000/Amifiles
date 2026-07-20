@@ -1,11 +1,11 @@
 #pragma once
 
-#include <QAbstractProxyModel>
+#include <QIdentityProxyModel>
 #include <QModelIndex>
 #include <QList>
 #include <QMap>
 
-class GroupProxyModel : public QAbstractProxyModel {
+class GroupProxyModel : public QIdentityProxyModel {
     Q_OBJECT
 public:
     explicit GroupProxyModel(QObject* parent = nullptr);
@@ -18,12 +18,14 @@ public:
 
     QModelIndex index(int row, int column, const QModelIndex& parent = QModelIndex()) const override;
     QModelIndex parent(const QModelIndex& child) const override;
+    QModelIndex sibling(int row, int column, const QModelIndex& idx) const override;
 
     int rowCount(const QModelIndex& parent = QModelIndex()) const override;
     int columnCount(const QModelIndex& parent = QModelIndex()) const override;
 
     QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
     QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override;
+    Qt::ItemFlags flags(const QModelIndex& index) const override;
 
     bool isGroupingActive() const { return m_groupingActive; }
     void setGrouping(bool active, const QString& type, const QString& customKey = "");
