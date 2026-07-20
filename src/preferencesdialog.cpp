@@ -171,6 +171,19 @@ void PreferencesDialog::setupUI() {
     m_chkAutoFullscreen->setToolTip("Opens the full screen borderless media player HUD automatically when starting audio/video playback.");
     layMedia->addWidget(m_chkAutoFullscreen);
 
+    QFrame* lineMedia = new QFrame(this);
+    lineMedia->setFrameShape(QFrame::HLine);
+    lineMedia->setFrameShadow(QFrame::Sunken);
+    lineMedia->setStyleSheet("border: 1px solid #313244;");
+    layMedia->addWidget(lineMedia);
+
+    QFormLayout* formMedia = new QFormLayout();
+    formMedia->setSpacing(10);
+    m_editHidePatterns = new QLineEdit(this);
+    m_editHidePatterns->setToolTip("Enter comma-separated wildcard patterns of auxiliary files (e.g. folder.jpg, *.nfo, *.txt) to hide in Theater View.");
+    formMedia->addRow("Hide files matching in Theater View:", m_editHidePatterns);
+    layMedia->addLayout(formMedia);
+
     layMedia->addStretch(1);
     m_stackPages->addWidget(pageMedia);
 
@@ -277,6 +290,9 @@ void PreferencesDialog::loadPreferences() {
     m_chkBuiltinPlayerDoubleclick->setChecked(settings.value("preferences/builtin_player_doubleclick", false).toBool());
     m_chkAutoFullscreen->setChecked(settings.value("preview/auto_fullscreen", true).toBool());
 
+    QString defaultHide = "folder.jpg, folder.jpeg, folder.png, cover.jpg, cover.jpeg, cover.png, fanart.jpg, fanart.jpeg, fanart.png, backdrop.jpg, backdrop.jpeg, backdrop.png, poster.jpg, poster.jpeg, poster.png, *.nfo, *.xml, *.txt, *.srt, *.sub, *.vtt, *.ini, *.db";
+    m_editHidePatterns->setText(settings.value("theater/hide_patterns", defaultHide).toString());
+
     m_editTmdbApiKey->setText(settings.value("services/tmdb_api_key", "").toString());
 }
 
@@ -299,6 +315,7 @@ void PreferencesDialog::savePreferences() {
     settings.setValue("preview/muted", m_chkMutePreview->isChecked());
     settings.setValue("preferences/builtin_player_doubleclick", m_chkBuiltinPlayerDoubleclick->isChecked());
     settings.setValue("preview/auto_fullscreen", m_chkAutoFullscreen->isChecked());
+    settings.setValue("theater/hide_patterns", m_editHidePatterns->text().trimmed());
 
     settings.setValue("services/tmdb_api_key", m_editTmdbApiKey->text().trimmed());
 

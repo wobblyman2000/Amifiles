@@ -320,6 +320,20 @@ void FilePanel::setupUI() {
     m_proxyModel = new FileFilterProxyModel(this);
     m_proxyModel->setSourceModel(m_fileModel);
 
+    // Initialize Hide Auxiliary Files Settings
+    {
+        QSettings settings("Amifiles", "Amifiles");
+        int viewModeIdx = settings.value("file_panel/view_mode_index", 0).toInt();
+        bool hideActive = settings.value("theater/hide_auxiliary_files", true).toBool() && (viewModeIdx == 6);
+        m_proxyModel->setHideAuxiliaryFilesActive(hideActive);
+
+        QString defaultHide = "folder.jpg, folder.jpeg, folder.png, cover.jpg, cover.jpeg, cover.png, fanart.jpg, fanart.jpeg, fanart.png, backdrop.jpg, backdrop.jpeg, backdrop.png, poster.jpg, poster.jpeg, poster.png, *.nfo, *.xml, *.txt, *.srt, *.sub, *.vtt, *.ini, *.db";
+        QString patternsStr = settings.value("theater/hide_patterns", defaultHide).toString();
+        QStringList patternsList = patternsStr.split(',', Qt::SkipEmptyParts);
+        for (auto& p : patternsList) p = p.trimmed();
+        m_proxyModel->setHidePatterns(patternsList);
+    }
+
     m_groupProxy = new GroupProxyModel(this);
     m_groupProxy->setSourceModel(m_proxyModel);
     connect(m_groupProxy, &QAbstractItemModel::modelReset, this, &FilePanel::rebuildTheaterGroups);
@@ -1665,6 +1679,16 @@ void FilePanel::refresh() {
     }
     if (m_proxyModel) {
         m_proxyModel->clearCasingCache();
+
+        QSettings settings("Amifiles", "Amifiles");
+        bool hideActive = settings.value("theater/hide_auxiliary_files", true).toBool() && (viewModeIndex() == 6);
+        m_proxyModel->setHideAuxiliaryFilesActive(hideActive);
+
+        QString defaultHide = "folder.jpg, folder.jpeg, folder.png, cover.jpg, cover.jpeg, cover.png, fanart.jpg, fanart.jpeg, fanart.png, backdrop.jpg, backdrop.jpeg, backdrop.png, poster.jpg, poster.jpeg, poster.png, *.nfo, *.xml, *.txt, *.srt, *.sub, *.vtt, *.ini, *.db";
+        QString patternsStr = settings.value("theater/hide_patterns", defaultHide).toString();
+        QStringList patternsList = patternsStr.split(',', Qt::SkipEmptyParts);
+        for (auto& p : patternsList) p = p.trimmed();
+        m_proxyModel->setHidePatterns(patternsList);
     }
     if (m_flatViewEnabled) {
         m_flatModel->setRootPath(m_currentPath);
@@ -2267,6 +2291,7 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     QAction* actToggleZen = nullptr;
     QAction* actToggleDoubleclick = nullptr;
     QAction* actGroupMultiDisc = nullptr;
+    QAction* actHideAuxiliaryFiles = nullptr;
 
     if (m_viewStack->currentWidget() == m_theaterListView || m_viewStack->currentWidget() == m_theaterContainer) {
         menu.addSeparator();
@@ -2275,6 +2300,7 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         bool zenActive = settings.value("preferences/zen_mode", false).toBool();
         bool builtinDoubleclick = settings.value("preferences/builtin_player_doubleclick", false).toBool();
         bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool();
+        bool hideAuxiliary = settings.value("theater/hide_auxiliary_files", true).toBool();
 
         actToggleZen = menu.addAction("Clean Interface Mode (Zen Mode)");
         actToggleZen->setCheckable(true);
@@ -2287,6 +2313,10 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         actGroupMultiDisc = menu.addAction("Group Multi-Disc Albums");
         actGroupMultiDisc->setCheckable(true);
         actGroupMultiDisc->setChecked(groupMultiDisc);
+
+        actHideAuxiliaryFiles = menu.addAction("Hide Auxiliary / Artwork Files");
+        actHideAuxiliaryFiles->setCheckable(true);
+        actHideAuxiliaryFiles->setChecked(hideAuxiliary);
     }
 
     // Execute menu on the active view layout widget
@@ -2564,6 +2594,17 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         settings.setValue("theater/group_multi_disc", !current);
         if (m_proxyModel) {
             m_proxyModel->setGroupMultiDiscActive(!current && (viewModeIndex() == 6));
+        }
+        refresh();
+        if (m_groupProxy && m_groupProxy->isGroupingActive() && m_viewStack->currentWidget() == m_theaterContainer) {
+            rebuildTheaterGroups();
+        }
+    } else if (selected && selected == actHideAuxiliaryFiles) {
+        QSettings settings("Amifiles", "Amifiles");
+        bool current = settings.value("theater/hide_auxiliary_files", true).toBool();
+        settings.setValue("theater/hide_auxiliary_files", !current);
+        if (m_proxyModel) {
+            m_proxyModel->setHideAuxiliaryFilesActive(!current && (viewModeIndex() == 6));
         }
         refresh();
         if (m_groupProxy && m_groupProxy->isGroupingActive() && m_viewStack->currentWidget() == m_theaterContainer) {
@@ -3460,8 +3501,16 @@ void FilePanel::onViewModeChanged(int index) {
     // Save view mode index choice in preferences
     QSettings settings("Amifiles", "Amifiles");
     bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool() && (index == 6);
+    bool hideActive = settings.value("theater/hide_auxiliary_files", true).toBool() && (index == 6);
     if (m_proxyModel) {
         m_proxyModel->setGroupMultiDiscActive(groupMultiDisc);
+        m_proxyModel->setHideAuxiliaryFilesActive(hideActive);
+
+        QString defaultHide = "folder.jpg, folder.jpeg, folder.png, cover.jpg, cover.jpeg, cover.png, fanart.jpg, fanart.jpeg, fanart.png, backdrop.jpg, backdrop.jpeg, backdrop.png, poster.jpg, poster.jpeg, poster.png, *.nfo, *.xml, *.txt, *.srt, *.sub, *.vtt, *.ini, *.db";
+        QString patternsStr = settings.value("theater/hide_patterns", defaultHide).toString();
+        QStringList patternsList = patternsStr.split(',', Qt::SkipEmptyParts);
+        for (auto& p : patternsList) p = p.trimmed();
+        m_proxyModel->setHidePatterns(patternsList);
     }
     settings.setValue("file_panel/view_mode_index", index);
     emit viewModeChanged();

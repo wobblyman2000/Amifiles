@@ -58,6 +58,7 @@ private:
 
     // Services & API keys
     QLineEdit* m_editTmdbApiKey = nullptr;
+    QLineEdit* m_editHidePatterns = nullptr;
 
     QPushButton* m_btnOk = nullptr;
     QPushButton* m_btnCancel = nullptr;

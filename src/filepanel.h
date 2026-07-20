@@ -215,6 +215,19 @@ public:
     }
     bool isGroupMultiDiscActive() const { return m_groupMultiDiscActive; }
 
+    void setHideAuxiliaryFilesActive(bool active) {
+        if (m_hideAuxiliaryFilesActive != active) {
+            m_hideAuxiliaryFilesActive = active;
+            invalidate();
+        }
+    }
+    bool isHideAuxiliaryFilesActive() const { return m_hideAuxiliaryFilesActive; }
+
+    void setHidePatterns(const QStringList& patterns) {
+        m_hidePatterns = patterns;
+        invalidate();
+    }
+
     static QString cleanAlbumFolderName(const QString& name) {
         static const QRegularExpression re(
             R"(\b(?:cd|disc|disk|d)\s*\d+\b|[\(\[]\s*(?:cd|disc|disk|d)\s*\d+\s*[\)\]])", 
@@ -495,6 +508,12 @@ protected:
         QString fileName = fileModel->fileName(index);
         bool isDir = fileModel->isDir(index);
 
+        if (m_hideAuxiliaryFilesActive && !isDir) {
+            if (QDir::match(m_hidePatterns, fileName)) {
+                return false;
+            }
+        }
+
         if (m_groupMultiDiscActive && isDir) {
             QString parentDir = QFileInfo(filePath).absolutePath();
             QDir dir(parentDir);
@@ -596,6 +615,8 @@ private:
     QString m_currentPath;
     bool m_ageColoringEnabled = true; // Enabled by default
     bool m_groupMultiDiscActive = false;
+    bool m_hideAuxiliaryFilesActive = false;
+    QStringList m_hidePatterns;
     qint64 m_minSize = -1;
     qint64 m_maxSize = -1;
     QDateTime m_minDate;
