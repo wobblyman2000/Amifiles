@@ -3598,23 +3598,17 @@ void CasingRunnable::run() {
     }
 
     QImage cover;
-    QImageReader reader(artPath);
-    if (reader.canRead()) {
-        QSize origSize = reader.size();
-        if (origSize.isValid()) {
-            int targetW = 220;
-            int targetH = 220;
-            if (casingInt == 1) { // DVD
-                targetW = 154;
-                targetH = 240;
-            } else if (casingInt == 2) { // BluRay
-                targetW = 164;
-                targetH = 226;
-            }
-            QSize scaledSize = origSize.scaled(QSize(targetW, targetH), Qt::KeepAspectRatioByExpanding);
-            reader.setScaledSize(scaledSize);
+    if (cover.load(artPath)) {
+        int targetW = 220;
+        int targetH = 220;
+        if (casingInt == 1) { // DVD
+            targetW = 154;
+            targetH = 240;
+        } else if (casingInt == 2) { // BluRay
+            targetW = 164;
+            targetH = 226;
         }
-        cover = reader.read();
+        cover = cover.scaled(QSize(targetW, targetH), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
     }
 
     if (cover.isNull()) {
