@@ -1054,10 +1054,9 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
                 rebuildTheaterGroups();
             }
         } else {
-            QModelIndex groupRootIndex = m_groupProxy ? m_groupProxy->mapFromSource(proxyIndex) : proxyIndex;
-            m_treeView->setRootIndex(groupRootIndex);
-            m_listView->setRootIndex(groupRootIndex);
-            m_theaterListView->setRootIndex(groupRootIndex);
+            m_treeView->setRootIndex(proxyIndex);
+            m_listView->setRootIndex(proxyIndex);
+            m_theaterListView->setRootIndex(proxyIndex);
             
             m_theaterListView->setVisible(true);
             m_theaterScrollArea->setVisible(false);

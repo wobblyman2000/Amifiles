@@ -218,6 +218,9 @@ public:
 
     // Overriding data() to support dynamic file age text coloring and icon badges
     QVariant data(const QModelIndex& index, int role) const override {
+        if (!index.isValid() || index.model() != this) {
+            return QVariant();
+        }
         if (m_ageRules.isEmpty()) {
             const_cast<FileFilterProxyModel*>(this)->loadAgeRules();
         }
