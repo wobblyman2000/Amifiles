@@ -404,6 +404,12 @@ void HelpDialog::onSectionChanged(int index) {
                     "<ul>"
                     "<li><b>Double-Click SNAP:</b> Double-click the title bar of the floating preview panel to snap it back to its last docked position instantly.</li>"
                     "<li><b>Helper Context Menu:</b> Right-click anywhere on the Preview Panel or its title bar to open a context menu. Select <b>Dock to Right Side</b>, <b>Dock to Left Side</b>, <b>Float Window</b>, or <b>Hide Preview Panel</b> to position it with one click.</li>"
+                    "</ul>"
+                    "<h3>Fullscreen Media Player Controls</h3>"
+                    "<ul>"
+                    "<li><b>Entering Fullscreen:</b> Play any media file and double-click the preview area, press <code>F</code>, or enable 'Auto-open full screen player' in a folder layout rule profile.</li>"
+                    "<li><b>Exiting Fullscreen:</b> Press <code>Esc</code>, double-click the screen, or click the exit button on the popup HUD control bar.</li>"
+                    "<li><b>Right-Click Context Menu:</b> Right-click anywhere on the fullscreen player to open a helper context menu with options to Exit Fullscreen, Play/Pause, Stop, and skip to the Next/Previous track.</li>"
                     "</ul>";
             break;
 

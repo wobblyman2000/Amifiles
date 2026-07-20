@@ -3080,7 +3080,7 @@ void MainWindow::loadFolderRules() {
         r.ruleType = "Path";
         r.value = "";
         r.autoApply = true;
-        r.viewMode = "List";
+        r.viewMode = "No Change";
         r.overrideConsole = true;
         r.consoleVisible = false;
         r.overrideDrivesToolbar = true;
@@ -3351,13 +3351,14 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
 void MainWindow::applyFolderRules(const QString& path) {
     if (!m_activePanel) return;
 
-    FolderLayoutRule matchedRule;
-    bool foundMatch = false;
-
     QSettings settings("Amifiles", "Amifiles");
     bool bypassRules = settings.value("preferences/bypass_folder_rules", false).toBool();
+    if (bypassRules) {
+        return;
+    }
 
-    if (!bypassRules) {
+    FolderLayoutRule matchedRule;
+    bool foundMatch = false;
         // 1. Exact Path matching
         for (const auto& r : m_folderRules) {
             if (!r.autoApply) continue;
@@ -3382,7 +3383,6 @@ void MainWindow::applyFolderRules(const QString& path) {
                 }
             }
         }
-    }
 
     if (foundMatch) {
         if (!matchedRule.linkedProfile.isEmpty() && matchedRule.linkedProfile != matchedRule.name) {

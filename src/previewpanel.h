@@ -55,6 +55,7 @@ signals:
 protected:
     void keyPressEvent(class QKeyEvent* event) override;
     void mouseDoubleClickEvent(class QMouseEvent* event) override;
+    void contextMenuEvent(class QContextMenuEvent* event) override;
     bool eventFilter(QObject* watched, class QEvent* event) override;
     void resizeEvent(class QResizeEvent* event) override;
 

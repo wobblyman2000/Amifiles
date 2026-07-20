@@ -39,6 +39,7 @@
 #include <QTabBar>
 #include <QListWidget>
 #include <QMenu>
+#include <QContextMenuEvent>
 #include <QAction>
 #include <QProcess>
 #include <QTimer>
@@ -445,6 +446,35 @@ void FullscreenWidget::keyPressEvent(QKeyEvent* event) {
 void FullscreenWidget::mouseDoubleClickEvent(QMouseEvent* event) {
     Q_UNUSED(event);
     emit exitRequested();
+}
+
+void FullscreenWidget::contextMenuEvent(QContextMenuEvent* event) {
+    QMenu menu(this);
+    menu.setStyleSheet(
+        "QMenu { background-color: #1e1e2e; color: #cdd6f4; border: 1px solid #45475a; border-radius: 6px; padding: 4px; }"
+        "QMenu::item { padding: 6px 20px 6px 20px; border-radius: 4px; }"
+        "QMenu::item:selected { background-color: #89b4fa; color: #11111b; }"
+    );
+    
+    QAction* actExit = menu.addAction("Exit Fullscreen (Esc)");
+    menu.addSeparator();
+    QAction* actPlayPause = menu.addAction("Play / Pause (Space)");
+    QAction* actStop = menu.addAction("Stop");
+    QAction* actPrev = menu.addAction("Previous Track");
+    QAction* actNext = menu.addAction("Next Track");
+    
+    QAction* selected = menu.exec(event->globalPos());
+    if (selected == actExit) {
+        emit exitRequested();
+    } else if (selected == actPlayPause) {
+        emit playPauseRequested();
+    } else if (selected == actStop) {
+        emit stopRequested();
+    } else if (selected == actPrev) {
+        emit prevRequested();
+    } else if (selected == actNext) {
+        emit nextRequested();
+    }
 }
 
 PreviewPanel::PreviewPanel(QWidget* parent) : QWidget(parent) {

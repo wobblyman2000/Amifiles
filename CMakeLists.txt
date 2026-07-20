@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(Amifiles VERSION 1.3.50 LANGUAGES CXX)
+project(Amifiles VERSION 1.3.51 LANGUAGES CXX)
 
 configure_file(
     "${PROJECT_SOURCE_DIR}/src/version.h.in"
