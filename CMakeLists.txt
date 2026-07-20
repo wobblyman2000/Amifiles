@@ -99,6 +99,8 @@ add_executable(Amifiles
     src/preferencesdialog.cpp
     src/folderlayoutdialog.h
     src/folderlayoutdialog.cpp
+    src/folderartscraperdialog.h
+    src/folderartscraperdialog.cpp
     src/dynamicfavoritesdialog.h
     src/dynamicfavoritesdialog.cpp
     src/treemapchartwidget.h

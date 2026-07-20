@@ -272,3 +272,17 @@ void VaultDialog::onWorkerFinished(bool success, const QString& resultMsg) {
         QMessageBox::critical(this, "Vault Error", resultMsg);
     }
 }
+
+QString VaultDialog::password() const {
+    return m_editPassword ? m_editPassword->text() : "";
+}
+
+QString VaultDialog::decryptedPath() const {
+    if (m_sourcePath.isEmpty()) return "";
+    QFileInfo info(m_sourcePath);
+    return info.absolutePath() + "/" + info.baseName();
+}
+
+QString VaultDialog::vaultPath() const {
+    return m_sourcePath;
+}

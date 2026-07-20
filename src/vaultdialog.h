@@ -36,6 +36,10 @@ public:
     explicit VaultDialog(bool encrypt, const QString& sourcePath = QString(), QWidget* parent = nullptr);
     ~VaultDialog() override;
 
+    QString password() const;
+    QString decryptedPath() const;
+    QString vaultPath() const;
+
 private slots:
     void onBrowse();
     void onAction();

@@ -44,6 +44,9 @@
 #include <QMouseEvent>
 #include <QDebug>
 #include <QDir>
+#include <QDateTime>
+#include <QRandomGenerator>
+#include <QTimer>
 #include <QProcess>
 #include <QProcessEnvironment>
 #include <QDialog>
@@ -58,6 +61,7 @@
 #include <QStatusBar>
 #include <QFileDialog>
 #include <QInputDialog>
+#include <QResizeEvent>
 
 #include "custombuttondialog.h"
 
@@ -582,9 +586,8 @@ void MainWindow::setupCentralWidget() {
 
     updateSiblingLinks();
 
-    // Initialize mini media controller in the status bar
+    // Initialize mini media controller as a floating overlay HUD
     m_miniMediaControls = new MiniMediaControls(m_previewPanel->player(), this);
-    statusBar()->addPermanentWidget(m_miniMediaControls);
     m_miniMediaControls->hide();
 
     // Wire player notifications to keep mini status bar controller synchronized
@@ -1362,7 +1365,7 @@ void MainWindow::updateMiniPlayer() {
     QString path = source.toLocalFile();
     QFileInfo info(path);
     QString ext = info.suffix().toLower();
-    static const QStringList audioExts = { "mp3", "wav", "flac", "ogg", "m4a" };
+    static const QStringList audioExts = { "mp3", "wav", "flac", "ogg", "m4a", "wma", "aac" };
     static const QStringList videoExts = { "mp4", "avi", "mkv", "mov", "webm", "flv", "wmv", "m4v" };
 
     bool isAudio = audioExts.contains(ext);
@@ -1372,8 +1375,55 @@ void MainWindow::updateMiniPlayer() {
     if (!m_showPreview && isMedia) {
         m_miniMediaControls->updateTrackInfo(info.fileName(), player->duration(), isVideo);
         m_miniMediaControls->show();
+        m_miniMediaControls->raise();
+
+        // Dynamically position the overlay in the bottom-right corner
+        int statusHeight = (statusBar() && statusBar()->isVisible()) ? statusBar()->height() : 0;
+        int x = width() - m_miniMediaControls->width() - 20;
+        int y = height() - m_miniMediaControls->height() - statusHeight - 20;
+        m_miniMediaControls->move(x, y);
     } else {
         m_miniMediaControls->hide();
+    }
+}
+
+void MainWindow::resizeEvent(QResizeEvent* event) {
+    QMainWindow::resizeEvent(event);
+    if (m_miniMediaControls && m_miniMediaControls->isVisible()) {
+        int statusHeight = (statusBar() && statusBar()->isVisible()) ? statusBar()->height() : 0;
+        int x = width() - m_miniMediaControls->width() - 20;
+        int y = height() - m_miniMediaControls->height() - statusHeight - 20;
+        m_miniMediaControls->move(x, y);
+    }
+
+    // Adaptive Responsive Panels Collapsing
+    int w = width();
+    if (w < 850) {
+        // Collapse preview dock if visible
+        if (m_previewDock && m_previewDock->isVisible()) {
+            m_wasPreviewPriorToCollapse = true;
+            m_actTogglePreview->setChecked(false);
+            onTogglePreview(false);
+        }
+        // Collapse dual pane if active
+        if (m_isDualPane) {
+            m_wasDualPanePriorToCollapse = true;
+            m_actToggleDualPane->setChecked(false);
+            onToggleDualPane(false);
+        }
+    } else if (w >= 1000) {
+        // Restore preview dock if it was collapsed automatically
+        if (m_wasPreviewPriorToCollapse && m_previewDock && !m_previewDock->isVisible()) {
+            m_wasPreviewPriorToCollapse = false;
+            m_actTogglePreview->setChecked(true);
+            onTogglePreview(true);
+        }
+        // Restore dual pane if it was collapsed automatically
+        if (m_wasDualPanePriorToCollapse && !m_isDualPane) {
+            m_wasDualPanePriorToCollapse = false;
+            m_actToggleDualPane->setChecked(true);
+            onToggleDualPane(true);
+        }
     }
 }
 
@@ -2833,6 +2883,7 @@ void MainWindow::onDecryptVault() {
     VaultDialog dlg(false, activePath, this);
     if (dlg.exec() == QDialog::Accepted && m_activePanel) {
         m_activePanel->refresh();
+        registerDecryptedVault(dlg.decryptedPath(), dlg.vaultPath(), dlg.password());
     }
 }
 
@@ -2938,6 +2989,7 @@ QJsonObject MainWindow::ruleToJson(const FolderLayoutRule& r) {
     obj["rightPaths"] = QJsonArray::fromStringList(r.rightPaths);
     obj["rightActiveIndex"] = r.rightActiveIndex;
     obj["linkedProfile"] = r.linkedProfile;
+    obj["entryCommand"] = r.entryCommand;
     return obj;
 }
 
@@ -2947,6 +2999,7 @@ FolderLayoutRule MainWindow::jsonToRule(const QJsonObject& obj) {
     r.linkedProfile = obj["linkedProfile"].toString("");
     r.ruleType = obj["ruleType"].toString();
     r.value = obj["value"].toString();
+    r.entryCommand = obj["entryCommand"].toString("");
     r.viewMode = obj["viewMode"].toString("No Change");
     
     QJsonArray btns = obj["customButtons"].toArray();
@@ -3408,6 +3461,61 @@ void MainWindow::applyFolderRules(const QString& path) {
             }
         }
 
+        // 3. Smart Rules extensions: Extensions, SizeGreater, Metadata matching
+        if (!foundMatch) {
+            for (const auto& r : m_folderRules) {
+                if (!r.autoApply) continue;
+
+                if (r.ruleType == "Extensions") {
+                    QDir dir(path);
+                    QStringList exts = r.value.split(',', Qt::SkipEmptyParts);
+                    for (auto& ext : exts) ext = ext.trimmed().toLower();
+                    
+                    QFileInfoList fileList = dir.entryInfoList(QDir::Files);
+                    bool extMatch = false;
+                    for (const QFileInfo& fi : fileList) {
+                        if (exts.contains(fi.suffix().toLower())) {
+                            extMatch = true;
+                            break;
+                        }
+                    }
+                    if (extMatch) {
+                        matchedRule = r;
+                        foundMatch = true;
+                        break;
+                    }
+                }
+                else if (r.ruleType == "SizeGreater") {
+                    qint64 thresholdMB = r.value.toLongLong();
+                    qint64 totalSize = 0;
+                    QDir dir(path);
+                    QFileInfoList fileList = dir.entryInfoList(QDir::Files);
+                    for (const QFileInfo& fi : fileList) {
+                        totalSize += fi.size();
+                    }
+                    qint64 sizeMB = totalSize / (1024 * 1024);
+                    if (sizeMB >= thresholdMB) {
+                        matchedRule = r;
+                        foundMatch = true;
+                        break;
+                    }
+                }
+                else if (r.ruleType == "Metadata") {
+                    QStringList parts = r.value.split('=', Qt::SkipEmptyParts);
+                    if (parts.size() == 2) {
+                        QString key = parts[0].trimmed();
+                        QString val = parts[1].trimmed();
+                        QString tagVal = TagManager::instance().getCustomAttribute(path, key);
+                        if (tagVal.compare(val, Qt::CaseInsensitive) == 0) {
+                            matchedRule = r;
+                            foundMatch = true;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
     if (foundMatch) {
         if (!matchedRule.linkedProfile.isEmpty() && matchedRule.linkedProfile != matchedRule.name) {
             FolderLayoutRule inheritedRule = matchedRule;
@@ -3528,6 +3636,28 @@ void MainWindow::applyFolderRules(const QString& path) {
             }
             emit builtinPlayerDoubleclickChanged(settings.value("preferences/builtin_player_doubleclick", false).toBool());
         }
+    }
+
+    // Execute Folder Entry script/macro if matched and active
+    if (foundMatch && !matchedRule.entryCommand.isEmpty() && m_lastEntryCommandPath != path) {
+        m_lastEntryCommandPath = path;
+
+        QProcess* proc = new QProcess(this);
+        proc->setWorkingDirectory(path);
+        
+        QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+        env.insert("AMIFILES_CURRENT_DIR", path);
+        proc->setProcessEnvironment(env);
+        
+        proc->start("sh", {"-c", matchedRule.entryCommand});
+        
+        if (m_consolePanel) {
+            m_consolePanel->appendSystem(QString("=== Auto Folder Entry Command Applied ==="));
+            m_consolePanel->appendSystem(QString("Path: %1").arg(path));
+            m_consolePanel->appendSystem(QString("Command: %1").arg(matchedRule.entryCommand));
+        }
+        
+        connect(proc, &QProcess::finished, proc, &QObject::deleteLater);
     }
 }
 
@@ -5162,6 +5292,93 @@ void MainWindow::onRestoreSettings() {
     } else {
         QMessageBox::critical(this, "Restore Failed", "Failed to restore settings file. Please check file permissions.");
     }
+}
+
+void MainWindow::registerDecryptedVault(const QString& decryptedPath, const QString& vaultPath, const QString& password) {
+    for (const auto& v : m_activeVaults) {
+        if (v.decryptedPath == decryptedPath) return;
+    }
+
+    DecryptedVault dv;
+    dv.decryptedPath = decryptedPath;
+    dv.vaultPath = vaultPath;
+    dv.password = password;
+    dv.lastActivity = QDateTime::currentDateTime();
+    m_activeVaults.append(dv);
+
+    if (!m_vaultIdleTimer) {
+        m_vaultIdleTimer = new QTimer(this);
+        connect(m_vaultIdleTimer, &QTimer::timeout, this, &MainWindow::checkVaultIdleTimeout);
+        m_vaultIdleTimer->start(5000);
+    }
+    
+    m_lastUserActivity = QDateTime::currentDateTime();
+}
+
+void MainWindow::resetVaultIdleTime() {
+    m_lastUserActivity = QDateTime::currentDateTime();
+    for (auto& v : m_activeVaults) {
+        v.lastActivity = m_lastUserActivity;
+    }
+}
+
+void MainWindow::checkVaultIdleTimeout() {
+    if (m_activeVaults.isEmpty()) return;
+
+    QSettings settings("Amifiles", "Amifiles");
+    int timeoutSecs = settings.value("vault/auto_lock_timeout", 300).toInt();
+
+    QDateTime now = QDateTime::currentDateTime();
+    int elapsed = m_lastUserActivity.secsTo(now);
+
+    if (elapsed >= timeoutSecs) {
+        for (int i = m_activeVaults.size() - 1; i >= 0; --i) {
+            lockVault(i);
+        }
+        m_activeVaults.clear();
+        
+        statusBar()->showMessage("Active secure vaults auto-locked due to inactivity.", 5000);
+        if (m_activePanel) {
+            m_activePanel->refresh();
+        }
+    }
+}
+
+void MainWindow::lockVault(int index) {
+    if (index < 0 || index >= m_activeVaults.size()) return;
+    DecryptedVault v = m_activeVaults[index];
+
+    if (!QFile::exists(v.decryptedPath)) return;
+
+    QFileInfo info(v.decryptedPath);
+    QString parentDir = info.absolutePath();
+    QString baseName = info.fileName();
+    QString tempTar = parentDir + QString("/.vault_temp_%1.tar").arg(QRandomGenerator::global()->generate());
+
+    QProcess tarProc;
+    tarProc.start("tar", {"-cf", tempTar, "-C", parentDir, baseName});
+    if (tarProc.waitForFinished(10000)) {
+        QProcess encProc;
+        encProc.start("openssl", {"enc", "-aes-256-cbc", "-salt", "-pbkdf2", "-in", tempTar, "-out", v.vaultPath, "-k", v.password});
+        if (encProc.waitForFinished(10000)) {
+            QProcess rmProc;
+            rmProc.start("rm", {"-rf", v.decryptedPath});
+            rmProc.waitForFinished(5000);
+        }
+    }
+    
+    if (QFile::exists(tempTar)) {
+        QFile::remove(tempTar);
+    }
+}
+
+bool MainWindow::event(QEvent* event) {
+    if (event->type() == QEvent::KeyPress ||
+        event->type() == QEvent::MouseButtonPress ||
+        event->type() == QEvent::MouseMove) {
+        resetVaultIdleTime();
+    }
+    return QMainWindow::event(event);
 }
 
 #include "mainwindow.moc"

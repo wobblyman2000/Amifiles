@@ -136,12 +136,20 @@ struct FolderLayoutRule {
     int rightActiveIndex = 0;
     QByteArray windowState;
     QString linkedProfile;
+    QString entryCommand;
 };
 
 class MiniMediaControls;
 class ConsolePanel;
 class QListWidget;
 class QListWidgetItem;
+
+struct DecryptedVault {
+    QString decryptedPath;
+    QString vaultPath;
+    QString password;
+    QDateTime lastActivity;
+};
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -160,6 +168,8 @@ signals:
 protected:
     void closeEvent(class QCloseEvent* event) override;
     QMenu* createPopupMenu() override;
+    void resizeEvent(class QResizeEvent* event) override;
+    bool event(class QEvent* event) override;
 
 private slots:
     // Event Routing Slots
@@ -335,6 +345,16 @@ private:
     QFrame* m_tbCenterOpsSeparator = nullptr;
     QAction* m_actToggleCenterOps = nullptr;
     MiniMediaControls* m_miniMediaControls = nullptr;
+    bool m_wasPreviewPriorToCollapse = false;
+    bool m_wasDualPanePriorToCollapse = false;
+    QString m_lastEntryCommandPath;
+    QList<DecryptedVault> m_activeVaults;
+    class QTimer* m_vaultIdleTimer = nullptr;
+    QDateTime m_lastUserActivity;
+    void registerDecryptedVault(const QString& decryptedPath, const QString& vaultPath, const QString& password);
+    void resetVaultIdleTime();
+    void checkVaultIdleTimeout();
+    void lockVault(int index);
     ConsolePanel* m_consolePanel = nullptr;
     class TerminalPanel* m_terminalPanel = nullptr;
     QTabWidget* m_bottomTabWidget = nullptr;

@@ -23,11 +23,14 @@
 #include "theaterviewdelegate.h"
 #include "theaterlistview.h"
 #include "videoscraperdialog.h"
+#include "folderartscraperdialog.h"
 #include "copyqueue.h"
 #include "archivedialog.h"
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QScrollBar>
+#include <QScrollArea>
+#include <QPushButton>
 #include <QHeaderView>
 #include <QEvent>
 #include <QMouseEvent>
@@ -339,6 +342,87 @@ void FilePanel::setupUI() {
     m_theaterListView->setDropIndicatorShown(false);
     m_theaterListView->setDragDropMode(QAbstractItemView::DragOnly);
 
+    // Slide-out tracks drawer container
+    m_theaterContainer = new QWidget(this);
+    QHBoxLayout* theaterLayout = new QHBoxLayout(m_theaterContainer);
+    theaterLayout->setContentsMargins(0, 0, 0, 0);
+    theaterLayout->setSpacing(0);
+    
+    m_theaterScrollArea = new QScrollArea(m_theaterContainer);
+    m_theaterScrollArea->setWidgetResizable(true);
+    m_theaterScrollArea->setFrameShape(QFrame::NoFrame);
+    m_theaterScrollArea->setStyleSheet("QScrollArea { background: transparent; }");
+    m_theaterScrollArea->setVisible(false);
+
+    m_theaterScrollWidget = new QWidget(m_theaterScrollArea);
+    m_theaterScrollWidget->setObjectName("theaterScrollWidget");
+    m_theaterScrollWidget->setStyleSheet("QWidget#theaterScrollWidget { background: transparent; }");
+    m_theaterScrollLayout = new QVBoxLayout(m_theaterScrollWidget);
+    m_theaterScrollLayout->setContentsMargins(0, 0, 0, 0);
+    m_theaterScrollLayout->setSpacing(10);
+    m_theaterScrollLayout->addStretch(1);
+    m_theaterScrollArea->setWidget(m_theaterScrollWidget);
+
+    theaterLayout->addWidget(m_theaterListView, 1);
+    theaterLayout->addWidget(m_theaterScrollArea, 1);
+
+    m_theaterDrawer = new QWidget(m_theaterContainer);
+    m_theaterDrawer->setFixedWidth(280);
+    m_theaterDrawer->setStyleSheet("QWidget { background-color: #181825; border-left: 1px solid #313244; }");
+    m_theaterDrawer->setVisible(false);
+
+    QVBoxLayout* drawerLayout = new QVBoxLayout(m_theaterDrawer);
+    drawerLayout->setContentsMargins(8, 8, 8, 8);
+    drawerLayout->setSpacing(8);
+
+    QHBoxLayout* headerLayout = new QHBoxLayout();
+    m_drawerTitle = new QLabel("Album Tracks", m_theaterDrawer);
+    m_drawerTitle->setStyleSheet("font-weight: bold; font-size: 14px; color: #89b4fa;");
+    m_drawerCloseBtn = new QPushButton("✕", m_theaterDrawer);
+    m_drawerCloseBtn->setFixedSize(24, 24);
+    m_drawerCloseBtn->setStyleSheet("QPushButton { background-color: transparent; color: #f38ba8; font-weight: bold; border: none; } QPushButton:hover { color: #f38ba8; background-color: #313244; border-radius: 4px; }");
+    headerLayout->addWidget(m_drawerTitle, 1);
+    headerLayout->addWidget(m_drawerCloseBtn);
+    drawerLayout->addLayout(headerLayout);
+
+    m_drawerList = new QListWidget(m_theaterDrawer);
+    m_drawerList->setStyleSheet("QListWidget { background-color: #11111b; border: 1px solid #313244; border-radius: 4px; color: #cdd6f4; } QListWidget::item { padding: 6px; } QListWidget::item:hover { background-color: #313244; } QListWidget::item:selected { background-color: #89b4fa; color: #11111b; }");
+    drawerLayout->addWidget(m_drawerList, 1);
+
+    m_drawerPlayBtn = new QPushButton("Play Album", m_theaterDrawer);
+    m_drawerPlayBtn->setStyleSheet("QPushButton { background-color: #a6e3a1; color: #11111b; font-weight: bold; padding: 8px; border-radius: 4px; } QPushButton:hover { background-color: #94e2d5; }");
+    drawerLayout->addWidget(m_drawerPlayBtn);
+
+    theaterLayout->addWidget(m_theaterDrawer);
+
+    // Connections for drawer
+    connect(m_drawerCloseBtn, &QPushButton::clicked, this, [this]() {
+        m_theaterDrawer->setVisible(false);
+    });
+
+    connect(m_drawerPlayBtn, &QPushButton::clicked, this, [this]() {
+        QStringList playlistPaths;
+        for (int i = 0; i < m_drawerList->count(); ++i) {
+            QListWidgetItem* item = m_drawerList->item(i);
+            QString path = item->data(Qt::UserRole).toString();
+            if (!path.isEmpty()) playlistPaths.append(path);
+        }
+        if (!playlistPaths.isEmpty()) {
+            emit playMediaBuiltinRequested(playlistPaths);
+        }
+    });
+
+    connect(m_drawerList, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem* item) {
+        QString path = item->data(Qt::UserRole).toString();
+        if (!path.isEmpty()) {
+            emit playMediaBuiltinRequested({path});
+        }
+    });
+
+    m_theaterContainer->installEventFilter(this);
+    m_theaterDrawer->installEventFilter(this);
+    m_drawerList->installEventFilter(this);
+
     m_millerView = new MillerColumnsView(m_fileModel, this);
     m_millerView->installEventFilter(this);
 
@@ -348,7 +432,7 @@ void FilePanel::setupUI() {
     m_filmstripView = new FilmstripView(m_fileModel, this);
     m_filmstripView->installEventFilter(this);
 
-    m_viewStack->addWidget(m_theaterListView);
+    m_viewStack->addWidget(m_theaterContainer);
     m_viewStack->addWidget(m_millerView);
     m_viewStack->addWidget(m_timelineView);
     m_viewStack->addWidget(m_filmstripView);
@@ -580,10 +664,30 @@ bool FilePanel::eventFilter(QObject* watched, QEvent* event) {
             emit panelActivated(this);
         }
     }
-    if (watched == m_treeView || watched == m_listView || watched == m_millerView || watched == m_timelineView || watched == m_filmstripView || watched == m_theaterListView) {
+    if (watched == m_treeView || watched == m_listView || watched == m_millerView || watched == m_timelineView || watched == m_filmstripView || watched == m_theaterListView || watched == m_theaterContainer || watched == m_theaterDrawer || watched == m_drawerList) {
         if (event->type() == QEvent::FocusIn || event->type() == QEvent::MouseButtonPress) {
             setActive(true);
             emit panelActivated(this);
+        }
+
+        if (event->type() == QEvent::DragEnter) {
+            QSettings settings("Amifiles", "Amifiles");
+            QString preset = settings.value("theme/preset", "Catppuccin Mocha").toString();
+            if (preset != "System Theme") {
+                Theme::ThemeColors colors = Theme::getThemeColors();
+                QString bg = m_customBgColor.isEmpty() ? colors.bg : m_customBgColor;
+                m_viewStack->setStyleSheet(QString("QStackedWidget { border: 2px dashed #a6e3a1; border-radius: 4px; background-color: %1; }").arg(bg));
+            }
+        }
+        if (event->type() == QEvent::DragLeave || event->type() == QEvent::Drop) {
+            QSettings settings("Amifiles", "Amifiles");
+            QString preset = settings.value("theme/preset", "Catppuccin Mocha").toString();
+            if (preset != "System Theme") {
+                Theme::ThemeColors colors = Theme::getThemeColors();
+                QString bg = m_customBgColor.isEmpty() ? colors.bg : m_customBgColor;
+                QString borderColor = m_isActive ? colors.accent : colors.border;
+                m_viewStack->setStyleSheet(QString("QStackedWidget { border: 2px solid %1; border-radius: 4px; background-color: %2; }").arg(borderColor).arg(bg));
+            }
         }
 
         if (event->type() == QEvent::KeyPress) {
@@ -747,7 +851,7 @@ void FilePanel::updateActiveViewModel() {
 
 void FilePanel::focusActiveView() {
     QWidget* view = nullptr;
-    if (m_viewStack && m_viewStack->currentWidget() == m_theaterListView) {
+    if (m_viewStack && (m_viewStack->currentWidget() == m_theaterListView || m_viewStack->currentWidget() == m_theaterContainer)) {
         view = m_theaterListView;
     } else if (m_flatViewEnabled && m_listView) {
         view = m_listView;
@@ -766,7 +870,7 @@ void FilePanel::focusActiveView() {
 
 QScrollBar* FilePanel::activeVerticalScrollBar() const {
     QAbstractItemView* view = nullptr;
-    if (m_viewStack && m_viewStack->currentWidget() == m_theaterListView) {
+    if (m_viewStack && (m_viewStack->currentWidget() == m_theaterListView || m_viewStack->currentWidget() == m_theaterContainer)) {
         view = m_theaterListView;
     } else if (m_flatViewEnabled && m_listView) {
         view = m_listView;
@@ -943,10 +1047,19 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
             m_treeView->setRootIndex(groupRootIndex);
             m_listView->setRootIndex(groupRootIndex);
             m_theaterListView->setRootIndex(groupRootIndex);
+            
+            if (m_viewStack->currentWidget() == m_theaterContainer) {
+                m_theaterListView->setVisible(false);
+                m_theaterScrollArea->setVisible(true);
+                rebuildTheaterGroups();
+            }
         } else {
             m_treeView->setRootIndex(proxyIndex);
             m_listView->setRootIndex(proxyIndex);
             m_theaterListView->setRootIndex(proxyIndex);
+            
+            m_theaterListView->setVisible(true);
+            m_theaterScrollArea->setVisible(false);
         }
     }
 
@@ -1291,7 +1404,7 @@ void FilePanel::onSelectionChanged() {
     updateStatusText();
     QStringList paths = selectedPaths();
 
-    if (m_viewStack->currentWidget() == m_theaterListView) {
+    if (m_viewStack->currentWidget() == m_theaterContainer) {
         QString backdropPath;
         QString dirPath = paths.isEmpty() ? m_currentPath : (QFileInfo(paths.first()).isDir() ? paths.first() : QFileInfo(paths.first()).absolutePath());
         
@@ -1304,6 +1417,32 @@ void FilePanel::onSelectionChanged() {
             }
         }
         m_theaterListView->setBackdropPath(backdropPath);
+
+        // Update slide-out tracks list drawer
+        if (!paths.isEmpty() && QFileInfo(paths.first()).isDir()) {
+            QString path = paths.first();
+            m_drawerFolderPath = path;
+            m_drawerTitle->setText(QFileInfo(path).fileName());
+            m_drawerList->clear();
+
+            QDir dir(path);
+            QStringList mediaExts = { "mp3", "wav", "flac", "ogg", "m4a", "wma", "aac", "mp4", "mkv", "avi", "mov", "webm" };
+            QFileInfoList files = dir.entryInfoList(QDir::Files, QDir::Name);
+            for (const QFileInfo& fInfo : files) {
+                if (mediaExts.contains(fInfo.suffix().toLower())) {
+                    QListWidgetItem* item = new QListWidgetItem(fInfo.fileName(), m_drawerList);
+                    item->setData(Qt::UserRole, fInfo.absoluteFilePath());
+                }
+            }
+
+            if (m_drawerList->count() > 0) {
+                m_theaterDrawer->setVisible(true);
+            } else {
+                m_theaterDrawer->setVisible(false);
+            }
+        } else {
+            m_theaterDrawer->setVisible(false);
+        }
     }
 
     if (paths.isEmpty()) {
@@ -1329,7 +1468,7 @@ QStringList FilePanel::selectedPaths() const {
 
     QStringList paths;
     QItemSelectionModel* selModel = nullptr;
-    if (active == m_theaterListView) {
+    if (active == m_theaterListView || active == m_theaterContainer) {
         selModel = m_theaterListView->selectionModel();
     } else {
         selModel = m_treeView->selectionModel();
@@ -1716,14 +1855,20 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     QModelIndex index;
     if (m_viewStack->currentWidget() == m_listView) {
         index = m_listView->indexAt(pos);
-    } else if (m_viewStack->currentWidget() == m_theaterListView) {
+    } else if (m_viewStack->currentWidget() == m_theaterListView || m_viewStack->currentWidget() == m_theaterContainer) {
         index = m_theaterListView->indexAt(pos);
     } else {
         index = m_treeView->indexAt(pos);
     }
     
     if (index.isValid()) {
-        QAbstractItemView* activeView = qobject_cast<QAbstractItemView*>(m_viewStack->currentWidget());
+        QWidget* cur = m_viewStack->currentWidget();
+        QAbstractItemView* activeView = nullptr;
+        if (cur == m_theaterContainer) {
+            activeView = m_theaterListView;
+        } else {
+            activeView = qobject_cast<QAbstractItemView*>(cur);
+        }
         if (activeView && activeView->selectionModel()) {
             if (!activeView->selectionModel()->isSelected(index)) {
                 activeView->selectionModel()->select(index, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
@@ -1734,7 +1879,7 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     
     QMenu menu(this);
     QStyle* style = QApplication::style();
-    bool isTheater = (m_viewStack->currentWidget() == m_theaterListView);
+    bool isTheater = (m_viewStack->currentWidget() == m_theaterListView || m_viewStack->currentWidget() == m_theaterContainer);
 
     QAction* actOpen = menu.addAction(style->standardIcon(QStyle::SP_DialogOpenButton), "Open");
     menu.addSeparator();
@@ -1783,7 +1928,7 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     bool isFavorite = false;
 
     QWidget* activeViewWidget = m_viewStack->currentWidget();
-    bool isNewView = (activeViewWidget == m_millerView || activeViewWidget == m_timelineView || activeViewWidget == m_filmstripView || activeViewWidget == m_theaterListView);
+    bool isNewView = (activeViewWidget == m_millerView || activeViewWidget == m_timelineView || activeViewWidget == m_filmstripView || activeViewWidget == m_theaterListView || activeViewWidget == m_theaterContainer);
 
     if (isNewView) {
         if (!curSelected.isEmpty()) {
@@ -1865,6 +2010,7 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     QAction* actEditTags = menu.addAction("Edit Audio Tags...");
     QAction* actFetchMusicBrainz = menu.addAction(style->standardIcon(QStyle::SP_ComputerIcon), "Fetch MusicBrainz Album Info...");
     QAction* actScrapeVideo = menu.addAction(style->standardIcon(QStyle::SP_ComputerIcon), "Scrape Video Metadata...");
+    QAction* actFetchFolderArt = menu.addAction(style->standardIcon(QStyle::SP_ComputerIcon), "Fetch Cover Art & Wallpaper...");
     
     QMenu* menuColorLabel = nullptr;
     QAction* actNone = nullptr;
@@ -2022,6 +2168,7 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         }
     }
     actScrapeVideo->setEnabled(hasSelection && hasVideoFilesOrDirs);
+    actFetchFolderArt->setEnabled(isFolder || !m_currentPath.isEmpty());
 
     if (!isTheater) {
         bool isArchive = false;
@@ -2044,7 +2191,7 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     QAction* actToggleZen = nullptr;
     QAction* actToggleDoubleclick = nullptr;
 
-    if (m_viewStack->currentWidget() == m_theaterListView) {
+    if (m_viewStack->currentWidget() == m_theaterListView || m_viewStack->currentWidget() == m_theaterContainer) {
         menu.addSeparator();
 
         QSettings settings("Amifiles", "Amifiles");
@@ -2178,6 +2325,13 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     } else if (selected == actScrapeVideo) {
         VideoScraperDialog dlg(curSelected, this);
         if (dlg.exec() == QDialog::Accepted) {
+            refresh();
+        }
+    } else if (selected == actFetchFolderArt) {
+        QString folderPath = isFolder ? selectedPath : m_currentPath;
+        if (!folderPath.isEmpty()) {
+            FolderArtScraperDialog dlg(folderPath, this);
+            dlg.exec();
             refresh();
         }
     } else if (selected == actCreateArchive) {
@@ -3197,7 +3351,15 @@ void FilePanel::onViewModeChanged(int index) {
         m_filmstripView->setRootPath(m_currentPath);
         m_viewStack->setCurrentWidget(m_filmstripView);
     } else if (index == 6) { // Theater View
-        m_viewStack->setCurrentWidget(m_theaterListView);
+        m_viewStack->setCurrentWidget(m_theaterContainer);
+        if (m_groupProxy && m_groupProxy->isGroupingActive()) {
+            m_theaterListView->setVisible(false);
+            m_theaterScrollArea->setVisible(true);
+            rebuildTheaterGroups();
+        } else {
+            m_theaterListView->setVisible(true);
+            m_theaterScrollArea->setVisible(false);
+        }
     }
     
     // Save view mode index choice in preferences
@@ -3643,4 +3805,96 @@ void FilePanel::setNavigationAndFilterVisible(bool visible) {
         if (m_globalSearchEdit) m_globalSearchEdit->setVisible(m_isSearchModeActive);
     }
     if (m_statusWidget) m_statusWidget->setVisible(visible);
+}
+
+void FilePanel::rebuildTheaterGroups() {
+    // Clear old headers and grids
+    QLayoutItem* item;
+    while ((item = m_theaterScrollLayout->takeAt(0)) != nullptr) {
+        if (item->widget()) {
+            item->widget()->deleteLater();
+        }
+        delete item;
+    }
+    m_theaterHeaders.clear();
+    m_theaterGrids.clear();
+
+    if (!m_groupProxy || !m_groupProxy->isGroupingActive()) {
+        m_theaterScrollLayout->addStretch(1);
+        return;
+    }
+
+    // Get group count from proxy model
+    int numGroups = m_groupProxy->rowCount(QModelIndex());
+    for (int g = 0; g < numGroups; ++g) {
+        QModelIndex groupIndex = m_groupProxy->index(g, 0, QModelIndex());
+        if (!groupIndex.isValid()) continue;
+
+        QString groupName = groupIndex.data().toString();
+        int childCount = m_groupProxy->rowCount(groupIndex);
+
+        // Header button
+        QPushButton* btnHeader = new QPushButton(QString("▼  %1 (%2 items)").arg(groupName).arg(childCount), m_theaterScrollWidget);
+        btnHeader->setStyleSheet("QPushButton { text-align: left; font-weight: bold; font-size: 13px; color: #89b4fa; background-color: #313244; border: 1px solid #45475a; border-radius: 6px; padding: 6px 12px; } QPushButton:hover { background-color: #45475a; }");
+        m_theaterScrollLayout->addWidget(btnHeader);
+        m_theaterHeaders.append(btnHeader);
+
+        // Grid view for this group
+        QListView* grid = new QListView(m_theaterScrollWidget);
+        grid->setViewMode(QListView::IconMode);
+        grid->setResizeMode(QListView::Adjust);
+        grid->setDragEnabled(false);
+        grid->setAcceptDrops(false);
+        grid->setFrameShape(QFrame::NoFrame);
+        grid->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        grid->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        grid->setItemDelegate(m_theaterDelegate);
+        grid->setModel(m_groupProxy);
+        grid->setRootIndex(groupIndex);
+
+        // Adjust heights and styles
+        int gw = 135, gh = 185;
+        if (m_zoomLevel >= 0) {
+            gw = 100 + m_zoomLevel * 35;
+            gh = 140 + m_zoomLevel * 45;
+        }
+        grid->setGridSize(QSize(gw, gh));
+        grid->setStyleSheet("QListView { background: transparent; border: none; }");
+
+        // Simple height adjustment based on children
+        int cols = qMax(1, m_theaterScrollWidget->width() / gw);
+        int rows = (childCount + cols - 1) / cols;
+        grid->setFixedHeight(rows * gh + 10);
+
+        m_theaterScrollLayout->addWidget(grid);
+        m_theaterGrids.append(grid);
+
+        // Connect collapse/expand
+        connect(btnHeader, &QPushButton::clicked, this, [btnHeader, grid, groupName, childCount]() {
+            bool visible = grid->isVisible();
+            grid->setVisible(!visible);
+            btnHeader->setText(QString("%1  %2 (%3 items)").arg(!visible ? "▼" : "▶").arg(groupName).arg(childCount));
+        });
+
+        // Set up context menu and double click forwarding
+        grid->setContextMenuPolicy(Qt::CustomContextMenu);
+        connect(grid, &QListView::customContextMenuRequested, this, &FilePanel::onCustomContextMenu);
+        connect(grid, &QListView::doubleClicked, this, &FilePanel::onDoubleClicked);
+
+        // Connect selection model sync so clicking cards updates selection
+        connect(grid->selectionModel(), &QItemSelectionModel::selectionChanged, this, [this, grid](const QItemSelection& selected, const QItemSelection& deselected) {
+            Q_UNUSED(selected);
+            Q_UNUSED(deselected);
+            disconnect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
+            m_treeView->selectionModel()->clearSelection();
+            QModelIndexList selList = grid->selectionModel()->selectedIndexes();
+            for (const QModelIndex& idx : selList) {
+                m_treeView->selectionModel()->select(idx, QItemSelectionModel::Select | QItemSelectionModel::Rows);
+            }
+            connect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
+            onSelectionChanged();
+        });
+    }
+
+    m_theaterScrollLayout->addStretch(1);
 }

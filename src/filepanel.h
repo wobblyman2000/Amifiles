@@ -89,6 +89,44 @@ public:
         };
     }
 
+    struct LabelStyleRule {
+        QString type;
+        QString pattern;
+        QString color;
+        QString icon;
+        QString bgColor;
+    };
+    mutable QList<LabelStyleRule> m_labelRules;
+
+    void loadLabelRules() const {
+        m_labelRules.clear();
+        QSettings settings("Amifiles", "Amifiles");
+        QStringList list = settings.value("preferences/label_rules").toStringList();
+        if (list.isEmpty()) {
+            m_labelRules = {
+                {"Extension", "pdf", "#f38ba8", "📕", ""},
+                {"Extension", "zip", "#fab387", "📦", ""},
+                {"Extension", "mp3", "#a6e3a1", "🎵", ""},
+                {"Extension", "mp4", "#cba6f7", "🎥", ""},
+                {"Tag", "starred", "#f9e2af", "⭐", ""},
+                {"Tag", "important", "#eba0ac", "⚠️", ""}
+            };
+        } else {
+            for (const QString& s : list) {
+                QStringList parts = s.split(';');
+                if (parts.size() >= 4) {
+                    LabelStyleRule r;
+                    r.type = parts[0];
+                    r.pattern = parts[1];
+                    r.color = parts[2];
+                    r.icon = parts[3];
+                    if (parts.size() >= 5) r.bgColor = parts[4];
+                    m_labelRules.append(r);
+                }
+            }
+        }
+    }
+
     void loadAgeRules() {
         m_ageRules.clear();
         QSettings settings("Amifiles", "Amifiles");
@@ -183,12 +221,45 @@ public:
         if (m_ageRules.isEmpty()) {
             const_cast<FileFilterProxyModel*>(this)->loadAgeRules();
         }
+        if (m_labelRules.isEmpty()) {
+            const_cast<FileFilterProxyModel*>(this)->loadLabelRules();
+        }
 
         if (role == Qt::ForegroundRole && m_ageColoringEnabled) {
             QModelIndex srcIndex = mapToSource(index);
             QFileSystemModel* fileModel = qobject_cast<QFileSystemModel*>(sourceModel());
             if (fileModel) {
+                QString filePath = fileModel->filePath(srcIndex);
                 QFileInfo info = fileModel->fileInfo(srcIndex);
+
+                // 1. Tag rules matching (Foreground)
+                QStringList fileTags = TagManager::instance().getFileTags(filePath);
+                for (const auto& rule : m_labelRules) {
+                    if (rule.type == "Tag") {
+                        bool tagMatches = false;
+                        for (const QString& t : fileTags) {
+                            if (t.compare(rule.pattern, Qt::CaseInsensitive) == 0) {
+                                tagMatches = true;
+                                break;
+                            }
+                        }
+                        if (tagMatches && !rule.color.isEmpty() && rule.color != "None") {
+                            return QBrush(QColor(rule.color));
+                        }
+                    }
+                }
+
+                // 2. Extension rules matching (Foreground)
+                QString ext = info.suffix().toLower();
+                for (const auto& rule : m_labelRules) {
+                    if (rule.type == "Extension" && rule.pattern.toLower() == ext) {
+                        if (!rule.color.isEmpty() && rule.color != "None") {
+                            return QBrush(QColor(rule.color));
+                        }
+                    }
+                }
+
+                // Fall back to original age rules
                 QDateTime lastMod = info.lastModified();
                 QDateTime now = QDateTime::currentDateTime();
                 qint64 secs = lastMod.secsTo(now);
@@ -209,11 +280,77 @@ public:
             }
         }
 
+        if (role == Qt::BackgroundRole && m_ageColoringEnabled) {
+            QModelIndex srcIndex = mapToSource(index);
+            QFileSystemModel* fileModel = qobject_cast<QFileSystemModel*>(sourceModel());
+            if (fileModel) {
+                QString filePath = fileModel->filePath(srcIndex);
+                QFileInfo info = fileModel->fileInfo(srcIndex);
+
+                // 1. Tag BG
+                QStringList fileTags = TagManager::instance().getFileTags(filePath);
+                for (const auto& rule : m_labelRules) {
+                    if (rule.type == "Tag") {
+                        bool tagMatches = false;
+                        for (const QString& t : fileTags) {
+                            if (t.compare(rule.pattern, Qt::CaseInsensitive) == 0) {
+                                tagMatches = true;
+                                break;
+                            }
+                        }
+                        if (tagMatches && !rule.bgColor.isEmpty() && rule.bgColor != "None" && !rule.bgColor.trimmed().isEmpty()) {
+                            return QBrush(QColor(rule.bgColor));
+                        }
+                    }
+                }
+
+                // 2. Ext BG
+                QString ext = info.suffix().toLower();
+                for (const auto& rule : m_labelRules) {
+                    if (rule.type == "Extension" && rule.pattern.toLower() == ext) {
+                        if (!rule.bgColor.isEmpty() && rule.bgColor != "None" && !rule.bgColor.trimmed().isEmpty()) {
+                            return QBrush(QColor(rule.bgColor));
+                        }
+                    }
+                }
+            }
+        }
+
         if (role == Qt::DisplayRole && index.column() == 0 && m_ageColoringEnabled) {
             QModelIndex srcIndex = mapToSource(index);
             QFileSystemModel* fileModel = qobject_cast<QFileSystemModel*>(sourceModel());
             if (fileModel) {
+                QString filePath = fileModel->filePath(srcIndex);
                 QFileInfo info = fileModel->fileInfo(srcIndex);
+
+                // 1. Tag Icon badges
+                QStringList fileTags = TagManager::instance().getFileTags(filePath);
+                for (const auto& rule : m_labelRules) {
+                    if (rule.type == "Tag" && !rule.icon.isEmpty() && rule.icon != "None") {
+                        bool tagMatches = false;
+                        for (const QString& t : fileTags) {
+                            if (t.compare(rule.pattern, Qt::CaseInsensitive) == 0) {
+                                tagMatches = true;
+                                break;
+                            }
+                        }
+                        if (tagMatches) {
+                            QString originalName = QSortFilterProxyModel::data(index, role).toString();
+                            return rule.icon + " " + originalName;
+                        }
+                    }
+                }
+
+                // 2. Ext Icon badges
+                QString ext = info.suffix().toLower();
+                for (const auto& rule : m_labelRules) {
+                    if (rule.type == "Extension" && rule.pattern.toLower() == ext && !rule.icon.isEmpty() && rule.icon != "None") {
+                        QString originalName = QSortFilterProxyModel::data(index, role).toString();
+                        return rule.icon + " " + originalName;
+                    }
+                }
+
+                // Fall back to original age rules
                 QDateTime lastMod = info.lastModified();
                 QDateTime now = QDateTime::currentDateTime();
                 qint64 secs = lastMod.secsTo(now);
@@ -564,6 +701,7 @@ private:
     void setupUI();
     void updateNavigationButtons();
     void checkFolderArt();
+    void rebuildTheaterGroups();
     void updateStatusText();
     void navigateTo(const QString& path, bool addHistory = true);
     bool copyRecursively(const QString& srcPath, const QString& destPath);
@@ -643,6 +781,18 @@ private:
     class QAbstractItemDelegate* m_defaultDelegate = nullptr;
     class CardViewDelegate* m_cardDelegate = nullptr;
     class TheaterViewDelegate* m_theaterDelegate = nullptr;
+    QWidget* m_theaterContainer = nullptr;
+    QWidget* m_theaterDrawer = nullptr;
+    QLabel* m_drawerTitle = nullptr;
+    class QListWidget* m_drawerList = nullptr;
+    QPushButton* m_drawerPlayBtn = nullptr;
+    QPushButton* m_drawerCloseBtn = nullptr;
+    QString m_drawerFolderPath;
+    class QScrollArea* m_theaterScrollArea = nullptr;
+    QWidget* m_theaterScrollWidget = nullptr;
+    class QVBoxLayout* m_theaterScrollLayout = nullptr;
+    QList<QPushButton*> m_theaterHeaders;
+    QList<QListView*> m_theaterGrids;
     int m_zoomLevel = -1;
 
     // Bottom Filter Bar
