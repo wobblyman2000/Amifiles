@@ -3,6 +3,7 @@
 #include <QFileInfo>
 #include <QFont>
 #include <QColor>
+#include <QFileSystemModel>
 
 GroupProxyModel::GroupProxyModel(QObject* parent) : QIdentityProxyModel(parent) {}
 
@@ -28,12 +29,12 @@ void GroupProxyModel::setSourceModel(QAbstractItemModel* sourceModel) {
 }
 
 void GroupProxyModel::setGrouping(bool active, const QString& type, const QString& customKey) {
-    beginResetModel();
-    m_groupingActive = active;
-    m_groupType = type;
-    m_customKey = customKey;
-    endResetModel();
-    rebuildGroups();
+    if (m_groupingActive != active || m_groupType != type || m_customKey != customKey) {
+        m_groupingActive = active;
+        m_groupType = type;
+        m_customKey = customKey;
+        rebuildGroups();
+    }
 }
 
 void GroupProxyModel::rebuildGroups() {
@@ -65,9 +66,20 @@ void GroupProxyModel::rebuildGroups() {
 QString GroupProxyModel::getGroupValue(const QModelIndex& sourceIndex) const {
     if (!sourceIndex.isValid() || !sourceModel()) return "";
     
-    QString filePath = sourceIndex.data(Qt::UserRole).toString();
-    if (filePath.isEmpty()) {
-        filePath = sourceModel()->data(sourceIndex, Qt::UserRole).toString();
+    QString filePath;
+    QAbstractItemModel* m = sourceModel();
+    QModelIndex mappedIndex = sourceIndex;
+    while (m) {
+        if (QFileSystemModel* fsm = qobject_cast<QFileSystemModel*>(m)) {
+            filePath = fsm->filePath(mappedIndex);
+            break;
+        }
+        if (QAbstractProxyModel* pm = qobject_cast<QAbstractProxyModel*>(m)) {
+            mappedIndex = pm->mapToSource(mappedIndex);
+            m = pm->sourceModel();
+        } else {
+            break;
+        }
     }
     
     if (m_groupType == "Artist") {
@@ -100,6 +112,7 @@ QString GroupProxyModel::getGroupValue(const QModelIndex& sourceIndex) const {
         return QString(r, QChar(0x2605)) + QString(5 - r, QChar(0x2606));
     } else if (m_groupType == "Type") {
         QFileInfo info(filePath);
+        if (info.isDir()) return "Directories";
         return info.suffix().toUpper() + " Files";
     } else if (m_groupType == "CustomText" && !m_customKey.isEmpty()) {
         return TagManager::instance().getCustomAttribute(filePath, m_customKey);

@@ -1326,6 +1326,12 @@ void FilePanel::onDoubleClicked(const QModelIndex& index) {
     } else {
         QModelIndex mappedIndex = index;
         if (m_groupProxy && m_groupProxy->isGroupingActive()) {
+            if (index.internalId() > 0 && index.internalId() <= 10000) {
+                if (m_viewStack->currentWidget() == m_treeView) {
+                    m_treeView->setExpanded(index, !m_treeView->isExpanded(index));
+                }
+                return;
+            }
             mappedIndex = m_groupProxy->mapToSource(index);
         }
         QModelIndex srcIndex = m_proxyModel->mapToSource(mappedIndex);
