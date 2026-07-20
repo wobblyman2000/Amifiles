@@ -265,11 +265,26 @@ void FolderLayoutDialog::setupUI() {
     connect(m_btnUseActivePath, &QPushButton::clicked, this, &FolderLayoutDialog::onUseActivePath);
     triggerGrid->addWidget(m_btnUseActivePath, 4, 1, 1, 2);
 
+    QLabel* lblLink = new QLabel("Link to Profile Layout:", this);
+    lblLink->setToolTip("Inherit all layout settings from an existing profile. If selected, manual configuration below is disabled.");
+    triggerGrid->addWidget(lblLink, 5, 0);
+
+    m_comboLinkedProfile = new QComboBox(this);
+    m_comboLinkedProfile->setToolTip("Select a layout profile to link to, or choose none to define a custom layout for this rule.");
+    triggerGrid->addWidget(m_comboLinkedProfile, 5, 1, 1, 2);
+    connect(m_comboLinkedProfile, &QComboBox::currentIndexChanged, this, &FolderLayoutDialog::onLinkedProfileChanged);
+
+    m_labelInheritedInfo = new QLabel(this);
+    m_labelInheritedInfo->setStyleSheet("color: #a6e3a1; font-weight: bold; margin-top: 4px;");
+    m_labelInheritedInfo->setWordWrap(true);
+    m_labelInheritedInfo->setVisible(false);
+    triggerGrid->addWidget(m_labelInheritedInfo, 6, 0, 1, 3);
+
     scrollLayout->addWidget(triggerGroup);
 
     // 2. View Settings
-    QGroupBox* viewGroup = new QGroupBox("2. View Mode & Toolbars", this);
-    QGridLayout* viewGrid = new QGridLayout(viewGroup);
+    m_viewGroup = new QGroupBox("2. View Mode & Toolbars", this);
+    QGridLayout* viewGrid = new QGridLayout(m_viewGroup);
     viewGrid->setSpacing(8);
 
     viewGrid->addWidget(new QLabel("View Mode:", this), 0, 0);
@@ -277,29 +292,38 @@ void FolderLayoutDialog::setupUI() {
     m_comboViewMode->addItems({"No Change", "List", "Grid", "Card", "Miller", "Timeline", "Filmstrip", "Theater"});
     viewGrid->addWidget(m_comboViewMode, 0, 1);
 
-    viewGrid->addWidget(new QLabel("Custom Toolbar:", this), 1, 0);
+    QLabel* lblCustomButtons = new QLabel("Filter Custom Buttons:", this);
+    lblCustomButtons->setToolTip("Choose which user-defined custom toolbar buttons are visible in this folder profile. Manage all custom buttons via the 'Edit Toolbars...' button on the left panel.");
+    viewGrid->addWidget(lblCustomButtons, 1, 0);
+
     m_btnChooseButtons = new QPushButton("All Buttons (Default)", this);
+    m_btnChooseButtons->setToolTip("Select custom script/app buttons to enable for this profile. If empty, all are shown.");
     connect(m_btnChooseButtons, &QPushButton::clicked, this, &FolderLayoutDialog::onChooseButtons);
     viewGrid->addWidget(m_btnChooseButtons, 1, 1);
 
-    scrollLayout->addWidget(viewGroup);
+    scrollLayout->addWidget(m_viewGroup);
 
     // 3. Visibility Overrides
-    QGroupBox* visGroup = new QGroupBox("3. Layout & Docks Visibility Overrides", this);
-    QGridLayout* visGrid = new QGridLayout(visGroup);
+    m_visGroup = new QGroupBox("3. Layout & Docks Visibility Overrides", this);
+    QGridLayout* visGrid = new QGridLayout(m_visGroup);
     visGrid->setSpacing(8);
 
     visGrid->addWidget(new QLabel("Layout Component", this), 0, 0);
-    QLabel* hdrOverride = new QLabel("Override Visibility?", this);
+    QLabel* hdrOverride = new QLabel("Force Custom State?", this);
     hdrOverride->setStyleSheet("font-weight: bold; color: #89b4fa;");
+    hdrOverride->setToolTip("Check this to force a custom visibility setting for this component. If left unchecked, the component inherits the current system state.");
     visGrid->addWidget(hdrOverride, 0, 1);
-    QLabel* hdrState = new QLabel("Visible/Enabled State", this);
+    
+    QLabel* hdrState = new QLabel("Enforced ON / OFF State", this);
     hdrState->setStyleSheet("font-weight: bold; color: #a6e3a1;");
+    hdrState->setToolTip("Define the state when this profile is active: Checked = Force ON (Visible), Unchecked = Force OFF (Hidden).");
     visGrid->addWidget(hdrState, 0, 2);
 
     // Drives
     m_overrideDrives = new QCheckBox(this);
+    m_overrideDrives->setToolTip("Force custom Drives Toolbar visibility.");
     m_stateDrives = new QCheckBox("Drives Toolbar", this);
+    m_stateDrives->setToolTip("Checked = Force Drives Toolbar visible, Unchecked = Force hidden.");
     visGrid->addWidget(new QLabel("Drives Toolbar", this), 1, 0);
     visGrid->addWidget(m_overrideDrives, 1, 1);
     visGrid->addWidget(m_stateDrives, 1, 2);
@@ -307,7 +331,9 @@ void FolderLayoutDialog::setupUI() {
 
     // Center Ops
     m_overrideCenterOps = new QCheckBox(this);
+    m_overrideCenterOps->setToolTip("Force custom Operations Bar visibility.");
     m_stateCenterOps = new QCheckBox("Operations Bar", this);
+    m_stateCenterOps->setToolTip("Checked = Force Operations Bar visible, Unchecked = Force hidden.");
     visGrid->addWidget(new QLabel("Operations Bar", this), 2, 0);
     visGrid->addWidget(m_overrideCenterOps, 2, 1);
     visGrid->addWidget(m_stateCenterOps, 2, 2);
@@ -315,7 +341,9 @@ void FolderLayoutDialog::setupUI() {
 
     // Console
     m_overrideConsole = new QCheckBox(this);
+    m_overrideConsole->setToolTip("Force custom Console Panel visibility.");
     m_stateConsole = new QCheckBox("Console / Bash Shell Panel", this);
+    m_stateConsole->setToolTip("Checked = Force Console visible, Unchecked = Force hidden.");
     visGrid->addWidget(new QLabel("Console Panel", this), 3, 0);
     visGrid->addWidget(m_overrideConsole, 3, 1);
     visGrid->addWidget(m_stateConsole, 3, 2);
@@ -323,7 +351,9 @@ void FolderLayoutDialog::setupUI() {
 
     // Preview Pane
     m_overridePreview = new QCheckBox(this);
+    m_overridePreview->setToolTip("Force custom Preview Pane visibility.");
     m_statePreview = new QCheckBox("Preview Pane", this);
+    m_statePreview->setToolTip("Checked = Force Preview Pane visible, Unchecked = Force hidden.");
     visGrid->addWidget(new QLabel("Preview Pane", this), 4, 0);
     visGrid->addWidget(m_overridePreview, 4, 1);
     visGrid->addWidget(m_statePreview, 4, 2);
@@ -331,7 +361,9 @@ void FolderLayoutDialog::setupUI() {
 
     // Favorites
     m_overrideFavorites = new QCheckBox(this);
+    m_overrideFavorites->setToolTip("Force custom Favorites/Bookmarks Sidebar visibility.");
     m_stateFavorites = new QCheckBox("Favorites Sidebar", this);
+    m_stateFavorites->setToolTip("Checked = Force Favorites sidebar visible, Unchecked = Force hidden.");
     visGrid->addWidget(new QLabel("Favorites Sidebar", this), 5, 0);
     visGrid->addWidget(m_overrideFavorites, 5, 1);
     visGrid->addWidget(m_stateFavorites, 5, 2);
@@ -339,7 +371,9 @@ void FolderLayoutDialog::setupUI() {
 
     // Zen
     m_overrideZen = new QCheckBox(this);
+    m_overrideZen->setToolTip("Force custom Zen Mode state.");
     m_stateZen = new QCheckBox("Enable Zen Mode", this);
+    m_stateZen->setToolTip("Checked = Enable Zen Mode (hides all surrounding toolbars/panels for minimalist viewing), Unchecked = Normal layout.");
     visGrid->addWidget(new QLabel("Zen Mode State", this), 6, 0);
     visGrid->addWidget(m_overrideZen, 6, 1);
     visGrid->addWidget(m_stateZen, 6, 2);
@@ -347,7 +381,9 @@ void FolderLayoutDialog::setupUI() {
 
     // Built-in Fullscreen Playback
     m_overrideBuiltinPlayerDoubleclick = new QCheckBox(this);
+    m_overrideBuiltinPlayerDoubleclick->setToolTip("Force double-click playback preference.");
     m_stateBuiltinPlayerDoubleclick = new QCheckBox("Double-click plays media in built-in player", this);
+    m_stateBuiltinPlayerDoubleclick->setToolTip("Checked = Double-clicking media files plays in the internal media player, Unchecked = Open in external system player.");
     visGrid->addWidget(new QLabel("Built-in Fullscreen", this), 7, 0);
     visGrid->addWidget(m_overrideBuiltinPlayerDoubleclick, 7, 1);
     visGrid->addWidget(m_stateBuiltinPlayerDoubleclick, 7, 2);
@@ -355,7 +391,9 @@ void FolderLayoutDialog::setupUI() {
 
     // Custom Toolbars Override
     m_overrideToolbars = new QCheckBox(this);
+    m_overrideToolbars->setToolTip("Force custom active toolbars list.");
     m_btnSelectToolbars = new QPushButton("Select Active Toolbars...", this);
+    m_btnSelectToolbars->setToolTip("Choose which toolbar panels are displayed.");
     m_btnSelectToolbars->setEnabled(false);
     connect(m_btnSelectToolbars, &QPushButton::clicked, this, &FolderLayoutDialog::onSelectToolbars);
     connect(m_overrideToolbars, &QCheckBox::toggled, m_btnSelectToolbars, &QPushButton::setEnabled);
@@ -365,7 +403,9 @@ void FolderLayoutDialog::setupUI() {
 
     // Custom Menus Override
     m_overrideMenus = new QCheckBox(this);
+    m_overrideMenus->setToolTip("Force custom active context menus list.");
     m_btnSelectMenus = new QPushButton("Select Custom Menus...", this);
+    m_btnSelectMenus->setToolTip("Choose which custom right-click context menus are active.");
     m_btnSelectMenus->setEnabled(false);
     connect(m_btnSelectMenus, &QPushButton::clicked, this, &FolderLayoutDialog::onSelectMenus);
     connect(m_overrideMenus, &QCheckBox::toggled, m_btnSelectMenus, &QPushButton::setEnabled);
@@ -373,11 +413,11 @@ void FolderLayoutDialog::setupUI() {
     visGrid->addWidget(m_overrideMenus, 9, 1);
     visGrid->addWidget(m_btnSelectMenus, 9, 2);
 
-    scrollLayout->addWidget(visGroup);
+    scrollLayout->addWidget(m_visGroup);
 
     // 4. Styling (Custom Background Color)
-    QGroupBox* styleGroup = new QGroupBox("4. Look & Feel Custom Background", this);
-    QHBoxLayout* styleLayout = new QHBoxLayout(styleGroup);
+    m_styleGroup = new QGroupBox("4. Look & Feel Custom Background", this);
+    QHBoxLayout* styleLayout = new QHBoxLayout(m_styleGroup);
     m_useBgColor = new QCheckBox("Use Custom Background Color", this);
     m_btnSelectBgColor = new QPushButton("Select Color...", this);
     connect(m_btnSelectBgColor, &QPushButton::clicked, this, &FolderLayoutDialog::onSelectBgColor);
@@ -386,11 +426,11 @@ void FolderLayoutDialog::setupUI() {
     styleLayout->addWidget(m_useBgColor);
     styleLayout->addWidget(m_btnSelectBgColor);
     styleLayout->addStretch();
-    scrollLayout->addWidget(styleGroup);
+    scrollLayout->addWidget(m_styleGroup);
 
     // 5. Session Tab Snapshots
-    QGroupBox* tabsGroup = new QGroupBox("5. Tab Snapshots (For Manual Session Restoring)", this);
-    QVBoxLayout* tabsLayout = new QVBoxLayout(tabsGroup);
+    m_tabsGroup = new QGroupBox("5. Tab Snapshots (For Manual Session Restoring)", this);
+    QVBoxLayout* tabsLayout = new QVBoxLayout(m_tabsGroup);
     tabsLayout->setSpacing(6);
 
     m_hasTabsSnapshot = new QCheckBox("Include Open Tabs Snapshot", this);
@@ -412,7 +452,7 @@ void FolderLayoutDialog::setupUI() {
     m_labelTabsInfo->setStyleSheet("color: #a6adc8; font-style: italic;");
     tabsLayout->addWidget(m_labelTabsInfo);
 
-    scrollLayout->addWidget(tabsGroup);
+    scrollLayout->addWidget(m_tabsGroup);
 
     scrollArea->setWidget(scrollContent);
     editorLayout->addWidget(scrollArea);
@@ -465,6 +505,29 @@ void FolderLayoutDialog::populateFields(const FolderLayoutRule& r) {
     m_checkAutoApply->setChecked(r.autoApply);
     m_comboRuleType->setCurrentText(r.ruleType);
     m_editValue->setText(r.value);
+
+    updateLinkedProfileCombo();
+    int linkIdx = m_comboLinkedProfile->findData(r.linkedProfile);
+    if (linkIdx != -1) {
+        m_comboLinkedProfile->setCurrentIndex(linkIdx);
+    } else {
+        m_comboLinkedProfile->setCurrentIndex(0);
+    }
+
+    bool isLinked = !r.linkedProfile.isEmpty();
+    m_viewGroup->setEnabled(!isLinked);
+    m_visGroup->setEnabled(!isLinked);
+    m_styleGroup->setEnabled(!isLinked);
+    m_tabsGroup->setEnabled(!isLinked);
+    if (m_btnCaptureUI) m_btnCaptureUI->setEnabled(!isLinked);
+    if (m_btnApplyNow) m_btnApplyNow->setEnabled(!isLinked);
+
+    if (isLinked) {
+        m_labelInheritedInfo->setText(QString("Note: This profile inherits all layout settings from '%1'.").arg(r.linkedProfile));
+        m_labelInheritedInfo->setVisible(true);
+    } else {
+        m_labelInheritedInfo->setVisible(false);
+    }
 
     // View settings
     m_comboViewMode->setCurrentText(r.viewMode.isEmpty() ? "No Change" : r.viewMode);
@@ -540,6 +603,7 @@ void FolderLayoutDialog::harvestCurrentProfile(int index) {
     r.autoApply = m_checkAutoApply->isChecked();
     r.ruleType = m_comboRuleType->currentText();
     r.value = m_editValue->text().trimmed();
+    r.linkedProfile = m_comboLinkedProfile->currentData().toString();
 
     r.viewMode = m_comboViewMode->currentText();
     r.customButtons = m_btnChooseButtons->property("selectedButtons").toStringList();
@@ -581,6 +645,43 @@ void FolderLayoutDialog::harvestCurrentProfile(int index) {
     QListWidgetItem* item = m_listWidget->item(index);
     if (item) {
         item->setText(r.name);
+    }
+}
+
+void FolderLayoutDialog::updateLinkedProfileCombo() {
+    m_comboLinkedProfile->blockSignals(true);
+    m_comboLinkedProfile->clear();
+    m_comboLinkedProfile->addItem("(None - Configure Custom Layout)", QString());
+    
+    for (int i = 0; i < m_rules.size(); ++i) {
+        if (i == m_currentIndex) continue;
+        QString name = m_rules[i].name;
+        if (!name.isEmpty()) {
+            m_comboLinkedProfile->addItem(name, name);
+        }
+    }
+    m_comboLinkedProfile->blockSignals(false);
+}
+
+void FolderLayoutDialog::onLinkedProfileChanged(int index) {
+    if (m_currentIndex < 0 || m_currentIndex >= m_rules.size()) return;
+    
+    QString linked = m_comboLinkedProfile->itemData(index).toString();
+    m_rules[m_currentIndex].linkedProfile = linked;
+    
+    bool isLinked = !linked.isEmpty();
+    m_viewGroup->setEnabled(!isLinked);
+    m_visGroup->setEnabled(!isLinked);
+    m_styleGroup->setEnabled(!isLinked);
+    m_tabsGroup->setEnabled(!isLinked);
+    if (m_btnCaptureUI) m_btnCaptureUI->setEnabled(!isLinked);
+    if (m_btnApplyNow) m_btnApplyNow->setEnabled(!isLinked);
+    
+    if (isLinked) {
+        m_labelInheritedInfo->setText(QString("Note: This profile inherits all layout settings from '%1'.").arg(linked));
+        m_labelInheritedInfo->setVisible(true);
+    } else {
+        m_labelInheritedInfo->setVisible(false);
     }
 }
 

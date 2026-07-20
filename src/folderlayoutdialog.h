@@ -46,6 +46,8 @@ private:
     void populateFields(const FolderLayoutRule& r);
     void harvestCurrentProfile(int index);
     void updateTabsLabel(const FolderLayoutRule& r);
+    void updateLinkedProfileCombo();
+    void onLinkedProfileChanged(int index);
 
     // Left Pane (Master List)
     QListWidget* m_listWidget = nullptr;
@@ -66,6 +68,12 @@ private:
     QPushButton* m_btnUseActivePath = nullptr;
     QComboBox* m_comboViewMode = nullptr;
     QPushButton* m_btnChooseButtons = nullptr;
+    QComboBox* m_comboLinkedProfile = nullptr;
+    QLabel* m_labelInheritedInfo = nullptr;
+    class QGroupBox* m_viewGroup = nullptr;
+    class QGroupBox* m_visGroup = nullptr;
+    class QGroupBox* m_styleGroup = nullptr;
+    class QGroupBox* m_tabsGroup = nullptr;
 
     // Visibility Overrides & States
     QCheckBox* m_overrideDrives = nullptr;

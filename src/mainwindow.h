@@ -131,6 +131,7 @@ struct FolderLayoutRule {
     QStringList rightPaths;
     int rightActiveIndex = 0;
     QByteArray windowState;
+    QString linkedProfile;
 };
 
 class MiniMediaControls;

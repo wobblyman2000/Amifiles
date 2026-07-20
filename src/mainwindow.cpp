@@ -2868,12 +2868,14 @@ QJsonObject MainWindow::ruleToJson(const FolderLayoutRule& r) {
     obj["leftActiveIndex"] = r.leftActiveIndex;
     obj["rightPaths"] = QJsonArray::fromStringList(r.rightPaths);
     obj["rightActiveIndex"] = r.rightActiveIndex;
+    obj["linkedProfile"] = r.linkedProfile;
     return obj;
 }
 
 FolderLayoutRule MainWindow::jsonToRule(const QJsonObject& obj) {
     FolderLayoutRule r;
     r.name = obj["name"].toString();
+    r.linkedProfile = obj["linkedProfile"].toString("");
     r.ruleType = obj["ruleType"].toString();
     r.value = obj["value"].toString();
     r.viewMode = obj["viewMode"].toString("No Change");
@@ -3269,7 +3271,24 @@ void MainWindow::applyFolderRules(const QString& path) {
     }
 
     if (foundMatch) {
-        applyProfile(matchedRule, m_activePanel);
+        if (!matchedRule.linkedProfile.isEmpty()) {
+            FolderLayoutRule inheritedRule = matchedRule;
+            bool foundInherited = false;
+            for (const auto& r : m_folderRules) {
+                if (r.name == matchedRule.linkedProfile) {
+                    inheritedRule = r;
+                    inheritedRule.name = matchedRule.name;
+                    inheritedRule.ruleType = matchedRule.ruleType;
+                    inheritedRule.value = matchedRule.value;
+                    inheritedRule.autoApply = matchedRule.autoApply;
+                    foundInherited = true;
+                    break;
+                }
+            }
+            applyProfile(inheritedRule, m_activePanel);
+        } else {
+            applyProfile(matchedRule, m_activePanel);
+        }
     } else {
         FolderLayoutRule defaultRule;
         bool foundDefault = false;
@@ -3281,7 +3300,22 @@ void MainWindow::applyFolderRules(const QString& path) {
             }
         }
         if (foundDefault) {
-            applyProfile(defaultRule, m_activePanel);
+            if (!defaultRule.linkedProfile.isEmpty()) {
+                FolderLayoutRule inheritedRule = defaultRule;
+                for (const auto& r : m_folderRules) {
+                    if (r.name == defaultRule.linkedProfile) {
+                        inheritedRule = r;
+                        inheritedRule.name = defaultRule.name;
+                        inheritedRule.ruleType = defaultRule.ruleType;
+                        inheritedRule.value = defaultRule.value;
+                        inheritedRule.autoApply = defaultRule.autoApply;
+                        break;
+                    }
+                }
+                applyProfile(inheritedRule, m_activePanel);
+            } else {
+                applyProfile(defaultRule, m_activePanel);
+            }
         } else {
             m_hasActiveFolderRule = false;
             
