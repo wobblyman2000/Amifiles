@@ -1,10 +1,12 @@
 #include "groupproxymodel.h"
 #include "tagmanager.h"
 #include "flatmodel.h"
+#include "filepanel.h"
 #include <QFileInfo>
 #include <QFont>
 #include <QColor>
 #include <QFileSystemModel>
+#include <QDebug>
 
 GroupProxyModel::GroupProxyModel(QObject* parent) : QIdentityProxyModel(parent) {}
 
@@ -48,9 +50,22 @@ void GroupProxyModel::rebuildGroups() {
         return;
     }
 
-    int sourceRows = sourceModel()->rowCount(m_sourceRoot);
+    QModelIndex sourceRootIndex;
+    if (QWidget* p = qobject_cast<QWidget*>(QObject::parent())) {
+        if (FilePanel* fp = qobject_cast<FilePanel*>(p)) {
+            QString currentPath = fp->currentPath();
+            if (FileFilterProxyModel* ffm = qobject_cast<FileFilterProxyModel*>(sourceModel())) {
+                if (QFileSystemModel* fsm = qobject_cast<QFileSystemModel*>(ffm->sourceModel())) {
+                    QModelIndex fileIndex = fsm->index(currentPath);
+                    sourceRootIndex = ffm->mapFromSource(fileIndex);
+                }
+            }
+        }
+    }
+
+    int sourceRows = sourceModel()->rowCount(sourceRootIndex);
     for (int r = 0; r < sourceRows; ++r) {
-        QModelIndex sourceIdx = sourceModel()->index(r, 0, m_sourceRoot);
+        QModelIndex sourceIdx = sourceModel()->index(r, 0, sourceRootIndex);
         if (!sourceIdx.isValid()) continue;
 
         QString groupVal = getGroupValue(sourceIdx);
