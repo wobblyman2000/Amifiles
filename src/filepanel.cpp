@@ -1165,6 +1165,8 @@ void FilePanel::onDoubleClicked(const QModelIndex& index) {
             updateStatusText();
 
             if (ok) {
+                m_archiveViewActive = true;
+                m_currentPath = path + "//";
                 updateActiveViewModel();
 
                 m_pathEdit->setText(QDir::toNativeSeparators(path) + "//");
@@ -1176,7 +1178,7 @@ void FilePanel::onDoubleClicked(const QModelIndex& index) {
 
                 if (m_categoryWidget) m_categoryWidget->hide();
 
-                emit pathChanged(path);
+                emit pathChanged(m_currentPath);
                 return;
             }
         }
@@ -2735,8 +2737,17 @@ void FilePanel::onDoubleClickedPath(const QString& path) {
             updateStatusText();
             if (ok) {
                 m_archiveViewActive = true;
-                m_groupProxy->setSourceModel(m_archiveModel);
-                m_pathEdit->setText(QDir::toNativeSeparators(path));
+                m_currentPath = path + "//";
+                updateActiveViewModel();
+
+                m_pathEdit->setText(QDir::toNativeSeparators(path) + "//");
+                
+                for (int i = 0; i < 4; ++i) {
+                    m_treeView->header()->setSectionResizeMode(i, QHeaderView::Interactive);
+                }
+
+                if (m_categoryWidget) m_categoryWidget->hide();
+
                 emit pathChanged(m_currentPath);
             } else {
                 QMessageBox::warning(this, "Load Archive", "Failed to parse archive file listing.");
