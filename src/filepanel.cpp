@@ -322,6 +322,7 @@ void FilePanel::setupUI() {
 
     m_groupProxy = new GroupProxyModel(this);
     m_groupProxy->setSourceModel(m_proxyModel);
+    connect(m_groupProxy, &QAbstractItemModel::modelReset, this, &FilePanel::rebuildTheaterGroups);
 
     m_flatModel = new FlatFileSystemModel(this);
     m_flatProxyModel = new QSortFilterProxyModel(this);
