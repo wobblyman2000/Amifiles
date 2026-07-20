@@ -3105,8 +3105,16 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
     m_activeFolderRule = r;
     m_hasActiveFolderRule = true;
 
-    if (!m_isInitializing && !r.windowState.isEmpty()) {
-        restoreState(r.windowState);
+    if (!m_isInitializing) {
+        if (!r.windowState.isEmpty()) {
+            restoreState(r.windowState);
+        } else {
+            QSettings settings("Amifiles", "Amifiles");
+            QByteArray defaultState = settings.value("window/state").toByteArray();
+            if (!defaultState.isEmpty()) {
+                restoreState(defaultState);
+            }
+        }
     }
 
     // 1. View Mode

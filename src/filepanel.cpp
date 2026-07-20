@@ -1142,6 +1142,9 @@ void FilePanel::onDoubleClicked(const QModelIndex& index) {
                 return;
             }
         }
+        if (m_viewStack->currentWidget() == m_treeView) {
+            m_treeView->collapse(index);
+        }
         navigateTo(path, true);
     } else {
         QString ext = info.suffix().toLower();
