@@ -4199,18 +4199,11 @@ void FilePanel::updateThemeMusic() {
         m_themeAudio = new QAudioOutput(this);
         m_themePlayer->setAudioOutput(m_themeAudio);
         m_themeAudio->setVolume(0.85f);
-
-        connect(m_themePlayer, &QMediaPlayer::mediaStatusChanged, this, [this](QMediaPlayer::MediaStatus status) {
-            if (status == QMediaPlayer::EndOfMedia && m_themePlayer && !m_currentThemePath.isEmpty()) {
-                m_themePlayer->setPosition(0);
-                m_themePlayer->play();
-            }
-        });
     }
 
     m_themePlayer->stop();
     m_themePlayer->setSource(QUrl::fromLocalFile(foundPath));
-    m_themePlayer->play();
+    m_themePlayer->play(); // Plays through exactly once to the end, then stops automatically
 }
 
 void FilePanel::stopThemeMusic() {

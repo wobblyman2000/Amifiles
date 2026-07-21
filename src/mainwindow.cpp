@@ -3463,6 +3463,7 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
         isDoubleclickActive = settings.value("preferences/builtin_player_doubleclick", false).toBool();
     }
     emit builtinPlayerDoubleclickChanged(isDoubleclickActive);
+    targetPanel->updateThemeMusic();
 }
 
 void MainWindow::applyFolderRules(const QString& path) {
