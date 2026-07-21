@@ -353,10 +353,10 @@ void FilePanel::setupUI() {
     m_theaterDelegate = new TheaterViewDelegate(m_theaterListView);
     m_theaterListView->setItemDelegate(m_theaterDelegate);
     m_theaterListView->installEventFilter(this);
-    m_theaterListView->setDragEnabled(true);
-    m_theaterListView->setAcceptDrops(true);
-    m_theaterListView->setDropIndicatorShown(true);
-    m_theaterListView->setDragDropMode(QAbstractItemView::DragDrop);
+    m_theaterListView->setDragEnabled(false);
+    m_theaterListView->setAcceptDrops(false);
+    m_theaterListView->setDropIndicatorShown(false);
+    m_theaterListView->setDragDropMode(QAbstractItemView::NoDragDrop);
 
     // Slide-out tracks drawer container
     m_theaterContainer = new QWidget(this);
@@ -4079,9 +4079,9 @@ void FilePanel::rebuildTheaterGroups() {
         QListView* grid = new QListView(m_theaterScrollWidget);
         grid->setViewMode(QListView::IconMode);
         grid->setResizeMode(QListView::Adjust);
-        grid->setDragEnabled(true);
-        grid->setAcceptDrops(true);
-        grid->setDragDropMode(QAbstractItemView::DragDrop);
+        grid->setDragEnabled(false);
+        grid->setAcceptDrops(false);
+        grid->setDragDropMode(QAbstractItemView::NoDragDrop);
         grid->setFrameShape(QFrame::NoFrame);
         grid->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         grid->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
