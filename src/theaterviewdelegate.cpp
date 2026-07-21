@@ -130,6 +130,52 @@ void TheaterViewDelegate::paint(QPainter* painter, const QStyleOptionViewItem& o
         painter->drawText(QRect(imageRect.x() + 6, cy + 30, imageRect.width() - 12, 50), Qt::AlignCenter | Qt::TextWordWrap, elTitle);
     }
 
+    if (m_isCinemaMode) {
+        QString lowerName = info.fileName().toLower();
+        QString badgeText;
+        QColor badgeBg = QColor("#313244");
+        QColor badgeFg = QColor("#cdd6f4");
+
+        if (lowerName.contains("2160p") || lowerName.contains("4k") || lowerName.contains("uhd")) {
+            badgeText = "4K UHD";
+            badgeBg = QColor("#89b4fa");
+            badgeFg = QColor("#11111b");
+        } else if (lowerName.contains("1080p") || lowerName.contains("fhd")) {
+            badgeText = "1080p";
+            badgeBg = QColor("#a6e3a1");
+            badgeFg = QColor("#11111b");
+        } else if (lowerName.contains("720p")) {
+            badgeText = "720p";
+            badgeBg = QColor("#f9e2af");
+            badgeFg = QColor("#11111b");
+        } else if (info.isDir()) {
+            badgeText = "CINEMA";
+            badgeBg = QColor("#cba6f7");
+            badgeFg = QColor("#11111b");
+        }
+
+        if (!badgeText.isEmpty()) {
+            painter->save();
+            QFont badgeFont = painter->font();
+            badgeFont.setPointSize(7);
+            badgeFont.setBold(true);
+            painter->setFont(badgeFont);
+
+            QFontMetrics bfm(badgeFont);
+            int bw = bfm.horizontalAdvance(badgeText) + 10;
+            int bh = 16;
+            QRect badgeRect(imageRect.right() - bw - 4, imageRect.top() + 4, bw, bh);
+
+            painter->setBrush(badgeBg);
+            painter->setPen(Qt::NoPen);
+            painter->drawRoundedRect(badgeRect, 4, 4);
+
+            painter->setPen(badgeFg);
+            painter->drawText(badgeRect, Qt::AlignCenter, badgeText);
+            painter->restore();
+        }
+    }
+
     int textX = rect.x() + 8;
     int textY = rect.y() + imageH + 12;
     int textW = rect.width() - 16;

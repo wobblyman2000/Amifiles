@@ -11,7 +11,11 @@ public:
     void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override;
     QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& index) const override;
 
+    void setCinemaMode(bool cinema) { m_isCinemaMode = cinema; }
+    bool isCinemaMode() const { return m_isCinemaMode; }
+
 private:
+    bool m_isCinemaMode = false;
     mutable QMap<QString, QList<QPixmap>> m_hoverFramesCache;
     mutable QMap<QString, bool> m_hoverLoading;
     mutable QString m_activeHoverPath;

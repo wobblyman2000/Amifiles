@@ -3205,7 +3205,7 @@ void MainWindow::loadFolderRules() {
         r.ruleType = "Category";
         r.value = "Music";
         r.autoApply = true;
-        r.viewMode = "Theater";
+        r.viewMode = "Music Showcase";
         r.overridePreview = true;
         r.previewVisible = true;
         r.overrideDrivesToolbar = true;
@@ -3224,7 +3224,7 @@ void MainWindow::loadFolderRules() {
         r.ruleType = "Category";
         r.value = "Videos";
         r.autoApply = true;
-        r.viewMode = "Theater";
+        r.viewMode = "Cinema Showcase";
         r.overridePreview = true;
         r.previewVisible = true;
         r.overrideDrivesToolbar = true;
@@ -3243,7 +3243,7 @@ void MainWindow::loadFolderRules() {
         r.ruleType = "Category";
         r.value = "Videos";
         r.autoApply = true;
-        r.viewMode = "Theater";
+        r.viewMode = "Cinema Showcase";
         r.overridePreview = true;
         r.previewVisible = true;
         r.overrideDrivesToolbar = true;
@@ -3333,7 +3333,8 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
         else if (r.viewMode == "Miller") targetPanel->setViewModeIndex(3);
         else if (r.viewMode == "Timeline") targetPanel->setViewModeIndex(4);
         else if (r.viewMode == "Filmstrip") targetPanel->setViewModeIndex(5);
-        else if (r.viewMode == "Theater") targetPanel->setViewModeIndex(6);
+        else if (r.viewMode == "Theater" || r.viewMode == "Music Showcase") targetPanel->setViewModeIndex(6);
+        else if (r.viewMode == "Cinema Showcase") targetPanel->setViewModeIndex(7);
     }
 
     // 2. Toolbar filter
@@ -3836,7 +3837,8 @@ void MainWindow::onSaveFolderProfileForCurrentDir() {
     else if (idx == 3) r.viewMode = "Miller";
     else if (idx == 4) r.viewMode = "Timeline";
     else if (idx == 5) r.viewMode = "Filmstrip";
-    else if (idx == 6) r.viewMode = "Theater";
+    else if (idx == 6) r.viewMode = "Music Showcase";
+    else if (idx == 7) r.viewMode = "Cinema Showcase";
     else r.viewMode = "No Change";
 
     // 2. Capture custom buttons filter list
@@ -3937,7 +3939,8 @@ void MainWindow::onSaveDefaultProfile() {
         else if (idx == 3) r.viewMode = "Miller";
         else if (idx == 4) r.viewMode = "Timeline";
         else if (idx == 5) r.viewMode = "Filmstrip";
-        else if (idx == 6) r.viewMode = "Theater";
+        else if (idx == 6) r.viewMode = "Music Showcase";
+        else if (idx == 7) r.viewMode = "Cinema Showcase";
         else r.viewMode = "No Change";
         
         // 4. Capture Custom Background Color

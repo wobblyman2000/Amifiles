@@ -235,7 +235,8 @@ void FilePanel::setupUI() {
         "Miller Columns",
         "Chronological Timeline",
         "Filmstrip View",
-        "Theater View"
+        "Music Showcase",
+        "Cinema Showcase"
     });
     m_comboViewMode->setToolTip("Switch active file listing visual layout view mode");
     m_comboViewMode->setStyleSheet("QComboBox { background-color: #313244; color: #89b4fa; border: 1px solid #45475a; border-radius: 4px; padding: 2px 6px; font-weight: bold; }");
@@ -2232,17 +2233,19 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         actToggleDoubleclickQueue->setCheckable(true);
         actToggleDoubleclickQueue->setChecked(doubleclickQueue);
 
-        actGroupMultiDisc = menu.addAction("Group Multi-Disc Albums");
-        actGroupMultiDisc->setCheckable(true);
-        actGroupMultiDisc->setChecked(groupMultiDisc);
+        if (viewModeIndex() == 6) { // Music Showcase
+            actGroupMultiDisc = menu.addAction("Group Multi-Disc Albums");
+            actGroupMultiDisc->setCheckable(true);
+            actGroupMultiDisc->setChecked(groupMultiDisc);
+
+            actToggleTracksDrawer = menu.addAction("Show Album Tracks Drawer");
+            actToggleTracksDrawer->setCheckable(true);
+            actToggleTracksDrawer->setChecked(showTracksDrawer);
+        }
 
         actHideAuxiliaryFiles = menu.addAction("Hide Auxiliary / Artwork Files");
         actHideAuxiliaryFiles->setCheckable(true);
         actHideAuxiliaryFiles->setChecked(hideAuxiliary);
-
-        actToggleTracksDrawer = menu.addAction("Show Album Tracks Drawer");
-        actToggleTracksDrawer->setCheckable(true);
-        actToggleTracksDrawer->setChecked(showTracksDrawer);
     }
 
     // Execute menu on the active view layout widget
@@ -3439,7 +3442,10 @@ void FilePanel::onViewModeChanged(int index) {
     } else if (index == 5) { // Filmstrip View
         m_filmstripView->setRootPath(m_currentPath);
         m_viewStack->setCurrentWidget(m_filmstripView);
-    } else if (index == 6) { // Theater View
+    } else if (index == 6 || index == 7) { // 6: Music Showcase, 7: Cinema Showcase
+        if (m_theaterDelegate) {
+            m_theaterDelegate->setCinemaMode(index == 7);
+        }
         m_viewStack->setCurrentWidget(m_theaterContainer);
         if (m_groupProxy && m_groupProxy->isGroupingActive()) {
             m_theaterListView->setVisible(false);
@@ -3454,7 +3460,7 @@ void FilePanel::onViewModeChanged(int index) {
     // Save view mode index choice in preferences
     QSettings settings("Amifiles", "Amifiles");
     bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool() && (index == 6);
-    bool hideActive = settings.value("theater/hide_auxiliary_files", true).toBool() && (index == 6);
+    bool hideActive = settings.value("theater/hide_auxiliary_files", true).toBool() && (index == 6 || index == 7);
     if (m_proxyModel) {
         m_proxyModel->setGroupMultiDiscActive(groupMultiDisc);
         m_proxyModel->setHideAuxiliaryFilesActive(hideActive);

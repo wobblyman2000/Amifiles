@@ -317,7 +317,7 @@ void FolderLayoutDialog::setupUI() {
 
     viewGrid->addWidget(new QLabel("View Mode:", this), 0, 0);
     m_comboViewMode = new QComboBox(this);
-    m_comboViewMode->addItems({"No Change", "List", "Grid", "Card", "Miller", "Timeline", "Filmstrip", "Theater"});
+    m_comboViewMode->addItems({"No Change", "List", "Grid", "Card", "Miller", "Timeline", "Filmstrip", "Music Showcase", "Cinema Showcase"});
     viewGrid->addWidget(m_comboViewMode, 0, 1);
 
     QLabel* lblCustomButtons = new QLabel("Filter Custom Buttons:", this);
@@ -948,7 +948,8 @@ void FolderLayoutDialog::onCaptureUI() {
         else if (idx == 3) m_comboViewMode->setCurrentText("Miller");
         else if (idx == 4) m_comboViewMode->setCurrentText("Timeline");
         else if (idx == 5) m_comboViewMode->setCurrentText("Filmstrip");
-        else if (idx == 6) m_comboViewMode->setCurrentText("Theater");
+        else if (idx == 6) m_comboViewMode->setCurrentText("Music Showcase");
+        else if (idx == 7) m_comboViewMode->setCurrentText("Cinema Showcase");
     }
 
     // 2. Capture custom buttons filter list
