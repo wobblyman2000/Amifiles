@@ -2290,8 +2290,10 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
 
     QAction* actToggleZen = nullptr;
     QAction* actToggleDoubleclick = nullptr;
+    QAction* actToggleDoubleclickQueue = nullptr;
     QAction* actGroupMultiDisc = nullptr;
     QAction* actHideAuxiliaryFiles = nullptr;
+    QAction* actToggleTracksDrawer = nullptr;
 
     if (m_viewStack->currentWidget() == m_theaterListView || m_viewStack->currentWidget() == m_theaterContainer) {
         menu.addSeparator();
@@ -2299,8 +2301,10 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         QSettings settings("Amifiles", "Amifiles");
         bool zenActive = settings.value("preferences/zen_mode", false).toBool();
         bool builtinDoubleclick = settings.value("preferences/builtin_player_doubleclick", false).toBool();
+        bool doubleclickQueue = settings.value("preferences/doubleclick_adds_to_queue", false).toBool();
         bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool();
         bool hideAuxiliary = settings.value("theater/hide_auxiliary_files", true).toBool();
+        bool showTracksDrawer = settings.value("theater/show_tracks_drawer", true).toBool();
 
         actToggleZen = menu.addAction("Clean Interface Mode (Zen Mode)");
         actToggleZen->setCheckable(true);
@@ -2310,6 +2314,10 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         actToggleDoubleclick->setCheckable(true);
         actToggleDoubleclick->setChecked(builtinDoubleclick);
 
+        actToggleDoubleclickQueue = menu.addAction("Double-click Adds Media to Playlist Queue");
+        actToggleDoubleclickQueue->setCheckable(true);
+        actToggleDoubleclickQueue->setChecked(doubleclickQueue);
+
         actGroupMultiDisc = menu.addAction("Group Multi-Disc Albums");
         actGroupMultiDisc->setCheckable(true);
         actGroupMultiDisc->setChecked(groupMultiDisc);
@@ -2317,6 +2325,10 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         actHideAuxiliaryFiles = menu.addAction("Hide Auxiliary / Artwork Files");
         actHideAuxiliaryFiles->setCheckable(true);
         actHideAuxiliaryFiles->setChecked(hideAuxiliary);
+
+        actToggleTracksDrawer = menu.addAction("Show Album Tracks Drawer");
+        actToggleTracksDrawer->setCheckable(true);
+        actToggleTracksDrawer->setChecked(showTracksDrawer);
     }
 
     // Execute menu on the active view layout widget
@@ -2587,6 +2599,24 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
             bool current = false;
             QMetaObject::invokeMethod(p, "isBuiltinPlayerDoubleclickActive", Q_RETURN_ARG(bool, current));
             QMetaObject::invokeMethod(p, "setBuiltinPlayerDoubleclickActive", Q_ARG(bool, !current));
+            if (!current) {
+                QSettings settings("Amifiles", "Amifiles");
+                settings.setValue("preferences/doubleclick_adds_to_queue", false);
+            }
+        }
+    } else if (selected && selected == actToggleDoubleclickQueue) {
+        QSettings settings("Amifiles", "Amifiles");
+        bool current = settings.value("preferences/doubleclick_adds_to_queue", false).toBool();
+        settings.setValue("preferences/doubleclick_adds_to_queue", !current);
+        if (!current) {
+            settings.setValue("preferences/builtin_player_doubleclick", false);
+            QWidget* p = parentWidget();
+            while (p && !p->inherits("MainWindow")) {
+                p = p->parentWidget();
+            }
+            if (p) {
+                QMetaObject::invokeMethod(p, "setBuiltinPlayerDoubleclickActive", Q_ARG(bool, false));
+            }
         }
     } else if (selected && selected == actGroupMultiDisc) {
         QSettings settings("Amifiles", "Amifiles");
@@ -2609,6 +2639,15 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         refresh();
         if (m_groupProxy && m_groupProxy->isGroupingActive() && m_viewStack->currentWidget() == m_theaterContainer) {
             rebuildTheaterGroups();
+        }
+    } else if (selected && selected == actToggleTracksDrawer) {
+        QSettings settings("Amifiles", "Amifiles");
+        bool current = settings.value("theater/show_tracks_drawer", true).toBool();
+        settings.setValue("theater/show_tracks_drawer", !current);
+        if (!current) {
+            m_theaterDrawer->setVisible(false);
+        } else {
+            onSelectionChanged();
         }
     }
 }
@@ -3529,11 +3568,13 @@ void FilePanel::onDoubleClickedPath(const QString& path) {
         }
     }
 
+    QSettings settings("Amifiles", "Amifiles");
+    bool doubleclickAddsToQueue = settings.value("preferences/doubleclick_adds_to_queue", false).toBool();
+
     bool shouldPlayOnDoubleclick = builtinPlayerDoubleclick;
 
     if (info.isDir()) {
-        if (shouldPlayOnDoubleclick && isPlayableAlbumFolder(path)) {
-            QSettings settings("Amifiles", "Amifiles");
+        if ((shouldPlayOnDoubleclick || doubleclickAddsToQueue) && isPlayableAlbumFolder(path)) {
             bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool() && (m_viewStack->currentWidget() == m_theaterContainer);
 
             QStringList scanPaths;
@@ -3558,14 +3599,26 @@ void FilePanel::onDoubleClickedPath(const QString& path) {
             }
 
             if (!playlistPaths.isEmpty()) {
-                emit playMediaBuiltinRequested(playlistPaths);
+                if (doubleclickAddsToQueue) {
+                    emit queueMediaBuiltinRequested(playlistPaths);
+                } else {
+                    emit playMediaBuiltinRequested(playlistPaths);
+                }
                 return;
             }
         }
         navigateTo(path, true);
     } else {
         QString ext = info.suffix().toLower();
-        QSettings settings("Amifiles", "Amifiles");
+        static const QStringList mediaExts = {
+            "mp3", "wav", "flac", "ogg", "m4a", "aac", "wma",
+            "mp4", "avi", "mkv", "mov", "webm", "flv", "wmv", "m4v", "mpg", "mpeg"
+        };
+        if (mediaExts.contains(ext) && doubleclickAddsToQueue) {
+            emit queueMediaBuiltinRequested({path});
+            return;
+        }
+
         bool archiveNavEnabled = settings.value("preferences/archive_nav", true).toBool();
         QStringList archiveExts = { "zip", "tar", "gz", "xz", "bz2", "tgz", "rar", "7z", "adf", "d64", "iso", "img" };
 

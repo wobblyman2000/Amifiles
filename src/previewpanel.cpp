@@ -723,6 +723,33 @@ void PreviewPanel::setupUI() {
     m_btnSubtitles->setStyleSheet("QPushButton { font-weight: bold; background-color: transparent; }");
     connect(m_btnSubtitles, &QPushButton::clicked, this, &PreviewPanel::onSubtitleMenuRequested);
 
+    m_btnAutoFS10s = new QPushButton("Auto FS", this);
+    m_btnAutoFS10s->setCheckable(true);
+    m_btnAutoFS10s->setMaximumWidth(60);
+    m_btnAutoFS10s->setStyleSheet(
+        "QPushButton { color: #cdd6f4; background-color: #313244; border: 1px solid #45475a; border-radius: 4px; padding: 2px 6px; font-size: 10px; font-weight: bold; }"
+        "QPushButton:checked { color: #11111b; background-color: #89b4fa; border: 1px solid #89b4fa; }"
+        "QPushButton:hover { background-color: #45475a; }"
+    );
+    m_btnAutoFS10s->setToolTip("Enable/Disable auto transition to Full Screen after 10 seconds of playback");
+    bool autoFs10sVal = settings.value("preview/auto_fs_10s", false).toBool();
+    m_btnAutoFS10s->setChecked(autoFs10sVal);
+    connect(m_btnAutoFS10s, &QPushButton::toggled, this, [this](bool checked) {
+        QSettings settings("Amifiles", "Amifiles");
+        settings.setValue("preview/auto_fs_10s", checked);
+        if (!checked && m_autoFsTimer) {
+            m_autoFsTimer->stop();
+        }
+    });
+
+    m_autoFsTimer = new QTimer(this);
+    m_autoFsTimer->setSingleShot(true);
+    connect(m_autoFsTimer, &QTimer::timeout, this, [this]() {
+        if (m_player && m_player->playbackState() == QMediaPlayer::PlayingState && !isFullscreen()) {
+            toggleFullscreen();
+        }
+    });
+
     m_sliderProgress = new ScrubSlider(Qt::Horizontal, this);
     m_sliderProgress->setRange(0, 0);
     m_sliderProgress->setFocusPolicy(Qt::StrongFocus);
@@ -759,6 +786,7 @@ void PreviewPanel::setupUI() {
     controlsLayout->addWidget(m_btnRepeat);
     controlsLayout->addWidget(m_btnToggleVisualizer);
     controlsLayout->addWidget(m_btnSubtitles);
+    controlsLayout->addWidget(m_btnAutoFS10s);
     controlsLayout->addStretch(1);
     controlsLayout->addWidget(lblVol);
     controlsLayout->addWidget(m_sliderVolume);
@@ -983,6 +1011,9 @@ void PreviewPanel::setupUI() {
 void PreviewPanel::clearPreview() {
     m_player->stop();
     m_player->setSource(QUrl());
+    if (m_autoFsTimer) {
+        m_autoFsTimer->stop();
+    }
     m_previewedFilePath.clear();
     m_currentAudioPath.clear();
     m_originalPixmap = QPixmap();
@@ -1209,9 +1240,15 @@ void PreviewPanel::showMediaPreview(const QString& filePath, bool isVideo) {
     if (isVisible() || m_prePreviewPlaybackState == QMediaPlayer::PlayingState) {
         m_player->play();
         m_btnPlayPause->setIcon(style()->standardIcon(QStyle::SP_MediaPause));
+        if (m_btnAutoFS10s && m_btnAutoFS10s->isChecked() && m_autoFsTimer) {
+            m_autoFsTimer->start(10000);
+        }
     } else {
         m_player->stop();
         m_btnPlayPause->setIcon(style()->standardIcon(QStyle::SP_MediaPlay));
+        if (m_autoFsTimer) {
+            m_autoFsTimer->stop();
+        }
     }
 }
 
@@ -1349,9 +1386,15 @@ void PreviewPanel::onPlaybackStateChanged(QMediaPlayer::PlaybackState state) {
     if (state == QMediaPlayer::PlayingState) {
         m_btnPlayPause->setIcon(style->standardIcon(QStyle::SP_MediaPause));
         if (m_visualizer) m_visualizer->setPlaying(true);
+        if (m_btnAutoFS10s && m_btnAutoFS10s->isChecked() && m_autoFsTimer) {
+            m_autoFsTimer->start(10000);
+        }
     } else {
         m_btnPlayPause->setIcon(style->standardIcon(QStyle::SP_MediaPlay));
         if (m_visualizer) m_visualizer->setPlaying(false);
+        if (m_autoFsTimer) {
+            m_autoFsTimer->stop();
+        }
     }
     if (m_fullscreenWidget) {
         m_fullscreenWidget->setMediaState(m_videoWidget->isVisible(), m_player, m_audioOutput);
@@ -1557,6 +1600,43 @@ void PreviewPanel::playPlaylist(const QStringList& filePaths) {
     m_metadataTable->insertRow(row);
     m_metadataTable->setItem(row, 0, new QTableWidgetItem("Playlist Status"));
     m_metadataTable->setItem(row, 1, new QTableWidgetItem(QString("Playing track %1 of %2").arg(1).arg(m_playlist.size())));
+}
+
+void PreviewPanel::addToPlaylist(const QStringList& filePaths) {
+    if (filePaths.isEmpty()) return;
+
+    bool wasEmpty = m_playlist.isEmpty();
+
+    for (const QString& path : filePaths) {
+        m_playlist.append(path);
+        m_playlistList->addItem(QFileInfo(path).fileName());
+    }
+
+    if (wasEmpty) {
+        m_playlistIndex = 0;
+        previewFile(m_playlist[0]);
+        m_playlistList->setCurrentRow(0);
+
+        if (m_player) {
+            m_player->play();
+        }
+    } else {
+        int statusRow = -1;
+        for (int i = 0; i < m_metadataTable->rowCount(); ++i) {
+            if (m_metadataTable->item(i, 0) && m_metadataTable->item(i, 0)->text() == "Playlist Status") {
+                statusRow = i;
+                break;
+            }
+        }
+        if (statusRow == -1) {
+            statusRow = m_metadataTable->rowCount();
+            m_metadataTable->insertRow(statusRow);
+            m_metadataTable->setItem(statusRow, 0, new QTableWidgetItem("Playlist Status"));
+        }
+        m_metadataTable->setItem(statusRow, 1, new QTableWidgetItem(QString("Playing track %1 of %2").arg(m_playlistIndex + 1).arg(m_playlist.size())));
+    }
+
+    m_bottomTab->setCurrentIndex(1); // Switch to Playlist Queue tab
 }
 
 void PreviewPanel::onMediaStatusChanged(QMediaPlayer::MediaStatus status) {

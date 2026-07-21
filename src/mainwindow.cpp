@@ -2403,6 +2403,7 @@ FilePanel* MainWindow::createTab(QTabWidget* tabWidget, const QString& path) {
     connect(panel, &FilePanel::fileSelected, this, &MainWindow::onFileSelected);
     connect(panel, &FilePanel::zenModeToggled, this, &MainWindow::setZenMode);
     connect(panel, &FilePanel::playMediaBuiltinRequested, this, &MainWindow::onPlayMediaBuiltin);
+    connect(panel, &FilePanel::queueMediaBuiltinRequested, this, &MainWindow::onQueueMediaBuiltin);
     connect(panel, &FilePanel::folderArtDetected, this, &MainWindow::onFolderArtDetected);
     connect(panel, &FilePanel::pathChanged, this, &MainWindow::onPathChanged);
     connect(panel, &FilePanel::clonePathRequested, this, &MainWindow::onClonePathRequested);
@@ -5257,6 +5258,17 @@ void MainWindow::onPlayMediaBuiltin(const QStringList& filePaths) {
             m_previewPanel->toggleFullscreen();
         }
     }
+}
+
+void MainWindow::onQueueMediaBuiltin(const QStringList& filePaths) {
+    if (!m_previewPanel || filePaths.isEmpty()) return;
+
+    if (m_actTogglePreview && !m_actTogglePreview->isChecked()) {
+        m_actTogglePreview->setChecked(true);
+        onTogglePreview(true);
+    }
+
+    m_previewPanel->addToPlaylist(filePaths);
 }
 
 void MainWindow::onBackupSettings() {

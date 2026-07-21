@@ -167,6 +167,17 @@ void PreferencesDialog::setupUI() {
     m_chkBuiltinPlayerDoubleclick->setToolTip("Built-in player starts playback in borderless fullscreen window upon double-clicks.");
     layMedia->addWidget(m_chkBuiltinPlayerDoubleclick);
 
+    m_chkDoubleclickAddsToQueue = new QCheckBox("Double-click adds media to playlist queue", this);
+    m_chkDoubleclickAddsToQueue->setToolTip("Double-clicking files or folders adds them to the play queue instead of opening them fullscreen.");
+    layMedia->addWidget(m_chkDoubleclickAddsToQueue);
+
+    connect(m_chkBuiltinPlayerDoubleclick, &QCheckBox::toggled, this, [this](bool checked) {
+        if (checked) m_chkDoubleclickAddsToQueue->setChecked(false);
+    });
+    connect(m_chkDoubleclickAddsToQueue, &QCheckBox::toggled, this, [this](bool checked) {
+        if (checked) m_chkBuiltinPlayerDoubleclick->setChecked(false);
+    });
+
     m_chkAutoFullscreen = new QCheckBox("Auto-open full screen media player on playback", this);
     m_chkAutoFullscreen->setToolTip("Opens the full screen borderless media player HUD automatically when starting audio/video playback.");
     layMedia->addWidget(m_chkAutoFullscreen);
@@ -288,6 +299,7 @@ void PreferencesDialog::loadPreferences() {
     m_chkSpectrumVisualizer->setChecked(settings.value("preview/show_spectrum_visualizer", true).toBool());
     m_chkMutePreview->setChecked(settings.value("preview/muted", false).toBool());
     m_chkBuiltinPlayerDoubleclick->setChecked(settings.value("preferences/builtin_player_doubleclick", false).toBool());
+    m_chkDoubleclickAddsToQueue->setChecked(settings.value("preferences/doubleclick_adds_to_queue", false).toBool());
     m_chkAutoFullscreen->setChecked(settings.value("preview/auto_fullscreen", true).toBool());
 
     QString defaultHide = "folder.jpg, folder.jpeg, folder.png, cover.jpg, cover.jpeg, cover.png, fanart.jpg, fanart.jpeg, fanart.png, backdrop.jpg, backdrop.jpeg, backdrop.png, poster.jpg, poster.jpeg, poster.png, *.nfo, *.xml, *.txt, *.srt, *.sub, *.vtt, *.ini, *.db";
@@ -314,6 +326,7 @@ void PreferencesDialog::savePreferences() {
     settings.setValue("preview/show_spectrum_visualizer", m_chkSpectrumVisualizer->isChecked());
     settings.setValue("preview/muted", m_chkMutePreview->isChecked());
     settings.setValue("preferences/builtin_player_doubleclick", m_chkBuiltinPlayerDoubleclick->isChecked());
+    settings.setValue("preferences/doubleclick_adds_to_queue", m_chkDoubleclickAddsToQueue->isChecked());
     settings.setValue("preview/auto_fullscreen", m_chkAutoFullscreen->isChecked());
     settings.setValue("theater/hide_patterns", m_editHidePatterns->text().trimmed());
 

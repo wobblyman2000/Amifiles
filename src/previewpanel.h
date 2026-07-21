@@ -176,6 +176,7 @@ public:
     void previewFolderArt(const QString& artPath, const QString& folderPath);
     void clearPreview();
     void playPlaylist(const QStringList& filePaths);
+    void addToPlaylist(const QStringList& filePaths);
     QMediaPlayer* player() const { return m_player; }
     bool isFullscreen() const { return m_fullscreenWidget != nullptr; }
     void setMuted(bool muted);
@@ -287,6 +288,8 @@ private:
     QPushButton* m_btnShuffle = nullptr;
     QPushButton* m_btnRepeat = nullptr;
     QPushButton* m_btnToggleVisualizer = nullptr;
+    QPushButton* m_btnAutoFS10s = nullptr;
+    QTimer* m_autoFsTimer = nullptr;
 
     // EQ and Visualizer Elements
     SpectrumVisualizerWidget* m_visualizer = nullptr;

@@ -54,6 +54,7 @@ private:
     QCheckBox* m_chkSpectrumVisualizer = nullptr;
     QCheckBox* m_chkMutePreview = nullptr;
     QCheckBox* m_chkBuiltinPlayerDoubleclick = nullptr;
+    QCheckBox* m_chkDoubleclickAddsToQueue = nullptr;
     QCheckBox* m_chkAutoFullscreen = nullptr;
 
     // Services & API keys
