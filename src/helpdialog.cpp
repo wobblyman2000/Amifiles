@@ -281,11 +281,11 @@ void HelpDialog::onSectionChanged(int index) {
                     "<li><b>Profiles &amp; Templates Manager:</b> Select <b>Tools -> Configure Folder-Specific Layouts...</b> to launch the manager dialog.</li>"
                     "<li><b>Distinct Section Organization:</b> The manager list separates configurations into <b>❖ LAYOUT TEMPLATES</b> and <b>📁 FOLDER PROFILES</b>:</li>"
                     "<ul>"
-                    "<li><b>Layout Templates:</b> UI view presets (e.g. <i>Default Master</i>, <i>Movies Showcase</i>, <i>TV Series</i>, <i>Music Albums</i>, <i>Documents List</i>, <i>Photo Gallery</i>) that define view modes, toolbar visibility, custom background colors, visualizer state, and tracks drawer.</li>"
-                    "<li><b>Folder Profiles:</b> Directory path rules (e.g. <code>/home/user/Music</code> or <code>/media/Movies</code>) mapped to an assigned <b>Layout Template</b>.</li>"
+                    "<li><b>Music Collection Showcase:</b> Designed for music collections with square CD jewel case styling, multi-disc CD grouping (<i>CD1</i>, <i>CD2</i>), tracks drawer, and ID3 metadata integration.</li>"
+                    "<li><b>Cinema &amp; TV Showcase:</b> Tailored for movies and TV shows with 2:3 vertical video poster cards, multi-level series drill-down (<i>Show</i> -&gt; <i>Season</i> -&gt; <i>Episodes</i>), dedicated <b>SEASON 01</b> badges, season artwork scanner, and video resolution badges (4K UHD, 1080p, 720p).</li>"
                     "</ul>"
-                    "<li><b>Template Creation &amp; Active UI Capture:</b> Click <b>+ Add Template</b> to create standalone layout templates, or click <b>💾 Save Active UI as Template...</b> to capture your active window layout.</li>"
-                    "<li><b>Double-Click Navigation Protection:</b> Double-clicking directories in standard Details, List, Tree, Cards, and Column views <b>always enters the folder</b>. Album double-click playback is strictly scoped to Showcase views on leaf album folders.</li>"
+                    "<li><b>Universal Drag &amp; Drop:</b> Drag and drop is fully active across all views (Details, List, Icons, Cards, Miller, Showcase, and multi-disc sub-grids).</li>"
+                    "<li><b>Double-Click Navigation Protection:</b> Double-clicking directories in standard views <b>always enters the folder</b>. Album double-click playback is strictly scoped to Showcase views on leaf album folders.</li>"
                     "<li><b>Green &amp; Gray Active Switches:</b> Toggle the green/gray slide switch on any profile or template to enable or disable auto-activation. Deleting a profile prompts for confirmation to prevent accidental loss.</li>"
                     "</ul>";
             break;

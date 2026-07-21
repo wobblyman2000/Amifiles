@@ -262,9 +262,9 @@ void FilePanel::setupUI() {
     m_treeView->setContextMenuPolicy(Qt::CustomContextMenu); // Enable context menu
     m_treeView->installEventFilter(this); // Install event filter to capture focus events
     m_treeView->setDragEnabled(true);
-    m_treeView->setAcceptDrops(false);
-    m_treeView->setDropIndicatorShown(false);
-    m_treeView->setDragDropMode(QAbstractItemView::DragOnly);
+    m_treeView->setAcceptDrops(true);
+    m_treeView->setDropIndicatorShown(true);
+    m_treeView->setDragDropMode(QAbstractItemView::DragDrop);
 
     // Icon Grid List View
     m_listView = new QListView(this);
@@ -279,9 +279,9 @@ void FilePanel::setupUI() {
     m_listView->setContextMenuPolicy(Qt::CustomContextMenu);
     m_listView->installEventFilter(this);
     m_listView->setDragEnabled(true);
-    m_listView->setAcceptDrops(false);
-    m_listView->setDropIndicatorShown(false);
-    m_listView->setDragDropMode(QAbstractItemView::DragOnly);
+    m_listView->setAcceptDrops(true);
+    m_listView->setDropIndicatorShown(true);
+    m_listView->setDragDropMode(QAbstractItemView::DragDrop);
 
     m_viewStack = new QStackedWidget(this);
     m_viewStack->addWidget(m_treeView);
@@ -354,9 +354,9 @@ void FilePanel::setupUI() {
     m_theaterListView->setItemDelegate(m_theaterDelegate);
     m_theaterListView->installEventFilter(this);
     m_theaterListView->setDragEnabled(true);
-    m_theaterListView->setAcceptDrops(false);
-    m_theaterListView->setDropIndicatorShown(false);
-    m_theaterListView->setDragDropMode(QAbstractItemView::DragOnly);
+    m_theaterListView->setAcceptDrops(true);
+    m_theaterListView->setDropIndicatorShown(true);
+    m_theaterListView->setDragDropMode(QAbstractItemView::DragDrop);
 
     // Slide-out tracks drawer container
     m_theaterContainer = new QWidget(this);
@@ -4071,8 +4071,9 @@ void FilePanel::rebuildTheaterGroups() {
         QListView* grid = new QListView(m_theaterScrollWidget);
         grid->setViewMode(QListView::IconMode);
         grid->setResizeMode(QListView::Adjust);
-        grid->setDragEnabled(false);
-        grid->setAcceptDrops(false);
+        grid->setDragEnabled(true);
+        grid->setAcceptDrops(true);
+        grid->setDragDropMode(QAbstractItemView::DragDrop);
         grid->setFrameShape(QFrame::NoFrame);
         grid->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         grid->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);

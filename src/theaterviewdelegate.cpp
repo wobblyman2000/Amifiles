@@ -149,9 +149,17 @@ void TheaterViewDelegate::paint(QPainter* painter, const QStyleOptionViewItem& o
             badgeBg = QColor("#f9e2af");
             badgeFg = QColor("#11111b");
         } else if (info.isDir()) {
-            badgeText = "CINEMA";
-            badgeBg = QColor("#cba6f7");
-            badgeFg = QColor("#11111b");
+            QRegularExpression seasonRegex("^season[\\s_\\-]*([0-9]+)$", QRegularExpression::CaseInsensitiveOption);
+            QRegularExpressionMatch sMatch = seasonRegex.match(info.fileName());
+            if (sMatch.hasMatch()) {
+                badgeText = QString("SEASON %1").arg(sMatch.captured(1).rightJustified(2, '0'));
+                badgeBg = QColor("#cba6f7");
+                badgeFg = QColor("#11111b");
+            } else {
+                badgeText = "CINEMA";
+                badgeBg = QColor("#b4befe");
+                badgeFg = QColor("#11111b");
+            }
         }
 
         if (!badgeText.isEmpty()) {
@@ -209,7 +217,7 @@ QSize TheaterViewDelegate::sizeHint(const QStyleOptionViewItem& option, const QM
     if (option.rect.isValid()) {
         return option.rect.size();
     }
-    return QSize(135, 185);
+    return m_isCinemaMode ? QSize(140, 210) : QSize(135, 185);
 }
 
 void TheaterViewDelegate::startHoverAnimation(const QString& path, QWidget* view) const {
