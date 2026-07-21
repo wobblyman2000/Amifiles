@@ -150,23 +150,27 @@ void FolderLayoutDialog::setupUI() {
     QVBoxLayout* leftLayout = new QVBoxLayout();
     leftLayout->setSpacing(8);
 
-    QLabel* listLabel = new QLabel("Profiles & Rules:", this);
+    QLabel* listLabel = new QLabel("Profiles & Templates:", this);
     listLabel->setStyleSheet("font-weight: bold; color: #89b4fa;");
+    listLabel->setToolTip("Select a folder profile assignment or layout template from this list to configure its properties.");
     leftLayout->addWidget(listLabel);
 
     m_listWidget = new QListWidget(this);
     m_listWidget->setFixedWidth(220);
+    m_listWidget->setToolTip("List of active folder profiles and layout templates. Green switch = Active (Enabled), Gray = Inactive (Disabled).");
     leftLayout->addWidget(m_listWidget);
 
     QHBoxLayout* listButtons = new QHBoxLayout();
-    m_btnAdd = new QPushButton("Add", this);
+    m_btnAdd = new QPushButton("+ Add Profile", this);
     m_btnAdd->setStyleSheet("QPushButton { background-color: #313244; color: #a6e3a1; border: 1px solid #45475a; }"
                             "QPushButton:hover { background-color: #a6e3a1; color: #11111b; }");
+    m_btnAdd->setToolTip("Create a new folder profile assignment or custom layout template.");
     connect(m_btnAdd, &QPushButton::clicked, this, &FolderLayoutDialog::onAddProfile);
     
-    m_btnDelete = new QPushButton("Delete", this);
+    m_btnDelete = new QPushButton("🗑 Delete", this);
     m_btnDelete->setStyleSheet("QPushButton { background-color: #313244; color: #f38ba8; border: 1px solid #45475a; }"
                                "QPushButton:hover { background-color: #f38ba8; color: #11111b; }");
+    m_btnDelete->setToolTip("Delete the selected profile or layout template. (Prompts for confirmation before deleting).");
     connect(m_btnDelete, &QPushButton::clicked, this, &FolderLayoutDialog::onDeleteProfile);
 
     listButtons->addWidget(m_btnAdd);
@@ -175,9 +179,11 @@ void FolderLayoutDialog::setupUI() {
 
     QHBoxLayout* orderButtons = new QHBoxLayout();
     m_btnMoveUp = new QPushButton("▲ Move Up", this);
+    m_btnMoveUp->setToolTip("Move selected profile higher in priority. Profiles near the top take precedence when matching folder paths.");
     connect(m_btnMoveUp, &QPushButton::clicked, this, &FolderLayoutDialog::onMoveUpProfile);
 
     m_btnMoveDown = new QPushButton("▼ Move Down", this);
+    m_btnMoveDown->setToolTip("Move selected profile lower in priority.");
     connect(m_btnMoveDown, &QPushButton::clicked, this, &FolderLayoutDialog::onMoveDownProfile);
 
     orderButtons->addWidget(m_btnMoveUp);
@@ -185,23 +191,26 @@ void FolderLayoutDialog::setupUI() {
     leftLayout->addLayout(orderButtons);
 
     QHBoxLayout* backupRestoreButtons = new QHBoxLayout();
-    m_btnBackup = new QPushButton("Backup", this);
+    m_btnBackup = new QPushButton("📦 Backup", this);
     m_btnBackup->setStyleSheet("QPushButton { background-color: #313244; color: #89b4fa; border: 1px solid #45475a; }"
                                "QPushButton:hover { background-color: #89b4fa; color: #11111b; }");
+    m_btnBackup->setToolTip("Export all folder profiles and layout templates to a JSON backup file.");
     connect(m_btnBackup, &QPushButton::clicked, this, &FolderLayoutDialog::onBackupProfiles);
 
-    m_btnRestore = new QPushButton("Restore", this);
+    m_btnRestore = new QPushButton("📥 Restore", this);
     m_btnRestore->setStyleSheet("QPushButton { background-color: #313244; color: #f9e2af; border: 1px solid #45475a; }"
                                 "QPushButton:hover { background-color: #f9e2af; color: #11111b; }");
+    m_btnRestore->setToolTip("Import folder profiles and layout templates from a JSON backup file.");
     connect(m_btnRestore, &QPushButton::clicked, this, &FolderLayoutDialog::onRestoreProfiles);
 
     backupRestoreButtons->addWidget(m_btnBackup);
     backupRestoreButtons->addWidget(m_btnRestore);
     leftLayout->addLayout(backupRestoreButtons);
 
-    m_btnApplyCurrentFolder = new QPushButton("Apply to Current Folder", this);
+    m_btnApplyCurrentFolder = new QPushButton("⚡ Profile Current Folder", this);
     m_btnApplyCurrentFolder->setStyleSheet("QPushButton { background-color: #313244; color: #b4befe; border: 1px solid #45475a; }"
                                            "QPushButton:hover { background-color: #b4befe; color: #11111b; }");
+    m_btnApplyCurrentFolder->setToolTip("Instantly create a folder profile for the currently open directory path in the active file panel.");
     connect(m_btnApplyCurrentFolder, &QPushButton::clicked, this, &FolderLayoutDialog::onApplyToCurrentFolder);
     leftLayout->addWidget(m_btnApplyCurrentFolder);
 
@@ -209,11 +218,13 @@ void FolderLayoutDialog::setupUI() {
     QPushButton* btnEditToolbars = new QPushButton("Edit Toolbars...", this);
     btnEditToolbars->setStyleSheet("QPushButton { background-color: #313244; color: #a6e3a1; border: 1px solid #45475a; }"
                                    "QPushButton:hover { background-color: #a6e3a1; color: #11111b; }");
+    btnEditToolbars->setToolTip("Configure custom toolbar button definitions, icons, and shell/action commands.");
     connect(btnEditToolbars, &QPushButton::clicked, this, &FolderLayoutDialog::onEditToolbarsShortcut);
 
     QPushButton* btnEditMenus = new QPushButton("Edit Menus...", this);
     btnEditMenus->setStyleSheet("QPushButton { background-color: #313244; color: #cba6f7; border: 1px solid #45475a; }"
                                 "QPushButton:hover { background-color: #cba6f7; color: #11111b; }");
+    btnEditMenus->setToolTip("Configure custom right-click context menu actions and commands.");
     connect(btnEditMenus, &QPushButton::clicked, this, &FolderLayoutDialog::onEditMenusShortcut);
 
     shortcutButtons->addWidget(btnEditToolbars);
@@ -242,46 +253,53 @@ void FolderLayoutDialog::setupUI() {
     scrollLayout->setContentsMargins(0, 0, 10, 0);
 
     // 1. General Profile Name & Trigger
-    QGroupBox* triggerGroup = new QGroupBox("1. Name & Activation Triggers", this);
+    QGroupBox* triggerGroup = new QGroupBox("1. Folder Profile & Layout Template", this);
     QGridLayout* triggerGrid = new QGridLayout(triggerGroup);
     triggerGrid->setSpacing(8);
 
-    triggerGrid->addWidget(new QLabel("Profile Name:", this), 0, 0);
+    triggerGrid->addWidget(new QLabel("Profile / Template Name:", this), 0, 0);
     m_editName = new QLineEdit(this);
+    m_editName->setToolTip("Descriptive label for this profile or template (e.g. 'My Music Collection', 'Movies Showcase', 'TV Series').");
     triggerGrid->addWidget(m_editName, 0, 1, 1, 2);
 
     QHBoxLayout* autoApplyLayout = new QHBoxLayout();
     m_checkAutoApply = new ToggleSwitch(this);
+    m_checkAutoApply->setToolTip("Toggle Profile Active State: Green = Active (auto-applies layout on browsing folder), Gray = Inactive (disabled).");
     autoApplyLayout->addWidget(m_checkAutoApply);
-    autoApplyLayout->addWidget(new QLabel("Auto-apply when browsing matching folders", this));
+    autoApplyLayout->addWidget(new QLabel("Enable Profile (Auto-apply when browsing matching folders)", this));
     autoApplyLayout->addStretch();
     triggerGrid->addLayout(autoApplyLayout, 1, 0, 1, 3);
 
     triggerGrid->addWidget(new QLabel("Match Condition:", this), 2, 0);
     m_comboRuleType = new QComboBox(this);
     m_comboRuleType->addItems({"Path", "Category"});
+    m_comboRuleType->setToolTip("Rule match type: Select 'Path' to target a specific directory folder path, or 'Category' to target a media category type (Music, Videos, Images, Documents).");
     triggerGrid->addWidget(m_comboRuleType, 2, 1, 1, 2);
     connect(m_comboRuleType, &QComboBox::currentTextChanged, this, &FolderLayoutDialog::onRuleTypeChanged);
 
-    triggerGrid->addWidget(new QLabel("Match Value:", this), 3, 0);
+    triggerGrid->addWidget(new QLabel("Target Folder Path:", this), 3, 0);
     m_editValue = new QLineEdit(this);
+    m_editValue->setToolTip("The exact folder directory path (e.g. /home/user/Music or /media/Movies) to apply this profile layout to.");
     triggerGrid->addWidget(m_editValue, 3, 1);
 
-    m_btnBrowse = new QPushButton("Browse...", this);
+    m_btnBrowse = new QPushButton("📂 Browse...", this);
+    m_btnBrowse->setToolTip("Open file chooser dialog to select a folder directory path.");
     connect(m_btnBrowse, &QPushButton::clicked, this, &FolderLayoutDialog::onBrowseFolder);
     triggerGrid->addWidget(m_btnBrowse, 3, 2);
 
-    m_btnUseActivePath = new QPushButton("Use Active Path", this);
+    m_btnUseActivePath = new QPushButton("⚡ Use Active Path", this);
+    m_btnUseActivePath->setToolTip("Insert the currently open folder path from the active file panel into the target path field.");
     connect(m_btnUseActivePath, &QPushButton::clicked, this, &FolderLayoutDialog::onUseActivePath);
     triggerGrid->addWidget(m_btnUseActivePath, 4, 1, 1, 2);
 
-    QLabel* lblLink = new QLabel("Link to Profile Layout:", this);
-    lblLink->setToolTip("Inherit all layout settings from an existing profile. If selected, manual configuration below is disabled.");
+    QLabel* lblLink = new QLabel("Assigned Layout Template:", this);
+    lblLink->setToolTip("Select the Layout Template (e.g. Movies Showcase, TV Series, Music Albums, Default Master) to use when opening this folder.");
     triggerGrid->addWidget(lblLink, 5, 0);
 
     m_comboLinkedProfile = new QComboBox(this);
-    m_comboLinkedProfile->setToolTip("Select a layout profile to link to, or choose none to define a custom layout for this rule.");
+    m_comboLinkedProfile->setToolTip("Choose a pre-configured Layout Template (Movies, TV Series, Music, Default, etc.) to apply to this folder, or select '(None - Custom)' to define custom rules.");
     triggerGrid->addWidget(m_comboLinkedProfile, 5, 1, 1, 2);
+    connect(m_comboLinkedProfile, &QComboBox::currentIndexChanged, this, &FolderLayoutDialog::onLinkedProfileChanged);
     connect(m_comboLinkedProfile, &QComboBox::currentIndexChanged, this, &FolderLayoutDialog::onLinkedProfileChanged);
 
     m_labelInheritedInfo = new QLabel(this);
@@ -496,12 +514,14 @@ void FolderLayoutDialog::setupUI() {
 
     // Bottom Action Row inside details pane
     QHBoxLayout* activeActionsRow = new QHBoxLayout();
-    m_btnCaptureUI = new QPushButton("Capture Current UI State", this);
+    m_btnCaptureUI = new QPushButton("📸 Capture Current UI State", this);
     m_btnCaptureUI->setStyleSheet("QPushButton { background-color: #313244; color: #f9e2af; border: 1px solid #45475a; }");
+    m_btnCaptureUI->setToolTip("Snapshot current window layout, view mode, and toolbar states directly into this profile template.");
     connect(m_btnCaptureUI, &QPushButton::clicked, this, &FolderLayoutDialog::onCaptureUI);
 
-    m_btnApplyNow = new QPushButton("Apply Profile to Current View Now", this);
+    m_btnApplyNow = new QPushButton("⚡ Apply Profile to Current View Now", this);
     m_btnApplyNow->setStyleSheet("QPushButton { background-color: #89b4fa; color: #11111b; } QPushButton:hover { background-color: #b4befe; }");
+    m_btnApplyNow->setToolTip("Immediately apply this profile's layout settings to the currently active file pane.");
     connect(m_btnApplyNow, &QPushButton::clicked, this, &FolderLayoutDialog::onApplyNow);
 
     activeActionsRow->addWidget(m_btnCaptureUI);
@@ -512,11 +532,13 @@ void FolderLayoutDialog::setupUI() {
     // Dialog buttons (Save & Cancel)
     QHBoxLayout* dialogButtons = new QHBoxLayout();
     dialogButtons->addStretch();
-    QPushButton* btnSave = new QPushButton("Save & Apply Profiles", this);
+    QPushButton* btnSave = new QPushButton("💾 Save & Apply Profiles", this);
     btnSave->setStyleSheet("QPushButton { background-color: #a6e3a1; color: #11111b; } QPushButton:hover { background-color: #b4befe; }");
+    btnSave->setToolTip("Save all folder profile assignments and layout templates and update active workspace.");
     connect(btnSave, &QPushButton::clicked, this, &FolderLayoutDialog::onSave);
 
-    QPushButton* btnCancel = new QPushButton("Cancel", this);
+    QPushButton* btnCancel = new QPushButton("❌ Cancel", this);
+    btnCancel->setToolTip("Discard changes and close dialog.");
     connect(btnCancel, &QPushButton::clicked, this, &QDialog::reject);
 
     dialogButtons->addWidget(btnSave);
@@ -537,6 +559,9 @@ void FolderLayoutDialog::populateList() {
         m_listWidget->addItem(item);
 
         QString displayName = r.name.isEmpty() ? "(Unnamed Profile)" : r.name;
+        if (!r.linkedProfile.isEmpty() && r.linkedProfile != r.name) {
+            displayName += QString(" [%1]").arg(r.linkedProfile);
+        }
         ProfileListItemWidget* widget = new ProfileListItemWidget(displayName, r.autoApply, this);
         connect(widget, &ProfileListItemWidget::toggled, this, [this, i](bool checked) {
             m_rules[i].autoApply = checked;

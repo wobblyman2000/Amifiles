@@ -67,9 +67,15 @@ public:
         
         m_switch = new ToggleSwitch(this);
         m_switch->setChecked(checked);
+        m_switch->setToolTip(checked ? "Profile Active (Green): This profile rule is enabled and auto-applies when browsing matching folders. Click to disable."
+                                     : "Profile Inactive (Gray): This profile rule is disabled and will be ignored when browsing. Click to enable.");
         layout->addWidget(m_switch);
         
-        connect(m_switch, &ToggleSwitch::toggled, this, &ProfileListItemWidget::toggled);
+        connect(m_switch, &ToggleSwitch::toggled, this, [this](bool chk) {
+            m_switch->setToolTip(chk ? "Profile Active (Green): This profile rule is enabled and auto-applies when browsing matching folders. Click to disable."
+                                     : "Profile Inactive (Gray): This profile rule is disabled and will be ignored when browsing. Click to enable.");
+            emit toggled(chk);
+        });
     }
     
     void setName(const QString& name) { m_label->setText(name); }
