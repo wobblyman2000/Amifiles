@@ -164,9 +164,15 @@ void FolderLayoutDialog::setupUI() {
     m_btnAdd = new QPushButton("+ Add Profile", this);
     m_btnAdd->setStyleSheet("QPushButton { background-color: #313244; color: #a6e3a1; border: 1px solid #45475a; }"
                             "QPushButton:hover { background-color: #a6e3a1; color: #11111b; }");
-    m_btnAdd->setToolTip("Create a new folder profile assignment or custom layout template.");
+    m_btnAdd->setToolTip("Create a new Folder Profile mapping a specific path to a Layout Template.");
     connect(m_btnAdd, &QPushButton::clicked, this, &FolderLayoutDialog::onAddProfile);
     
+    m_btnAddTemplate = new QPushButton("+ Add Template", this);
+    m_btnAddTemplate->setStyleSheet("QPushButton { background-color: #313244; color: #89b4fa; border: 1px solid #45475a; }"
+                                    "QPushButton:hover { background-color: #89b4fa; color: #11111b; }");
+    m_btnAddTemplate->setToolTip("Create a new standalone Layout Template preset (view mode, toolbars, visualizer settings).");
+    connect(m_btnAddTemplate, &QPushButton::clicked, this, &FolderLayoutDialog::onAddTemplate);
+
     m_btnDelete = new QPushButton("🗑 Delete", this);
     m_btnDelete->setStyleSheet("QPushButton { background-color: #313244; color: #f38ba8; border: 1px solid #45475a; }"
                                "QPushButton:hover { background-color: #f38ba8; color: #11111b; }");
@@ -174,6 +180,7 @@ void FolderLayoutDialog::setupUI() {
     connect(m_btnDelete, &QPushButton::clicked, this, &FolderLayoutDialog::onDeleteProfile);
 
     listButtons->addWidget(m_btnAdd);
+    listButtons->addWidget(m_btnAddTemplate);
     listButtons->addWidget(m_btnDelete);
     leftLayout->addLayout(listButtons);
 
@@ -552,24 +559,62 @@ void FolderLayoutDialog::setupUI() {
 
 void FolderLayoutDialog::populateList() {
     m_listWidget->clear();
+
+    // --- SECTION 1: LAYOUT TEMPLATES HEADER ---
+    QListWidgetItem* hdrTemplates = new QListWidgetItem("❖ LAYOUT TEMPLATES", m_listWidget);
+    hdrTemplates->setFlags(Qt::NoItemFlags);
+    hdrTemplates->setForeground(QColor("#89b4fa"));
+    hdrTemplates->setBackground(QColor("#181825"));
+    hdrTemplates->setFont(QFont("sans-serif", 9, QFont::Bold));
+    hdrTemplates->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+
     for (int i = 0; i < m_rules.size(); ++i) {
         const auto& r = m_rules[i];
-        QListWidgetItem* item = new QListWidgetItem(m_listWidget);
-        item->setSizeHint(QSize(200, 36));
-        m_listWidget->addItem(item);
+        if (r.ruleType == "Category" || r.ruleType == "Template" || (r.value.isEmpty() && r.linkedProfile.isEmpty())) {
+            QListWidgetItem* item = new QListWidgetItem(m_listWidget);
+            item->setSizeHint(QSize(200, 36));
+            item->setData(Qt::UserRole, i);
 
-        QString displayName = r.name.isEmpty() ? "(Unnamed Profile)" : r.name;
-        if (!r.linkedProfile.isEmpty() && r.linkedProfile != r.name) {
-            displayName += QString(" [%1]").arg(r.linkedProfile);
+            QString displayName = r.name.isEmpty() ? "(Unnamed Template)" : r.name;
+            ProfileListItemWidget* widget = new ProfileListItemWidget(displayName, r.autoApply, this);
+            connect(widget, &ProfileListItemWidget::toggled, this, [this, i](bool checked) {
+                m_rules[i].autoApply = checked;
+                if (m_currentIndex == i) {
+                    m_checkAutoApply->setChecked(checked);
+                }
+            });
+            m_listWidget->setItemWidget(item, widget);
         }
-        ProfileListItemWidget* widget = new ProfileListItemWidget(displayName, r.autoApply, this);
-        connect(widget, &ProfileListItemWidget::toggled, this, [this, i](bool checked) {
-            m_rules[i].autoApply = checked;
-            if (m_currentIndex == i) {
-                m_checkAutoApply->setChecked(checked);
+    }
+
+    // --- SECTION 2: FOLDER PROFILES HEADER ---
+    QListWidgetItem* hdrProfiles = new QListWidgetItem("📁 FOLDER PROFILES", m_listWidget);
+    hdrProfiles->setFlags(Qt::NoItemFlags);
+    hdrProfiles->setForeground(QColor("#a6e3a1"));
+    hdrProfiles->setBackground(QColor("#181825"));
+    hdrProfiles->setFont(QFont("sans-serif", 9, QFont::Bold));
+    hdrProfiles->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+
+    for (int i = 0; i < m_rules.size(); ++i) {
+        const auto& r = m_rules[i];
+        if (r.ruleType == "Path" && !r.value.isEmpty()) {
+            QListWidgetItem* item = new QListWidgetItem(m_listWidget);
+            item->setSizeHint(QSize(200, 36));
+            item->setData(Qt::UserRole, i);
+
+            QString displayName = r.name.isEmpty() ? "(Unnamed Profile)" : r.name;
+            if (!r.linkedProfile.isEmpty()) {
+                displayName += QString(" [%1]").arg(r.linkedProfile);
             }
-        });
-        m_listWidget->setItemWidget(item, widget);
+            ProfileListItemWidget* widget = new ProfileListItemWidget(displayName, r.autoApply, this);
+            connect(widget, &ProfileListItemWidget::toggled, this, [this, i](bool checked) {
+                m_rules[i].autoApply = checked;
+                if (m_currentIndex == i) {
+                    m_checkAutoApply->setChecked(checked);
+                }
+            });
+            m_listWidget->setItemWidget(item, widget);
+        }
     }
 }
 
@@ -779,32 +824,85 @@ void FolderLayoutDialog::onProfileSelected(int row) {
     if (m_currentIndex >= 0 && m_currentIndex < m_rules.size()) {
         harvestCurrentProfile(m_currentIndex);
     }
-    m_currentIndex = row;
-    if (row >= 0 && row < m_rules.size()) {
+    if (row < 0 || row >= m_listWidget->count()) {
+        m_currentIndex = -1;
+        m_editorWidget->setEnabled(false);
+        return;
+    }
+
+    QListWidgetItem* item = m_listWidget->item(row);
+    if (!item || (item->flags() & Qt::ItemIsSelectable) == 0) {
+        m_currentIndex = -1;
+        m_editorWidget->setEnabled(false);
+        return;
+    }
+
+    int realIndex = item->data(Qt::UserRole).toInt();
+    m_currentIndex = realIndex;
+    if (realIndex >= 0 && realIndex < m_rules.size()) {
         m_editorWidget->setEnabled(true);
-        populateFields(m_rules[row]);
+        populateFields(m_rules[realIndex]);
     } else {
         m_editorWidget->setEnabled(false);
     }
 }
 
 void FolderLayoutDialog::onAddProfile() {
+    if (m_currentIndex >= 0 && m_currentIndex < m_rules.size()) {
+        harvestCurrentProfile(m_currentIndex);
+    }
     FolderLayoutRule r;
-    r.name = QString("Profile %1").arg(m_rules.size() + 1);
+    r.name = QString("New Folder Profile %1").arg(m_rules.size() + 1);
     r.ruleType = "Path";
+    r.value = "/path/to/folder";
+    r.linkedProfile = "Default Master";
     r.viewMode = "No Change";
     m_rules.append(r);
     
     populateList();
-    m_listWidget->setCurrentRow(m_rules.size() - 1);
+    for (int i = 0; i < m_listWidget->count(); ++i) {
+        QListWidgetItem* item = m_listWidget->item(i);
+        if (item && item->data(Qt::UserRole).toInt() == m_rules.size() - 1) {
+            m_listWidget->setCurrentRow(i);
+            break;
+        }
+    }
+}
+
+void FolderLayoutDialog::onAddTemplate() {
+    if (m_currentIndex >= 0 && m_currentIndex < m_rules.size()) {
+        harvestCurrentProfile(m_currentIndex);
+    }
+    FolderLayoutRule r;
+    r.name = QString("Custom Template %1").arg(m_rules.size() + 1);
+    r.ruleType = "Template";
+    r.value = "";
+    r.linkedProfile = "";
+    r.viewMode = "Music Showcase";
+    m_rules.append(r);
+    
+    populateList();
+    for (int i = 0; i < m_listWidget->count(); ++i) {
+        QListWidgetItem* item = m_listWidget->item(i);
+        if (item && item->data(Qt::UserRole).toInt() == m_rules.size() - 1) {
+            m_listWidget->setCurrentRow(i);
+            break;
+        }
+    }
 }
 
 void FolderLayoutDialog::onDeleteProfile() {
     int row = m_listWidget->currentRow();
-    if (row < 0 || row >= m_rules.size()) return;
+    if (row < 0 || row >= m_listWidget->count()) return;
+    QListWidgetItem* item = m_listWidget->item(row);
+    if (!item || (item->flags() & Qt::ItemIsSelectable) == 0) return;
 
-    if (QMessageBox::question(this, "Delete Profile", QString("Are you sure you want to delete profile '%1'?").arg(m_rules[row].name)) == QMessageBox::Yes) {
-        m_rules.removeAt(row);
+    int realIndex = item->data(Qt::UserRole).toInt();
+    if (realIndex < 0 || realIndex >= m_rules.size()) return;
+
+    const auto& r = m_rules[realIndex];
+    if (QMessageBox::question(this, "Confirm Delete", QString("Are you sure you want to delete '%1'?").arg(r.name)) == QMessageBox::Yes) {
+        m_rules.removeAt(realIndex);
         m_currentIndex = -1;
         populateList();
         if (m_listWidget->count() > 0) {

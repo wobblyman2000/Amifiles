@@ -3496,7 +3496,15 @@ void FilePanel::onDoubleClickedPath(const QString& path) {
     bool shouldPlayOnDoubleclick = builtinPlayerDoubleclick;
 
     if (info.isDir()) {
-        if (shouldPlayOnDoubleclick || doubleclickAddsToQueue) {
+        // In standard views (Details, List, Icons, Cards, Miller, etc.), ALWAYS navigate into the directory
+        if (!isTheater) {
+            navigateTo(path, true);
+            return;
+        }
+
+        // In Theater / Showcase view: Only trigger media playback for actual playable album/movie folders
+        bool isPlayableAlbum = isPlayableAlbumFolder(path);
+        if (isPlayableAlbum && (shouldPlayOnDoubleclick || doubleclickAddsToQueue)) {
             bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool() && isTheater;
 
             QStringList scanPaths;
@@ -3529,10 +3537,10 @@ void FilePanel::onDoubleClickedPath(const QString& path) {
                 return;
             }
         }
-        if (isTheater || zenActive) {
-            return;
-        }
+
+        // Otherwise navigate into the directory
         navigateTo(path, true);
+        return;
     } else {
         QString ext = info.suffix().toLower();
         static const QStringList mediaExts = {

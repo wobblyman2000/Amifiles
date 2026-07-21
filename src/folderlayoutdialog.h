@@ -101,6 +101,7 @@ public:
 private slots:
     void onProfileSelected(int row);
     void onAddProfile();
+    void onAddTemplate();
     void onDeleteProfile();
     void onMoveUpProfile();
     void onMoveDownProfile();
@@ -134,6 +135,7 @@ private:
     // Left Pane (Master List)
     QListWidget* m_listWidget = nullptr;
     QPushButton* m_btnAdd = nullptr;
+    QPushButton* m_btnAddTemplate = nullptr;
     QPushButton* m_btnDelete = nullptr;
     QPushButton* m_btnMoveUp = nullptr;
     QPushButton* m_btnMoveDown = nullptr;

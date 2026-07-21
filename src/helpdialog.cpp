@@ -279,14 +279,14 @@ void HelpDialog::onSectionChanged(int index) {
                     "<h3>Folder Profiles &amp; Layout Templates</h3>"
                     "<ul>"
                     "<li><b>Profiles &amp; Templates Manager:</b> Select <b>Tools -> Configure Folder-Specific Layouts...</b> to launch the manager dialog.</li>"
-                    "<li><b>Folder Profiles vs. Layout Templates:</b></li>"
+                    "<li><b>Distinct Section Organization:</b> The manager list separates configurations into <b>❖ LAYOUT TEMPLATES</b> and <b>📁 FOLDER PROFILES</b>:</li>"
                     "<ul>"
-                    "<li><b>Layout Templates:</b> Pre-configured view presets (e.g. <i>Default Master</i>, <i>Movies Showcase</i>, <i>TV Series</i>, <i>Music Albums</i>, <i>Documents</i>, <i>Pictures</i>) that define view modes, multi-disc album grouping, auxiliary file hiding, Zen mode, tracks drawer, auto-fullscreen playback, and toolbar visibility.</li>"
-                    "<li><b>Folder Profiles:</b> Map specific folder paths (e.g. <code>/home/user/Music</code> or <code>/media/Movies</code>) to an assigned <b>Layout Template</b>.</li>"
+                    "<li><b>Layout Templates:</b> UI view presets (e.g. <i>Default Master</i>, <i>Movies Showcase</i>, <i>TV Series</i>, <i>Music Albums</i>, <i>Documents List</i>, <i>Photo Gallery</i>) that define view modes, toolbar visibility, custom background colors, visualizer state, and tracks drawer.</li>"
+                    "<li><b>Folder Profiles:</b> Directory path rules (e.g. <code>/home/user/Music</code> or <code>/media/Movies</code>) mapped to an assigned <b>Layout Template</b>.</li>"
                     "</ul>"
-                    "<li><b>Green &amp; Gray Active Toggle Switches:</b> Each profile features a green (Active/Enabled) or gray (Inactive/Disabled) slide switch with descriptive tooltips. Click to temporarily turn off a profile without deleting it.</li>"
-                    "<li><b>Comprehensive Tooltips:</b> Hovering over any button, switch, or field displays clear tooltips explaining its exact function. Deleting a profile prompts for confirmation to prevent accidental loss.</li>"
-                    "<li><b>Custom Templates &amp; Backup:</b> Click <b>+ Add Profile</b> to create path rules, or use <b>Backup</b> and <b>Restore</b> to export/import JSON configurations.</li>"
+                    "<li><b>Template Creation &amp; Active UI Capture:</b> Click <b>+ Add Template</b> to create standalone layout templates, or click <b>💾 Save Active UI as Template...</b> to capture your active window layout.</li>"
+                    "<li><b>Double-Click Navigation Protection:</b> Double-clicking directories in standard Details, List, Tree, Cards, and Column views <b>always enters the folder</b>. Album double-click playback is strictly scoped to Showcase views on leaf album folders.</li>"
+                    "<li><b>Green &amp; Gray Active Switches:</b> Toggle the green/gray slide switch on any profile or template to enable or disable auto-activation. Deleting a profile prompts for confirmation to prevent accidental loss.</li>"
                     "</ul>";
             break;
 
