@@ -152,6 +152,7 @@ private:
     QPushButton* m_btnBrowse = nullptr;
     QPushButton* m_btnUseActivePath = nullptr;
     QComboBox* m_comboViewMode = nullptr;
+    QComboBox* m_comboSubfolderDepth = nullptr;
     QPushButton* m_btnChooseButtons = nullptr;
     QComboBox* m_comboLinkedProfile = nullptr;
     QLabel* m_labelInheritedInfo = nullptr;

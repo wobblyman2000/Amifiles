@@ -299,21 +299,30 @@ void FolderLayoutDialog::setupUI() {
     connect(m_btnUseActivePath, &QPushButton::clicked, this, &FolderLayoutDialog::onUseActivePath);
     triggerGrid->addWidget(m_btnUseActivePath, 4, 1, 1, 2);
 
+    triggerGrid->addWidget(new QLabel("Subfolder Depth Inheritance:", this), 5, 0);
+    m_comboSubfolderDepth = new QComboBox(this);
+    m_comboSubfolderDepth->addItem("Exact Folder Only (0 Levels Deep)", 0);
+    m_comboSubfolderDepth->addItem("1 Subfolder Level Deep (Parent -> Children)", 1);
+    m_comboSubfolderDepth->addItem("2 Subfolder Levels Deep (Parent -> Show -> Season)", 2);
+    m_comboSubfolderDepth->addItem("3 Subfolder Levels Deep (TV Shows: Root -> Show -> Season -> Episodes)", 3);
+    m_comboSubfolderDepth->addItem("Unlimited Subfolder Depth (All Nested Subdirectories)", 999);
+    m_comboSubfolderDepth->setToolTip("Controls how many subfolder levels deep inside this directory will inherit this profile layout. For TV Shows, select '3 Subfolder Levels Deep' or 'Unlimited' so all Show, Season, and Episode folders automatically use this layout!");
+    triggerGrid->addWidget(m_comboSubfolderDepth, 5, 1, 1, 2);
+
     QLabel* lblLink = new QLabel("Assigned Layout Template:", this);
     lblLink->setToolTip("Select the Layout Template (e.g. Movies Showcase, TV Series, Music Albums, Default Master) to use when opening this folder.");
-    triggerGrid->addWidget(lblLink, 5, 0);
+    triggerGrid->addWidget(lblLink, 6, 0);
 
     m_comboLinkedProfile = new QComboBox(this);
     m_comboLinkedProfile->setToolTip("Choose a pre-configured Layout Template (Movies, TV Series, Music, Default, etc.) to apply to this folder, or select '(None - Custom)' to define custom rules.");
-    triggerGrid->addWidget(m_comboLinkedProfile, 5, 1, 1, 2);
-    connect(m_comboLinkedProfile, &QComboBox::currentIndexChanged, this, &FolderLayoutDialog::onLinkedProfileChanged);
+    triggerGrid->addWidget(m_comboLinkedProfile, 6, 1, 1, 2);
     connect(m_comboLinkedProfile, &QComboBox::currentIndexChanged, this, &FolderLayoutDialog::onLinkedProfileChanged);
 
     m_labelInheritedInfo = new QLabel(this);
     m_labelInheritedInfo->setStyleSheet("color: #a6e3a1; font-weight: bold; margin-top: 4px;");
     m_labelInheritedInfo->setWordWrap(true);
     m_labelInheritedInfo->setVisible(false);
-    triggerGrid->addWidget(m_labelInheritedInfo, 6, 0, 1, 3);
+    triggerGrid->addWidget(m_labelInheritedInfo, 7, 0, 1, 3);
 
     scrollLayout->addWidget(triggerGroup);
 
@@ -324,7 +333,7 @@ void FolderLayoutDialog::setupUI() {
 
     viewGrid->addWidget(new QLabel("View Mode:", this), 0, 0);
     m_comboViewMode = new QComboBox(this);
-    m_comboViewMode->addItems({"No Change", "List", "Grid", "Card", "Miller", "Timeline", "Filmstrip", "Music Showcase", "Cinema Showcase"});
+    m_comboViewMode->addItems({"No Change", "List", "Grid", "Card", "Miller", "Timeline", "Filmstrip", "Audio Showcase", "Video Showcase"});
     viewGrid->addWidget(m_comboViewMode, 0, 1);
 
     QLabel* lblCustomButtons = new QLabel("Filter Custom Buttons:", this);
@@ -624,6 +633,13 @@ void FolderLayoutDialog::populateFields(const FolderLayoutRule& r) {
     m_comboRuleType->setCurrentText(r.ruleType);
     m_editValue->setText(r.value);
 
+    int depthIdx = m_comboSubfolderDepth->findData(r.subfolderDepth);
+    if (depthIdx != -1) {
+        m_comboSubfolderDepth->setCurrentIndex(depthIdx);
+    } else {
+        m_comboSubfolderDepth->setCurrentIndex(3); // Default to 3 levels deep
+    }
+
     updateLinkedProfileCombo();
     int linkIdx = m_comboLinkedProfile->findData(r.linkedProfile);
     if (linkIdx != -1) {
@@ -730,6 +746,7 @@ void FolderLayoutDialog::harvestCurrentProfile(int index) {
     r.ruleType = m_comboRuleType->currentText();
     r.value = m_editValue->text().trimmed();
     r.linkedProfile = m_comboLinkedProfile->currentData().toString();
+    r.subfolderDepth = m_comboSubfolderDepth->currentData().toInt();
 
     r.viewMode = m_comboViewMode->currentText();
     r.customButtons = m_btnChooseButtons->property("selectedButtons").toStringList();

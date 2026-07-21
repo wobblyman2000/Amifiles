@@ -3027,6 +3027,7 @@ QJsonObject MainWindow::ruleToJson(const FolderLayoutRule& r) {
     obj["rightActiveIndex"] = r.rightActiveIndex;
     obj["linkedProfile"] = r.linkedProfile;
     obj["entryCommand"] = r.entryCommand;
+    obj["subfolderDepth"] = r.subfolderDepth;
     return obj;
 }
 
@@ -3037,6 +3038,7 @@ FolderLayoutRule MainWindow::jsonToRule(const QJsonObject& obj) {
     r.ruleType = obj["ruleType"].toString();
     r.value = obj["value"].toString();
     r.entryCommand = obj["entryCommand"].toString("");
+    r.subfolderDepth = obj["subfolderDepth"].toInt(3);
     r.viewMode = obj["viewMode"].toString("No Change");
     
     QJsonArray btns = obj["customButtons"].toArray();
@@ -3333,8 +3335,8 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
         else if (r.viewMode == "Miller") targetPanel->setViewModeIndex(3);
         else if (r.viewMode == "Timeline") targetPanel->setViewModeIndex(4);
         else if (r.viewMode == "Filmstrip") targetPanel->setViewModeIndex(5);
-        else if (r.viewMode == "Theater" || r.viewMode == "Music Showcase") targetPanel->setViewModeIndex(6);
-        else if (r.viewMode == "Cinema Showcase") targetPanel->setViewModeIndex(7);
+        else if (r.viewMode == "Theater" || r.viewMode == "Music Showcase" || r.viewMode == "Audio Showcase") targetPanel->setViewModeIndex(6);
+        else if (r.viewMode == "Cinema Showcase" || r.viewMode == "Video Showcase") targetPanel->setViewModeIndex(7);
     }
 
     // 2. Toolbar filter
@@ -3474,13 +3476,29 @@ void MainWindow::applyFolderRules(const QString& path) {
 
     FolderLayoutRule matchedRule;
     bool foundMatch = false;
-        // 1. Exact Path matching
+        // 1. Path matching (with exact match preference and subfolder depth inheritance)
+        int bestMatchDepth = 9999;
         for (const auto& r : m_folderRules) {
             if (!r.autoApply) continue;
-            if (r.ruleType == "Path" && r.value == path) {
-                matchedRule = r;
-                foundMatch = true;
-                break;
+            if (r.ruleType == "Path") {
+                QString targetPath = QDir::cleanPath(r.value);
+                QString currentCleanPath = QDir::cleanPath(path);
+
+                if (currentCleanPath == targetPath) {
+                    matchedRule = r;
+                    foundMatch = true;
+                    break;
+                } else if (r.subfolderDepth > 0 && currentCleanPath.startsWith(targetPath + "/")) {
+                    QString relPath = currentCleanPath.mid(targetPath.length() + 1);
+                    int depth = relPath.split('/', Qt::SkipEmptyParts).size();
+                    if (depth <= r.subfolderDepth || r.subfolderDepth >= 999) {
+                        if (depth < bestMatchDepth) {
+                            bestMatchDepth = depth;
+                            matchedRule = r;
+                            foundMatch = true;
+                        }
+                    }
+                }
             }
         }
 
