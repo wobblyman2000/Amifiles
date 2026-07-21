@@ -38,6 +38,9 @@
 #include <QHeaderView>
 #include <QEvent>
 #include <QMouseEvent>
+#include <QClipboard>
+#include <QMimeData>
+#include <QTextStream>
 #include <QStyle>
 #include <QApplication>
 #include <QDir>
@@ -267,6 +270,7 @@ void FilePanel::setupUI() {
     m_treeView->setSelectionMode(QAbstractItemView::ExtendedSelection);
     m_treeView->setContextMenuPolicy(Qt::CustomContextMenu); // Enable context menu
     m_treeView->installEventFilter(this); // Install event filter to capture focus events
+    if (m_treeView->viewport()) m_treeView->viewport()->installEventFilter(this);
     m_treeView->setDragEnabled(true);
     m_treeView->setAcceptDrops(true);
     m_treeView->setDropIndicatorShown(true);
@@ -284,6 +288,7 @@ void FilePanel::setupUI() {
     m_listView->setSelectionMode(QAbstractItemView::ExtendedSelection);
     m_listView->setContextMenuPolicy(Qt::CustomContextMenu);
     m_listView->installEventFilter(this);
+    if (m_listView->viewport()) m_listView->viewport()->installEventFilter(this);
     m_listView->setDragEnabled(true);
     m_listView->setAcceptDrops(true);
     m_listView->setDropIndicatorShown(true);
@@ -359,6 +364,7 @@ void FilePanel::setupUI() {
     m_theaterDelegate = new TheaterViewDelegate(m_theaterListView);
     m_theaterListView->setItemDelegate(m_theaterDelegate);
     m_theaterListView->installEventFilter(this);
+    if (m_theaterListView->viewport()) m_theaterListView->viewport()->installEventFilter(this);
     m_theaterListView->setDragEnabled(false);
     m_theaterListView->setAcceptDrops(false);
     m_theaterListView->setDropIndicatorShown(false);
@@ -686,6 +692,73 @@ bool FilePanel::eventFilter(QObject* watched, QEvent* event) {
             emit panelActivated(this);
         }
     }
+    // QRubberBand Mouse Selection Handling for item views
+    QWidget* targetW = qobject_cast<QWidget*>(watched);
+    QAbstractItemView* itemView = nullptr;
+    if (targetW) {
+        if (m_treeView && targetW == m_treeView->viewport()) itemView = m_treeView;
+        else if (m_listView && targetW == m_listView->viewport()) itemView = m_listView;
+        else if (m_theaterListView && targetW == m_theaterListView->viewport()) itemView = m_theaterListView;
+        else if (qobject_cast<QAbstractItemView*>(targetW->parentWidget())) itemView = qobject_cast<QAbstractItemView*>(targetW->parentWidget());
+        else if (qobject_cast<QAbstractItemView*>(targetW)) itemView = qobject_cast<QAbstractItemView*>(targetW);
+    }
+
+    if (itemView && event->type() == QEvent::MouseButtonPress) {
+        QMouseEvent* me = static_cast<QMouseEvent*>(event);
+        if (me->button() == Qt::LeftButton) {
+            setActive(true);
+            emit panelActivated(this);
+            QPoint pos = me->pos();
+            QModelIndex idx = itemView->indexAt(pos);
+            if (!idx.isValid()) {
+                m_rubberBandOrigin = pos;
+                m_rubberBandTargetView = targetW;
+                if (!m_rubberBand) {
+                    m_rubberBand = new QRubberBand(QRubberBand::Rectangle, targetW);
+                }
+                m_rubberBand->setGeometry(QRect(m_rubberBandOrigin, QSize()));
+                m_rubberBand->show();
+                m_isRubberBandActive = true;
+                if (!(me->modifiers() & (Qt::ControlModifier | Qt::ShiftModifier))) {
+                    if (itemView->selectionModel()) {
+                        itemView->selectionModel()->clearSelection();
+                    }
+                }
+            }
+        }
+    } else if (m_isRubberBandActive && targetW && targetW == m_rubberBandTargetView && event->type() == QEvent::MouseMove) {
+        QMouseEvent* me = static_cast<QMouseEvent*>(event);
+        if (m_rubberBand) {
+            QRect rect = QRect(m_rubberBandOrigin, me->pos()).normalized();
+            m_rubberBand->setGeometry(rect);
+            if (itemView && itemView->model()) {
+                QItemSelection selection;
+                int rows = itemView->model()->rowCount(itemView->rootIndex());
+                for (int r = 0; r < rows; ++r) {
+                    QModelIndex idx = itemView->model()->index(r, 0, itemView->rootIndex());
+                    if (idx.isValid()) {
+                        QRect vr = itemView->visualRect(idx);
+                        if (vr.intersects(rect)) {
+                            selection.select(idx, idx);
+                        }
+                    }
+                }
+                if (itemView->selectionModel()) {
+                    QItemSelectionModel::SelectionFlags flags = QItemSelectionModel::Select;
+                    if (itemView->selectionBehavior() == QAbstractItemView::SelectRows) {
+                        flags |= QItemSelectionModel::Rows;
+                    }
+                    itemView->selectionModel()->select(selection, flags);
+                }
+            }
+        }
+    } else if (m_isRubberBandActive && (event->type() == QEvent::MouseButtonRelease || event->type() == QEvent::FocusOut)) {
+        m_isRubberBandActive = false;
+        if (m_rubberBand) {
+            m_rubberBand->hide();
+        }
+    }
+
     if (watched == m_treeView || watched == m_listView || watched == m_millerView || watched == m_timelineView || watched == m_filmstripView || watched == m_theaterListView || watched == m_theaterContainer || watched == m_theaterDrawer || watched == m_drawerList) {
         if (event->type() == QEvent::FocusIn || event->type() == QEvent::MouseButtonPress) {
             setActive(true);
@@ -1660,7 +1733,64 @@ void FilePanel::onCut() {
 void FilePanel::onPaste() {
     QClipboard* clipboard = QApplication::clipboard();
     const QMimeData* mimeData = clipboard->mimeData();
-    if (!mimeData || !mimeData->hasUrls()) return;
+    if (!mimeData) return;
+
+    // 1. Paste Image Data from Clipboard (browser, screenshot, photo editor)
+    if (mimeData->hasImage() && !mimeData->hasUrls()) {
+        QImage image = qvariant_cast<QImage>(mimeData->imageData());
+        if (image.isNull()) {
+            QPixmap pix = qvariant_cast<QPixmap>(mimeData->imageData());
+            image = pix.toImage();
+        }
+        if (!image.isNull()) {
+            QString baseName = "clipboard";
+            QString ext = ".png";
+            QString targetPath = QDir(m_currentPath).filePath(baseName + ext);
+            int count = 1;
+            while (QFile::exists(targetPath)) {
+                targetPath = QDir(m_currentPath).filePath(QString("%1_%2%3").arg(baseName).arg(count++).arg(ext));
+            }
+            if (image.save(targetPath, "PNG")) {
+                refresh();
+                QModelIndex idx = m_proxyModel ? m_proxyModel->mapFromSource(m_fileModel->index(targetPath)) : m_fileModel->index(targetPath);
+                if (idx.isValid() && m_treeView) {
+                    m_treeView->setCurrentIndex(idx);
+                }
+                if (m_statusLabel) m_statusLabel->setText(QString("Pasted clipboard image to %1").arg(QFileInfo(targetPath).fileName()));
+                return;
+            }
+        }
+    }
+
+    // 2. Paste Plain Text Data from Clipboard (web page, editor, terminal)
+    if (mimeData->hasText() && !mimeData->hasUrls()) {
+        QString text = mimeData->text();
+        if (!text.isEmpty()) {
+            QString baseName = "clipboard";
+            QString ext = ".txt";
+            QString targetPath = QDir(m_currentPath).filePath(baseName + ext);
+            int count = 1;
+            while (QFile::exists(targetPath)) {
+                targetPath = QDir(m_currentPath).filePath(QString("%1_%2%3").arg(baseName).arg(count++).arg(ext));
+            }
+            QFile file(targetPath);
+            if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                QTextStream out(&file);
+                out << text;
+                file.close();
+                refresh();
+                QModelIndex idx = m_proxyModel ? m_proxyModel->mapFromSource(m_fileModel->index(targetPath)) : m_fileModel->index(targetPath);
+                if (idx.isValid() && m_treeView) {
+                    m_treeView->setCurrentIndex(idx);
+                }
+                if (m_statusLabel) m_statusLabel->setText(QString("Pasted clipboard text to %1").arg(QFileInfo(targetPath).fileName()));
+                return;
+            }
+        }
+    }
+
+    // 3. Standard File / Directory Copy & Move Operations
+    if (!mimeData->hasUrls()) return;
 
     QList<QUrl> urls = mimeData->urls();
     QStringList srcPaths;
@@ -4128,6 +4258,8 @@ void FilePanel::rebuildTheaterGroups() {
         QListView* grid = new QListView(m_theaterScrollWidget);
         grid->setViewMode(QListView::IconMode);
         grid->setResizeMode(QListView::Adjust);
+        grid->setSelectionMode(QAbstractItemView::ExtendedSelection);
+        if (grid->viewport()) grid->viewport()->installEventFilter(this);
         grid->setDragEnabled(false);
         grid->setAcceptDrops(false);
         grid->setDragDropMode(QAbstractItemView::NoDragDrop);

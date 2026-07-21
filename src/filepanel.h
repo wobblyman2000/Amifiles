@@ -18,6 +18,7 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QToolButton>
+#include <QRubberBand>
 #include <QSettings>
 #include <QComboBox>
 #include <QStringList>
@@ -855,6 +856,11 @@ private:
     QToolButton* m_btnToggleSearchMode = nullptr;
     QTimer* m_searchUpdateTimer = nullptr;
     QStringList m_bufferedSearchResults;
+
+    QRubberBand* m_rubberBand = nullptr;
+    QPoint m_rubberBandOrigin;
+    bool m_isRubberBandActive = false;
+    QWidget* m_rubberBandTargetView = nullptr;
 
     QTreeView* m_treeView = nullptr;
     CustomFileSystemModel* m_fileModel = nullptr;
