@@ -758,6 +758,7 @@ signals:
     void loadDefaultProfileRequested();
     void saveFolderProfileRequested();
     void configureFolderLayoutsRequested();
+    void mediaPlaybackSettingsChanged();
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
@@ -784,6 +785,8 @@ private slots:
     void updateFavoritesUI();
     void updateCloneButtonIcon();
     void onCustomContextMenu(const QPoint& pos);
+    void showAudioShowcaseContextMenu(const QPoint& pos);
+    void showVideoShowcaseContextMenu(const QPoint& pos);
     void onFavoriteButtonContextMenu(const QPoint& pos);
     void onToggleViewMode();
     void onZoomChanged(int value);
@@ -893,14 +896,12 @@ private:
     class CardViewDelegate* m_cardDelegate = nullptr;
     class TheaterViewDelegate* m_theaterDelegate = nullptr;
     QWidget* m_theaterContainer = nullptr;
-    QWidget* m_theaterDrawer = nullptr;
-    QLabel* m_drawerTitle = nullptr;
-    QLabel* m_drawerMetaLabel = nullptr;
-    class QTextBrowser* m_drawerSynopsisText = nullptr;
-    class QListWidget* m_drawerList = nullptr;
-    QPushButton* m_drawerPlayBtn = nullptr;
-    QPushButton* m_drawerCloseBtn = nullptr;
-    QString m_drawerFolderPath;
+    QWidget* m_bottomInfoPanel = nullptr;
+    QLabel* m_bottomTitle = nullptr;
+    QLabel* m_bottomMeta = nullptr;
+    QLabel* m_bottomSynopsis = nullptr;
+    QPushButton* m_bottomPlayBtn = nullptr;
+    QString m_bottomPanelPath;
     class QScrollArea* m_theaterScrollArea = nullptr;
     QWidget* m_theaterScrollWidget = nullptr;
     class QVBoxLayout* m_theaterScrollLayout = nullptr;

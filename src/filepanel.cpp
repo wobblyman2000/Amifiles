@@ -373,11 +373,17 @@ void FilePanel::setupUI() {
 
     // Slide-out tracks drawer container
     m_theaterContainer = new QWidget(this);
-    QHBoxLayout* theaterLayout = new QHBoxLayout(m_theaterContainer);
+    QVBoxLayout* theaterLayout = new QVBoxLayout(m_theaterContainer);
     theaterLayout->setContentsMargins(0, 0, 0, 0);
     theaterLayout->setSpacing(0);
-    
-    m_theaterScrollArea = new QScrollArea(m_theaterContainer);
+
+    // Upper container for views
+    QWidget* upperContainer = new QWidget(m_theaterContainer);
+    QHBoxLayout* upperLayout = new QHBoxLayout(upperContainer);
+    upperLayout->setContentsMargins(0, 0, 0, 0);
+    upperLayout->setSpacing(0);
+
+    m_theaterScrollArea = new QScrollArea(upperContainer);
     m_theaterScrollArea->setWidgetResizable(true);
     m_theaterScrollArea->setFrameShape(QFrame::NoFrame);
     m_theaterScrollArea->setStyleSheet("QScrollArea { background: transparent; }");
@@ -392,77 +398,96 @@ void FilePanel::setupUI() {
     m_theaterScrollLayout->addStretch(1);
     m_theaterScrollArea->setWidget(m_theaterScrollWidget);
 
-    theaterLayout->addWidget(m_theaterListView, 1);
-    theaterLayout->addWidget(m_theaterScrollArea, 1);
+    upperLayout->addWidget(m_theaterListView, 1);
+    upperLayout->addWidget(m_theaterScrollArea, 1);
 
-    m_theaterDrawer = new QWidget(m_theaterContainer);
-    m_theaterDrawer->setFixedWidth(320);
-    m_theaterDrawer->setStyleSheet("QWidget { background-color: #181825; border-left: 1px solid #313244; }");
-    m_theaterDrawer->setVisible(false);
+    theaterLayout->addWidget(upperContainer, 1);
 
-    QVBoxLayout* drawerLayout = new QVBoxLayout(m_theaterDrawer);
-    drawerLayout->setContentsMargins(8, 8, 8, 8);
-    drawerLayout->setSpacing(8);
+    // Bottom Info Panel
+    m_bottomInfoPanel = new QWidget(m_theaterContainer);
+    m_bottomInfoPanel->setFixedHeight(72);
+    m_bottomInfoPanel->setStyleSheet("QWidget { background-color: #11111b; border-top: 1px solid #313244; } QLabel { border: none; background: transparent; }");
+    m_bottomInfoPanel->setVisible(false);
 
-    QHBoxLayout* headerLayout = new QHBoxLayout();
-    m_drawerTitle = new QLabel("Album Tracks", m_theaterDrawer);
-    m_drawerTitle->setStyleSheet("font-weight: bold; font-size: 14px; color: #89b4fa;");
-    m_drawerCloseBtn = new QPushButton("✕", m_theaterDrawer);
-    m_drawerCloseBtn->setFixedSize(24, 24);
-    m_drawerCloseBtn->setStyleSheet("QPushButton { background-color: transparent; color: #f38ba8; font-weight: bold; border: none; } QPushButton:hover { color: #f38ba8; background-color: #313244; border-radius: 4px; }");
-    headerLayout->addWidget(m_drawerTitle, 1);
-    headerLayout->addWidget(m_drawerCloseBtn);
-    drawerLayout->addLayout(headerLayout);
+    QHBoxLayout* bottomLayout = new QHBoxLayout(m_bottomInfoPanel);
+    bottomLayout->setContentsMargins(12, 6, 12, 6);
+    bottomLayout->setSpacing(12);
 
-    m_drawerMetaLabel = new QLabel(m_theaterDrawer);
-    m_drawerMetaLabel->setStyleSheet("QLabel { font-size: 11px; color: #a6adc8; font-weight: bold; }");
-    m_drawerMetaLabel->setWordWrap(true);
-    m_drawerMetaLabel->setVisible(false);
-    drawerLayout->addWidget(m_drawerMetaLabel);
+    QVBoxLayout* textLayout = new QVBoxLayout();
+    textLayout->setContentsMargins(0, 0, 0, 0);
+    textLayout->setSpacing(2);
 
-    m_drawerSynopsisText = new QTextBrowser(m_theaterDrawer);
-    m_drawerSynopsisText->setStyleSheet("QTextBrowser { background-color: #11111b; border: 1px solid #313244; border-radius: 4px; color: #cdd6f4; font-size: 12px; line-height: 1.4; padding: 6px; }");
-    m_drawerSynopsisText->setOpenExternalLinks(true);
-    m_drawerSynopsisText->setVisible(false);
-    drawerLayout->addWidget(m_drawerSynopsisText, 1);
+    m_bottomTitle = new QLabel(m_bottomInfoPanel);
+    m_bottomTitle->setStyleSheet("font-weight: bold; font-size: 13px; color: #cdd6f4;");
 
-    m_drawerList = new QListWidget(m_theaterDrawer);
-    m_drawerList->setStyleSheet("QListWidget { background-color: #11111b; border: 1px solid #313244; border-radius: 4px; color: #cdd6f4; } QListWidget::item { padding: 6px; } QListWidget::item:hover { background-color: #313244; } QListWidget::item:selected { background-color: #89b4fa; color: #11111b; }");
-    drawerLayout->addWidget(m_drawerList, 1);
+    m_bottomMeta = new QLabel(m_bottomInfoPanel);
+    m_bottomMeta->setStyleSheet("font-size: 11px; color: #a6adc8;");
 
-    m_drawerPlayBtn = new QPushButton("Play Album", m_theaterDrawer);
-    m_drawerPlayBtn->setStyleSheet("QPushButton { background-color: #a6e3a1; color: #11111b; font-weight: bold; padding: 8px; border-radius: 4px; } QPushButton:hover { background-color: #94e2d5; }");
-    drawerLayout->addWidget(m_drawerPlayBtn);
+    textLayout->addWidget(m_bottomTitle);
+    textLayout->addWidget(m_bottomMeta);
+    bottomLayout->addLayout(textLayout, 2);
 
-    theaterLayout->addWidget(m_theaterDrawer);
+    m_bottomSynopsis = new QLabel(m_bottomInfoPanel);
+    m_bottomSynopsis->setStyleSheet("font-size: 11px; color: #bac2de;");
+    m_bottomSynopsis->setWordWrap(true);
+    m_bottomSynopsis->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    bottomLayout->addWidget(m_bottomSynopsis, 5);
 
-    // Connections for drawer
-    connect(m_drawerCloseBtn, &QPushButton::clicked, this, [this]() {
-        m_theaterDrawer->setVisible(false);
-    });
+    m_bottomPlayBtn = new QPushButton("▶ Play Media", m_bottomInfoPanel);
+    m_bottomPlayBtn->setStyleSheet("QPushButton { background-color: #a6e3a1; color: #11111b; font-weight: bold; padding: 6px 12px; border-radius: 4px; border: none; min-width: 90px; } QPushButton:hover { background-color: #94e2d5; }");
+    bottomLayout->addWidget(m_bottomPlayBtn, 0, Qt::AlignVCenter);
 
-    connect(m_drawerPlayBtn, &QPushButton::clicked, this, [this]() {
+    theaterLayout->addWidget(m_bottomInfoPanel);
+
+    connect(m_bottomPlayBtn, &QPushButton::clicked, this, [this]() {
+        if (m_bottomPanelPath.isEmpty()) return;
+        QFileInfo info(m_bottomPanelPath);
         QStringList playlistPaths;
-        for (int i = 0; i < m_drawerList->count(); ++i) {
-            QListWidgetItem* item = m_drawerList->item(i);
-            QString path = item->data(Qt::UserRole).toString();
-            if (!path.isEmpty()) playlistPaths.append(path);
+        if (info.isDir()) {
+            QDir dir(m_bottomPanelPath);
+            QFileInfoList files = dir.entryInfoList(QDir::Files, QDir::Name);
+            QStringList mediaExts;
+            if (viewModeIndex() == 6) { // Audio Showcase
+                mediaExts = { "mp3", "wav", "flac", "ogg", "m4a", "wma", "aac" };
+            } else { // Video Showcase
+                mediaExts = { "mp4", "mkv", "avi", "mov", "webm", "flv", "wmv", "m4v" };
+            }
+            for (const QFileInfo& fInfo : files) {
+                if (mediaExts.contains(fInfo.suffix().toLower())) {
+                    playlistPaths.append(fInfo.absoluteFilePath());
+                }
+            }
+            // Check for multi-disc folders as well (if grouping is active)
+            QSettings settings("Amifiles", "Amifiles");
+            bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool() && (viewModeIndex() == 6);
+            if (groupMultiDisc && playlistPaths.isEmpty()) {
+                QString parentDir = info.absolutePath();
+                QDir pDir(parentDir);
+                QStringList subDirs = pDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+                QString currentCleaned = FileFilterProxyModel::cleanAlbumFolderName(info.fileName());
+                for (const QString& subDirName : subDirs) {
+                    if (FileFilterProxyModel::cleanAlbumFolderName(subDirName) == currentCleaned) {
+                        QDir subDir(pDir.filePath(subDirName));
+                        QFileInfoList subFiles = subDir.entryInfoList(QDir::Files, QDir::Name);
+                        for (const QFileInfo& fInfo : subFiles) {
+                            if (mediaExts.contains(fInfo.suffix().toLower())) {
+                                playlistPaths.append(fInfo.absoluteFilePath());
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            playlistPaths.append(m_bottomPanelPath);
         }
+
         if (!playlistPaths.isEmpty()) {
             emit playMediaBuiltinRequested(playlistPaths);
         }
     });
 
-    connect(m_drawerList, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem* item) {
-        QString path = item->data(Qt::UserRole).toString();
-        if (!path.isEmpty()) {
-            emit playMediaBuiltinRequested({path});
-        }
-    });
-
     m_theaterContainer->installEventFilter(this);
-    m_theaterDrawer->installEventFilter(this);
-    m_drawerList->installEventFilter(this);
+    m_bottomInfoPanel->installEventFilter(this);
 
     m_millerView = new MillerColumnsView(m_fileModel, this);
     m_millerView->installEventFilter(this);
@@ -665,17 +690,17 @@ void FilePanel::setupUI() {
     connect(m_comboGrouping, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &FilePanel::onGroupingChanged);
     statusLayout->addWidget(m_comboGrouping);
 
-    QVBoxLayout* bottomLayout = new QVBoxLayout();
-    bottomLayout->setContentsMargins(0, 0, 0, 0);
-    bottomLayout->setSpacing(4);
-    bottomLayout->addWidget(m_categoryWidget);
-    bottomLayout->addWidget(m_filterTextWidget);
-    bottomLayout->addWidget(m_statusWidget);
+    QVBoxLayout* panelBottomLayout = new QVBoxLayout();
+    panelBottomLayout->setContentsMargins(0, 0, 0, 0);
+    panelBottomLayout->setSpacing(4);
+    panelBottomLayout->addWidget(m_categoryWidget);
+    panelBottomLayout->addWidget(m_filterTextWidget);
+    panelBottomLayout->addWidget(m_statusWidget);
 
     mainLayout->addWidget(m_navContainer);
     mainLayout->addWidget(m_searchResultsView, 1);
     mainLayout->addWidget(m_viewStack, 1);
-    mainLayout->addLayout(bottomLayout);
+    mainLayout->addLayout(panelBottomLayout);
 
     int initialZoom = settings.value("file_panel/zoom_level", 1).toInt();
     m_zoomSlider->setValue(initialZoom);
@@ -772,7 +797,7 @@ bool FilePanel::eventFilter(QObject* watched, QEvent* event) {
         }
     }
 
-    if (watched == m_treeView || watched == m_listView || watched == m_millerView || watched == m_timelineView || watched == m_filmstripView || watched == m_theaterListView || watched == m_theaterContainer || watched == m_theaterDrawer || watched == m_drawerList) {
+    if (watched == m_treeView || watched == m_listView || watched == m_millerView || watched == m_timelineView || watched == m_filmstripView || watched == m_theaterListView || watched == m_theaterContainer || watched == m_bottomInfoPanel) {
         if (event->type() == QEvent::FocusIn || event->type() == QEvent::MouseButtonPress) {
             setActive(true);
             emit panelActivated(this);
@@ -1514,19 +1539,19 @@ void FilePanel::onSelectionChanged() {
         }
         m_theaterListView->setBackdropPath(backdropPath);
 
-        // Update slide-out tracks list drawer
+        // Update bottom info panel
         if (!paths.isEmpty()) {
             QString path = paths.first();
             QFileInfo pathInfo(path);
-            m_drawerFolderPath = path;
+            m_bottomPanelPath = path;
 
             QSettings settings("Amifiles", "Amifiles");
             int modeIndex = viewModeIndex(); // 6 = Music Showcase, 7 = Cinema Showcase
 
             if (modeIndex == 7) {
-                m_drawerMetaLabel->setVisible(true);
-                m_drawerSynopsisText->setVisible(true);
-                m_drawerPlayBtn->setText("Play Media");
+                // Video Showcase
+                m_bottomSynopsis->setVisible(true);
+                m_bottomPlayBtn->setText("▶ Play Media");
 
                 QString targetDir = pathInfo.isDir() ? path : pathInfo.absolutePath();
                 CinemaMetadata meta;
@@ -1556,88 +1581,46 @@ void FilePanel::onSelectionChanged() {
                 }
 
                 QString titleToShow = meta.title.isEmpty() ? pathInfo.fileName() : meta.title;
-                m_drawerTitle->setText(titleToShow);
+                m_bottomTitle->setText(titleToShow);
 
-                if (!meta.plot.isEmpty() || !meta.rating.isEmpty() || !meta.year.isEmpty()) {
-                    QString metaStr;
-                    if (!meta.year.isEmpty()) metaStr += QString("📅 <b>Year:</b> %1  ").arg(meta.year);
-                    if (!meta.rating.isEmpty()) metaStr += QString("⭐ <b>Rating:</b> %1  ").arg(meta.rating);
-                    if (!meta.genre.isEmpty()) metaStr += QString("<br>🏷 <b>Genre:</b> %1").arg(meta.genre);
-                    if (!meta.studio.isEmpty()) metaStr += QString("<br>🏢 <b>Studio:</b> %1").arg(meta.studio);
-                    m_drawerMetaLabel->setText(metaStr);
-                    m_drawerSynopsisText->setHtml(QString("<div style='font-family: sans-serif; line-height: 1.4; color: #cdd6f4;'>%1</div>").arg(meta.plot.toHtmlEscaped().replace("\n", "<br>")));
+                QString metaStr;
+                if (!meta.year.isEmpty()) metaStr += QString("📅 %1  ").arg(meta.year);
+                if (!meta.rating.isEmpty()) metaStr += QString("⭐ %1  ").arg(meta.rating);
+                if (!meta.genre.isEmpty()) metaStr += QString("🏷 %1").arg(meta.genre);
+                if (metaStr.isEmpty()) metaStr = "Video / Series Folder";
+                m_bottomMeta->setText(metaStr);
+
+                if (!meta.plot.isEmpty()) {
+                    m_bottomSynopsis->setText(meta.plot);
                 } else {
-                    m_drawerMetaLabel->setText("<i>No Metadata Available</i>");
-                    m_drawerSynopsisText->setHtml("<i>No plot summary (.nfo) found inside this directory. Right-click and select 'Scrape Video Metadata...' to search online.</i>");
+                    m_bottomSynopsis->setText("No plot summary (.nfo) found inside this directory.");
                 }
 
-                m_drawerList->clear();
-                QStringList videoExts = { "mp4", "mkv", "avi", "mov", "webm", "flv", "wmv", "m4v" };
-                QDir dir(targetDir);
-                QFileInfoList files = dir.entryInfoList(QDir::Files, QDir::Name);
-                for (const QFileInfo& fInfo : files) {
-                    if (videoExts.contains(fInfo.suffix().toLower())) {
-                        QListWidgetItem* item = new QListWidgetItem(fInfo.fileName(), m_drawerList);
-                        item->setData(Qt::UserRole, fInfo.absoluteFilePath());
-                    }
-                }
+                m_bottomInfoPanel->setVisible(true);
+            } else if (modeIndex == 6) {
+                // Audio Showcase
+                m_bottomSynopsis->setVisible(false);
+                m_bottomPlayBtn->setText("▶ Play Album");
 
-                m_drawerList->setVisible(m_drawerList->count() > 0);
-                m_drawerPlayBtn->setVisible(m_drawerList->count() > 0);
-                m_theaterDrawer->setVisible(true);
+                bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool();
+                QString folderName = pathInfo.fileName();
+                QString cleanedTitle = groupMultiDisc ? FileFilterProxyModel::cleanAlbumFolderName(folderName) : folderName;
+
+                m_bottomTitle->setText(cleanedTitle);
+                
+                QString artistName = "Unknown Artist";
+                QDir parentDir(pathInfo.absolutePath());
+                if (parentDir.dirName() != "Music" && parentDir.dirName() != "Amifiles") {
+                    artistName = parentDir.dirName();
+                }
+                m_bottomMeta->setText(artistName);
+
+                m_bottomInfoPanel->setVisible(true);
             } else {
-                m_drawerMetaLabel->setVisible(false);
-                m_drawerSynopsisText->setVisible(false);
-                m_drawerPlayBtn->setText("Play Album");
-
-                if (pathInfo.isDir()) {
-                    bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool() && (m_viewStack->currentWidget() == m_theaterContainer);
-                    QString folderName = pathInfo.fileName();
-                    QString cleanedTitle = groupMultiDisc ? FileFilterProxyModel::cleanAlbumFolderName(folderName) : folderName;
-                    m_drawerTitle->setText(cleanedTitle);
-                    m_drawerList->clear();
-
-                    QStringList scanPaths;
-                    if (groupMultiDisc) {
-                        QString parentDir = pathInfo.absolutePath();
-                        QDir dir(parentDir);
-                        QStringList subDirs = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
-                        QString currentCleaned = FileFilterProxyModel::cleanAlbumFolderName(folderName);
-                        for (const QString& subDirName : subDirs) {
-                            if (FileFilterProxyModel::cleanAlbumFolderName(subDirName) == currentCleaned) {
-                                scanPaths.append(dir.filePath(subDirName));
-                            }
-                        }
-                    } else {
-                        scanPaths.append(path);
-                    }
-
-                    QStringList mediaExts = { "mp3", "wav", "flac", "ogg", "m4a", "wma", "aac" };
-                    for (const QString& scanPath : scanPaths) {
-                        QDir dir(scanPath);
-                        QFileInfoList files = dir.entryInfoList(QDir::Files, QDir::Name);
-                        for (const QFileInfo& fInfo : files) {
-                            if (mediaExts.contains(fInfo.suffix().toLower())) {
-                                QString displayName = fInfo.fileName();
-                                if (groupMultiDisc && scanPaths.size() > 1) {
-                                    displayName = QString("[%1] %2").arg(QFileInfo(scanPath).fileName()).arg(fInfo.fileName());
-                                }
-                                QListWidgetItem* item = new QListWidgetItem(displayName, m_drawerList);
-                                item->setData(Qt::UserRole, fInfo.absoluteFilePath());
-                            }
-                        }
-                    }
-
-                    bool showTracksDrawer = settings.value("theater/show_tracks_drawer", true).toBool();
-                    m_drawerList->setVisible(m_drawerList->count() > 0);
-                    m_drawerPlayBtn->setVisible(m_drawerList->count() > 0);
-                    m_theaterDrawer->setVisible(m_drawerList->count() > 0 && showTracksDrawer);
-                } else {
-                    m_theaterDrawer->setVisible(false);
-                }
+                m_bottomInfoPanel->setVisible(false);
             }
         } else {
-            m_theaterDrawer->setVisible(false);
+            m_bottomInfoPanel->setVisible(false);
         }
     }
 
@@ -2121,6 +2104,14 @@ static bool hasAudioFilesRecursively(const QString& folderPath, int depth) {
 }
 
 void FilePanel::onCustomContextMenu(const QPoint& pos) {
+    int vMode = viewModeIndex();
+    if (vMode == 6) {
+        showAudioShowcaseContextMenu(pos);
+        return;
+    } else if (vMode == 7) {
+        showVideoShowcaseContextMenu(pos);
+        return;
+    }
     QModelIndex index;
     if (m_viewStack->currentWidget() == m_listView) {
         index = m_listView->indexAt(pos);
@@ -2834,7 +2825,7 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         bool current = settings.value("theater/show_tracks_drawer", true).toBool();
         settings.setValue("theater/show_tracks_drawer", !current);
         if (!current) {
-            m_theaterDrawer->setVisible(false);
+            m_bottomInfoPanel->setVisible(false);
         } else {
             onSelectionChanged();
         }
@@ -2857,6 +2848,293 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         if (m_theaterScrollWidget) m_theaterScrollWidget->update();
     }
 }
+
+void FilePanel::showAudioShowcaseContextMenu(const QPoint& pos) {
+    QModelIndex index = m_theaterListView->indexAt(pos);
+    if (index.isValid()) {
+        if (!m_theaterListView->selectionModel()->isSelected(index)) {
+            m_theaterListView->selectionModel()->select(index, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+            m_theaterListView->setCurrentIndex(index);
+        }
+    }
+
+    QMenu menu(this);
+    QStyle* style = QApplication::style();
+
+    QAction* actOpen = menu.addAction(style->standardIcon(QStyle::SP_DialogOpenButton), "Open");
+    menu.addSeparator();
+
+    // Add a Menu that says "Audio tools" as a test
+    QMenu* audioToolsMenu = menu.addMenu("Audio tools");
+    QAction* actTagEditor = audioToolsMenu->addAction("Batch Tag Editor...");
+    connect(actTagEditor, &QAction::triggered, this, [this]() {
+        QStringList curSelected = selectedPaths();
+        if (!curSelected.isEmpty()) {
+            TagEditorDialog dlg(curSelected, this);
+            if (dlg.exec() == QDialog::Accepted) {
+                refresh();
+            }
+        }
+    });
+
+    menu.addSeparator();
+
+    QStringList curSelected = selectedPaths();
+    QString selectedPath;
+    bool isFolder = false;
+    bool isFavorite = false;
+    if (!curSelected.isEmpty()) {
+        selectedPath = curSelected.first();
+        QFileInfo info(selectedPath);
+        isFolder = info.isDir();
+        isFavorite = FavoritesManager::instance().isFavorite(selectedPath);
+    }
+
+    QAction* actFav = nullptr;
+    if (isFolder) {
+        if (isFavorite) {
+            actFav = menu.addAction(style->standardIcon(QStyle::SP_DialogCancelButton), "Remove from Favorites");
+        } else {
+            actFav = menu.addAction(style->standardIcon(QStyle::SP_DialogYesButton), "Add to Favorites");
+        }
+    } else {
+        bool isCurrentFavorite = FavoritesManager::instance().isFavorite(m_currentPath);
+        if (isCurrentFavorite) {
+            actFav = menu.addAction(style->standardIcon(QStyle::SP_DialogCancelButton), "Remove Current from Favorites");
+        } else {
+            actFav = menu.addAction(style->standardIcon(QStyle::SP_DialogYesButton), "Add Current to Favorites");
+        }
+    }
+
+    menu.addSeparator();
+
+    QSettings settings("Amifiles", "Amifiles");
+    bool zenActive = settings.value("preferences/zen_mode", false).toBool();
+    bool builtinDoubleclick = settings.value("preferences/builtin_player_doubleclick", false).toBool();
+    bool doubleclickQueue = settings.value("preferences/doubleclick_adds_to_queue", false).toBool();
+    bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool();
+    bool hideAuxiliary = settings.value("theater/hide_auxiliary_files", true).toBool();
+
+    QAction* actToggleZen = menu.addAction("Clean Interface Mode (Zen Mode)");
+    actToggleZen->setCheckable(true);
+    actToggleZen->setChecked(zenActive);
+
+    QAction* actToggleDoubleclick = menu.addAction("Double-click Plays Media in Built-in Fullscreen Player");
+    actToggleDoubleclick->setCheckable(true);
+    actToggleDoubleclick->setChecked(builtinDoubleclick);
+
+    QAction* actToggleDoubleclickQueue = menu.addAction("Double-click Adds Media to Playlist Queue");
+    actToggleDoubleclickQueue->setCheckable(true);
+    actToggleDoubleclickQueue->setChecked(doubleclickQueue);
+
+    QAction* actGroupMultiDisc = menu.addAction("Group Multi-Disc Albums");
+    actGroupMultiDisc->setCheckable(true);
+    actGroupMultiDisc->setChecked(groupMultiDisc);
+
+    QAction* actHideAuxiliaryFiles = menu.addAction("Hide Auxiliary / Artwork Files");
+    actHideAuxiliaryFiles->setCheckable(true);
+    actHideAuxiliaryFiles->setChecked(hideAuxiliary);
+
+    QAction* actConfigureFolderLayouts = menu.addAction("Configure Folder-Specific Layouts...");
+
+    QAction* selected = menu.exec(QCursor::pos());
+    if (!selected) return;
+
+    if (selected == actOpen) {
+        if (!selectedPath.isEmpty()) {
+            onDoubleClickedPath(selectedPath);
+        }
+    } else if (selected == actFav) {
+        if (isFolder) {
+            if (isFavorite) {
+                FavoritesManager::instance().removeFavorite(selectedPath);
+            } else {
+                FavoritesManager::instance().addFavorite(selectedPath);
+            }
+        } else {
+            bool isCurrentFavorite = FavoritesManager::instance().isFavorite(m_currentPath);
+            if (isCurrentFavorite) {
+                FavoritesManager::instance().removeFavorite(m_currentPath);
+            } else {
+                FavoritesManager::instance().addFavorite(m_currentPath);
+            }
+        }
+    } else if (selected == actToggleZen) {
+        emit zenModeToggled(!zenActive);
+    } else if (selected == actToggleDoubleclick) {
+        settings.setValue("preferences/builtin_player_doubleclick", !builtinDoubleclick);
+        emit mediaPlaybackSettingsChanged();
+    } else if (selected == actToggleDoubleclickQueue) {
+        settings.setValue("preferences/doubleclick_adds_to_queue", !doubleclickQueue);
+        emit mediaPlaybackSettingsChanged();
+    } else if (selected == actGroupMultiDisc) {
+        settings.setValue("theater/group_multi_disc", !groupMultiDisc);
+        m_proxyModel->setGroupMultiDiscActive(!groupMultiDisc);
+        refresh();
+        if (m_groupProxy && m_groupProxy->isGroupingActive() && m_viewStack->currentWidget() == m_theaterContainer) {
+            rebuildTheaterGroups();
+        }
+    } else if (selected == actHideAuxiliaryFiles) {
+        settings.setValue("theater/hide_auxiliary_files", !hideAuxiliary);
+        m_proxyModel->setHideAuxiliaryFilesActive(!hideAuxiliary);
+        refresh();
+    } else if (selected == actConfigureFolderLayouts) {
+        emit configureFolderLayoutsRequested();
+    }
+}
+
+void FilePanel::showVideoShowcaseContextMenu(const QPoint& pos) {
+    QModelIndex index = m_theaterListView->indexAt(pos);
+    if (index.isValid()) {
+        if (!m_theaterListView->selectionModel()->isSelected(index)) {
+            m_theaterListView->selectionModel()->select(index, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+            m_theaterListView->setCurrentIndex(index);
+        }
+    }
+
+    QMenu menu(this);
+    QStyle* style = QApplication::style();
+
+    QAction* actOpen = menu.addAction(style->standardIcon(QStyle::SP_DialogOpenButton), "Open");
+    menu.addSeparator();
+
+    // Add an Option/Action that says "Audio tools" as a test
+    QAction* actAudioTools = menu.addAction("Audio tools");
+    connect(actAudioTools, &QAction::triggered, this, [this]() {
+        QMessageBox::information(this, "Video Showcase Test", "Audio tools option triggered in Video Showcase view.");
+    });
+
+    menu.addSeparator();
+
+    QStringList curSelected = selectedPaths();
+    QString selectedPath;
+    bool isFolder = false;
+    bool isFavorite = false;
+    if (!curSelected.isEmpty()) {
+        selectedPath = curSelected.first();
+        QFileInfo info(selectedPath);
+        isFolder = info.isDir();
+        isFavorite = FavoritesManager::instance().isFavorite(selectedPath);
+    }
+
+    QAction* actMediaInfoSheet = nullptr;
+    QAction* actScrapeVideoMeta = nullptr;
+    QAction* actMarkWatched = nullptr;
+    QAction* actMarkUnwatched = nullptr;
+
+    if (!selectedPath.isEmpty()) {
+        actMediaInfoSheet = menu.addAction("🎬 Media Info Sheet... (ℹ)");
+        actScrapeVideoMeta = menu.addAction("🔍 Scrape Video Metadata...");
+        
+        QSettings settings("Amifiles", "Amifiles");
+        bool isWatched = settings.value("watched/" + selectedPath, false).toBool();
+        if (isWatched) {
+            actMarkUnwatched = menu.addAction("Mark as Unwatched");
+        } else {
+            actMarkWatched = menu.addAction("Mark as Watched");
+        }
+        menu.addSeparator();
+    }
+
+    QAction* actFav = nullptr;
+    if (isFolder) {
+        if (isFavorite) {
+            actFav = menu.addAction(style->standardIcon(QStyle::SP_DialogCancelButton), "Remove from Favorites");
+        } else {
+            actFav = menu.addAction(style->standardIcon(QStyle::SP_DialogYesButton), "Add to Favorites");
+        }
+    } else {
+        bool isCurrentFavorite = FavoritesManager::instance().isFavorite(m_currentPath);
+        if (isCurrentFavorite) {
+            actFav = menu.addAction(style->standardIcon(QStyle::SP_DialogCancelButton), "Remove Current from Favorites");
+        } else {
+            actFav = menu.addAction(style->standardIcon(QStyle::SP_DialogYesButton), "Add Current to Favorites");
+        }
+    }
+
+    menu.addSeparator();
+
+    QSettings settings("Amifiles", "Amifiles");
+    bool zenActive = settings.value("preferences/zen_mode", false).toBool();
+    bool builtinDoubleclick = settings.value("preferences/builtin_player_doubleclick", false).toBool();
+    bool doubleclickQueue = settings.value("preferences/doubleclick_adds_to_queue", false).toBool();
+    bool hideAuxiliary = settings.value("theater/hide_auxiliary_files", true).toBool();
+
+    QAction* actToggleZen = menu.addAction("Clean Interface Mode (Zen Mode)");
+    actToggleZen->setCheckable(true);
+    actToggleZen->setChecked(zenActive);
+
+    QAction* actToggleDoubleclick = menu.addAction("Double-click Plays Media in Built-in Fullscreen Player");
+    actToggleDoubleclick->setCheckable(true);
+    actToggleDoubleclick->setChecked(builtinDoubleclick);
+
+    QAction* actToggleDoubleclickQueue = menu.addAction("Double-click Adds Media to Playlist Queue");
+    actToggleDoubleclickQueue->setCheckable(true);
+    actToggleDoubleclickQueue->setChecked(doubleclickQueue);
+
+    QAction* actHideAuxiliaryFiles = menu.addAction("Hide Auxiliary / Artwork Files");
+    actHideAuxiliaryFiles->setCheckable(true);
+    actHideAuxiliaryFiles->setChecked(hideAuxiliary);
+
+    QAction* actConfigureFolderLayouts = menu.addAction("Configure Folder-Specific Layouts...");
+
+    QAction* selected = menu.exec(QCursor::pos());
+    if (!selected) return;
+
+    if (selected == actOpen) {
+        if (!selectedPath.isEmpty()) {
+            onDoubleClickedPath(selectedPath);
+        }
+    } else if (selected == actMediaInfoSheet) {
+        ShowcaseInfoDialog infoDlg(selectedPath, this);
+        connect(&infoDlg, &ShowcaseInfoDialog::playRequested, this, [this](const QString& path) {
+            emit playMediaBuiltinRequested({path});
+        });
+        infoDlg.exec();
+    } else if (selected == actScrapeVideoMeta) {
+        VideoScraperDialog scraperDlg(curSelected, this);
+        if (scraperDlg.exec() == QDialog::Accepted) {
+            refresh();
+            onSelectionChanged();
+        }
+    } else if (selected == actMarkWatched) {
+        settings.setValue("watched/" + selectedPath, true);
+        refresh();
+    } else if (selected == actMarkUnwatched) {
+        settings.setValue("watched/" + selectedPath, false);
+        refresh();
+    } else if (selected == actFav) {
+        if (isFolder) {
+            if (isFavorite) {
+                FavoritesManager::instance().removeFavorite(selectedPath);
+            } else {
+                FavoritesManager::instance().addFavorite(selectedPath);
+            }
+        } else {
+            bool isCurrentFavorite = FavoritesManager::instance().isFavorite(m_currentPath);
+            if (isCurrentFavorite) {
+                FavoritesManager::instance().removeFavorite(m_currentPath);
+            } else {
+                FavoritesManager::instance().addFavorite(m_currentPath);
+            }
+        }
+    } else if (selected == actToggleZen) {
+        emit zenModeToggled(!zenActive);
+    } else if (selected == actToggleDoubleclick) {
+        settings.setValue("preferences/builtin_player_doubleclick", !builtinDoubleclick);
+        emit mediaPlaybackSettingsChanged();
+    } else if (selected == actToggleDoubleclickQueue) {
+        settings.setValue("preferences/doubleclick_adds_to_queue", !doubleclickQueue);
+        emit mediaPlaybackSettingsChanged();
+    } else if (selected == actHideAuxiliaryFiles) {
+        settings.setValue("theater/hide_auxiliary_files", !hideAuxiliary);
+        m_proxyModel->setHideAuxiliaryFilesActive(!hideAuxiliary);
+        refresh();
+    } else if (selected == actConfigureFolderLayouts) {
+        emit configureFolderLayoutsRequested();
+    }
+}
+
 
 void FilePanel::setCategoryButtonsVisible(bool visible) {
     m_categoryButtonsVisible = visible;
