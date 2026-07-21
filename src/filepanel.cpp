@@ -4146,31 +4146,37 @@ void FilePanel::updateThemeMusic() {
     QSettings settings("Amifiles", "Amifiles");
     bool autoPlayTheme = settings.value("theater/auto_play_theme_music", true).toBool();
 
-    if (!autoPlayTheme || viewModeIndex() != 7) { // 7 = Video Showcase
+    int vMode = viewModeIndex();
+    if (!autoPlayTheme || (vMode != 6 && vMode != 7)) { // 6 = Audio Showcase, 7 = Video Showcase
         stopThemeMusic();
         return;
     }
 
-    // Search for theme music file in current folder or parent show folder
-    QStringList themeNames = { "theme.mp3", "theme.ogg", "theme.flac", "theme.wav" };
+    QDir dir(m_currentPath);
     QString foundPath;
 
-    for (const QString& tName : themeNames) {
-        QString fullP = QDir(m_currentPath).filePath(tName);
-        if (QFile::exists(fullP)) {
-            foundPath = fullP;
+    // Check current directory for case-insensitive theme.* file
+    QFileInfoList fileList = dir.entryInfoList(QDir::Files);
+    for (const QFileInfo& fi : fileList) {
+        QString base = fi.baseName().toLower();
+        QString ext = fi.suffix().toLower();
+        if (base == "theme" && (ext == "mp3" || ext == "ogg" || ext == "flac" || ext == "wav" || ext == "m4a" || ext == "aac" || ext == "wma")) {
+            foundPath = fi.absoluteFilePath();
             break;
         }
     }
 
+    // If inside a season subfolder (e.g. Season 01), check parent directory for theme file
     if (foundPath.isEmpty()) {
-        QFileInfo fi(m_currentPath);
-        if (fi.fileName().contains("season", Qt::CaseInsensitive)) {
-            QString parentDir = fi.absolutePath();
-            for (const QString& tName : themeNames) {
-                QString fullP = QDir(parentDir).filePath(tName);
-                if (QFile::exists(fullP)) {
-                    foundPath = fullP;
+        QFileInfo dirFi(m_currentPath);
+        if (dirFi.fileName().contains("season", Qt::CaseInsensitive)) {
+            QDir parentDir(dirFi.absolutePath());
+            QFileInfoList parentFiles = parentDir.entryInfoList(QDir::Files);
+            for (const QFileInfo& fi : parentFiles) {
+                QString base = fi.baseName().toLower();
+                QString ext = fi.suffix().toLower();
+                if (base == "theme" && (ext == "mp3" || ext == "ogg" || ext == "flac" || ext == "wav" || ext == "m4a" || ext == "aac" || ext == "wma")) {
+                    foundPath = fi.absoluteFilePath();
                     break;
                 }
             }
@@ -4192,7 +4198,7 @@ void FilePanel::updateThemeMusic() {
         m_themePlayer = new QMediaPlayer(this);
         m_themeAudio = new QAudioOutput(this);
         m_themePlayer->setAudioOutput(m_themeAudio);
-        m_themeAudio->setVolume(0.65f);
+        m_themeAudio->setVolume(0.85f);
 
         connect(m_themePlayer, &QMediaPlayer::mediaStatusChanged, this, [this](QMediaPlayer::MediaStatus status) {
             if (status == QMediaPlayer::EndOfMedia && m_themePlayer && !m_currentThemePath.isEmpty()) {

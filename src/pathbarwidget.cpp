@@ -28,7 +28,6 @@ PathBarWidget::PathBarWidget(QWidget* parent) : QWidget(parent) {
     m_breadcrumbLayout = new QHBoxLayout(m_breadcrumbPage);
     m_breadcrumbLayout->setContentsMargins(4, 0, 4, 0);
     m_breadcrumbLayout->setSpacing(2);
-    m_breadcrumbLayout->addStretch(1);
 
     m_stack->addWidget(m_breadcrumbPage);
 
@@ -36,6 +35,14 @@ PathBarWidget::PathBarWidget(QWidget* parent) : QWidget(parent) {
     m_editPath = new QLineEdit(this);
     m_editPath->setPlaceholderText("Enter directory path...");
     connect(m_editPath, &QLineEdit::returnPressed, this, &PathBarWidget::onEditReturnPressed);
+    
+    // Synchronize breadcrumbs automatically when text is set programmatically
+    connect(m_editPath, &QLineEdit::textChanged, this, [this](const QString& text) {
+        if (!m_isEditing && !text.isEmpty()) {
+            m_currentPath = QDir::cleanPath(text);
+            rebuildBreadcrumbs();
+        }
+    });
 
     m_stack->addWidget(m_editPath);
 
@@ -45,11 +52,17 @@ PathBarWidget::PathBarWidget(QWidget* parent) : QWidget(parent) {
 
 void PathBarWidget::setPath(const QString& path) {
     QString cleanP = QDir::cleanPath(path);
-    if (m_currentPath == cleanP) return;
-
     m_currentPath = cleanP;
+    
+    bool wasEditing = m_isEditing;
+    m_isEditing = false;
     m_editPath->setText(QDir::toNativeSeparators(m_currentPath));
+    m_isEditing = wasEditing;
+
     rebuildBreadcrumbs();
+    if (!m_isEditing) {
+        showBreadcrumbMode();
+    }
 }
 
 void PathBarWidget::rebuildBreadcrumbs() {
@@ -155,7 +168,7 @@ void PathBarWidget::onDropdownClicked(const QString& parentPath, QWidget* anchor
     // Subdirectories list widget
     QListWidget* listDirs = new QListWidget(popupWidget);
     listDirs->setFixedHeight(200);
-    listDirs->setFixedWidth(240);
+    listDirs->setFixedWidth(260);
 
     QDir dir(parentPath);
     QFileInfoList subDirs = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
