@@ -3462,6 +3462,14 @@ void FilePanel::onViewModeChanged(int index) {
     bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool() && (index == 6);
     bool hideActive = settings.value("theater/hide_auxiliary_files", true).toBool() && (index == 6 || index == 7);
     if (m_proxyModel) {
+        if (index == 6) {
+            m_proxyModel->setShowcaseMode(1); // Audio Showcase
+        } else if (index == 7) {
+            m_proxyModel->setShowcaseMode(2); // Video Showcase
+        } else {
+            m_proxyModel->setShowcaseMode(0); // Standard View
+        }
+
         m_proxyModel->setGroupMultiDiscActive(groupMultiDisc);
         m_proxyModel->setHideAuxiliaryFilesActive(hideActive);
 

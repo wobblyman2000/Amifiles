@@ -25,6 +25,7 @@ private slots:
     void onApplyClicked();
     void onOkClicked();
     void onConfigureAgeRules();
+    void onResetDefaults();
 
 private:
     void setupUI();
@@ -61,6 +62,7 @@ private:
     QLineEdit* m_editTmdbApiKey = nullptr;
     QLineEdit* m_editHidePatterns = nullptr;
 
+    QPushButton* m_btnResetDefaults = nullptr;
     QPushButton* m_btnOk = nullptr;
     QPushButton* m_btnCancel = nullptr;
     QPushButton* m_btnApply = nullptr;

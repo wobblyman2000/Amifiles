@@ -10,6 +10,7 @@
 #include <QLabel>
 #include <QFrame>
 #include <QLineEdit>
+#include <QMessageBox>
 
 PreferencesDialog::PreferencesDialog(QWidget* parent) : QDialog(parent) {
     setWindowTitle("Preferences & System Settings");
@@ -247,6 +248,13 @@ void PreferencesDialog::setupUI() {
 
     // Bottom Actions Panel
     QHBoxLayout* layBtns = new QHBoxLayout();
+    
+    m_btnResetDefaults = new QPushButton("🔄 Reset All to Defaults", this);
+    m_btnResetDefaults->setToolTip("Restores all preferences, window geometry, toolbar settings, and layout rules to factory defaults.");
+    m_btnResetDefaults->setStyleSheet("QPushButton { background-color: #f38ba8; color: #11111b; font-weight: bold; } QPushButton:hover { background-color: #eba0ac; }");
+    connect(m_btnResetDefaults, &QPushButton::clicked, this, &PreferencesDialog::onResetDefaults);
+    layBtns->addWidget(m_btnResetDefaults);
+
     layBtns->addStretch(1);
 
     m_btnOk = new QPushButton("OK", this);
@@ -348,5 +356,30 @@ void PreferencesDialog::onConfigureAgeRules() {
     AgeStylingDialog dlg(this);
     if (dlg.exec() == QDialog::Accepted) {
         emit preferencesChanged();
+    }
+}
+
+void PreferencesDialog::onResetDefaults() {
+    auto res = QMessageBox::question(
+        this,
+        "Reset All Settings to Factory Defaults",
+        "Are you sure you want to completely reset all preferences, layout rules, toolbars, and options to factory defaults?\n\nThis will restore all default settings without needing to manually remove config files.",
+        QMessageBox::Yes | QMessageBox::No,
+        QMessageBox::No
+    );
+
+    if (res == QMessageBox::Yes) {
+        QSettings settings("Amifiles", "Amifiles");
+        settings.clear();
+        settings.sync();
+
+        loadPreferences();
+        emit preferencesChanged();
+
+        QMessageBox::information(
+            this,
+            "Reset Complete",
+            "All settings, layout rules, and preferences have been successfully reset to factory defaults!"
+        );
     }
 }

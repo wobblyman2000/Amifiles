@@ -223,6 +223,14 @@ public:
     }
     bool isHideAuxiliaryFilesActive() const { return m_hideAuxiliaryFilesActive; }
 
+    void setShowcaseMode(int mode) {
+        if (m_showcaseMode != mode) {
+            m_showcaseMode = mode;
+            invalidate();
+        }
+    }
+    int showcaseMode() const { return m_showcaseMode; }
+
     void setHidePatterns(const QStringList& patterns) {
         m_hidePatterns = patterns;
         invalidate();
@@ -514,6 +522,24 @@ protected:
             }
         }
 
+        if (!isDir) {
+            QString ext = fileModel->fileInfo(index).suffix().toLower();
+            if (m_showcaseMode == 1) { // Audio Showcase Mode
+                static const QStringList imgExts = {"jpg", "jpeg", "png", "webp", "bmp", "gif", "tiff"};
+                static const QStringList videoExts = {"mp4", "mkv", "avi", "mov", "webm", "mpg", "mpeg", "m4v", "flv", "wmv"};
+                if (imgExts.contains(ext) || videoExts.contains(ext)) {
+                    return false;
+                }
+            } else if (m_showcaseMode == 2) { // Video Showcase Mode
+                static const QStringList imgExts = {"jpg", "jpeg", "png", "webp", "bmp", "gif", "tiff"};
+                static const QStringList audioExts = {"mp3", "flac", "wav", "aac", "m4a", "ogg", "wma", "opus"};
+                static const QStringList auxExts = {"xml", "nfo", "txt", "sub", "idx", "ini", "db"};
+                if (imgExts.contains(ext) || audioExts.contains(ext) || auxExts.contains(ext)) {
+                    return false;
+                }
+            }
+        }
+
         if (m_groupMultiDiscActive && isDir) {
             QString parentDir = QFileInfo(filePath).absolutePath();
             QDir dir(parentDir);
@@ -616,6 +642,7 @@ private:
     bool m_ageColoringEnabled = true; // Enabled by default
     bool m_groupMultiDiscActive = false;
     bool m_hideAuxiliaryFilesActive = false;
+    int m_showcaseMode = 0; // 0 = Standard, 1 = Audio Showcase, 2 = Video Showcase
     QStringList m_hidePatterns;
     qint64 m_minSize = -1;
     qint64 m_maxSize = -1;
