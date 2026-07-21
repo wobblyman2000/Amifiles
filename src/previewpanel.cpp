@@ -162,6 +162,39 @@ static QIcon createVisualizerIcon(const QColor& color) {
     return QIcon(pix);
 }
 
+static QIcon createAutoFsIcon(const QColor& color) {
+    QPixmap pix(24, 24);
+    pix.fill(Qt::transparent);
+    QPainter p(&pix);
+    p.setRenderHint(QPainter::Antialiasing);
+
+    QPen pen(color, 2, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin);
+    p.setPen(pen);
+
+    // Outer corner brackets (Fullscreen symbol)
+    p.drawLine(3, 8, 3, 3);
+    p.drawLine(3, 3, 8, 3);
+
+    p.drawLine(16, 3, 21, 3);
+    p.drawLine(21, 3, 21, 8);
+
+    p.drawLine(3, 16, 3, 21);
+    p.drawLine(3, 21, 8, 21);
+
+    p.drawLine(16, 21, 21, 21);
+    p.drawLine(21, 21, 21, 16);
+
+    // Center timer clock
+    p.setPen(QPen(color, 1.5));
+    p.drawEllipse(QPointF(12, 12), 4.5, 4.5);
+
+    p.drawLine(12, 12, 12, 9);
+    p.drawLine(12, 12, 14.5, 12);
+
+    p.end();
+    return QIcon(pix);
+}
+
 FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window | Qt::FramelessWindowHint) {
     setStyleSheet("background-color: #000000;");
     setMouseTracking(true);
@@ -723,21 +756,25 @@ void PreviewPanel::setupUI() {
     m_btnSubtitles->setStyleSheet("QPushButton { font-weight: bold; background-color: transparent; }");
     connect(m_btnSubtitles, &QPushButton::clicked, this, &PreviewPanel::onSubtitleMenuRequested);
 
-    m_btnAutoFS10s = new QPushButton("Auto FS", this);
-    m_btnAutoFS10s->setCheckable(true);
-    m_btnAutoFS10s->setMaximumWidth(60);
-    m_btnAutoFS10s->setStyleSheet(
-        "QPushButton { color: #cdd6f4; background-color: #313244; border: 1px solid #45475a; border-radius: 4px; padding: 2px 6px; font-size: 10px; font-weight: bold; }"
-        "QPushButton:checked { color: #11111b; background-color: #89b4fa; border: 1px solid #89b4fa; }"
-        "QPushButton:hover { background-color: #45475a; }"
-    );
-    m_btnAutoFS10s->setToolTip("Enable/Disable auto transition to Full Screen after 10 seconds of playback");
-    bool autoFs10sVal = settings.value("preview/auto_fs_10s", false).toBool();
-    m_btnAutoFS10s->setChecked(autoFs10sVal);
-    connect(m_btnAutoFS10s, &QPushButton::toggled, this, [this](bool checked) {
+    m_btnAutoFS20s = new QPushButton(this);
+    m_btnAutoFS20s->setCheckable(true);
+    m_btnAutoFS20s->setMaximumWidth(32);
+    m_btnAutoFS20s->setStyleSheet("QPushButton { background-color: transparent; border: none; }");
+    
+    bool autoFs20sVal = settings.value("preview/auto_fs_20s", false).toBool();
+    m_btnAutoFS20s->setChecked(autoFs20sVal);
+    m_btnAutoFS20s->setIcon(createAutoFsIcon(autoFs20sVal ? QColor("#89b4fa") : QColor("#585b70")));
+    m_btnAutoFS20s->setToolTip(autoFs20sVal ? "Auto Fullscreen (20s): ON" : "Auto Fullscreen (20s): OFF");
+
+    connect(m_btnAutoFS20s, &QPushButton::toggled, this, [this](bool checked) {
         QSettings settings("Amifiles", "Amifiles");
-        settings.setValue("preview/auto_fs_10s", checked);
-        if (!checked && m_autoFsTimer) {
+        settings.setValue("preview/auto_fs_20s", checked);
+        m_btnAutoFS20s->setIcon(createAutoFsIcon(checked ? QColor("#89b4fa") : QColor("#585b70")));
+        m_btnAutoFS20s->setToolTip(checked ? "Auto Fullscreen (20s): ON" : "Auto Fullscreen (20s): OFF");
+
+        if (checked && m_player && m_player->playbackState() == QMediaPlayer::PlayingState && m_autoFsTimer) {
+            m_autoFsTimer->start(20000);
+        } else if (!checked && m_autoFsTimer) {
             m_autoFsTimer->stop();
         }
     });
@@ -786,7 +823,7 @@ void PreviewPanel::setupUI() {
     controlsLayout->addWidget(m_btnRepeat);
     controlsLayout->addWidget(m_btnToggleVisualizer);
     controlsLayout->addWidget(m_btnSubtitles);
-    controlsLayout->addWidget(m_btnAutoFS10s);
+    controlsLayout->addWidget(m_btnAutoFS20s);
     controlsLayout->addStretch(1);
     controlsLayout->addWidget(lblVol);
     controlsLayout->addWidget(m_sliderVolume);
@@ -1240,8 +1277,8 @@ void PreviewPanel::showMediaPreview(const QString& filePath, bool isVideo) {
     if (isVisible() || m_prePreviewPlaybackState == QMediaPlayer::PlayingState) {
         m_player->play();
         m_btnPlayPause->setIcon(style()->standardIcon(QStyle::SP_MediaPause));
-        if (m_btnAutoFS10s && m_btnAutoFS10s->isChecked() && m_autoFsTimer) {
-            m_autoFsTimer->start(10000);
+        if (m_btnAutoFS20s && m_btnAutoFS20s->isChecked() && m_autoFsTimer) {
+            m_autoFsTimer->start(20000);
         }
     } else {
         m_player->stop();
@@ -1386,8 +1423,8 @@ void PreviewPanel::onPlaybackStateChanged(QMediaPlayer::PlaybackState state) {
     if (state == QMediaPlayer::PlayingState) {
         m_btnPlayPause->setIcon(style->standardIcon(QStyle::SP_MediaPause));
         if (m_visualizer) m_visualizer->setPlaying(true);
-        if (m_btnAutoFS10s && m_btnAutoFS10s->isChecked() && m_autoFsTimer) {
-            m_autoFsTimer->start(10000);
+        if (m_btnAutoFS20s && m_btnAutoFS20s->isChecked() && m_autoFsTimer) {
+            m_autoFsTimer->start(20000);
         }
     } else {
         m_btnPlayPause->setIcon(style->standardIcon(QStyle::SP_MediaPlay));

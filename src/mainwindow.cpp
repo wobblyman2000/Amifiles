@@ -1233,12 +1233,43 @@ void MainWindow::setupMenus() {
 
     m_menuHelp->addSeparator();
     m_menuHelp->addAction("About Amifiles", this, [this]() {
-        QMessageBox::about(this, "About Amifiles", 
-                           "<h3>Amifiles v" AMIFILES_VERSION_STRING "</h3>"
-                           "<p>A modern Directory Opus clone for Linux.</p>"
-                           "<p>Supports dual-pane browsing, real-time filtering, "
-                           "dynamic toolbars, text quick edits, folder artwork detection, "
-                           "and media file metadata previews.</p>");
+        QDialog dlg(this);
+        dlg.setWindowTitle("About Amifiles");
+        dlg.setFixedSize(460, 260);
+        dlg.setStyleSheet(
+            "QDialog { background-color: #181825; color: #cdd6f4; border: 1px solid #313244; border-radius: 8px; }"
+            "QLabel { color: #cdd6f4; background: transparent; }"
+            "QPushButton { background-color: #89b4fa; color: #11111b; font-weight: bold; border: none; border-radius: 6px; padding: 8px 24px; font-size: 12px; }"
+            "QPushButton:hover { background-color: #b4befe; }"
+        );
+
+        QVBoxLayout* layout = new QVBoxLayout(&dlg);
+        layout->setContentsMargins(24, 24, 24, 24);
+        layout->setSpacing(12);
+
+        QLabel* titleLabel = new QLabel("<h2>Amifiles v" AMIFILES_VERSION_STRING "</h2>", &dlg);
+        titleLabel->setAlignment(Qt::AlignCenter);
+        layout->addWidget(titleLabel);
+
+        QLabel* descLabel = new QLabel(
+            "<p style='text-align: center; color: #a6adc8; font-size: 13px; margin: 0;'>A modern file manager and media showcase hub for Linux.</p>"
+            "<p style='text-align: center; font-weight: bold; color: #89b4fa; font-size: 14px; margin-top: 8px;'>Created by Gemini AI & Dave. Warry</p>"
+            "<p style='text-align: center; color: #6c7086; font-size: 11px; margin: 0;'>Dual-pane navigation • Real-time filtering • Theater View • Media metadata & playlists</p>", &dlg);
+        descLabel->setWordWrap(true);
+        descLabel->setAlignment(Qt::AlignCenter);
+        layout->addWidget(descLabel);
+
+        layout->addStretch();
+
+        QHBoxLayout* btnLayout = new QHBoxLayout();
+        btnLayout->addStretch();
+        QPushButton* okBtn = new QPushButton("OK", &dlg);
+        connect(okBtn, &QPushButton::clicked, &dlg, &QDialog::accept);
+        btnLayout->addWidget(okBtn);
+        btnLayout->addStretch();
+
+        layout->addLayout(btnLayout);
+        dlg.exec();
     });
 }
 

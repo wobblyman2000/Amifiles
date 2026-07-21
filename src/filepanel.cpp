@@ -1352,94 +1352,7 @@ void FilePanel::onDoubleClicked(const QModelIndex& index) {
         path = m_fileModel->filePath(srcIndex);
     }
 
-    QFileInfo info(path);
-    bool builtinPlayerDoubleclick = false;
-    {
-        QWidget* p = parentWidget();
-        while (p && !p->inherits("MainWindow")) {
-            p = p->parentWidget();
-        }
-        if (p) {
-            QMetaObject::invokeMethod(p, "isBuiltinPlayerDoubleclickActive", Q_RETURN_ARG(bool, builtinPlayerDoubleclick));
-        }
-    }
-
-    bool shouldPlayOnDoubleclick = builtinPlayerDoubleclick;
-
-    if (info.isDir()) {
-        if (shouldPlayOnDoubleclick && isPlayableAlbumFolder(path)) {
-            QSettings settings("Amifiles", "Amifiles");
-            bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool() && (m_viewStack->currentWidget() == m_theaterContainer);
-
-            QStringList scanPaths;
-            if (groupMultiDisc) {
-                QString folderName = info.fileName();
-                QString parentDir = info.absolutePath();
-                QDir dir(parentDir);
-                QStringList subDirs = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
-                QString currentCleaned = FileFilterProxyModel::cleanAlbumFolderName(folderName);
-                for (const QString& subDirName : subDirs) {
-                    if (FileFilterProxyModel::cleanAlbumFolderName(subDirName) == currentCleaned) {
-                        scanPaths.append(dir.filePath(subDirName));
-                    }
-                }
-            } else {
-                scanPaths.append(path);
-            }
-
-            QStringList playlistPaths;
-            for (const QString& scanPath : scanPaths) {
-                scanMediaFilesRecursively(scanPath, playlistPaths);
-            }
-
-            if (!playlistPaths.isEmpty()) {
-                emit playMediaBuiltinRequested(playlistPaths);
-                return;
-            }
-        }
-        if (m_viewStack->currentWidget() == m_treeView) {
-            m_treeView->collapse(index);
-        }
-        navigateTo(path, true);
-    } else {
-        QString ext = info.suffix().toLower();
-        QStringList mediaExts = { "mp3", "wav", "flac", "ogg", "m4a", "mp4", "avi", "mkv", "mov", "webm" };
-        if (builtinPlayerDoubleclick && mediaExts.contains(ext)) {
-            emit playMediaBuiltinRequested({path});
-            return;
-        }
-
-        QSettings settings("Amifiles", "Amifiles");
-        bool archiveNavEnabled = settings.value("preferences/archive_nav", true).toBool();
-        QStringList archiveExts = { "zip", "tar", "gz", "xz", "bz2", "tgz", "rar", "7z", "adf", "d64", "iso", "img" };
-
-        if (archiveNavEnabled && archiveExts.contains(ext)) {
-            m_statusLabel->setText("Loading archive...");
-            QApplication::processEvents();
-            bool ok = m_archiveModel->loadArchive(path);
-            updateStatusText();
-
-            if (ok) {
-                m_archiveViewActive = true;
-                m_currentPath = path + "//";
-                updateActiveViewModel();
-
-                m_pathEdit->setText(QDir::toNativeSeparators(path) + "//");
-                
-                // Use interactive resizing for archive view columns
-                for (int i = 0; i < 4; ++i) {
-                    m_treeView->header()->setSectionResizeMode(i, QHeaderView::Interactive);
-                }
-
-                if (m_categoryWidget) m_categoryWidget->hide();
-
-                emit pathChanged(m_currentPath);
-                return;
-            }
-        }
-
-        QDesktopServices::openUrl(QUrl::fromLocalFile(path));
-    }
+    onDoubleClickedPath(path);
 }
 
 void FilePanel::onSelectionChanged() {
@@ -1504,7 +1417,8 @@ void FilePanel::onSelectionChanged() {
                 }
             }
 
-            if (m_drawerList->count() > 0) {
+            bool showTracksDrawer = settings.value("theater/show_tracks_drawer", true).toBool();
+            if (m_drawerList->count() > 0 && showTracksDrawer) {
                 m_theaterDrawer->setVisible(true);
             } else {
                 m_theaterDrawer->setVisible(false);
@@ -3570,12 +3484,14 @@ void FilePanel::onDoubleClickedPath(const QString& path) {
 
     QSettings settings("Amifiles", "Amifiles");
     bool doubleclickAddsToQueue = settings.value("preferences/doubleclick_adds_to_queue", false).toBool();
+    bool zenActive = settings.value("preferences/zen_mode", false).toBool();
+    bool isTheater = (m_viewStack->currentWidget() == m_theaterContainer || m_viewStack->currentWidget() == m_theaterListView);
 
     bool shouldPlayOnDoubleclick = builtinPlayerDoubleclick;
 
     if (info.isDir()) {
-        if ((shouldPlayOnDoubleclick || doubleclickAddsToQueue) && isPlayableAlbumFolder(path)) {
-            bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool() && (m_viewStack->currentWidget() == m_theaterContainer);
+        if (shouldPlayOnDoubleclick || doubleclickAddsToQueue || isTheater || zenActive) {
+            bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool() && isTheater;
 
             QStringList scanPaths;
             if (groupMultiDisc) {
@@ -3604,6 +3520,8 @@ void FilePanel::onDoubleClickedPath(const QString& path) {
                 } else {
                     emit playMediaBuiltinRequested(playlistPaths);
                 }
+                return;
+            } else if (isTheater || zenActive) {
                 return;
             }
         }

@@ -288,7 +288,7 @@ private:
     QPushButton* m_btnShuffle = nullptr;
     QPushButton* m_btnRepeat = nullptr;
     QPushButton* m_btnToggleVisualizer = nullptr;
-    QPushButton* m_btnAutoFS10s = nullptr;
+    QPushButton* m_btnAutoFS20s = nullptr;
     QTimer* m_autoFsTimer = nullptr;
 
     // EQ and Visualizer Elements
