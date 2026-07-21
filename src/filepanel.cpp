@@ -3490,7 +3490,7 @@ void FilePanel::onDoubleClickedPath(const QString& path) {
     bool shouldPlayOnDoubleclick = builtinPlayerDoubleclick;
 
     if (info.isDir()) {
-        if (shouldPlayOnDoubleclick || doubleclickAddsToQueue || isTheater || zenActive) {
+        if (shouldPlayOnDoubleclick || doubleclickAddsToQueue) {
             bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool() && isTheater;
 
             QStringList scanPaths;
@@ -3517,13 +3517,14 @@ void FilePanel::onDoubleClickedPath(const QString& path) {
             if (!playlistPaths.isEmpty()) {
                 if (doubleclickAddsToQueue) {
                     emit queueMediaBuiltinRequested(playlistPaths);
-                } else {
+                } else if (shouldPlayOnDoubleclick) {
                     emit playMediaBuiltinRequested(playlistPaths);
                 }
                 return;
-            } else if (isTheater || zenActive) {
-                return;
             }
+        }
+        if (isTheater || zenActive) {
+            return;
         }
         navigateTo(path, true);
     } else {
@@ -3704,16 +3705,38 @@ void CasingRunnable::run() {
         }
     }
 
-    // 4. Fall back to CD covers
+    // 4. Fall back to CD covers and common album art filenames
     if (artPath.isEmpty()) {
-        QStringList cdChecks = { "folder.jpg", "folder.jpeg", "folder.png", "cover.jpg", "cover.jpeg", "cover.png" };
+        QStringList cdChecks = {
+            "folder.jpg", "folder.jpeg", "folder.png",
+            "cover.jpg", "cover.jpeg", "cover.png",
+            "front.jpg", "front.jpeg", "front.png",
+            "album.jpg", "album.jpeg", "album.png",
+            "art.jpg", "art.jpeg", "art.png",
+            "jacket.jpg", "jacket.jpeg", "jacket.png",
+            "disc.jpg", "disc.jpeg", "disc.png",
+            "cd.jpg", "cd.jpeg", "cd.png",
+            "image.jpg", "image.jpeg", "image.png",
+            "thumb.jpg", "thumb.jpeg", "thumb.png",
+            "poster.jpg", "poster.jpeg", "poster.png"
+        };
         artPath = findFirstCaseInsensitiveFile(dirPath, cdChecks);
         if (!artPath.isEmpty()) {
             casingInt = 0; // CasingCD
         }
     }
 
-    // 5. If still empty, check sibling disc folders if groupMultiDisc is active
+    // 5. If still empty, scan directory for ANY image file (*.jpg, *.jpeg, *.png, *.webp, *.bmp)
+    if (artPath.isEmpty() && isDir) {
+        QDir d(dirPath);
+        QFileInfoList imgFiles = d.entryInfoList({"*.jpg", "*.jpeg", "*.png", "*.webp", "*.bmp"}, QDir::Files, QDir::Name);
+        if (!imgFiles.isEmpty()) {
+            artPath = imgFiles.first().absoluteFilePath();
+            casingInt = 0; // CasingCD
+        }
+    }
+
+    // 6. If still empty, check sibling disc folders if groupMultiDisc is active
     QSettings settings("Amifiles", "Amifiles");
     bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool();
     if (artPath.isEmpty() && isDir && groupMultiDisc) {
@@ -3736,9 +3759,28 @@ void CasingRunnable::run() {
                 if (!artPath.isEmpty()) { casingInt = 1; break; }
                 
                 // 3. CD
-                QStringList cdChecks = { "folder.jpg", "folder.jpeg", "folder.png", "cover.jpg", "cover.jpeg", "cover.png" };
+                QStringList cdChecks = {
+                    "folder.jpg", "folder.jpeg", "folder.png",
+                    "cover.jpg", "cover.jpeg", "cover.png",
+                    "front.jpg", "front.jpeg", "front.png",
+                    "album.jpg", "album.jpeg", "album.png",
+                    "art.jpg", "art.jpeg", "art.png",
+                    "jacket.jpg", "jacket.jpeg", "jacket.png",
+                    "disc.jpg", "disc.jpeg", "disc.png",
+                    "cd.jpg", "cd.jpeg", "cd.png",
+                    "image.jpg", "image.jpeg", "image.png"
+                };
                 artPath = findFirstCaseInsensitiveFile(siblingPath, cdChecks);
                 if (!artPath.isEmpty()) { casingInt = 0; break; }
+
+                // 4. Wildcard scan in sibling folder
+                QDir sibDir(siblingPath);
+                QFileInfoList imgFiles = sibDir.entryInfoList({"*.jpg", "*.jpeg", "*.png", "*.webp", "*.bmp"}, QDir::Files, QDir::Name);
+                if (!imgFiles.isEmpty()) {
+                    artPath = imgFiles.first().absoluteFilePath();
+                    casingInt = 0;
+                    break;
+                }
             }
         }
     }
