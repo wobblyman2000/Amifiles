@@ -347,6 +347,10 @@ private:
     QFrame* m_tbCenterOpsSeparator = nullptr;
     QAction* m_actToggleCenterOps = nullptr;
     MiniMediaControls* m_miniMediaControls = nullptr;
+    class QMediaPlayer* m_themePlayer = nullptr;
+    class QAudioOutput* m_themeAudioOutput = nullptr;
+    void updateThemeMusic();
+    void onMainPlayerStateChanged(QMediaPlayer::PlaybackState state);
     bool m_wasPreviewPriorToCollapse = false;
     bool m_wasDualPanePriorToCollapse = false;
     QString m_lastEntryCommandPath;

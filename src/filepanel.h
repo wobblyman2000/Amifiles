@@ -895,6 +895,8 @@ private:
     QWidget* m_theaterContainer = nullptr;
     QWidget* m_theaterDrawer = nullptr;
     QLabel* m_drawerTitle = nullptr;
+    QLabel* m_drawerMetaLabel = nullptr;
+    class QTextBrowser* m_drawerSynopsisText = nullptr;
     class QListWidget* m_drawerList = nullptr;
     QPushButton* m_drawerPlayBtn = nullptr;
     QPushButton* m_drawerCloseBtn = nullptr;

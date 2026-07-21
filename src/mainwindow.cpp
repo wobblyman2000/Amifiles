@@ -43,6 +43,7 @@
 #include <QToolTip>
 #include <QMessageBox>
 #include <QMouseEvent>
+#include <QAudioOutput>
 #include <QDebug>
 #include <QDir>
 #include <QDateTime>
@@ -594,7 +595,7 @@ void MainWindow::setupCentralWidget() {
     // Wire player notifications to keep mini status bar controller synchronized
     connect(m_previewPanel->player(), &QMediaPlayer::sourceChanged, this, &MainWindow::updateMiniPlayer);
     connect(m_previewPanel->player(), &QMediaPlayer::durationChanged, this, &MainWindow::updateMiniPlayer);
-    connect(m_previewPanel->player(), &QMediaPlayer::playbackStateChanged, this, &MainWindow::updateMiniPlayer);
+    connect(m_previewPanel->player(), &QMediaPlayer::playbackStateChanged, this, &MainWindow::onMainPlayerStateChanged);
 }
 
 void MainWindow::setupActions() {
@@ -2414,6 +2415,13 @@ MainWindow::~MainWindow() {
         if (m_previewPanel->player()) {
             disconnect(m_previewPanel->player(), nullptr, nullptr, nullptr);
         }
+    }
+    if (m_themePlayer) {
+        m_themePlayer->stop();
+        delete m_themePlayer;
+    }
+    if (m_themeAudioOutput) {
+        delete m_themeAudioOutput;
     }
 }
 
@@ -5193,6 +5201,7 @@ void MainWindow::updateWidgetStylesheets() {
             if (p) p->updateStyles();
         }
     }
+    updateThemeMusic();
 }
 
 void MainWindow::updateTooltips() {
@@ -5270,6 +5279,7 @@ void MainWindow::setZenMode(bool enabled) {
     if (m_previewPanel) {
         m_previewPanel->setZenMode(enabled);
     }
+    updateThemeMusic();
 }
 
 void MainWindow::onPlayMediaBuiltin(const QStringList& filePaths) {
@@ -5462,6 +5472,89 @@ bool MainWindow::event(QEvent* event) {
         resetVaultIdleTime();
     }
     return QMainWindow::event(event);
+}
+
+void MainWindow::updateThemeMusic() {
+    QSettings settings("Amifiles", "Amifiles");
+    bool zenActive = settings.value("preferences/zen_mode", false).toBool();
+    bool shouldPlay = zenActive;
+
+    // Check if the main player is currently playing anything. If so, suspend theme music
+    if (m_previewPanel && m_previewPanel->player() && m_previewPanel->player()->playbackState() == QMediaPlayer::PlayingState) {
+        shouldPlay = false;
+    }
+
+    if (!shouldPlay) {
+        if (m_themePlayer && m_themePlayer->playbackState() == QMediaPlayer::PlayingState) {
+            m_themePlayer->pause();
+        }
+        return;
+    }
+
+    // Zen Mode is active, and main player is not playing. Ensure theme music is playing/loaded
+    QString preset = settings.value("theme/preset", "Catppuccin Mocha").toString();
+    QStringList searchDirs = {
+        QDir::homePath() + "/.config/Amifiles/themes",
+        QDir::homePath() + "/.local/share/Amifiles/themes",
+        QDir::homePath() + "/.config/Amifiles",
+        QDir::homePath() + "/.local/share/Amifiles"
+    };
+
+    QStringList namePatterns;
+    QString cleanedName = preset.toLower();
+    namePatterns.append(cleanedName + ".mp3");
+    namePatterns.append(cleanedName.replace(" ", "_") + ".mp3");
+    namePatterns.append(cleanedName.replace(" ", "-") + ".mp3");
+    namePatterns.append("theme.mp3");
+    namePatterns.append("background.mp3");
+    namePatterns.append("zen.mp3");
+
+    QString foundMusicPath;
+    for (const QString& dirPath : searchDirs) {
+        QDir dir(dirPath);
+        if (!dir.exists()) continue;
+        for (const QString& pattern : namePatterns) {
+            QString fullPath = dir.filePath(pattern);
+            if (QFile::exists(fullPath)) {
+                foundMusicPath = fullPath;
+                break;
+            }
+        }
+        if (!foundMusicPath.isEmpty()) break;
+    }
+
+    // If no matching file, stop player if running
+    if (foundMusicPath.isEmpty()) {
+        if (m_themePlayer) {
+            m_themePlayer->stop();
+        }
+        return;
+    }
+
+    // Initialize player if not done already
+    if (!m_themePlayer) {
+        m_themePlayer = new QMediaPlayer(this);
+        m_themeAudioOutput = new QAudioOutput(this);
+        m_themePlayer->setAudioOutput(m_themeAudioOutput);
+        m_themePlayer->setLoops(QMediaPlayer::Infinite); // Continuous looping
+        m_themeAudioOutput->setVolume(0.5f); // Default theme background volume: 50%
+    }
+
+    // Only set source if it has changed or is empty
+    QUrl musicUrl = QUrl::fromLocalFile(foundMusicPath);
+    if (m_themePlayer->source() != musicUrl) {
+        m_themePlayer->setSource(musicUrl);
+    }
+
+    if (m_themePlayer->playbackState() != QMediaPlayer::PlayingState) {
+        m_themePlayer->play();
+    }
+}
+
+void MainWindow::onMainPlayerStateChanged(QMediaPlayer::PlaybackState state) {
+    Q_UNUSED(state);
+    updateMiniPlayer();
+    updateThemeMusic();
 }
 
 #include "mainwindow.moc"

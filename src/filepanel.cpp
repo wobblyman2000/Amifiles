@@ -41,6 +41,7 @@
 #include <QClipboard>
 #include <QMimeData>
 #include <QTextStream>
+#include <QTextBrowser>
 #include <QStyle>
 #include <QApplication>
 #include <QDir>
@@ -395,7 +396,7 @@ void FilePanel::setupUI() {
     theaterLayout->addWidget(m_theaterScrollArea, 1);
 
     m_theaterDrawer = new QWidget(m_theaterContainer);
-    m_theaterDrawer->setFixedWidth(280);
+    m_theaterDrawer->setFixedWidth(320);
     m_theaterDrawer->setStyleSheet("QWidget { background-color: #181825; border-left: 1px solid #313244; }");
     m_theaterDrawer->setVisible(false);
 
@@ -412,6 +413,18 @@ void FilePanel::setupUI() {
     headerLayout->addWidget(m_drawerTitle, 1);
     headerLayout->addWidget(m_drawerCloseBtn);
     drawerLayout->addLayout(headerLayout);
+
+    m_drawerMetaLabel = new QLabel(m_theaterDrawer);
+    m_drawerMetaLabel->setStyleSheet("QLabel { font-size: 11px; color: #a6adc8; font-weight: bold; }");
+    m_drawerMetaLabel->setWordWrap(true);
+    m_drawerMetaLabel->setVisible(false);
+    drawerLayout->addWidget(m_drawerMetaLabel);
+
+    m_drawerSynopsisText = new QTextBrowser(m_theaterDrawer);
+    m_drawerSynopsisText->setStyleSheet("QTextBrowser { background-color: #11111b; border: 1px solid #313244; border-radius: 4px; color: #cdd6f4; font-size: 12px; line-height: 1.4; padding: 6px; }");
+    m_drawerSynopsisText->setOpenExternalLinks(true);
+    m_drawerSynopsisText->setVisible(false);
+    drawerLayout->addWidget(m_drawerSynopsisText, 1);
 
     m_drawerList = new QListWidget(m_theaterDrawer);
     m_drawerList->setStyleSheet("QListWidget { background-color: #11111b; border: 1px solid #313244; border-radius: 4px; color: #cdd6f4; } QListWidget::item { padding: 6px; } QListWidget::item:hover { background-color: #313244; } QListWidget::item:selected { background-color: #89b4fa; color: #11111b; }");
@@ -1435,6 +1448,54 @@ void FilePanel::onDoubleClicked(const QModelIndex& index) {
     onDoubleClickedPath(path);
 }
 
+struct CinemaMetadata {
+    QString title;
+    QString plot;
+    QString rating;
+    QString genre;
+    QString studio;
+    QString year;
+};
+
+static CinemaMetadata parseNfoFile(const QString& filePath) {
+    CinemaMetadata meta;
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return meta;
+    }
+    QTextStream in(&file);
+    QString content = in.readAll();
+    file.close();
+
+    // Check if it looks like XML
+    if (content.trimmed().startsWith("<?xml") || content.contains("<movie") || content.contains("<tvshow")) {
+        auto matchTag = [](const QString& tag, const QString& src) -> QString {
+            QRegularExpression re(QString("<%1>(.*?)</%1>").arg(tag), QRegularExpression::DotMatchesEverythingOption);
+            auto m = re.match(src);
+            if (m.hasMatch()) {
+                QString val = m.captured(1).trimmed();
+                val.replace("&amp;", "&")
+                   .replace("&lt;", "<")
+                   .replace("&gt;", ">")
+                   .replace("&quot;", "\"")
+                   .replace("&apos;", "'");
+                return val;
+            }
+            return QString();
+        };
+
+        meta.title = matchTag("title", content);
+        meta.plot = matchTag("plot", content);
+        meta.rating = matchTag("rating", content);
+        meta.genre = matchTag("genre", content);
+        meta.studio = matchTag("studio", content);
+        meta.year = matchTag("year", content);
+    } else {
+        meta.plot = content.trimmed();
+    }
+    return meta;
+}
+
 void FilePanel::onSelectionChanged() {
     updateStatusText();
     QStringList paths = selectedPaths();
@@ -1454,54 +1515,126 @@ void FilePanel::onSelectionChanged() {
         m_theaterListView->setBackdropPath(backdropPath);
 
         // Update slide-out tracks list drawer
-        if (!paths.isEmpty() && QFileInfo(paths.first()).isDir()) {
+        if (!paths.isEmpty()) {
             QString path = paths.first();
+            QFileInfo pathInfo(path);
             m_drawerFolderPath = path;
 
             QSettings settings("Amifiles", "Amifiles");
-            bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool() && (m_viewStack->currentWidget() == m_theaterContainer);
+            int modeIndex = viewModeIndex(); // 6 = Music Showcase, 7 = Cinema Showcase
 
-            QString folderName = QFileInfo(path).fileName();
-            QString cleanedTitle = groupMultiDisc ? FileFilterProxyModel::cleanAlbumFolderName(folderName) : folderName;
-            m_drawerTitle->setText(cleanedTitle);
-            m_drawerList->clear();
+            if (modeIndex == 7) {
+                m_drawerMetaLabel->setVisible(true);
+                m_drawerSynopsisText->setVisible(true);
+                m_drawerPlayBtn->setText("Play Media");
 
-            QStringList scanPaths;
-            if (groupMultiDisc) {
-                QString parentDir = QFileInfo(path).absolutePath();
-                QDir dir(parentDir);
-                QStringList subDirs = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
-                QString currentCleaned = FileFilterProxyModel::cleanAlbumFolderName(folderName);
-                for (const QString& subDirName : subDirs) {
-                    if (FileFilterProxyModel::cleanAlbumFolderName(subDirName) == currentCleaned) {
-                        scanPaths.append(dir.filePath(subDirName));
+                QString targetDir = pathInfo.isDir() ? path : pathInfo.absolutePath();
+                CinemaMetadata meta;
+                QString foundNfoPath;
+                QStringList nfoCandidates = { "movie.nfo", "tvshow.nfo", "summary.txt", "description.txt", "info.txt" };
+                
+                if (!pathInfo.isDir()) {
+                    QString fileNfo = QDir(targetDir).filePath(pathInfo.completeBaseName() + ".nfo");
+                    if (QFile::exists(fileNfo)) {
+                        foundNfoPath = fileNfo;
                     }
                 }
-            } else {
-                scanPaths.append(path);
-            }
+                
+                if (foundNfoPath.isEmpty()) {
+                    QDir dir(targetDir);
+                    QFileInfoList dirFiles = dir.entryInfoList(QDir::Files);
+                    for (const QFileInfo& nfoFi : dirFiles) {
+                        if (nfoFi.suffix().toLower() == "nfo" || nfoCandidates.contains(nfoFi.fileName().toLower())) {
+                            foundNfoPath = nfoFi.absoluteFilePath();
+                            break;
+                        }
+                    }
+                }
 
-            QStringList mediaExts = { "mp3", "wav", "flac", "ogg", "m4a", "wma", "aac", "mp4", "mkv", "avi", "mov", "webm" };
-            for (const QString& scanPath : scanPaths) {
-                QDir dir(scanPath);
+                if (!foundNfoPath.isEmpty()) {
+                    meta = parseNfoFile(foundNfoPath);
+                }
+
+                QString titleToShow = meta.title.isEmpty() ? pathInfo.fileName() : meta.title;
+                m_drawerTitle->setText(titleToShow);
+
+                if (!meta.plot.isEmpty() || !meta.rating.isEmpty() || !meta.year.isEmpty()) {
+                    QString metaStr;
+                    if (!meta.year.isEmpty()) metaStr += QString("📅 <b>Year:</b> %1  ").arg(meta.year);
+                    if (!meta.rating.isEmpty()) metaStr += QString("⭐ <b>Rating:</b> %1  ").arg(meta.rating);
+                    if (!meta.genre.isEmpty()) metaStr += QString("<br>🏷 <b>Genre:</b> %1").arg(meta.genre);
+                    if (!meta.studio.isEmpty()) metaStr += QString("<br>🏢 <b>Studio:</b> %1").arg(meta.studio);
+                    m_drawerMetaLabel->setText(metaStr);
+                    m_drawerSynopsisText->setHtml(QString("<div style='font-family: sans-serif; line-height: 1.4; color: #cdd6f4;'>%1</div>").arg(meta.plot.toHtmlEscaped().replace("\n", "<br>")));
+                } else {
+                    m_drawerMetaLabel->setText("<i>No Metadata Available</i>");
+                    m_drawerSynopsisText->setHtml("<i>No plot summary (.nfo) found inside this directory. Right-click and select 'Scrape Video Metadata...' to search online.</i>");
+                }
+
+                m_drawerList->clear();
+                QStringList videoExts = { "mp4", "mkv", "avi", "mov", "webm", "flv", "wmv", "m4v" };
+                QDir dir(targetDir);
                 QFileInfoList files = dir.entryInfoList(QDir::Files, QDir::Name);
                 for (const QFileInfo& fInfo : files) {
-                    if (mediaExts.contains(fInfo.suffix().toLower())) {
-                        QString displayName = fInfo.fileName();
-                        if (groupMultiDisc && scanPaths.size() > 1) {
-                            displayName = QString("[%1] %2").arg(QFileInfo(scanPath).fileName()).arg(fInfo.fileName());
-                        }
-                        QListWidgetItem* item = new QListWidgetItem(displayName, m_drawerList);
+                    if (videoExts.contains(fInfo.suffix().toLower())) {
+                        QListWidgetItem* item = new QListWidgetItem(fInfo.fileName(), m_drawerList);
                         item->setData(Qt::UserRole, fInfo.absoluteFilePath());
                     }
                 }
-            }
 
-            bool showTracksDrawer = settings.value("theater/show_tracks_drawer", true).toBool();
-            if (m_drawerList->count() > 0 && showTracksDrawer) {
+                m_drawerList->setVisible(m_drawerList->count() > 0);
+                m_drawerPlayBtn->setVisible(m_drawerList->count() > 0);
                 m_theaterDrawer->setVisible(true);
             } else {
-                m_theaterDrawer->setVisible(false);
+                m_drawerMetaLabel->setVisible(false);
+                m_drawerSynopsisText->setVisible(false);
+                m_drawerPlayBtn->setText("Play Album");
+
+                if (pathInfo.isDir()) {
+                    bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool() && (m_viewStack->currentWidget() == m_theaterContainer);
+                    QString folderName = pathInfo.fileName();
+                    QString cleanedTitle = groupMultiDisc ? FileFilterProxyModel::cleanAlbumFolderName(folderName) : folderName;
+                    m_drawerTitle->setText(cleanedTitle);
+                    m_drawerList->clear();
+
+                    QStringList scanPaths;
+                    if (groupMultiDisc) {
+                        QString parentDir = pathInfo.absolutePath();
+                        QDir dir(parentDir);
+                        QStringList subDirs = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+                        QString currentCleaned = FileFilterProxyModel::cleanAlbumFolderName(folderName);
+                        for (const QString& subDirName : subDirs) {
+                            if (FileFilterProxyModel::cleanAlbumFolderName(subDirName) == currentCleaned) {
+                                scanPaths.append(dir.filePath(subDirName));
+                            }
+                        }
+                    } else {
+                        scanPaths.append(path);
+                    }
+
+                    QStringList mediaExts = { "mp3", "wav", "flac", "ogg", "m4a", "wma", "aac" };
+                    for (const QString& scanPath : scanPaths) {
+                        QDir dir(scanPath);
+                        QFileInfoList files = dir.entryInfoList(QDir::Files, QDir::Name);
+                        for (const QFileInfo& fInfo : files) {
+                            if (mediaExts.contains(fInfo.suffix().toLower())) {
+                                QString displayName = fInfo.fileName();
+                                if (groupMultiDisc && scanPaths.size() > 1) {
+                                    displayName = QString("[%1] %2").arg(QFileInfo(scanPath).fileName()).arg(fInfo.fileName());
+                                }
+                                QListWidgetItem* item = new QListWidgetItem(displayName, m_drawerList);
+                                item->setData(Qt::UserRole, fInfo.absoluteFilePath());
+                            }
+                        }
+                    }
+
+                    bool showTracksDrawer = settings.value("theater/show_tracks_drawer", true).toBool();
+                    m_drawerList->setVisible(m_drawerList->count() > 0);
+                    m_drawerPlayBtn->setVisible(m_drawerList->count() > 0);
+                    m_theaterDrawer->setVisible(m_drawerList->count() > 0 && showTracksDrawer);
+                } else {
+                    m_theaterDrawer->setVisible(false);
+                }
             }
         } else {
             m_theaterDrawer->setVisible(false);

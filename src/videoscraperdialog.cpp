@@ -17,6 +17,7 @@
 #include <QTextDocument>
 #include <QGroupBox>
 #include <QRegularExpression>
+#include <QEventLoop>
 
 VideoScraperDialog::VideoScraperDialog(const QStringList& filePaths, QWidget* parent)
     : QDialog(parent), m_filePaths(filePaths) {
@@ -419,6 +420,119 @@ void VideoScraperDialog::onApplyClicked() {
         }
 
         successCount++;
+    }
+
+    // If it's a TV Show, download season posters recursively if checked
+    if (res.type == "TV Show" && m_chkSavePoster->isChecked()) {
+        QUrl seasonsUrl;
+        if (!m_apiKey.isEmpty()) {
+            seasonsUrl = QUrl(QString("https://api.themoviedb.org/3/tv/%1").arg(res.id));
+            QUrlQuery q;
+            q.addQueryItem("api_key", m_apiKey);
+            seasonsUrl.setQuery(q);
+        } else {
+            seasonsUrl = QUrl(QString("https://api.tvmaze.com/shows/%1/seasons").arg(res.id));
+        }
+
+        QNetworkRequest req(seasonsUrl);
+        req.setHeader(QNetworkRequest::UserAgentHeader, "Amifiles Video Scraper");
+        QNetworkReply* reply = m_networkManager->get(req);
+        
+        QEventLoop loop;
+        connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+        loop.exec();
+
+        if (reply->error() == QNetworkReply::NoError) {
+            QByteArray sData = reply->readAll();
+            QJsonDocument sDoc = QJsonDocument::fromJson(sData);
+            if (!sDoc.isNull()) {
+                struct SeasonPoster {
+                    int number;
+                    QString url;
+                };
+                QList<SeasonPoster> seasons;
+
+                if (!m_apiKey.isEmpty()) {
+                    QJsonObject obj = sDoc.object();
+                    QJsonArray seasonsArr = obj["seasons"].toArray();
+                    for (const QJsonValue& val : seasonsArr) {
+                        QJsonObject sobj = val.toObject();
+                        int sNum = sobj["season_number"].toInt();
+                        QString pPath = sobj["poster_path"].toString();
+                        if (!pPath.isEmpty()) {
+                            seasons.append({sNum, "https://image.tmdb.org/t/p/w500" + pPath});
+                        }
+                    }
+                } else {
+                    QJsonArray arr = sDoc.array();
+                    for (const QJsonValue& val : arr) {
+                        QJsonObject sobj = val.toObject();
+                        int sNum = sobj["number"].toInt();
+                        QString pUrl = sobj["image"].toObject()["original"].toString();
+                        if (pUrl.isEmpty()) {
+                            pUrl = sobj["image"].toObject()["medium"].toString();
+                        }
+                        if (!pUrl.isEmpty()) {
+                            seasons.append({sNum, pUrl});
+                        }
+                    }
+                }
+
+                // Download season posters and write them
+                for (const QString& path : m_filePaths) {
+                    QFileInfo pathInfo(path);
+                    QString targetFolder = pathInfo.isDir() ? path : pathInfo.absolutePath();
+                    QDir parentDir(targetFolder);
+
+                    QStringList subdirs = parentDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+
+                    for (const auto& sPoster : seasons) {
+                        if (sPoster.number == 0) continue; // Skip special season 0 folder downloads by default unless explicitly matched
+
+                        QUrl pUrl(sPoster.url);
+                        QNetworkRequest pReq(pUrl);
+                        QNetworkReply* pReply = m_networkManager->get(pReq);
+                        QEventLoop pLoop;
+                        connect(pReply, &QNetworkReply::finished, &pLoop, &QEventLoop::quit);
+                        pLoop.exec();
+
+                        if (pReply->error() == QNetworkReply::NoError) {
+                            QByteArray posterData = pReply->readAll();
+
+                            // Save inside the corresponding season subdirectory if it exists
+                            for (const QString& subdir : subdirs) {
+                                QRegularExpression re(QString(R"((?i)\bseason\s*0*%1\b|\bs0*%1\b)").arg(sPoster.number));
+                                if (re.match(subdir).hasMatch()) {
+                                    QString subdirPath = parentDir.filePath(subdir);
+                                    QDir sDir(subdirPath);
+                                    
+                                    QFile fPoster(sDir.filePath("poster.jpg"));
+                                    if (fPoster.open(QIODevice::WriteOnly)) {
+                                        fPoster.write(posterData);
+                                        fPoster.close();
+                                    }
+                                    QFile fFolder(sDir.filePath("folder.jpg"));
+                                    if (fFolder.open(QIODevice::WriteOnly)) {
+                                        fFolder.write(posterData);
+                                        fFolder.close();
+                                    }
+                                }
+                            }
+
+                            // Always save in TV Show root folder as seasonXX.jpg (e.g. season01.jpg)
+                            QString rootPosterName = QString("season%1.jpg").arg(sPoster.number, 2, 10, QChar('0'));
+                            QFile fRoot(parentDir.filePath(rootPosterName));
+                            if (fRoot.open(QIODevice::WriteOnly)) {
+                                fRoot.write(posterData);
+                                fRoot.close();
+                            }
+                        }
+                        pReply->deleteLater();
+                    }
+                }
+            }
+        }
+        reply->deleteLater();
     }
 
     QMessageBox::information(this, "Metadata Saved", QString("Successfully applied video metadata to %1 items.").arg(successCount));
