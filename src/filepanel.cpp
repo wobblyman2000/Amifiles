@@ -27,6 +27,7 @@
 #include <QMediaPlayer>
 #include <QAudioOutput>
 #include "folderartscraperdialog.h"
+#include "showcaseinfodialog.h"
 #include "copyqueue.h"
 #include "archivedialog.h"
 #include <QHBoxLayout>
@@ -2027,6 +2028,9 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     }
 
     menu.addSeparator();
+    QAction* actMediaInfoSheet = menu.addAction(style->standardIcon(QStyle::SP_MessageBoxInformation), "🎬 Media Info Sheet... (ℹ)");
+    QAction* actToggleWatch = menu.addAction("✔ Toggle Watch Status (Watched/Unwatched)");
+    menu.addSeparator();
     QAction* actEditTags = menu.addAction("Edit Audio Tags...");
     QAction* actFetchMusicBrainz = menu.addAction(style->standardIcon(QStyle::SP_ComputerIcon), "Fetch MusicBrainz Album Info...");
     QAction* actScrapeVideo = menu.addAction(style->standardIcon(QStyle::SP_ComputerIcon), "Scrape Video Metadata...");
@@ -2571,6 +2575,23 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         } else {
             onSelectionChanged();
         }
+    } else if (selected && selected == actMediaInfoSheet) {
+        ShowcaseInfoDialog infoDlg(selectedPath, this);
+        connect(&infoDlg, &ShowcaseInfoDialog::playRequested, this, [this](const QString& path) {
+            emit playMediaBuiltinRequested({path});
+        });
+        connect(&infoDlg, &ShowcaseInfoDialog::openFolderRequested, this, [this](const QString& path) {
+            navigateTo(path, true);
+        });
+        connect(&infoDlg, &ShowcaseInfoDialog::watchStatusChanged, this, [this]() {
+            if (m_theaterScrollWidget) m_theaterScrollWidget->update();
+        });
+        infoDlg.exec();
+    } else if (selected && selected == actToggleWatch) {
+        QSettings settings("Amifiles", "Amifiles");
+        bool isWatched = settings.value("theater/watch_status/" + selectedPath, false).toBool();
+        settings.setValue("theater/watch_status/" + selectedPath, !isWatched);
+        if (m_theaterScrollWidget) m_theaterScrollWidget->update();
     }
 }
 
@@ -4050,6 +4071,28 @@ void FilePanel::setNavigationAndFilterVisible(bool visible) {
 }
 
 void FilePanel::rebuildTheaterGroups() {
+    // Dynamic Ambient Background Glow in Showcase Mode
+    if (m_theaterScrollWidget && (viewModeIndex() == 6 || viewModeIndex() == 7)) {
+        QStringList bgCandidates = { "poster.jpg", "cover.jpg", "folder.jpg", "fanart.jpg" };
+        QString bgArtPath;
+        for (const QString& cand : bgCandidates) {
+            QString fp = QDir(m_currentPath).filePath(cand);
+            if (QFile::exists(fp)) { bgArtPath = fp; break; }
+        }
+        if (!bgArtPath.isEmpty()) {
+            QPixmap pix(bgArtPath);
+            if (!pix.isNull()) {
+                QImage img = pix.toImage().scaled(16, 16, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+                QColor avgCol = img.pixelColor(8, 8);
+                QColor darkCol = QColor::fromRgb(qMin(avgCol.red(), 40), qMin(avgCol.green(), 45), qMin(avgCol.blue(), 60));
+                m_theaterScrollWidget->setStyleSheet(QString("QWidget#theaterScrollWidget { background-color: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 %1, stop:1 #11111b); }")
+                    .arg(darkCol.name()));
+            }
+        } else {
+            m_theaterScrollWidget->setStyleSheet("QWidget#theaterScrollWidget { background: transparent; }");
+        }
+    }
+
     // Clear old headers and grids
     QLayoutItem* item;
     while ((item = m_theaterScrollLayout->takeAt(0)) != nullptr) {

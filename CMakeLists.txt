@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(Amifiles VERSION 1.4.0 LANGUAGES CXX)
+project(Amifiles VERSION 1.4.1 LANGUAGES CXX)
 
 configure_file(
     "${PROJECT_SOURCE_DIR}/src/version.h.in"
@@ -24,6 +24,8 @@ add_executable(Amifiles
     src/filepanel.cpp
     src/pathbarwidget.h
     src/pathbarwidget.cpp
+    src/showcaseinfodialog.h
+    src/showcaseinfodialog.cpp
     src/previewpanel.h
     src/previewpanel.cpp
     src/favoritesmanager.h

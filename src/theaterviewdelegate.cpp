@@ -9,6 +9,7 @@
 #include "filepanel.h"
 #include <QProcess>
 #include <QTimer>
+#include <QSettings>
 
 TheaterViewDelegate::TheaterViewDelegate(QObject* parent) : QStyledItemDelegate(parent) {}
 
@@ -180,6 +181,31 @@ void TheaterViewDelegate::paint(QPainter* painter, const QStyleOptionViewItem& o
 
             painter->setPen(badgeFg);
             painter->drawText(badgeRect, Qt::AlignCenter, badgeText);
+            painter->restore();
+        }
+
+        // Paint Watch Status Badge (Top-Left)
+        QSettings settings("Amifiles", "Amifiles");
+        bool isWatched = settings.value("theater/watch_status/" + path, false).toBool();
+        if (isWatched) {
+            painter->save();
+            QFont wFont = painter->font();
+            wFont.setPointSize(7);
+            wFont.setBold(true);
+            painter->setFont(wFont);
+
+            QString watchText = "WATCHED ✔";
+            QFontMetrics wfm(wFont);
+            int ww = wfm.horizontalAdvance(watchText) + 8;
+            int wh = 16;
+            QRect wRect(imageRect.left() + 4, imageRect.top() + 4, ww, wh);
+
+            painter->setBrush(QColor("#a6e3a1"));
+            painter->setPen(Qt::NoPen);
+            painter->drawRoundedRect(wRect, 4, 4);
+
+            painter->setPen(QColor("#11111b"));
+            painter->drawText(wRect, Qt::AlignCenter, watchText);
             painter->restore();
         }
     }
