@@ -834,6 +834,7 @@ private:
     QToolButton* m_btnBack = nullptr;
     QToolButton* m_btnForward = nullptr;
     QToolButton* m_btnUp = nullptr;
+    class PathBarWidget* m_pathBar = nullptr;
     QLineEdit* m_pathEdit = nullptr;
     QToolButton* m_btnGo = nullptr;
     QToolButton* m_btnFavorite = nullptr;
@@ -915,6 +916,14 @@ private:
     FilePanel* m_siblingPanel = nullptr;
 
     QString m_folderArtPath;
+
+    class QMediaPlayer* m_themePlayer = nullptr;
+    class QAudioOutput* m_themeAudio = nullptr;
+    QString m_currentThemePath;
+
+public:
+    void updateThemeMusic();
+    void stopThemeMusic();
 };
 
 class QCheckBox;

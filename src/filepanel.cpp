@@ -23,6 +23,9 @@
 #include "theaterviewdelegate.h"
 #include "theaterlistview.h"
 #include "videoscraperdialog.h"
+#include "pathbarwidget.h"
+#include <QMediaPlayer>
+#include <QAudioOutput>
 #include "folderartscraperdialog.h"
 #include "copyqueue.h"
 #include "archivedialog.h"
@@ -178,9 +181,11 @@ void FilePanel::setupUI() {
     m_btnUp->setToolTip("Up to parent directory");
     connect(m_btnUp, &QToolButton::clicked, this, &FilePanel::onNavigateUp);
 
-    m_pathEdit = new QLineEdit(this);
-    m_pathEdit->setPlaceholderText("Enter folder path...");
-    connect(m_pathEdit, &QLineEdit::returnPressed, this, &FilePanel::onPathEntered);
+    m_pathBar = new PathBarWidget(this);
+    m_pathEdit = m_pathBar->lineEdit();
+    connect(m_pathBar, &PathBarWidget::pathEntered, this, [this](const QString& path) {
+        navigateTo(path);
+    });
 
     m_btnGo = new QToolButton(this);
     m_btnGo->setIcon(style->standardIcon(QStyle::SP_BrowserReload));
@@ -247,7 +252,7 @@ void FilePanel::setupUI() {
     navLayout->addWidget(m_btnUp);
     navLayout->addWidget(m_btnHome);
     navLayout->addWidget(m_btnFavorite);
-    navLayout->addWidget(m_pathEdit, 1);
+    navLayout->addWidget(m_pathBar, 1);
     navLayout->addWidget(m_btnGo);
     navLayout->addWidget(m_btnClonePath);
     navLayout->addWidget(m_btnFlatView);
@@ -3481,6 +3486,7 @@ void FilePanel::onViewModeChanged(int index) {
     }
     settings.setValue("file_panel/view_mode_index", index);
     emit viewModeChanged();
+    updateThemeMusic();
 }
 
 void FilePanel::onDoubleClickedPath(const QString& path) {
@@ -4134,4 +4140,76 @@ void FilePanel::rebuildTheaterGroups() {
     }
 
     m_theaterScrollLayout->addStretch(1);
+}
+
+void FilePanel::updateThemeMusic() {
+    QSettings settings("Amifiles", "Amifiles");
+    bool autoPlayTheme = settings.value("theater/auto_play_theme_music", true).toBool();
+
+    if (!autoPlayTheme || viewModeIndex() != 7) { // 7 = Video Showcase
+        stopThemeMusic();
+        return;
+    }
+
+    // Search for theme music file in current folder or parent show folder
+    QStringList themeNames = { "theme.mp3", "theme.ogg", "theme.flac", "theme.wav" };
+    QString foundPath;
+
+    for (const QString& tName : themeNames) {
+        QString fullP = QDir(m_currentPath).filePath(tName);
+        if (QFile::exists(fullP)) {
+            foundPath = fullP;
+            break;
+        }
+    }
+
+    if (foundPath.isEmpty()) {
+        QFileInfo fi(m_currentPath);
+        if (fi.fileName().contains("season", Qt::CaseInsensitive)) {
+            QString parentDir = fi.absolutePath();
+            for (const QString& tName : themeNames) {
+                QString fullP = QDir(parentDir).filePath(tName);
+                if (QFile::exists(fullP)) {
+                    foundPath = fullP;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (foundPath.isEmpty()) {
+        stopThemeMusic();
+        return;
+    }
+
+    if (m_currentThemePath == foundPath && m_themePlayer && m_themePlayer->playbackState() == QMediaPlayer::PlayingState) {
+        return; // Already playing this theme
+    }
+
+    m_currentThemePath = foundPath;
+
+    if (!m_themePlayer) {
+        m_themePlayer = new QMediaPlayer(this);
+        m_themeAudio = new QAudioOutput(this);
+        m_themePlayer->setAudioOutput(m_themeAudio);
+        m_themeAudio->setVolume(0.65f);
+
+        connect(m_themePlayer, &QMediaPlayer::mediaStatusChanged, this, [this](QMediaPlayer::MediaStatus status) {
+            if (status == QMediaPlayer::EndOfMedia && m_themePlayer && !m_currentThemePath.isEmpty()) {
+                m_themePlayer->setPosition(0);
+                m_themePlayer->play();
+            }
+        });
+    }
+
+    m_themePlayer->stop();
+    m_themePlayer->setSource(QUrl::fromLocalFile(foundPath));
+    m_themePlayer->play();
+}
+
+void FilePanel::stopThemeMusic() {
+    m_currentThemePath.clear();
+    if (m_themePlayer) {
+        m_themePlayer->stop();
+    }
 }
