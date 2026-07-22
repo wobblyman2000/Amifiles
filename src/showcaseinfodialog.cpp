@@ -9,6 +9,7 @@
 #include <QDesktopServices>
 #include <QUrl>
 #include <QScrollArea>
+#include <QTextBrowser>
 
 ShowcaseInfoDialog::ShowcaseInfoDialog(const QString& itemPath, QWidget* parent)
     : QDialog(parent), m_path(itemPath) {
@@ -75,21 +76,40 @@ void ShowcaseInfoDialog::setupUI() {
     lblSynopsisHeader->setStyleSheet("font-size: 11px; font-weight: bold; color: #f5c2e7; margin-top: 6px;");
     rightCol->addWidget(lblSynopsisHeader);
 
-    QScrollArea* scrollArea = new QScrollArea(this);
-    scrollArea->setWidgetResizable(true);
-
-    QWidget* scrollContent = new QWidget(scrollArea);
-    QVBoxLayout* scrollLayout = new QVBoxLayout(scrollContent);
-    scrollLayout->setContentsMargins(10, 10, 10, 10);
-
-    m_lblSynopsis = new QLabel("No synopsis file (.nfo / summary.txt) found in this directory.", scrollContent);
-    m_lblSynopsis->setStyleSheet("font-size: 13px; color: #cdd6f4; line-height: 1.4;");
-    m_lblSynopsis->setWordWrap(true);
-    scrollLayout->addWidget(m_lblSynopsis);
-    scrollLayout->addStretch(1);
-
-    scrollArea->setWidget(scrollContent);
-    rightCol->addWidget(scrollArea, 1);
+    m_lblSynopsis = new QTextBrowser(this);
+    m_lblSynopsis->setReadOnly(true);
+    m_lblSynopsis->setFrameStyle(QFrame::NoFrame);
+    m_lblSynopsis->setStyleSheet(
+        "QTextBrowser {"
+        "  background-color: #181825;"
+        "  border: 1px solid #313244;"
+        "  border-radius: 6px;"
+        "  color: #cdd6f4;"
+        "  font-size: 13px;"
+        "  padding: 10px;"
+        "}"
+        "QScrollBar:vertical {"
+        "  border: none;"
+        "  background: #181825;"
+        "  width: 8px;"
+        "  margin: 0px 0px 0px 0px;"
+        "}"
+        "QScrollBar::handle:vertical {"
+        "  background: #45475a;"
+        "  min-height: 20px;"
+        "  border-radius: 4px;"
+        "}"
+        "QScrollBar::handle:vertical:hover {"
+        "  background: #89b4fa;"
+        "}"
+        "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {"
+        "  height: 0px;"
+        "}"
+        "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {"
+        "  background: none;"
+        "}"
+    );
+    rightCol->addWidget(m_lblSynopsis, 1);
 
     // Action buttons bar at bottom right
     QHBoxLayout* btnBar = new QHBoxLayout();

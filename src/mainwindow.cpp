@@ -490,6 +490,11 @@ void MainWindow::setupCentralWidget() {
         if (!visible && m_previewPanel && m_previewPanel->player()) {
             m_previewPanel->player()->pause();
         }
+        if (visible && m_previewPanel) {
+            m_previewPanel->update();
+            m_previewPanel->repaint();
+            QMetaObject::invokeMethod(m_previewPanel, "updateGeometry");
+        }
         updateMiniPlayer();
     });
 

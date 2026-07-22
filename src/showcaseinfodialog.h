@@ -24,7 +24,7 @@ private:
     QLabel* m_lblPoster = nullptr;
     QLabel* m_lblTitle = nullptr;
     QLabel* m_lblSpecs = nullptr;
-    QLabel* m_lblSynopsis = nullptr;
+    class QTextBrowser* m_lblSynopsis = nullptr;
     QPushButton* m_btnToggleWatch = nullptr;
     QPushButton* m_btnPlay = nullptr;
     QPushButton* m_btnOpenFolder = nullptr;

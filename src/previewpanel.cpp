@@ -1,5 +1,6 @@
 #include "previewpanel.h"
 #include <QVBoxLayout>
+#include <QSplitter>
 #include <QPainterPath>
 #include <QLineEdit>
 #include <QFormLayout>
@@ -1041,8 +1042,23 @@ void PreviewPanel::setupUI() {
     m_pdfTextEdit->setStyleSheet("QTextEdit { background-color: transparent; border: none; color: #cdd6f4; font-family: monospace; font-size: 11px; }");
     m_bottomTab->addTab(m_pdfTextEdit, "Document Text");
 
-    mainLayout->addWidget(m_stack, 2);
-    mainLayout->addWidget(m_bottomTab, 1);
+    QSplitter* splitter = new QSplitter(Qt::Vertical, this);
+    splitter->setStyleSheet(
+        "QSplitter::handle {"
+        "  background-color: #313244;"
+        "}"
+        "QSplitter::handle:hover {"
+        "  background-color: #89b4fa;"
+        "}"
+    );
+    splitter->setHandleWidth(4);
+    splitter->addWidget(m_stack);
+    splitter->addWidget(m_bottomTab);
+    splitter->setSizes({400, 200});
+    splitter->setStretchFactor(0, 2);
+    splitter->setStretchFactor(1, 1);
+
+    mainLayout->addWidget(splitter);
 }
 
 void PreviewPanel::clearPreview() {

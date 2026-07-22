@@ -333,19 +333,7 @@ void FilePanel::setupUI() {
     m_proxyModel = new FileFilterProxyModel(this);
     m_proxyModel->setSourceModel(m_fileModel);
 
-    // Initialize Hide Auxiliary Files Settings
-    {
-        QSettings settings("Amifiles", "Amifiles");
-        int viewModeIdx = settings.value("file_panel/view_mode_index", 0).toInt();
-        bool hideActive = settings.value("theater/hide_auxiliary_files", true).toBool() && (viewModeIdx == 6);
-        m_proxyModel->setHideAuxiliaryFilesActive(hideActive);
-
-        QString defaultHide = "folder.jpg, folder.jpeg, folder.png, cover.jpg, cover.jpeg, cover.png, fanart.jpg, fanart.jpeg, fanart.png, backdrop.jpg, backdrop.jpeg, backdrop.png, poster.jpg, poster.jpeg, poster.png, *.nfo, *.xml, *.txt, *.srt, *.sub, *.vtt, *.ini, *.db";
-        QString patternsStr = settings.value("theater/hide_patterns", defaultHide).toString();
-        QStringList patternsList = patternsStr.split(',', Qt::SkipEmptyParts);
-        for (auto& p : patternsList) p = p.trimmed();
-        m_proxyModel->setHidePatterns(patternsList);
-    }
+    updateHideSettings();
 
     m_groupProxy = new GroupProxyModel(this);
     m_groupProxy->setSourceModel(m_proxyModel);
@@ -1596,7 +1584,8 @@ void FilePanel::onSelectionChanged() {
                     m_bottomSynopsis->setText("No plot summary (.nfo) found inside this directory.");
                 }
 
-                m_bottomInfoPanel->setVisible(true);
+                bool showInfoPanel = settings.value("video_showcase/show_info_panel", true).toBool();
+                m_bottomInfoPanel->setVisible(showInfoPanel);
             } else if (modeIndex == 6) {
                 // Audio Showcase
                 m_bottomSynopsis->setVisible(false);
@@ -1615,7 +1604,8 @@ void FilePanel::onSelectionChanged() {
                 }
                 m_bottomMeta->setText(artistName);
 
-                m_bottomInfoPanel->setVisible(true);
+                bool showInfoPanel = settings.value("audio_showcase/show_info_panel", true).toBool();
+                m_bottomInfoPanel->setVisible(showInfoPanel);
             } else {
                 m_bottomInfoPanel->setVisible(false);
             }
@@ -1790,15 +1780,7 @@ void FilePanel::refresh() {
     if (m_proxyModel) {
         m_proxyModel->clearCasingCache();
 
-        QSettings settings("Amifiles", "Amifiles");
-        bool hideActive = settings.value("theater/hide_auxiliary_files", true).toBool() && (viewModeIndex() == 6);
-        m_proxyModel->setHideAuxiliaryFilesActive(hideActive);
-
-        QString defaultHide = "folder.jpg, folder.jpeg, folder.png, cover.jpg, cover.jpeg, cover.png, fanart.jpg, fanart.jpeg, fanart.png, backdrop.jpg, backdrop.jpeg, backdrop.png, poster.jpg, poster.jpeg, poster.png, *.nfo, *.xml, *.txt, *.srt, *.sub, *.vtt, *.ini, *.db";
-        QString patternsStr = settings.value("theater/hide_patterns", defaultHide).toString();
-        QStringList patternsList = patternsStr.split(',', Qt::SkipEmptyParts);
-        for (auto& p : patternsList) p = p.trimmed();
-        m_proxyModel->setHidePatterns(patternsList);
+        updateHideSettings();
     }
     if (m_flatViewEnabled) {
         m_flatModel->setRootPath(m_currentPath);
@@ -2481,8 +2463,21 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         bool builtinDoubleclick = settings.value("preferences/builtin_player_doubleclick", false).toBool();
         bool doubleclickQueue = settings.value("preferences/doubleclick_adds_to_queue", false).toBool();
         bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool();
-        bool hideAuxiliary = settings.value("theater/hide_auxiliary_files", true).toBool();
-        bool showTracksDrawer = settings.value("theater/show_tracks_drawer", true).toBool();
+        bool hideAuxiliary = true;
+        int idx = viewModeIndex();
+        if (idx == 6) {
+            hideAuxiliary = settings.value("audio_showcase/hide_active", true).toBool();
+        } else if (idx == 7) {
+            hideAuxiliary = settings.value("video_showcase/hide_active", true).toBool();
+        } else {
+            hideAuxiliary = settings.value("theater/hide_auxiliary_files", true).toBool();
+        }
+        bool showInfoPanel = true;
+        if (idx == 6) {
+            showInfoPanel = settings.value("audio_showcase/show_info_panel", true).toBool();
+        } else if (idx == 7) {
+            showInfoPanel = settings.value("video_showcase/show_info_panel", true).toBool();
+        }
 
         actToggleZen = menu.addAction("Clean Interface Mode (Zen Mode)");
         actToggleZen->setCheckable(true);
@@ -2501,9 +2496,9 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
             actGroupMultiDisc->setCheckable(true);
             actGroupMultiDisc->setChecked(groupMultiDisc);
 
-            actToggleTracksDrawer = menu.addAction("Show Album Tracks Drawer");
+            actToggleTracksDrawer = menu.addAction("Show Media Information Panel");
             actToggleTracksDrawer->setCheckable(true);
-            actToggleTracksDrawer->setChecked(showTracksDrawer);
+            actToggleTracksDrawer->setChecked(showInfoPanel);
         }
 
         actHideAuxiliaryFiles = menu.addAction("Hide Auxiliary / Artwork Files");
@@ -2811,20 +2806,29 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         }
     } else if (selected && selected == actHideAuxiliaryFiles) {
         QSettings settings("Amifiles", "Amifiles");
-        bool current = settings.value("theater/hide_auxiliary_files", true).toBool();
-        settings.setValue("theater/hide_auxiliary_files", !current);
-        if (m_proxyModel) {
-            m_proxyModel->setHideAuxiliaryFilesActive(!current && (viewModeIndex() == 6));
+        int idx = viewModeIndex();
+        if (idx == 6) {
+            bool current = settings.value("audio_showcase/hide_active", true).toBool();
+            settings.setValue("audio_showcase/hide_active", !current);
+        } else if (idx == 7) {
+            bool current = settings.value("video_showcase/hide_active", true).toBool();
+            settings.setValue("video_showcase/hide_active", !current);
+        } else {
+            bool current = settings.value("theater/hide_auxiliary_files", true).toBool();
+            settings.setValue("theater/hide_auxiliary_files", !current);
         }
+        updateHideSettings();
         refresh();
         if (m_groupProxy && m_groupProxy->isGroupingActive() && m_viewStack->currentWidget() == m_theaterContainer) {
             rebuildTheaterGroups();
         }
     } else if (selected && selected == actToggleTracksDrawer) {
         QSettings settings("Amifiles", "Amifiles");
-        bool current = settings.value("theater/show_tracks_drawer", true).toBool();
-        settings.setValue("theater/show_tracks_drawer", !current);
-        if (!current) {
+        int idx = viewModeIndex();
+        QString key = (idx == 7) ? "video_showcase/show_info_panel" : "audio_showcase/show_info_panel";
+        bool current = settings.value(key, true).toBool();
+        settings.setValue(key, !current);
+        if (current) {
             m_bottomInfoPanel->setVisible(false);
         } else {
             onSelectionChanged();
@@ -2913,7 +2917,12 @@ void FilePanel::showAudioShowcaseContextMenu(const QPoint& pos) {
     bool builtinDoubleclick = settings.value("preferences/builtin_player_doubleclick", false).toBool();
     bool doubleclickQueue = settings.value("preferences/doubleclick_adds_to_queue", false).toBool();
     bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool();
-    bool hideAuxiliary = settings.value("theater/hide_auxiliary_files", true).toBool();
+    bool showInfoPanel = settings.value("audio_showcase/show_info_panel", true).toBool();
+    bool hideAuxiliary = settings.value("audio_showcase/hide_active", true).toBool();
+
+    QAction* actToggleInfoPanel = menu.addAction("Show Media Information Panel");
+    actToggleInfoPanel->setCheckable(true);
+    actToggleInfoPanel->setChecked(showInfoPanel);
 
     QAction* actToggleZen = menu.addAction("Clean Interface Mode (Zen Mode)");
     actToggleZen->setCheckable(true);
@@ -2934,6 +2943,8 @@ void FilePanel::showAudioShowcaseContextMenu(const QPoint& pos) {
     QAction* actHideAuxiliaryFiles = menu.addAction("Hide Auxiliary / Artwork Files");
     actHideAuxiliaryFiles->setCheckable(true);
     actHideAuxiliaryFiles->setChecked(hideAuxiliary);
+
+    QAction* actHideExtensions = menu.addAction("Hide File Extensions...");
 
     QAction* actConfigureFolderLayouts = menu.addAction("Configure Folder-Specific Layouts...");
 
@@ -2959,6 +2970,9 @@ void FilePanel::showAudioShowcaseContextMenu(const QPoint& pos) {
                 FavoritesManager::instance().addFavorite(m_currentPath);
             }
         }
+    } else if (selected == actToggleInfoPanel) {
+        settings.setValue("audio_showcase/show_info_panel", !showInfoPanel);
+        onSelectionChanged();
     } else if (selected == actToggleZen) {
         emit zenModeToggled(!zenActive);
     } else if (selected == actToggleDoubleclick) {
@@ -2975,9 +2989,11 @@ void FilePanel::showAudioShowcaseContextMenu(const QPoint& pos) {
             rebuildTheaterGroups();
         }
     } else if (selected == actHideAuxiliaryFiles) {
-        settings.setValue("theater/hide_auxiliary_files", !hideAuxiliary);
-        m_proxyModel->setHideAuxiliaryFilesActive(!hideAuxiliary);
+        settings.setValue("audio_showcase/hide_active", !hideAuxiliary);
+        updateHideSettings();
         refresh();
+    } else if (selected == actHideExtensions) {
+        promptHideExtensions();
     } else if (selected == actConfigureFolderLayouts) {
         emit configureFolderLayoutsRequested();
     }
@@ -3058,7 +3074,12 @@ void FilePanel::showVideoShowcaseContextMenu(const QPoint& pos) {
     bool zenActive = settings.value("preferences/zen_mode", false).toBool();
     bool builtinDoubleclick = settings.value("preferences/builtin_player_doubleclick", false).toBool();
     bool doubleclickQueue = settings.value("preferences/doubleclick_adds_to_queue", false).toBool();
-    bool hideAuxiliary = settings.value("theater/hide_auxiliary_files", true).toBool();
+    bool showInfoPanel = settings.value("video_showcase/show_info_panel", true).toBool();
+    bool hideAuxiliary = settings.value("video_showcase/hide_active", true).toBool();
+
+    QAction* actToggleInfoPanel = menu.addAction("Show Media Information Panel");
+    actToggleInfoPanel->setCheckable(true);
+    actToggleInfoPanel->setChecked(showInfoPanel);
 
     QAction* actToggleZen = menu.addAction("Clean Interface Mode (Zen Mode)");
     actToggleZen->setCheckable(true);
@@ -3075,6 +3096,8 @@ void FilePanel::showVideoShowcaseContextMenu(const QPoint& pos) {
     QAction* actHideAuxiliaryFiles = menu.addAction("Hide Auxiliary / Artwork Files");
     actHideAuxiliaryFiles->setCheckable(true);
     actHideAuxiliaryFiles->setChecked(hideAuxiliary);
+
+    QAction* actHideExtensions = menu.addAction("Hide File Extensions...");
 
     QAction* actConfigureFolderLayouts = menu.addAction("Configure Folder-Specific Layouts...");
 
@@ -3118,6 +3141,9 @@ void FilePanel::showVideoShowcaseContextMenu(const QPoint& pos) {
                 FavoritesManager::instance().addFavorite(m_currentPath);
             }
         }
+    } else if (selected == actToggleInfoPanel) {
+        settings.setValue("video_showcase/show_info_panel", !showInfoPanel);
+        onSelectionChanged();
     } else if (selected == actToggleZen) {
         emit zenModeToggled(!zenActive);
     } else if (selected == actToggleDoubleclick) {
@@ -3127,9 +3153,11 @@ void FilePanel::showVideoShowcaseContextMenu(const QPoint& pos) {
         settings.setValue("preferences/doubleclick_adds_to_queue", !doubleclickQueue);
         emit mediaPlaybackSettingsChanged();
     } else if (selected == actHideAuxiliaryFiles) {
-        settings.setValue("theater/hide_auxiliary_files", !hideAuxiliary);
-        m_proxyModel->setHideAuxiliaryFilesActive(!hideAuxiliary);
+        settings.setValue("video_showcase/hide_active", !hideAuxiliary);
+        updateHideSettings();
         refresh();
+    } else if (selected == actHideExtensions) {
+        promptHideExtensions();
     } else if (selected == actConfigureFolderLayouts) {
         emit configureFolderLayoutsRequested();
     }
@@ -3141,6 +3169,103 @@ void FilePanel::setCategoryButtonsVisible(bool visible) {
     if (!m_flatViewEnabled && m_categoryWidget) {
         m_categoryWidget->setVisible(visible);
     }
+}
+
+void FilePanel::promptHideExtensions() {
+    int viewMode = viewModeIndex();
+    QSettings settings("Amifiles", "Amifiles");
+    QString settingsKey = (viewMode == 6) ? "audio_showcase/hidden_extensions" : "video_showcase/hidden_extensions";
+    QString currentExts = settings.value(settingsKey, "").toString();
+
+    QDialog dlg(this);
+    dlg.setWindowTitle("Hide File Extensions");
+    dlg.setMinimumWidth(360);
+    dlg.setStyleSheet(
+        "QDialog { background-color: #1e1e2e; color: #cdd6f4; font-size: 13px; }"
+        "QLabel { color: #cdd6f4; }"
+        "QLineEdit { background-color: #11111b; color: #cdd6f4; border: 1px solid #313244; border-radius: 6px; padding: 6px; selection-background-color: #89b4fa; }"
+        "QPushButton { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 6px; padding: 6px 12px; font-weight: bold; }"
+        "QPushButton:hover { background-color: #45475a; color: #89b4fa; }"
+    );
+
+    QVBoxLayout* layout = new QVBoxLayout(&dlg);
+    layout->setContentsMargins(16, 16, 16, 16);
+    layout->setSpacing(12);
+
+    QLabel* infoLabel = new QLabel("Enter file extensions to hide in this view\n(separated by commas, e.g. zip, srt, txt):", &dlg);
+    infoLabel->setWordWrap(true);
+    layout->addWidget(infoLabel);
+
+    QLineEdit* edit = new QLineEdit(&dlg);
+    edit->setText(currentExts);
+    edit->setPlaceholderText("zip, srt, txt");
+    layout->addWidget(edit);
+
+    QHBoxLayout* btnLayout = new QHBoxLayout();
+    btnLayout->setSpacing(10);
+    btnLayout->addStretch(1);
+
+    QPushButton* btnCancel = new QPushButton("Cancel", &dlg);
+    connect(btnCancel, &QPushButton::clicked, &dlg, &QDialog::reject);
+    btnLayout->addWidget(btnCancel);
+
+    QPushButton* btnSave = new QPushButton("Save", &dlg);
+    btnSave->setStyleSheet("QPushButton { background-color: #89b4fa; color: #11111b; border: none; } QPushButton:hover { background-color: #b4befe; }");
+    connect(btnSave, &QPushButton::clicked, &dlg, &QDialog::accept);
+    btnLayout->addWidget(btnSave);
+
+    layout->addLayout(btnLayout);
+
+    if (dlg.exec() == QDialog::Accepted) {
+        QString text = edit->text().trimmed();
+        settings.setValue(settingsKey, text);
+        updateHideSettings();
+        refresh();
+    }
+}
+
+void FilePanel::updateHideSettings() {
+    if (!m_proxyModel) return;
+
+    QSettings settings("Amifiles", "Amifiles");
+    int vMode = viewModeIndex();
+    
+    bool hideActive = false;
+    QStringList hiddenExts;
+    QString patternsStr;
+    QString defaultHide = "folder.jpg, folder.jpeg, folder.png, cover.jpg, cover.jpeg, cover.png, fanart.jpg, fanart.jpeg, fanart.png, backdrop.jpg, backdrop.jpeg, backdrop.png, poster.jpg, poster.jpeg, poster.png, *.nfo, *.xml, *.txt, *.srt, *.sub, *.vtt, *.ini, *.db";
+
+    if (vMode == 6) { // Audio Showcase
+        hideActive = settings.value("audio_showcase/hide_active", true).toBool();
+        QString extsStr = settings.value("audio_showcase/hidden_extensions", "").toString();
+        hiddenExts = extsStr.split(',', Qt::SkipEmptyParts);
+        patternsStr = settings.value("audio_showcase/hide_patterns", defaultHide).toString();
+    } else if (vMode == 7) { // Video Showcase
+        hideActive = settings.value("video_showcase/hide_active", true).toBool();
+        QString extsStr = settings.value("video_showcase/hidden_extensions", "").toString();
+        hiddenExts = extsStr.split(',', Qt::SkipEmptyParts);
+        patternsStr = settings.value("video_showcase/hide_patterns", defaultHide).toString();
+    } else {
+        hideActive = false; 
+    }
+
+    m_proxyModel->setHideAuxiliaryFilesActive(hideActive);
+    
+    QStringList patternsList = patternsStr.split(',', Qt::SkipEmptyParts);
+    for (auto& p : patternsList) p = p.trimmed();
+    m_proxyModel->setHidePatterns(patternsList);
+    
+    for (auto& ext : hiddenExts) {
+        ext = ext.trimmed().toLower();
+        if (ext.startsWith("*.")) {
+            ext = ext.mid(2);
+        } else if (ext.startsWith('*')) {
+            ext = ext.mid(1);
+        } else if (ext.startsWith('.')) {
+            ext = ext.mid(1);
+        }
+    }
+    m_proxyModel->setHiddenExtensions(hiddenExts);
 }
 
 void FilePanel::setFilterTextBarVisible(bool visible) {
@@ -4027,7 +4152,6 @@ void FilePanel::onViewModeChanged(int index) {
     // Save view mode index choice in preferences
     QSettings settings("Amifiles", "Amifiles");
     bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool() && (index == 6);
-    bool hideActive = settings.value("theater/hide_auxiliary_files", true).toBool() && (index == 6 || index == 7);
     if (m_proxyModel) {
         if (index == 6) {
             m_proxyModel->setShowcaseMode(1); // Audio Showcase
@@ -4038,13 +4162,7 @@ void FilePanel::onViewModeChanged(int index) {
         }
 
         m_proxyModel->setGroupMultiDiscActive(groupMultiDisc);
-        m_proxyModel->setHideAuxiliaryFilesActive(hideActive);
-
-        QString defaultHide = "folder.jpg, folder.jpeg, folder.png, cover.jpg, cover.jpeg, cover.png, fanart.jpg, fanart.jpeg, fanart.png, backdrop.jpg, backdrop.jpeg, backdrop.png, poster.jpg, poster.jpeg, poster.png, *.nfo, *.xml, *.txt, *.srt, *.sub, *.vtt, *.ini, *.db";
-        QString patternsStr = settings.value("theater/hide_patterns", defaultHide).toString();
-        QStringList patternsList = patternsStr.split(',', Qt::SkipEmptyParts);
-        for (auto& p : patternsList) p = p.trimmed();
-        m_proxyModel->setHidePatterns(patternsList);
+        updateHideSettings();
     }
     settings.setValue("file_panel/view_mode_index", index);
     emit viewModeChanged();

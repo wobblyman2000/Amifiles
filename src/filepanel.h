@@ -237,6 +237,12 @@ public:
         invalidate();
     }
 
+    void setHiddenExtensions(const QStringList& exts) {
+        m_hiddenExtensions = exts;
+        invalidate();
+    }
+    QStringList hiddenExtensions() const { return m_hiddenExtensions; }
+
     static QString cleanAlbumFolderName(const QString& name) {
         static const QRegularExpression re(
             R"(\b(?:cd|disc|disk|d)\s*\d+\b|[\(\[]\s*(?:cd|disc|disk|d)\s*\d+\s*[\)\]])", 
@@ -521,10 +527,12 @@ protected:
             if (QDir::match(m_hidePatterns, fileName)) {
                 return false;
             }
-        }
 
-        if (!isDir) {
             QString ext = fileModel->fileInfo(index).suffix().toLower();
+            if (m_hiddenExtensions.contains(ext)) {
+                return false;
+            }
+
             if (m_showcaseMode == 1) { // Audio Showcase Mode
                 static const QStringList imgExts = {"jpg", "jpeg", "png", "webp", "bmp", "gif", "tiff"};
                 static const QStringList videoExts = {"mp4", "mkv", "avi", "mov", "webm", "mpg", "mpeg", "m4v", "flv", "wmv"};
@@ -645,6 +653,7 @@ private:
     bool m_hideAuxiliaryFilesActive = false;
     int m_showcaseMode = 0; // 0 = Standard, 1 = Audio Showcase, 2 = Video Showcase
     QStringList m_hidePatterns;
+    QStringList m_hiddenExtensions;
     qint64 m_minSize = -1;
     qint64 m_maxSize = -1;
     QDateTime m_minDate;
@@ -929,6 +938,9 @@ private:
     class QMediaPlayer* m_themePlayer = nullptr;
     class QAudioOutput* m_themeAudio = nullptr;
     QString m_currentThemePath;
+
+    void promptHideExtensions();
+    void updateHideSettings();
 
 public:
     void updateThemeMusic();
