@@ -1916,6 +1916,7 @@ void FilePanel::updateNavigationButtons() {
 }
 
 void FilePanel::updateStatusText() {
+    if (!m_statusLabel) return;
     if (m_archiveViewActive) {
         int totalItems = m_archiveModel->rowCount();
         int selectedItems = m_treeView->selectionModel() ? m_treeView->selectionModel()->selectedRows().size() : 0;
