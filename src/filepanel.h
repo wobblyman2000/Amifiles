@@ -48,6 +48,55 @@ class ArchiveModel;
 class SearchWorker;
 class FileFilterProxyModel;
 
+#include <QRandomGenerator>
+
+class AudioVisualizerWidget : public QWidget {
+    Q_OBJECT
+public:
+    explicit AudioVisualizerWidget(QWidget* parent = nullptr) : QWidget(parent) {
+        setMinimumSize(130, 60);
+        m_timer = new QTimer(this);
+        connect(m_timer, &QTimer::timeout, this, [this]() {
+            for (int i = 0; i < 15; ++i) {
+                m_heights[i] = QRandomGenerator::global()->bounded(5, height() - 5);
+            }
+            update();
+        });
+        m_timer->start(100); // 10fps animation
+        for (int i = 0; i < 15; ++i) m_heights[i] = 10;
+    }
+    
+protected:
+    void paintEvent(QPaintEvent* event) override {
+        Q_UNUSED(event);
+        QPainter p(this);
+        p.setRenderHint(QPainter::Antialiasing);
+        
+        int w = width();
+        int h = height();
+        int numBars = 15;
+        double gap = 3.0;
+        double barW = (w - (numBars - 1) * gap) / numBars;
+        
+        QLinearGradient grad(0, h, 0, 0);
+        grad.setColorAt(0.0, QColor("#a6e3a1"));
+        grad.setColorAt(0.6, QColor("#89b4fa"));
+        grad.setColorAt(1.0, QColor("#f5c2e7"));
+        p.setBrush(grad);
+        p.setPen(Qt::NoPen);
+        
+        for (int i = 0; i < numBars; ++i) {
+            double barH = m_heights[i];
+            QRectF barRect(i * (barW + gap), h - barH, barW, barH);
+            p.drawRoundedRect(barRect, 2, 2);
+        }
+    }
+    
+private:
+    QTimer* m_timer;
+    int m_heights[15];
+};
+
 class CasingRunnable : public QRunnable {
 public:
     CasingRunnable(QPointer<FileFilterProxyModel> model, const QString& path);
@@ -719,6 +768,7 @@ public:
     class GroupProxyModel* groupProxy() const { return m_groupProxy; }
     QAbstractItemModel* activeBaseModel() const;
     void updateActiveViewModel();
+    void updateTheaterGridSize();
 
     // View modular filter components
     void setCategoryButtonsVisible(bool visible);
@@ -910,6 +960,20 @@ private:
     QLabel* m_bottomMeta = nullptr;
     QLabel* m_bottomSynopsis = nullptr;
     QPushButton* m_bottomPlayBtn = nullptr;
+    QWidget* m_musicControlsWidget = nullptr;
+    QToolButton* m_btnShuffle = nullptr;
+    QToolButton* m_btnPrev = nullptr;
+    QToolButton* m_btnPlayPause = nullptr;
+    QToolButton* m_btnNext = nullptr;
+    QToolButton* m_btnRepeat = nullptr;
+    QSlider* m_musicVolumeSlider = nullptr;
+    AudioVisualizerWidget* m_visualizerWidget = nullptr;
+    class QListWidget* m_trackListWidget = nullptr;
+
+    QWidget* m_cinemaButtonsWidget = nullptr;
+    QPushButton* m_btnWatchTrailer = nullptr;
+    QPushButton* m_btnEditMetadata = nullptr;
+
     QString m_bottomPanelPath;
     class QScrollArea* m_theaterScrollArea = nullptr;
     QWidget* m_theaterScrollWidget = nullptr;

@@ -416,7 +416,60 @@ void FilePanel::setupUI() {
 
     textLayout->addWidget(m_bottomTitle);
     textLayout->addWidget(m_bottomMeta);
-    bottomLayout->addLayout(textLayout, 2);
+
+    // Initialize Music v2 Playback Controls Bar
+    m_musicControlsWidget = new QWidget(m_bottomInfoPanel);
+    QHBoxLayout* musicCtrlLayout = new QHBoxLayout(m_musicControlsWidget);
+    musicCtrlLayout->setContentsMargins(0, 4, 0, 0);
+    musicCtrlLayout->setSpacing(6);
+
+    m_btnShuffle = new QToolButton(m_musicControlsWidget);
+    m_btnShuffle->setText("🔀");
+    m_btnShuffle->setCheckable(true);
+    m_btnShuffle->setToolTip("Shuffle Playback");
+    
+    m_btnPrev = new QToolButton(m_musicControlsWidget);
+    m_btnPrev->setText("⏮");
+    m_btnPrev->setToolTip("Previous Track");
+
+    m_btnPlayPause = new QToolButton(m_musicControlsWidget);
+    m_btnPlayPause->setText("▶");
+    m_btnPlayPause->setToolTip("Play / Pause");
+
+    m_btnNext = new QToolButton(m_musicControlsWidget);
+    m_btnNext->setText("⏭");
+    m_btnNext->setToolTip("Next Track");
+
+    m_btnRepeat = new QToolButton(m_musicControlsWidget);
+    m_btnRepeat->setText("🔁");
+    m_btnRepeat->setCheckable(true);
+    m_btnRepeat->setToolTip("Repeat Album");
+
+    m_musicVolumeSlider = new QSlider(Qt::Horizontal, m_musicControlsWidget);
+    m_musicVolumeSlider->setRange(0, 100);
+    m_musicVolumeSlider->setValue(85);
+    m_musicVolumeSlider->setFixedWidth(60);
+    m_musicVolumeSlider->setToolTip("Volume");
+
+    musicCtrlLayout->addWidget(m_btnShuffle);
+    musicCtrlLayout->addWidget(m_btnPrev);
+    musicCtrlLayout->addWidget(m_btnPlayPause);
+    musicCtrlLayout->addWidget(m_btnNext);
+    musicCtrlLayout->addWidget(m_btnRepeat);
+    musicCtrlLayout->addWidget(m_musicVolumeSlider);
+
+    QString toolBtnStyle = "QToolButton { background-color: #313244; color: #cdd6f4; border: none; padding: 4px; border-radius: 4px; } QToolButton:hover { background-color: #45475a; } QToolButton:checked { background-color: #fab387; color: #11111b; }";
+    m_btnShuffle->setStyleSheet(toolBtnStyle);
+    m_btnPrev->setStyleSheet(toolBtnStyle);
+    m_btnPlayPause->setStyleSheet("QToolButton { background-color: #a6e3a1; color: #11111b; border: none; padding: 6px; border-radius: 12px; font-weight: bold; } QToolButton:hover { background-color: #94e2d5; }");
+    m_btnNext->setStyleSheet(toolBtnStyle);
+    m_btnRepeat->setStyleSheet(toolBtnStyle);
+    m_musicVolumeSlider->setStyleSheet("QSlider::groove:horizontal { border: none; height: 4px; background: #313244; border-radius: 2px; } QSlider::handle:horizontal { background: #89b4fa; width: 10px; margin: -3px 0; border-radius: 5px; }");
+
+    textLayout->addWidget(m_musicControlsWidget);
+    m_musicControlsWidget->setVisible(false);
+
+    bottomLayout->addLayout(textLayout, 3);
 
     m_bottomSynopsis = new QLabel(m_bottomInfoPanel);
     m_bottomSynopsis->setStyleSheet("font-size: 11px; color: #bac2de;");
@@ -424,9 +477,105 @@ void FilePanel::setupUI() {
     m_bottomSynopsis->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     bottomLayout->addWidget(m_bottomSynopsis, 5);
 
+    // Initialize Audio Visualizer in the center
+    m_visualizerWidget = new AudioVisualizerWidget(m_bottomInfoPanel);
+    bottomLayout->addWidget(m_visualizerWidget, 2, Qt::AlignVCenter);
+    m_visualizerWidget->setVisible(false);
+
+    // Initialize Playlist Track Drawer on the right
+    m_trackListWidget = new QListWidget(m_bottomInfoPanel);
+    m_trackListWidget->setFixedWidth(240);
+    m_trackListWidget->setStyleSheet("QListWidget { background-color: rgba(24, 24, 37, 150); color: #cdd6f4; border: 1px solid #313244; border-radius: 6px; font-size: 11px; } QListWidget::item { padding: 4px 6px; border-radius: 3px; } QListWidget::item:hover { background-color: #313244; color: #f5c2e7; } QListWidget::item:selected { background-color: #89b4fa; color: #11111b; }");
+    bottomLayout->addWidget(m_trackListWidget, 3);
+    m_trackListWidget->setVisible(false);
+
+    // Playback control connections
+    connect(m_btnPrev, &QToolButton::clicked, this, [this]() {
+        int row = m_trackListWidget->currentRow();
+        if (row > 0) {
+            m_trackListWidget->setCurrentRow(row - 1);
+            emit playMediaBuiltinRequested({m_trackListWidget->currentItem()->data(Qt::UserRole).toString()});
+        }
+    });
+    connect(m_btnNext, &QToolButton::clicked, this, [this]() {
+        int row = m_trackListWidget->currentRow();
+        if (row >= 0 && row < m_trackListWidget->count() - 1) {
+            m_trackListWidget->setCurrentRow(row + 1);
+            emit playMediaBuiltinRequested({m_trackListWidget->currentItem()->data(Qt::UserRole).toString()});
+        }
+    });
+    connect(m_btnPlayPause, &QToolButton::clicked, this, [this]() {
+        if (m_btnPlayPause->text() == "▶") {
+            m_btnPlayPause->setText("⏸");
+            if (m_themePlayer) m_themePlayer->play();
+        } else {
+            m_btnPlayPause->setText("▶");
+            if (m_themePlayer) m_themePlayer->pause();
+        }
+    });
+    connect(m_musicVolumeSlider, &QSlider::valueChanged, this, [this](int value) {
+        if (m_themeAudio) {
+            m_themeAudio->setVolume((float)value / 100.0f);
+        }
+    });
+    connect(m_trackListWidget, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem* item) {
+        QString trackPath = item->data(Qt::UserRole).toString();
+        if (!trackPath.isEmpty()) {
+            m_btnPlayPause->setText("⏸");
+            emit playMediaBuiltinRequested({trackPath});
+        }
+    });
+
     m_bottomPlayBtn = new QPushButton("▶ Play Media", m_bottomInfoPanel);
     m_bottomPlayBtn->setStyleSheet("QPushButton { background-color: #a6e3a1; color: #11111b; font-weight: bold; padding: 6px 12px; border-radius: 4px; border: none; min-width: 90px; } QPushButton:hover { background-color: #94e2d5; }");
     bottomLayout->addWidget(m_bottomPlayBtn, 0, Qt::AlignVCenter);
+
+    // Initialize Cinema Buttons Widget for Trailer & Metadata Edit
+    m_cinemaButtonsWidget = new QWidget(m_bottomInfoPanel);
+    QVBoxLayout* cinemaButtonsLayout = new QVBoxLayout(m_cinemaButtonsWidget);
+    cinemaButtonsLayout->setContentsMargins(0, 0, 0, 0);
+    cinemaButtonsLayout->setSpacing(4);
+
+    m_btnWatchTrailer = new QPushButton("📺 Watch Trailer", m_cinemaButtonsWidget);
+    m_btnWatchTrailer->setStyleSheet("QPushButton { background-color: #89b4fa; color: #11111b; font-weight: bold; padding: 4px 8px; border-radius: 4px; border: none; font-size: 11px; } QPushButton:hover { background-color: #b4befe; }");
+
+    m_btnEditMetadata = new QPushButton("🏷 Edit Metadata", m_cinemaButtonsWidget);
+    m_btnEditMetadata->setStyleSheet("QPushButton { background-color: #313244; color: #cdd6f4; font-weight: bold; padding: 4px 8px; border-radius: 4px; border: none; font-size: 11px; } QPushButton:hover { background-color: #45475a; }");
+
+    cinemaButtonsLayout->addWidget(m_btnWatchTrailer);
+    cinemaButtonsLayout->addWidget(m_btnEditMetadata);
+    bottomLayout->addWidget(m_cinemaButtonsWidget, 0, Qt::AlignVCenter);
+    m_cinemaButtonsWidget->setVisible(false);
+
+    connect(m_btnWatchTrailer, &QPushButton::clicked, this, [this]() {
+        if (m_bottomPanelPath.isEmpty()) return;
+        QFileInfo info(m_bottomPanelPath);
+        QString targetDir = info.isDir() ? m_bottomPanelPath : info.absolutePath();
+        QDir dir(targetDir);
+        QFileInfoList files = dir.entryInfoList(QDir::Files);
+        QString trailerPath;
+        for (const QFileInfo& fi : files) {
+            if (fi.fileName().contains("trailer", Qt::CaseInsensitive)) {
+                trailerPath = fi.absoluteFilePath();
+                break;
+            }
+        }
+        if (!trailerPath.isEmpty()) {
+            emit playMediaBuiltinRequested({trailerPath});
+        } else {
+            QDesktopServices::openUrl(QUrl("https://www.youtube.com/results?search_query=" + QUrl::toPercentEncoding(info.baseName() + " trailer")));
+        }
+    });
+
+    connect(m_btnEditMetadata, &QPushButton::clicked, this, [this]() {
+        if (!m_bottomPanelPath.isEmpty()) {
+            ShowcaseInfoDialog infoDlg(m_bottomPanelPath, this);
+            connect(&infoDlg, &ShowcaseInfoDialog::playRequested, this, [this](const QString& path) {
+                emit playMediaBuiltinRequested({path});
+            });
+            infoDlg.exec();
+        }
+    });
 
     theaterLayout->addWidget(m_bottomInfoPanel);
 
@@ -1539,10 +1688,26 @@ void FilePanel::onSelectionChanged() {
             QSettings settings("Amifiles", "Amifiles");
             int modeIndex = viewModeIndex(); // 6 = Music Showcase, 7 = Cinema Showcase, 8 = Movie, 9 = TV, 10 = Music (v2)
 
+            // Dynamic bottom panel sizing
+            int panelHeight = 72;
+            if (modeIndex == 10) {
+                panelHeight = 120;
+            } else if (modeIndex == 8 || modeIndex == 9) {
+                panelHeight = 100;
+            }
+            m_bottomInfoPanel->setFixedHeight(panelHeight);
+
+            // Hide/Show widgets based on view mode index
+            if (m_musicControlsWidget) m_musicControlsWidget->setVisible(modeIndex == 10);
+            if (m_visualizerWidget) m_visualizerWidget->setVisible(modeIndex == 10);
+            if (m_trackListWidget) m_trackListWidget->setVisible(modeIndex == 10);
+            if (m_cinemaButtonsWidget) m_cinemaButtonsWidget->setVisible(modeIndex == 8 || modeIndex == 9);
+
             if (modeIndex == 7 || modeIndex == 8 || modeIndex == 9) {
                 // Video Showcase
                 m_bottomSynopsis->setVisible(true);
                 m_bottomPlayBtn->setText("▶ Play Media");
+                m_bottomPlayBtn->setVisible(true);
 
                 QString targetDir = pathInfo.isDir() ? path : pathInfo.absolutePath();
                 CinemaMetadata meta;
@@ -1595,6 +1760,7 @@ void FilePanel::onSelectionChanged() {
                 // Audio Showcase
                 m_bottomSynopsis->setVisible(false);
                 m_bottomPlayBtn->setText("▶ Play Album");
+                m_bottomPlayBtn->setVisible(true);
 
                 bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool();
                 QString folderName = pathInfo.fileName();
@@ -1608,6 +1774,30 @@ void FilePanel::onSelectionChanged() {
                     artistName = parentDir.dirName();
                 }
                 m_bottomMeta->setText(artistName);
+
+                // For Music Showcase v2, scan the selected directory for tracks and populate tracklist drawer
+                if (modeIndex == 10 && m_trackListWidget) {
+                    m_trackListWidget->clear();
+                    QString targetDir = pathInfo.isDir() ? path : pathInfo.absolutePath();
+                    QDir dir(targetDir);
+                    QStringList audioExts = { "mp3", "flac", "wav", "ogg", "m4a", "wma", "aac" };
+                    QFileInfoList trackFiles = dir.entryInfoList(QDir::Files, QDir::Name);
+                    int selectIndex = -1;
+                    for (const QFileInfo& trackFi : trackFiles) {
+                        if (audioExts.contains(trackFi.suffix().toLower())) {
+                            QListWidgetItem* item = new QListWidgetItem(trackFi.fileName(), m_trackListWidget);
+                            item->setData(Qt::UserRole, trackFi.absoluteFilePath());
+                            if (trackFi.absoluteFilePath() == path) {
+                                selectIndex = m_trackListWidget->count() - 1;
+                            }
+                        }
+                    }
+                    if (selectIndex != -1) {
+                        m_trackListWidget->setCurrentRow(selectIndex);
+                    } else if (m_trackListWidget->count() > 0) {
+                        m_trackListWidget->setCurrentRow(0);
+                    }
+                }
 
                 QString key = (modeIndex == 10) ? "music_showcase/show_info_panel" : "audio_showcase/show_info_panel";
                 bool showInfoPanel = settings.value(key, true).toBool();
@@ -2526,10 +2716,10 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
 
             actHiddenExtensions = menu.addAction("Hide File Extensions...");
 
-            if (idx == 10) {
-                actCasingStyle = menu.addAction("Casing Style: Vinyl Record Sleeve");
-                actCasingStyle->setCheckable(true);
+            if (idx == 6 || idx == 10) {
                 QString casingType = settings.value("music_showcase/casing_type", "cd").toString();
+                actCasingStyle = menu.addAction(casingType == "vinyl" ? "Switch Casing to: CD Jewel Case" : "Switch Casing to: Vinyl LP Record Sleeve");
+                actCasingStyle->setCheckable(true);
                 actCasingStyle->setChecked(casingType == "vinyl");
             }
         }
@@ -3575,12 +3765,29 @@ void FilePanel::syncZoom(int value) {
     if (m_listView->viewMode() == QListView::IconMode) {
         m_listView->setGridSize(QSize(size + 60, size + 40));
     }
-    if (m_theaterListView) {
-        double factor = (double)size / 32.0;
-        int gw = qRound(170.0 * factor);
-        int gh = qRound(270.0 * factor);
-        m_theaterListView->setGridSize(QSize(gw, gh));
+    updateTheaterGridSize();
+}
+
+void FilePanel::updateTheaterGridSize() {
+    if (!m_theaterListView) return;
+    int index = viewModeIndex();
+    if (index < 6 || index > 10) return;
+
+    int sizes[] = { 16, 24, 32, 48, 64, 96, 128 };
+    int size = sizes[qBound(0, m_zoomLevel, 6)];
+    double factor = (double)size / 32.0;
+
+    int gw, gh;
+    if (index == 6 || index == 10) {
+        // Square music/audio showcase
+        gw = qRound(185.0 * factor);
+        gh = qRound(200.0 * factor);
+    } else {
+        // 2:3 widescreen posters for Movie/TV
+        gw = qRound(170.0 * factor);
+        gh = qRound(270.0 * factor);
     }
+    m_theaterListView->setGridSize(QSize(gw, gh));
 }
 
 void FilePanel::updateStyles() {
@@ -4221,6 +4428,7 @@ void FilePanel::onViewModeChanged(int index) {
             m_theaterDelegate->setCinemaMode(index == 7 || index == 8 || index == 9);
             m_theaterDelegate->setShowcaseViewMode(index);
         }
+        updateTheaterGridSize();
         m_viewStack->setCurrentWidget(m_theaterContainer);
         if (m_groupProxy && m_groupProxy->isGroupingActive()) {
             m_theaterListView->setVisible(false);
@@ -4254,6 +4462,7 @@ void FilePanel::onViewModeChanged(int index) {
         updateHideSettings();
     }
     settings.setValue("file_panel/view_mode_index", index);
+    onSelectionChanged(); // Trigger layout update for bottom info panel
     emit viewModeChanged();
     updateThemeMusic();
 }
@@ -4635,37 +4844,99 @@ void CasingRunnable::run() {
     painter.setRenderHint(QPainter::Antialiasing);
 
     if (casingInt == 0) { // CasingCD
-        painter.setBrush(QColor("#313244"));
-        painter.setPen(QPen(QColor("#45475a"), qMax(1, qRound(1 * s))));
-        painter.drawRoundedRect(qRound(2 * s), qRound(2 * s), caseW - qRound(4 * s), caseH - qRound(4 * s), qRound(3 * s), qRound(3 * s));
+        QSettings settings("Amifiles", "Amifiles");
+        QString casingType = settings.value("music_showcase/casing_type", "cd").toString();
 
-        painter.setBrush(QColor("#11111b"));
-        painter.setPen(Qt::NoPen);
-        painter.drawRect(qRound(3 * s), qRound(3 * s), qRound(5 * s), caseH - qRound(6 * s));
+        if (casingType == "vinyl") {
+            // Render a premium Vinyl Record Sleeve Mockup
+            // 1. Paint the black vinyl record disk partially sticking out from the right
+            int diskX = caseW - qRound(60.0 * s);
+            int diskY = caseH / 2;
+            int diskR = qRound(95.0 * s);
 
-        int coverX = qRound(10 * s);
-        int coverY = qRound(4 * s);
-        int coverW = caseW - qRound(14 * s);
-        int coverH = caseH - qRound(8 * s);
-        painter.drawImage(QRect(coverX, coverY, coverW, coverH), cover.scaled(coverW, coverH, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+            painter.setBrush(QColor("#0d0d0d")); // Charcoal black vinyl body
+            painter.setPen(Qt::NoPen);
+            painter.drawEllipse(diskX - diskR, diskY - diskR, diskR * 2, diskR * 2);
 
-        painter.setBrush(Qt::NoBrush);
-        painter.setPen(QPen(QColor(255, 255, 255, 60), qMax(1, qRound(1 * s))));
-        painter.drawRoundedRect(qRound(3 * s), qRound(3 * s), caseW - qRound(6 * s), caseH - qRound(6 * s), qRound(2 * s), qRound(2 * s));
+            // Groove lines
+            painter.setBrush(Qt::NoBrush);
+            painter.setPen(QPen(QColor(255, 255, 255, 12), 1));
+            int startR = qRound(35.0 * s);
+            int stepR = qRound(10.0 * s);
+            for (int r = startR; r < diskR - 5; r += stepR) {
+                painter.drawEllipse(diskX - r, diskY - r, r * 2, r * 2);
+            }
 
-        QLinearGradient gradient(0, 0, caseW, caseH);
-        gradient.setColorAt(0.0, QColor(255, 255, 255, 80));
-        gradient.setColorAt(0.3, QColor(255, 255, 255, 120));
-        gradient.setColorAt(0.35, QColor(255, 255, 255, 0));
-        gradient.setColorAt(1.0, QColor(255, 255, 255, 0));
+            // Sticker label in the middle of vinyl disk
+            int labelR = qRound(32.0 * s);
+            painter.setBrush(QColor("#b4befe")); // Beautiful pastel purple label background
+            painter.setPen(Qt::NoPen);
+            painter.drawEllipse(diskX - labelR, diskY - labelR, labelR * 2, labelR * 2);
 
-        painter.setBrush(gradient);
-        painter.setPen(Qt::NoPen);
-        QPolygon gloss;
-        gloss << QPoint(qRound(9 * s), qRound(4 * s))
-              << QPoint(caseW - qRound(4 * s), qRound(4 * s))
-              << QPoint(qRound(9 * s), caseH - qRound(4 * s));
-        painter.drawPolygon(gloss);
+            // Draw micro sticker text
+            painter.setPen(QColor("#11111b"));
+            QFont microFont = painter.font();
+            microFont.setPointSize(qRound(1.5 * s));
+            microFont.setBold(true);
+            painter.setFont(microFont);
+            painter.drawText(QRect(diskX - labelR, diskY - labelR, labelR * 2, labelR * 2), Qt::AlignCenter, "LP");
+
+            // Vinyl center spindle hole
+            painter.setBrush(QColor("#1e1e2e"));
+            painter.setPen(Qt::NoPen);
+            int holeR = qRound(5.0 * s);
+            painter.drawEllipse(diskX - holeR, diskY - holeR, holeR * 2, holeR * 2);
+
+            // 2. Paint the cardboard outer sleeve on the left covering the disk
+            int sleeveW = caseW - qRound(55.0 * s);
+            int sleeveH = caseH;
+            painter.setBrush(QColor("#181825"));
+            painter.setPen(QPen(QColor("#313244"), qMax(1, qRound(1.5 * s))));
+            painter.drawRoundedRect(0, 0, sleeveW, sleeveH, qRound(3.0 * s), qRound(3.0 * s));
+
+            int coverX = qRound(4 * s);
+            int coverY = qRound(4 * s);
+            int coverW = sleeveW - qRound(8 * s);
+            int coverH = caseH - qRound(8 * s);
+            painter.drawImage(QRect(coverX, coverY, coverW, coverH), cover.scaled(coverW, coverH, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+
+            // Draw inner shadow/edge highlight on the cardboard sleeve
+            painter.setBrush(Qt::NoBrush);
+            painter.setPen(QPen(QColor(255, 255, 255, 45), qMax(1, qRound(1 * s))));
+            painter.drawRoundedRect(qRound(2 * s), qRound(2 * s), sleeveW - qRound(4 * s), caseH - qRound(4 * s), qRound(2 * s), qRound(2 * s));
+        } else {
+            painter.setBrush(QColor("#313244"));
+            painter.setPen(QPen(QColor("#45475a"), qMax(1, qRound(1 * s))));
+            painter.drawRoundedRect(qRound(2 * s), qRound(2 * s), caseW - qRound(4 * s), caseH - qRound(4 * s), qRound(3 * s), qRound(3 * s));
+
+            painter.setBrush(QColor("#11111b"));
+            painter.setPen(Qt::NoPen);
+            painter.drawRect(qRound(3 * s), qRound(3 * s), qRound(5 * s), caseH - qRound(6 * s));
+
+            int coverX = qRound(10 * s);
+            int coverY = qRound(4 * s);
+            int coverW = caseW - qRound(14 * s);
+            int coverH = caseH - qRound(8 * s);
+            painter.drawImage(QRect(coverX, coverY, coverW, coverH), cover.scaled(coverW, coverH, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+
+            painter.setBrush(Qt::NoBrush);
+            painter.setPen(QPen(QColor(255, 255, 255, 60), qMax(1, qRound(1 * s))));
+            painter.drawRoundedRect(qRound(3 * s), qRound(3 * s), caseW - qRound(6 * s), caseH - qRound(6 * s), qRound(2 * s), qRound(2 * s));
+
+            QLinearGradient gradient(0, 0, caseW, caseH);
+            gradient.setColorAt(0.0, QColor(255, 255, 255, 80));
+            gradient.setColorAt(0.3, QColor(255, 255, 255, 120));
+            gradient.setColorAt(0.35, QColor(255, 255, 255, 0));
+            gradient.setColorAt(1.0, QColor(255, 255, 255, 0));
+
+            painter.setBrush(gradient);
+            painter.setPen(Qt::NoPen);
+            QPolygon gloss;
+            gloss << QPoint(qRound(9 * s), qRound(4 * s))
+                  << QPoint(caseW - qRound(4 * s), qRound(4 * s))
+                  << QPoint(qRound(9 * s), caseH - qRound(4 * s));
+            painter.drawPolygon(gloss);
+        }
     }
     else if (casingInt == 1) { // CasingDVD
         painter.setBrush(QColor("#1e1e2e"));

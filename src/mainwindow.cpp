@@ -419,12 +419,10 @@ void MainWindow::setupCentralWidget() {
         "QListWidget::item:hover { background-color: #313244; color: #f5c2e7; }"
         "QListWidget::item:selected { background-color: #89b4fa; color: #11111b; font-weight: bold; }"
     );
-    m_favoritesSidebar->setFocusPolicy(Qt::NoFocus);
     connect(m_favoritesSidebar, &QListWidget::itemDoubleClicked, this, &MainWindow::onFavoritesSidebarDoubleClicked);
 
     m_filtersSidebar = new QListWidget(m_sidebarTabWidget);
     m_filtersSidebar->setStyleSheet(m_favoritesSidebar->styleSheet());
-    m_filtersSidebar->setFocusPolicy(Qt::NoFocus);
 
     // Add preset quick filters
     m_filtersSidebar->addItem("Show All Files");
@@ -438,7 +436,6 @@ void MainWindow::setupCentralWidget() {
 
     m_tagsSidebar = new QListWidget(m_sidebarTabWidget);
     m_tagsSidebar->setStyleSheet(m_favoritesSidebar->styleSheet());
-    m_tagsSidebar->setFocusPolicy(Qt::NoFocus);
     connect(m_tagsSidebar, &QListWidget::itemClicked, this, &MainWindow::onTagsSidebarClicked);
 
     m_sidebarTabWidget->addTab(m_favoritesSidebar, "Bookmarks");

@@ -69,12 +69,20 @@ void TheaterListView::setBackdropPath(const QString& path) {
 void TheaterListView::clearBackdrop() {
     m_backdropPath = "";
     m_backdropImage = QImage();
+    m_dominantColor = QColor("#11111b");
     viewport()->update();
 }
 
 void TheaterListView::onBackdropLoaded(const QString& path, const QImage& image) {
     if (m_backdropPath == path) {
         m_backdropImage = image;
+        m_dominantColor = QColor("#11111b");
+        if (!image.isNull()) {
+            QImage small = image.scaled(1, 1, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+            if (!small.isNull() && small.width() > 0 && small.height() > 0) {
+                m_dominantColor = QColor::fromRgba(small.pixel(0, 0));
+            }
+        }
         viewport()->update();
     }
 }
@@ -83,13 +91,22 @@ void TheaterListView::paintEvent(QPaintEvent* event) {
     QPainter painter(viewport());
     painter.setRenderHint(QPainter::Antialiasing);
 
-    // Draw background color
-    painter.fillRect(viewport()->rect(), QColor("#11111b"));
+    // Draw background color with ambient linear gradient
+    QLinearGradient bgGrad(viewport()->rect().topLeft(), viewport()->rect().bottomRight());
+    if (!m_backdropImage.isNull()) {
+        QColor mixColor = m_dominantColor;
+        mixColor.setAlpha(60); // subtle ambient aura
+        bgGrad.setColorAt(0.0, mixColor);
+        bgGrad.setColorAt(1.0, QColor("#11111b"));
+    } else {
+        bgGrad.setColorAt(0.0, QColor("#1e1e2e"));
+        bgGrad.setColorAt(1.0, QColor("#11111b"));
+    }
+    painter.fillRect(viewport()->rect(), bgGrad);
 
     // Draw backdrop image if loaded
     if (!m_backdropImage.isNull()) {
-        painter.setOpacity(0.12);
-        // Smoothly stretch across the viewport
+        painter.setOpacity(0.06); // subtle overlay texture
         painter.drawImage(viewport()->rect(), m_backdropImage);
     }
 

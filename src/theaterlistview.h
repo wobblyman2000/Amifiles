@@ -3,6 +3,7 @@
 #include <QListView>
 #include <QImage>
 #include <QPointer>
+#include <QColor>
 
 class TheaterListView : public QListView {
     Q_OBJECT
@@ -22,4 +23,5 @@ private slots:
 private:
     QString m_backdropPath;
     QImage m_backdropImage;
+    QColor m_dominantColor = QColor("#11111b");
 };

@@ -244,6 +244,51 @@ inline QString getStylesheet() {
             border-top: 1px solid @border@;
             color: @secText@;
         }
+
+        /* Scrollbars */
+        QScrollBar:vertical {
+            border: none;
+            background: @bg@;
+            width: 12px;
+            margin: 0px;
+        }
+        QScrollBar::handle:vertical {
+            background: @border@;
+            min-height: 25px;
+            border-radius: 6px;
+            border: 2px solid @bg@;
+        }
+        QScrollBar::handle:vertical:hover {
+            background: @accent@;
+        }
+        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+            height: 0px;
+        }
+        QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+            background: none;
+        }
+
+        QScrollBar:horizontal {
+            border: none;
+            background: @bg@;
+            height: 12px;
+            margin: 0px;
+        }
+        QScrollBar::handle:horizontal {
+            background: @border@;
+            min-width: 25px;
+            border-radius: 6px;
+            border: 2px solid @bg@;
+        }
+        QScrollBar::handle:horizontal:hover {
+            background: @accent@;
+        }
+        QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+            width: 0px;
+        }
+        QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+            background: none;
+        }
     )");
 
     stylesheet.replace("@bg@", bg);

@@ -13,6 +13,7 @@
 
 #include <QPainter>
 #include <QMouseEvent>
+#include <QWheelEvent>
 #include <QHBoxLayout>
 
 class ToggleSwitch : public QAbstractButton {
@@ -50,6 +51,10 @@ protected:
         p.setBrush(QColor("#11111b"));
         p.drawEllipse(thumbRect);
     }
+
+    void wheelEvent(QWheelEvent* event) override {
+        event->ignore();
+    }
 };
 
 class ProfileListItemWidget : public QWidget {
@@ -82,6 +87,11 @@ public:
     bool isChecked() const { return m_switch->isChecked(); }
     void setChecked(bool checked) { m_switch->setChecked(checked); }
     ToggleSwitch* toggle() const { return m_switch; }
+    
+protected:
+    void wheelEvent(QWheelEvent* event) override {
+        event->ignore();
+    }
     
 signals:
     void toggled(bool checked);
