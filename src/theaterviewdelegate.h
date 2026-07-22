@@ -14,8 +14,12 @@ public:
     void setCinemaMode(bool cinema) { m_isCinemaMode = cinema; }
     bool isCinemaMode() const { return m_isCinemaMode; }
 
+    void setShowcaseViewMode(int mode) { m_showcaseViewMode = mode; }
+    int showcaseViewMode() const { return m_showcaseViewMode; }
+
 private:
     bool m_isCinemaMode = false;
+    int m_showcaseViewMode = 6; // Default to existing Audio Showcase
     mutable QMap<QString, QList<QPixmap>> m_hoverFramesCache;
     mutable QMap<QString, bool> m_hoverLoading;
     mutable QString m_activeHoverPath;

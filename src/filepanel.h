@@ -533,13 +533,13 @@ protected:
                 return false;
             }
 
-            if (m_showcaseMode == 1) { // Audio Showcase Mode
+            if (m_showcaseMode == 1 || m_showcaseMode == 5) { // Audio Showcase / Music Showcase v2
                 static const QStringList imgExts = {"jpg", "jpeg", "png", "webp", "bmp", "gif", "tiff"};
                 static const QStringList videoExts = {"mp4", "mkv", "avi", "mov", "webm", "mpg", "mpeg", "m4v", "flv", "wmv"};
                 if (imgExts.contains(ext) || videoExts.contains(ext)) {
                     return false;
                 }
-            } else if (m_showcaseMode == 2) { // Video Showcase Mode
+            } else if (m_showcaseMode == 2 || m_showcaseMode == 3 || m_showcaseMode == 4) { // Video Showcase / Movie Showcase v2 / TV Show Showcase v2
                 static const QStringList imgExts = {"jpg", "jpeg", "png", "webp", "bmp", "gif", "tiff"};
                 static const QStringList audioExts = {"mp3", "flac", "wav", "aac", "m4a", "ogg", "wma", "opus"};
                 static const QStringList auxExts = {"xml", "nfo", "txt", "sub", "idx", "ini", "db"};

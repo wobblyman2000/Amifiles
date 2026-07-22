@@ -246,7 +246,10 @@ void FilePanel::setupUI() {
         "Chronological Timeline",
         "Filmstrip View",
         "Audio Showcase",
-        "Video Showcase"
+        "Video Showcase",
+        "Movie Showcase (v2)",
+        "TV Show Showcase (v2)",
+        "Music Showcase (v2)"
     });
     m_comboViewMode->setToolTip("Switch active file listing visual layout view mode");
     m_comboViewMode->setStyleSheet("QComboBox { background-color: #313244; color: #89b4fa; border: 1px solid #45475a; border-radius: 4px; padding: 2px 6px; font-weight: bold; }");
@@ -435,9 +438,9 @@ void FilePanel::setupUI() {
             QDir dir(m_bottomPanelPath);
             QFileInfoList files = dir.entryInfoList(QDir::Files, QDir::Name);
             QStringList mediaExts;
-            if (viewModeIndex() == 6) { // Audio Showcase
+            if (viewModeIndex() == 6 || viewModeIndex() == 10) { // Audio Showcase or Music Showcase (v2)
                 mediaExts = { "mp3", "wav", "flac", "ogg", "m4a", "wma", "aac" };
-            } else { // Video Showcase
+            } else { // Video Showcase, Movie Showcase (v2), TV Show Showcase (v2)
                 mediaExts = { "mp4", "mkv", "avi", "mov", "webm", "flv", "wmv", "m4v" };
             }
             for (const QFileInfo& fInfo : files) {
@@ -447,7 +450,7 @@ void FilePanel::setupUI() {
             }
             // Check for multi-disc folders as well (if grouping is active)
             QSettings settings("Amifiles", "Amifiles");
-            bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool() && (viewModeIndex() == 6);
+            bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool() && (viewModeIndex() == 6 || viewModeIndex() == 10);
             if (groupMultiDisc && playlistPaths.isEmpty()) {
                 QString parentDir = info.absolutePath();
                 QDir pDir(parentDir);
@@ -1534,9 +1537,9 @@ void FilePanel::onSelectionChanged() {
             m_bottomPanelPath = path;
 
             QSettings settings("Amifiles", "Amifiles");
-            int modeIndex = viewModeIndex(); // 6 = Music Showcase, 7 = Cinema Showcase
+            int modeIndex = viewModeIndex(); // 6 = Music Showcase, 7 = Cinema Showcase, 8 = Movie, 9 = TV, 10 = Music (v2)
 
-            if (modeIndex == 7) {
+            if (modeIndex == 7 || modeIndex == 8 || modeIndex == 9) {
                 // Video Showcase
                 m_bottomSynopsis->setVisible(true);
                 m_bottomPlayBtn->setText("▶ Play Media");
@@ -1584,9 +1587,11 @@ void FilePanel::onSelectionChanged() {
                     m_bottomSynopsis->setText("No plot summary (.nfo) found inside this directory.");
                 }
 
-                bool showInfoPanel = settings.value("video_showcase/show_info_panel", true).toBool();
+                QString key = (modeIndex == 8) ? "movie_showcase/show_info_panel" : 
+                              ((modeIndex == 9) ? "tv_showcase/show_info_panel" : "video_showcase/show_info_panel");
+                bool showInfoPanel = settings.value(key, true).toBool();
                 m_bottomInfoPanel->setVisible(showInfoPanel);
-            } else if (modeIndex == 6) {
+            } else if (modeIndex == 6 || modeIndex == 10) {
                 // Audio Showcase
                 m_bottomSynopsis->setVisible(false);
                 m_bottomPlayBtn->setText("▶ Play Album");
@@ -1604,7 +1609,8 @@ void FilePanel::onSelectionChanged() {
                 }
                 m_bottomMeta->setText(artistName);
 
-                bool showInfoPanel = settings.value("audio_showcase/show_info_panel", true).toBool();
+                QString key = (modeIndex == 10) ? "music_showcase/show_info_panel" : "audio_showcase/show_info_panel";
+                bool showInfoPanel = settings.value(key, true).toBool();
                 m_bottomInfoPanel->setVisible(showInfoPanel);
             } else {
                 m_bottomInfoPanel->setVisible(false);
@@ -2454,6 +2460,8 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     QAction* actGroupMultiDisc = nullptr;
     QAction* actHideAuxiliaryFiles = nullptr;
     QAction* actToggleTracksDrawer = nullptr;
+    QAction* actCasingStyle = nullptr;
+    QAction* actHiddenExtensions = nullptr;
 
     if (m_viewStack->currentWidget() == m_theaterListView || m_viewStack->currentWidget() == m_theaterContainer) {
         menu.addSeparator();
@@ -2469,6 +2477,12 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
             hideAuxiliary = settings.value("audio_showcase/hide_active", true).toBool();
         } else if (idx == 7) {
             hideAuxiliary = settings.value("video_showcase/hide_active", true).toBool();
+        } else if (idx == 8) {
+            hideAuxiliary = settings.value("movie_showcase/hide_active", true).toBool();
+        } else if (idx == 9) {
+            hideAuxiliary = settings.value("tv_showcase/hide_active", true).toBool();
+        } else if (idx == 10) {
+            hideAuxiliary = settings.value("music_showcase/hide_active", true).toBool();
         } else {
             hideAuxiliary = settings.value("theater/hide_auxiliary_files", true).toBool();
         }
@@ -2477,6 +2491,14 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
             showInfoPanel = settings.value("audio_showcase/show_info_panel", true).toBool();
         } else if (idx == 7) {
             showInfoPanel = settings.value("video_showcase/show_info_panel", true).toBool();
+        } else if (idx == 8) {
+            showInfoPanel = settings.value("movie_showcase/show_info_panel", true).toBool();
+        } else if (idx == 9) {
+            showInfoPanel = settings.value("tv_showcase/show_info_panel", true).toBool();
+        } else if (idx == 10) {
+            showInfoPanel = settings.value("music_showcase/show_info_panel", true).toBool();
+        } else {
+            showInfoPanel = settings.value("theater/show_tracks_drawer", true).toBool();
         }
 
         actToggleZen = menu.addAction("Clean Interface Mode (Zen Mode)");
@@ -2491,14 +2513,25 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         actToggleDoubleclickQueue->setCheckable(true);
         actToggleDoubleclickQueue->setChecked(doubleclickQueue);
 
-        if (viewModeIndex() == 6) { // Music Showcase
+        if (idx == 6 || idx == 10) {
             actGroupMultiDisc = menu.addAction("Group Multi-Disc Albums");
             actGroupMultiDisc->setCheckable(true);
             actGroupMultiDisc->setChecked(groupMultiDisc);
+        }
 
+        if (idx >= 6 && idx <= 10) {
             actToggleTracksDrawer = menu.addAction("Show Media Information Panel");
             actToggleTracksDrawer->setCheckable(true);
             actToggleTracksDrawer->setChecked(showInfoPanel);
+
+            actHiddenExtensions = menu.addAction("Hide File Extensions...");
+
+            if (idx == 10) {
+                actCasingStyle = menu.addAction("Casing Style: Vinyl Record Sleeve");
+                actCasingStyle->setCheckable(true);
+                QString casingType = settings.value("music_showcase/casing_type", "cd").toString();
+                actCasingStyle->setChecked(casingType == "vinyl");
+            }
         }
 
         actHideAuxiliaryFiles = menu.addAction("Hide Auxiliary / Artwork Files");
@@ -2798,7 +2831,7 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         bool current = settings.value("theater/group_multi_disc", true).toBool();
         settings.setValue("theater/group_multi_disc", !current);
         if (m_proxyModel) {
-            m_proxyModel->setGroupMultiDiscActive(!current && (viewModeIndex() == 6));
+            m_proxyModel->setGroupMultiDiscActive(!current && (viewModeIndex() == 6 || viewModeIndex() == 10));
         }
         refresh();
         if (m_groupProxy && m_groupProxy->isGroupingActive() && m_viewStack->currentWidget() == m_theaterContainer) {
@@ -2813,6 +2846,15 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         } else if (idx == 7) {
             bool current = settings.value("video_showcase/hide_active", true).toBool();
             settings.setValue("video_showcase/hide_active", !current);
+        } else if (idx == 8) {
+            bool current = settings.value("movie_showcase/hide_active", true).toBool();
+            settings.setValue("movie_showcase/hide_active", !current);
+        } else if (idx == 9) {
+            bool current = settings.value("tv_showcase/hide_active", true).toBool();
+            settings.setValue("tv_showcase/hide_active", !current);
+        } else if (idx == 10) {
+            bool current = settings.value("music_showcase/hide_active", true).toBool();
+            settings.setValue("music_showcase/hide_active", !current);
         } else {
             bool current = settings.value("theater/hide_auxiliary_files", true).toBool();
             settings.setValue("theater/hide_auxiliary_files", !current);
@@ -2825,7 +2867,14 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     } else if (selected && selected == actToggleTracksDrawer) {
         QSettings settings("Amifiles", "Amifiles");
         int idx = viewModeIndex();
-        QString key = (idx == 7) ? "video_showcase/show_info_panel" : "audio_showcase/show_info_panel";
+        QString key;
+        if (idx == 6) key = "audio_showcase/show_info_panel";
+        else if (idx == 7) key = "video_showcase/show_info_panel";
+        else if (idx == 8) key = "movie_showcase/show_info_panel";
+        else if (idx == 9) key = "tv_showcase/show_info_panel";
+        else if (idx == 10) key = "music_showcase/show_info_panel";
+        else key = "theater/show_tracks_drawer";
+
         bool current = settings.value(key, true).toBool();
         settings.setValue(key, !current);
         if (current) {
@@ -2833,6 +2882,17 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         } else {
             onSelectionChanged();
         }
+    } else if (selected && selected == actCasingStyle) {
+        QSettings settings("Amifiles", "Amifiles");
+        QString casingType = settings.value("music_showcase/casing_type", "cd").toString();
+        QString newCasing = (casingType == "vinyl") ? "cd" : "vinyl";
+        settings.setValue("music_showcase/casing_type", newCasing);
+        if (m_proxyModel) {
+            m_proxyModel->clearCasingCache();
+        }
+        refresh();
+    } else if (selected && selected == actHiddenExtensions) {
+        promptHideExtensions();
     } else if (selected && selected == actMediaInfoSheet) {
         ShowcaseInfoDialog infoDlg(selectedPath, this);
         connect(&infoDlg, &ShowcaseInfoDialog::playRequested, this, [this](const QString& path) {
@@ -3174,7 +3234,14 @@ void FilePanel::setCategoryButtonsVisible(bool visible) {
 void FilePanel::promptHideExtensions() {
     int viewMode = viewModeIndex();
     QSettings settings("Amifiles", "Amifiles");
-    QString settingsKey = (viewMode == 6) ? "audio_showcase/hidden_extensions" : "video_showcase/hidden_extensions";
+    QString settingsKey;
+    if (viewMode == 6) settingsKey = "audio_showcase/hidden_extensions";
+    else if (viewMode == 7) settingsKey = "video_showcase/hidden_extensions";
+    else if (viewMode == 8) settingsKey = "movie_showcase/hidden_extensions";
+    else if (viewMode == 9) settingsKey = "tv_showcase/hidden_extensions";
+    else if (viewMode == 10) settingsKey = "music_showcase/hidden_extensions";
+    else settingsKey = "theater/hidden_extensions";
+
     QString currentExts = settings.value(settingsKey, "").toString();
 
     QDialog dlg(this);
@@ -3245,6 +3312,21 @@ void FilePanel::updateHideSettings() {
         QString extsStr = settings.value("video_showcase/hidden_extensions", "").toString();
         hiddenExts = extsStr.split(',', Qt::SkipEmptyParts);
         patternsStr = settings.value("video_showcase/hide_patterns", defaultHide).toString();
+    } else if (vMode == 8) { // Movie Showcase (v2)
+        hideActive = settings.value("movie_showcase/hide_active", true).toBool();
+        QString extsStr = settings.value("movie_showcase/hidden_extensions", "").toString();
+        hiddenExts = extsStr.split(',', Qt::SkipEmptyParts);
+        patternsStr = settings.value("movie_showcase/hide_patterns", defaultHide).toString();
+    } else if (vMode == 9) { // TV Show Showcase (v2)
+        hideActive = settings.value("tv_showcase/hide_active", true).toBool();
+        QString extsStr = settings.value("tv_showcase/hidden_extensions", "").toString();
+        hiddenExts = extsStr.split(',', Qt::SkipEmptyParts);
+        patternsStr = settings.value("tv_showcase/hide_patterns", defaultHide).toString();
+    } else if (vMode == 10) { // Music Showcase (v2)
+        hideActive = settings.value("music_showcase/hide_active", true).toBool();
+        QString extsStr = settings.value("music_showcase/hidden_extensions", "").toString();
+        hiddenExts = extsStr.split(',', Qt::SkipEmptyParts);
+        patternsStr = settings.value("music_showcase/hide_patterns", defaultHide).toString();
     } else {
         hideActive = false; 
     }
@@ -4134,9 +4216,10 @@ void FilePanel::onViewModeChanged(int index) {
     } else if (index == 5) { // Filmstrip View
         m_filmstripView->setRootPath(m_currentPath);
         m_viewStack->setCurrentWidget(m_filmstripView);
-    } else if (index == 6 || index == 7) { // 6: Music Showcase, 7: Cinema Showcase
+    } else if (index >= 6 && index <= 10) { // 6: Music Showcase, 7: Cinema Showcase, 8: Movie Showcase (v2), 9: TV Show Showcase (v2), 10: Music Showcase (v2)
         if (m_theaterDelegate) {
-            m_theaterDelegate->setCinemaMode(index == 7);
+            m_theaterDelegate->setCinemaMode(index == 7 || index == 8 || index == 9);
+            m_theaterDelegate->setShowcaseViewMode(index);
         }
         m_viewStack->setCurrentWidget(m_theaterContainer);
         if (m_groupProxy && m_groupProxy->isGroupingActive()) {
@@ -4151,12 +4234,18 @@ void FilePanel::onViewModeChanged(int index) {
     
     // Save view mode index choice in preferences
     QSettings settings("Amifiles", "Amifiles");
-    bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool() && (index == 6);
+    bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool() && (index == 6 || index == 10);
     if (m_proxyModel) {
         if (index == 6) {
             m_proxyModel->setShowcaseMode(1); // Audio Showcase
         } else if (index == 7) {
             m_proxyModel->setShowcaseMode(2); // Video Showcase
+        } else if (index == 8) {
+            m_proxyModel->setShowcaseMode(3); // Movie Showcase (v2)
+        } else if (index == 9) {
+            m_proxyModel->setShowcaseMode(4); // TV Show Showcase (v2)
+        } else if (index == 10) {
+            m_proxyModel->setShowcaseMode(5); // Music Showcase (v2)
         } else {
             m_proxyModel->setShowcaseMode(0); // Standard View
         }
@@ -4731,7 +4820,7 @@ void FilePanel::setNavigationAndFilterVisible(bool visible) {
 
 void FilePanel::rebuildTheaterGroups() {
     // Dynamic Ambient Background Glow in Showcase Mode
-    if (m_theaterScrollWidget && (viewModeIndex() == 6 || viewModeIndex() == 7)) {
+    if (m_theaterScrollWidget && (viewModeIndex() >= 6 && viewModeIndex() <= 10)) {
         QStringList bgCandidates = { "poster.jpg", "cover.jpg", "folder.jpg", "fanart.jpg" };
         QString bgArtPath;
         for (const QString& cand : bgCandidates) {
