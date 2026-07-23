@@ -15,6 +15,7 @@
 #include <QKeySequence>
 #include "filepanel.h"
 #include "previewpanel.h"
+#include "fullscreenplayer.h"
 #include <QWidget>
 #include <QIcon>
 #include <QEnterEvent>
@@ -342,6 +343,7 @@ private:
     QTabWidget* m_leftTabWidget = nullptr;
     QTabWidget* m_rightTabWidget = nullptr;
     PreviewPanel* m_previewPanel = nullptr;
+    FullscreenPlayer* m_fullscreenPlayer = nullptr;
     QDockWidget* m_previewDock = nullptr;
     QFrame* m_tbCenterOps = nullptr;
     QFrame* m_tbCenterOpsSeparator = nullptr;

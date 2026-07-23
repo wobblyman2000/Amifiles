@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(Amifiles VERSION 2.0.8 LANGUAGES CXX)
+project(Amifiles VERSION 2.0.9 LANGUAGES CXX)
 
 configure_file(
     "${PROJECT_SOURCE_DIR}/src/version.h.in"
@@ -30,6 +30,8 @@ add_executable(Amifiles
     src/showcasesettingsdialog.cpp
     src/previewpanel.h
     src/previewpanel.cpp
+    src/fullscreenplayer.h
+    src/fullscreenplayer.cpp
     src/favoritesmanager.h
     src/favoritesmanager.cpp
     src/metadataextractor.h

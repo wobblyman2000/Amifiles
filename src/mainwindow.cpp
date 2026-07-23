@@ -462,6 +462,7 @@ void MainWindow::setupCentralWidget() {
     m_rightTabWidget->setStyleSheet(m_leftTabWidget->styleSheet());
 
     m_previewPanel = new PreviewPanel(this);
+    m_fullscreenPlayer = new FullscreenPlayer(this);
     m_previewPanel->setZenMode(m_zenMode);
     connect(m_previewPanel, &PreviewPanel::spectrumVisualizerToggled, this, &MainWindow::onToggleSpectrum);
     connect(m_previewPanel, &PreviewPanel::tagsChanged, this, [this](const QString&) {
