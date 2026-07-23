@@ -381,6 +381,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
         }
         if (!stateToRestore.isEmpty()) {
             restoreState(stateToRestore);
+            onActivePanelViewModeChanged();
         }
     }
 
@@ -3440,6 +3441,7 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
                 restoreState(defaultState);
             }
         }
+        onActivePanelViewModeChanged();
     }
 
     // 1. View Mode
@@ -3744,6 +3746,7 @@ void MainWindow::applyFolderRules(const QString& path) {
             QByteArray defaultState = settings.value("window/state").toByteArray();
             if (!defaultState.isEmpty()) {
                 restoreState(defaultState);
+                onActivePanelViewModeChanged();
             }
 
             m_activePanel->setCustomBgColor("");
@@ -5021,14 +5024,7 @@ void MainWindow::rebuildToolBars() {
     }
 
     // Force fullscreen queue dock visibility to match the active panel's view mode
-    if (m_fullscreenQueueDock) {
-        bool isFullscreenMode = false;
-        if (m_activePanel) {
-            int vm = m_activePanel->viewModeIndex();
-            isFullscreenMode = (vm == 8 || vm == 9 || vm == 10);
-        }
-        m_fullscreenQueueDock->setVisible(isFullscreenMode);
-    }
+    onActivePanelViewModeChanged();
 }
 
 void MainWindow::onConfigureToolbars() {
