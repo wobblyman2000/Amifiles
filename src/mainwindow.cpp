@@ -5019,6 +5019,16 @@ void MainWindow::rebuildToolBars() {
             }
         }
     }
+
+    // Force fullscreen queue dock visibility to match the active panel's view mode
+    if (m_fullscreenQueueDock) {
+        bool isFullscreenMode = false;
+        if (m_activePanel) {
+            int vm = m_activePanel->viewModeIndex();
+            isFullscreenMode = (vm == 8 || vm == 9 || vm == 10);
+        }
+        m_fullscreenQueueDock->setVisible(isFullscreenMode);
+    }
 }
 
 void MainWindow::onConfigureToolbars() {

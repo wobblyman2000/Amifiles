@@ -4748,6 +4748,10 @@ void FilePanel::onViewModeChanged(int index) {
     }
     settings.setValue("file_panel/view_mode_index", index);
     onSelectionChanged(); // Trigger layout update for bottom info panel
+
+    if (m_btnToggleSidePane) {
+        m_btnToggleSidePane->setVisible(index >= 6 && index <= 10);
+    }
     emit viewModeChanged();
     updateThemeMusic();
 }
