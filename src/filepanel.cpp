@@ -255,6 +255,14 @@ void FilePanel::setupUI() {
     m_comboViewMode->setStyleSheet("QComboBox { background-color: #313244; color: #89b4fa; border: 1px solid #45475a; border-radius: 4px; padding: 2px 6px; font-weight: bold; }");
     connect(m_comboViewMode, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &FilePanel::onViewModeChanged);
 
+    m_btnToggleSidePane = new QToolButton(this);
+    m_btnToggleSidePane->setText("📋 Side Panel");
+    m_btnToggleSidePane->setCheckable(true);
+    m_btnToggleSidePane->setChecked(true);
+    m_btnToggleSidePane->setToolTip("Toggle Side Info / Track Drawer Panel");
+    m_btnToggleSidePane->setStyleSheet("QToolButton { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 4px; padding: 2px 6px; font-weight: bold; } QToolButton:hover { background-color: #45475a; } QToolButton:checked { background-color: #a6e3a1; color: #11111b; }");
+    connect(m_btnToggleSidePane, &QToolButton::toggled, this, &FilePanel::onToggleSidePane);
+
     navLayout->addWidget(m_btnBack);
     navLayout->addWidget(m_btnForward);
     navLayout->addWidget(m_btnUp);
@@ -265,6 +273,7 @@ void FilePanel::setupUI() {
     navLayout->addWidget(m_btnClonePath);
     navLayout->addWidget(m_btnFlatView);
     navLayout->addWidget(m_comboViewMode);
+    navLayout->addWidget(m_btnToggleSidePane);
 
     // Central Tree View
     m_treeView = new QTreeView(this);
@@ -368,13 +377,18 @@ void FilePanel::setupUI() {
     theaterLayout->setContentsMargins(0, 0, 0, 0);
     theaterLayout->setSpacing(0);
 
-    // Upper container for views
-    QWidget* upperContainer = new QWidget(m_theaterContainer);
-    QHBoxLayout* upperLayout = new QHBoxLayout(upperContainer);
-    upperLayout->setContentsMargins(0, 0, 0, 0);
-    upperLayout->setSpacing(0);
+    // Upper container with QSplitter for resizable views and side info panel
+    m_theaterSplitter = new QSplitter(Qt::Horizontal, m_theaterContainer);
+    m_theaterSplitter->setStyleSheet("QSplitter::handle { background-color: #313244; width: 4px; } QSplitter::handle:hover { background-color: #89b4fa; }");
 
-    m_theaterScrollArea = new QScrollArea(upperContainer);
+    m_theaterSplitter->addWidget(m_theaterListView);
+
+    m_theaterSideContainer = new QWidget(m_theaterSplitter);
+    QVBoxLayout* sideLayout = new QVBoxLayout(m_theaterSideContainer);
+    sideLayout->setContentsMargins(0, 0, 0, 0);
+    sideLayout->setSpacing(0);
+
+    m_theaterScrollArea = new QScrollArea(m_theaterSideContainer);
     m_theaterScrollArea->setWidgetResizable(true);
     m_theaterScrollArea->setFrameShape(QFrame::NoFrame);
     m_theaterScrollArea->setStyleSheet("QScrollArea { background: transparent; }");
@@ -389,10 +403,13 @@ void FilePanel::setupUI() {
     m_theaterScrollLayout->addStretch(1);
     m_theaterScrollArea->setWidget(m_theaterScrollWidget);
 
-    upperLayout->addWidget(m_theaterListView, 1);
-    upperLayout->addWidget(m_theaterScrollArea, 1);
+    sideLayout->addWidget(m_theaterScrollArea);
 
-    theaterLayout->addWidget(upperContainer, 1);
+    m_theaterSplitter->addWidget(m_theaterSideContainer);
+    m_theaterSplitter->setStretchFactor(0, 7);
+    m_theaterSplitter->setStretchFactor(1, 3);
+
+    theaterLayout->addWidget(m_theaterSplitter, 1);
 
     // Bottom Info Panel
     m_bottomInfoPanel = new QWidget(m_theaterContainer);
@@ -3974,6 +3991,12 @@ void FilePanel::onSearchUpdateTimeout() {
     m_bufferedSearchResults.clear();
 
     m_statusLabel->setText(QString("Found %1 items").arg(currentList.size()));
+}
+
+void FilePanel::onToggleSidePane() {
+    if (!m_theaterSideContainer) return;
+    bool visible = m_btnToggleSidePane ? m_btnToggleSidePane->isChecked() : !m_theaterSideContainer->isVisible();
+    m_theaterSideContainer->setVisible(visible);
 }
 
 void FilePanel::onToggleSearchFilterMode() {

@@ -861,6 +861,7 @@ private slots:
     void onSearchEditContextMenu(const QPoint& pos);
     void onToggleSearchFilterMode();
     void onSearchUpdateTimeout();
+    void onToggleSidePane();
     void zoomIn();
     void zoomOut();
 
@@ -904,6 +905,7 @@ private:
     QToolButton* m_btnHome = nullptr;
     QToolButton* m_btnClonePath = nullptr;
     QToolButton* m_btnFlatView = nullptr;
+    QToolButton* m_btnToggleSidePane = nullptr;
     QToolButton* m_btnViewMode = nullptr; // keep single instance
     QHeaderView* m_header = nullptr;
     // New global search components
@@ -955,6 +957,8 @@ private:
     class CardViewDelegate* m_cardDelegate = nullptr;
     class TheaterViewDelegate* m_theaterDelegate = nullptr;
     QWidget* m_theaterContainer = nullptr;
+    class QSplitter* m_theaterSplitter = nullptr;
+    QWidget* m_theaterSideContainer = nullptr;
     QWidget* m_bottomInfoPanel = nullptr;
     QLabel* m_bottomTitle = nullptr;
     QLabel* m_bottomMeta = nullptr;

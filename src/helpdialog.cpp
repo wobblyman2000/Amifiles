@@ -250,6 +250,7 @@ void HelpDialog::onSectionChanged(int index) {
                     "<li><b>Movie Showcase (v2):</b> A premium Netflix-style layout featuring 16:9 widescreen movie backdrops, elegant glassmorphic bottom info overlays with a prominent orange <b>Play</b> button and a <b>More Info</b> button, star ratings (e.g. ⭐⭐⭐⭐☆), genre/release tags, and full-screen ambient backdrop gradients.</li>"
                     "<li><b>TV Show Showcase (v2):</b> An AppleTV+/Disney+-style layout featuring 16:9 widescreen banners, season-based folder grouping, progress bars showing episode watch stats, green <b>WATCHED ✔</b> badges, interactive episode detail slideouts, and automatic theme music auto-playback when navigating folders.</li>"
                     "<li><b>Music Showcase (v2):</b> A modern Spotify-style layout featuring square album art, 3D vinyl record disc previews, hover play buttons, quick-track play lists, interactive queueing controls, and color-matched ambient glow.</li>"
+                    "<li><b>Resizable Side Info &amp; Tracks Drawer:</b> Showcase views feature a draggable splitter handle between the media grid and the side drawer panel, allowing you to freely adjust the ratio between the grid and the side details/tracks drawer.</li>"
                     "</ul>"
                      "<h3>Mouse Drag Rubber-Band Box Selection</h3>"
                      "<p><b>How to use:</b></p>"
