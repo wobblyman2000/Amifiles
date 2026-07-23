@@ -1024,20 +1024,18 @@ bool FilePanel::eventFilter(QObject* watched, QEvent* event) {
                       watched == m_filmstripView ||
                       watched == m_theaterContainer || watched == m_bottomInfoPanel);
 
-    if (!isWatched && m_millerView) {
-        for (QListView* list : m_millerView->findChildren<QListView*>()) {
-            if (watched == list || watched == list->viewport()) {
+    if (!isWatched && (m_millerView || m_filmstripView)) {
+        QWidget* w = qobject_cast<QWidget*>(watched);
+        while (w) {
+            if (m_millerView && w == m_millerView) {
                 isWatched = true;
                 break;
             }
-        }
-    }
-    if (!isWatched && m_filmstripView) {
-        for (QListView* list : m_filmstripView->findChildren<QListView*>()) {
-            if (watched == list || watched == list->viewport()) {
+            if (m_filmstripView && w == m_filmstripView) {
                 isWatched = true;
                 break;
             }
+            w = w->parentWidget();
         }
     }
 
