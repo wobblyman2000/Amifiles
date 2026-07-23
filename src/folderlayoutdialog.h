@@ -39,7 +39,12 @@ protected:
         
         // Draw track
         QRect trackRect(0, 0, width(), height());
-        QColor trackColor = chk ? QColor("#a6e3a1") : QColor("#313244");
+        QColor trackColor;
+        if (!isEnabled()) {
+            trackColor = QColor("#1e1e2e");
+        } else {
+            trackColor = chk ? QColor("#a6e3a1") : QColor("#313244");
+        }
         p.setPen(Qt::NoPen);
         p.setBrush(trackColor);
         p.drawRoundedRect(trackRect, height() / 2, height() / 2);
@@ -48,7 +53,8 @@ protected:
         int thumbSize = height() - 4;
         int thumbX = chk ? (width() - thumbSize - 2) : 2;
         QRect thumbRect(thumbX, 2, thumbSize, thumbSize);
-        p.setBrush(QColor("#11111b"));
+        QColor thumbColor = isEnabled() ? QColor("#11111b") : QColor("#45475a");
+        p.setBrush(thumbColor);
         p.drawEllipse(thumbRect);
     }
 
@@ -134,6 +140,7 @@ private slots:
 
 private:
     void setupUI();
+    void updateModeVisibility(bool advanced);
     void populateList();
     void populateFields(const FolderLayoutRule& r);
     void harvestCurrentProfile(int index);
@@ -164,6 +171,8 @@ private:
     QComboBox* m_comboViewMode = nullptr;
     QComboBox* m_comboSubfolderDepth = nullptr;
     QPushButton* m_btnChooseButtons = nullptr;
+    QLabel* m_lblCustomButtons = nullptr;
+    QCheckBox* m_chkAdvancedMode = nullptr;
     QComboBox* m_comboLinkedProfile = nullptr;
     QLabel* m_labelInheritedInfo = nullptr;
     class QGroupBox* m_viewGroup = nullptr;

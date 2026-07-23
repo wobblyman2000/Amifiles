@@ -160,7 +160,7 @@ void FolderLayoutDialog::setupUI() {
     m_listWidget->setToolTip("List of active folder profiles and layout templates. Green switch = Active (Enabled), Gray = Inactive (Disabled).");
     leftLayout->addWidget(m_listWidget);
 
-    QHBoxLayout* listButtons = new QHBoxLayout();
+    QHBoxLayout* addButtonsLayout = new QHBoxLayout();
     m_btnAdd = new QPushButton("+ Add Profile", this);
     m_btnAdd->setStyleSheet("QPushButton { background-color: #313244; color: #a6e3a1; border: 1px solid #45475a; }"
                             "QPushButton:hover { background-color: #a6e3a1; color: #11111b; }");
@@ -173,16 +173,16 @@ void FolderLayoutDialog::setupUI() {
     m_btnAddTemplate->setToolTip("Create a new standalone Layout Template preset (view mode, toolbars, visualizer settings).");
     connect(m_btnAddTemplate, &QPushButton::clicked, this, &FolderLayoutDialog::onAddTemplate);
 
-    m_btnDelete = new QPushButton("🗑 Delete", this);
+    m_btnDelete = new QPushButton("🗑 Delete Profile / Template", this);
     m_btnDelete->setStyleSheet("QPushButton { background-color: #313244; color: #f38ba8; border: 1px solid #45475a; }"
                                "QPushButton:hover { background-color: #f38ba8; color: #11111b; }");
     m_btnDelete->setToolTip("Delete the selected profile or layout template. (Prompts for confirmation before deleting).");
     connect(m_btnDelete, &QPushButton::clicked, this, &FolderLayoutDialog::onDeleteProfile);
 
-    listButtons->addWidget(m_btnAdd);
-    listButtons->addWidget(m_btnAddTemplate);
-    listButtons->addWidget(m_btnDelete);
-    leftLayout->addLayout(listButtons);
+    addButtonsLayout->addWidget(m_btnAdd);
+    addButtonsLayout->addWidget(m_btnAddTemplate);
+    leftLayout->addLayout(addButtonsLayout);
+    leftLayout->addWidget(m_btnDelete);
 
     QHBoxLayout* orderButtons = new QHBoxLayout();
     m_btnMoveUp = new QPushButton("▲ Move Up", this);
@@ -248,6 +248,18 @@ void FolderLayoutDialog::setupUI() {
     QVBoxLayout* editorLayout = new QVBoxLayout(m_editorWidget);
     editorLayout->setContentsMargins(0, 0, 0, 0);
     editorLayout->setSpacing(8);
+
+    QHBoxLayout* modeHeaderLayout = new QHBoxLayout();
+    QLabel* editorTitle = new QLabel("Layout Configuration Settings", this);
+    editorTitle->setStyleSheet("font-weight: bold; font-size: 14px; color: #89b4fa;");
+    modeHeaderLayout->addWidget(editorTitle);
+    
+    modeHeaderLayout->addStretch();
+    
+    m_chkAdvancedMode = new QCheckBox("Advanced Settings Mode", this);
+    m_chkAdvancedMode->setToolTip("Toggle to show/hide advanced visibility overrides, custom colors, and session tab snapshot configuration options.");
+    modeHeaderLayout->addWidget(m_chkAdvancedMode);
+    editorLayout->addLayout(modeHeaderLayout);
 
     // Scroll Area for details editor
     QScrollArea* scrollArea = new QScrollArea(this);
@@ -336,9 +348,9 @@ void FolderLayoutDialog::setupUI() {
     m_comboViewMode->addItems({"No Change", "List", "Grid", "Card", "Miller", "Timeline", "Filmstrip", "Audio Showcase (Classic)", "Video Showcase (Classic)", "Movies Full Screen", "TV Shows Full Screen", "Music Full Screen"});
     viewGrid->addWidget(m_comboViewMode, 0, 1);
 
-    QLabel* lblCustomButtons = new QLabel("Filter Custom Buttons:", this);
-    lblCustomButtons->setToolTip("Choose which user-defined custom toolbar buttons are visible in this folder profile. Manage all custom buttons via the 'Edit Toolbars...' button on the left panel.");
-    viewGrid->addWidget(lblCustomButtons, 1, 0);
+    m_lblCustomButtons = new QLabel("Filter Custom Buttons:", this);
+    m_lblCustomButtons->setToolTip("Choose which user-defined custom toolbar buttons are visible in this folder profile. Manage all custom buttons via the 'Edit Toolbars...' button on the left panel.");
+    viewGrid->addWidget(m_lblCustomButtons, 1, 0);
 
     m_btnChooseButtons = new QPushButton("All Buttons (Default)", this);
     m_btnChooseButtons->setToolTip("Select custom script/app buttons to enable for this profile. If empty, all are shown.");
@@ -351,6 +363,10 @@ void FolderLayoutDialog::setupUI() {
     m_visGroup = new QGroupBox("3. Layout & Docks Visibility Overrides", this);
     QGridLayout* visGrid = new QGridLayout(m_visGroup);
     visGrid->setSpacing(8);
+    visGrid->setColumnStretch(0, 0);
+    visGrid->setColumnStretch(1, 0);
+    visGrid->setColumnStretch(2, 0);
+    visGrid->setColumnStretch(3, 1);
 
     visGrid->addWidget(new QLabel("Layout Component", this), 0, 0);
     QLabel* hdrOverride = new QLabel("Force Custom State?", this);
@@ -563,7 +579,29 @@ void FolderLayoutDialog::setupUI() {
 
     mainLayout->addLayout(rightLayout, 1);
 
+    // Initialize Advanced Settings Mode based on QSettings
+    QSettings settings("Amifiles", "Amifiles");
+    bool advMode = settings.value("preferences/folder_layouts_advanced_mode", false).toBool();
+    m_chkAdvancedMode->setChecked(advMode);
+    
+    // Connect advanced checkbox toggling
+    connect(m_chkAdvancedMode, &QCheckBox::toggled, this, [this](bool checked) {
+        QSettings settings("Amifiles", "Amifiles");
+        settings.setValue("preferences/folder_layouts_advanced_mode", checked);
+        updateModeVisibility(checked);
+    });
+
+    updateModeVisibility(advMode);
+
     connect(m_listWidget, &QListWidget::currentRowChanged, this, &FolderLayoutDialog::onProfileSelected);
+}
+
+void FolderLayoutDialog::updateModeVisibility(bool advanced) {
+    if (m_visGroup) m_visGroup->setVisible(advanced);
+    if (m_styleGroup) m_styleGroup->setVisible(advanced);
+    if (m_tabsGroup) m_tabsGroup->setVisible(advanced);
+    if (m_lblCustomButtons) m_lblCustomButtons->setVisible(advanced);
+    if (m_btnChooseButtons) m_btnChooseButtons->setVisible(advanced);
 }
 
 void FolderLayoutDialog::populateList() {
