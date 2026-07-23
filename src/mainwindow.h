@@ -15,7 +15,6 @@
 #include <QKeySequence>
 #include "filepanel.h"
 #include "previewpanel.h"
-#include "fullscreenplayer.h"
 #include <QWidget>
 #include <QIcon>
 #include <QEnterEvent>
@@ -192,7 +191,10 @@ private slots:
     void onAutoSizeColumns();
     void setZenMode(bool enabled);
     void onPlayMediaBuiltin(const QStringList& filePaths);
+    void onPlayMediaFullscreen(const QStringList& filePaths);
     void onQueueMediaBuiltin(const QStringList& filePaths);
+    void onActivePanelViewModeChanged();
+    void syncFullscreenQueue();
     void updateScrollSyncConnections();
     void onTabContextMenuRequested(const QPoint& pos);
     
@@ -343,8 +345,9 @@ private:
     QTabWidget* m_leftTabWidget = nullptr;
     QTabWidget* m_rightTabWidget = nullptr;
     PreviewPanel* m_previewPanel = nullptr;
-    FullscreenPlayer* m_fullscreenPlayer = nullptr;
     QDockWidget* m_previewDock = nullptr;
+    QDockWidget* m_fullscreenQueueDock = nullptr;
+    class QListWidget* m_fullscreenQueueList = nullptr;
     QFrame* m_tbCenterOps = nullptr;
     QFrame* m_tbCenterOpsSeparator = nullptr;
     QAction* m_actToggleCenterOps = nullptr;

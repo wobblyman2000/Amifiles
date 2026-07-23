@@ -207,10 +207,10 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
     m_hudWidget->setObjectName("hudPanel");
     m_hudWidget->setFocusPolicy(Qt::NoFocus);
     m_hudWidget->setStyleSheet(
-        "QWidget#hudPanel { background-color: rgba(30, 30, 46, 220); border: 1px solid rgba(69, 71, 90, 150); border-radius: 12px; }"
+        "QWidget#hudPanel { background-color: rgba(30, 30, 46, 230); border: 1px solid rgba(69, 71, 90, 150); border-radius: 16px; }"
         "QLabel { color: #cdd6f4; font-size: 12px; font-weight: bold; background: transparent; border: none; }"
-        "QPushButton { border: none; background-color: transparent; color: #cdd6f4; padding: 4px; border-radius: 4px; }"
-        "QPushButton:hover { background-color: rgba(137, 180, 250, 60); }"
+        "QPushButton { border: none; background-color: transparent; color: #cdd6f4; border-radius: 18px; }"
+        "QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); }"
         "QSlider::groove:horizontal { border: none; height: 6px; background: #313244; border-radius: 3px; }"
         "QSlider::sub-page:horizontal { background: #89b4fa; border-radius: 3px; }"
         "QSlider::handle:horizontal { background: #cdd6f4; width: 14px; margin-top: -4px; margin-bottom: -4px; border-radius: 7px; }"
@@ -219,28 +219,40 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
     QStyle* style = QApplication::style();
 
     // HUD buttons
+    int btnSize = 36;
+    QSize defaultIconSize(20, 20);
+
     QPushButton* btnPrev = new QPushButton(m_hudWidget);
     btnPrev->setIcon(style->standardIcon(QStyle::SP_MediaSkipBackward));
     btnPrev->setToolTip("Previous");
     btnPrev->setFocusPolicy(Qt::NoFocus);
+    btnPrev->setFixedSize(btnSize, btnSize);
+    btnPrev->setIconSize(defaultIconSize);
     connect(btnPrev, &QPushButton::clicked, this, &FullscreenWidget::prevRequested);
 
     m_btnPlayPause = new QPushButton(m_hudWidget);
     m_btnPlayPause->setIcon(style->standardIcon(QStyle::SP_MediaPlay));
     m_btnPlayPause->setToolTip("Play/Pause");
     m_btnPlayPause->setFocusPolicy(Qt::NoFocus);
+    m_btnPlayPause->setFixedSize(44, 44);
+    m_btnPlayPause->setIconSize(QSize(28, 28));
+    m_btnPlayPause->setStyleSheet("QPushButton { background-color: #89b4fa; color: #11111b; border-radius: 22px; } QPushButton:hover { background-color: #b4befe; }");
     connect(m_btnPlayPause, &QPushButton::clicked, this, &FullscreenWidget::onHudPlayPause);
 
     QPushButton* btnStop = new QPushButton(m_hudWidget);
     btnStop->setIcon(style->standardIcon(QStyle::SP_MediaStop));
     btnStop->setToolTip("Stop");
     btnStop->setFocusPolicy(Qt::NoFocus);
+    btnStop->setFixedSize(btnSize, btnSize);
+    btnStop->setIconSize(defaultIconSize);
     connect(btnStop, &QPushButton::clicked, this, &FullscreenWidget::stopRequested);
 
     QPushButton* btnNext = new QPushButton(m_hudWidget);
     btnNext->setIcon(style->standardIcon(QStyle::SP_MediaSkipForward));
     btnNext->setToolTip("Next");
     btnNext->setFocusPolicy(Qt::NoFocus);
+    btnNext->setFixedSize(btnSize, btnSize);
+    btnNext->setIconSize(defaultIconSize);
     connect(btnNext, &QPushButton::clicked, this, &FullscreenWidget::nextRequested);
 
     m_sliderProgress = new ScrubSlider(Qt::Horizontal, m_hudWidget);
@@ -263,28 +275,32 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
     m_btnSubtitles->setText("CC");
     m_btnSubtitles->setToolTip("Subtitles");
     m_btnSubtitles->setFocusPolicy(Qt::NoFocus);
-    m_btnSubtitles->setMaximumWidth(40);
-    m_btnSubtitles->setStyleSheet("QPushButton { font-weight: bold; }");
+    m_btnSubtitles->setFixedSize(btnSize, btnSize);
+    m_btnSubtitles->setStyleSheet("QPushButton { font-weight: bold; border-radius: 18px; }");
     connect(m_btnSubtitles, &QPushButton::clicked, this, &FullscreenWidget::onHudSubtitles);
 
     m_btnShuffle = new QPushButton(m_hudWidget);
     m_btnShuffle->setIcon(createShuffleIcon(QColor("#cdd6f4")));
     m_btnShuffle->setToolTip("Shuffle Playlist");
     m_btnShuffle->setFocusPolicy(Qt::NoFocus);
-    m_btnShuffle->setMaximumWidth(40);
+    m_btnShuffle->setFixedSize(btnSize, btnSize);
+    m_btnShuffle->setIconSize(defaultIconSize);
     connect(m_btnShuffle, &QPushButton::clicked, this, &FullscreenWidget::onHudShuffle);
 
     m_btnRepeat = new QPushButton(m_hudWidget);
     m_btnRepeat->setIcon(createRepeatIcon(QColor("#cdd6f4"), false));
     m_btnRepeat->setToolTip("Repeat Mode");
     m_btnRepeat->setFocusPolicy(Qt::NoFocus);
-    m_btnRepeat->setMaximumWidth(40);
+    m_btnRepeat->setFixedSize(btnSize, btnSize);
+    m_btnRepeat->setIconSize(defaultIconSize);
     connect(m_btnRepeat, &QPushButton::clicked, this, &FullscreenWidget::onHudRepeat);
 
     QPushButton* btnExit = new QPushButton(m_hudWidget);
     btnExit->setIcon(style->standardIcon(QStyle::SP_TitleBarNormalButton));
     btnExit->setToolTip("Exit Fullscreen");
     btnExit->setFocusPolicy(Qt::NoFocus);
+    btnExit->setFixedSize(btnSize, btnSize);
+    btnExit->setIconSize(defaultIconSize);
     connect(btnExit, &QPushButton::clicked, this, &FullscreenWidget::exitRequested);
 
     // Build two-row layout
@@ -316,9 +332,8 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
     m_btnToggleAutoFS = new QPushButton(m_hudWidget);
     m_btnToggleAutoFS->setCheckable(true);
     m_btnToggleAutoFS->setFocusPolicy(Qt::NoFocus);
-    m_btnToggleAutoFS->setIconSize(QSize(18, 18));
-    m_btnToggleAutoFS->setMaximumWidth(40);
-    m_btnToggleAutoFS->setStyleSheet("QPushButton { background-color: transparent; border: none; }");
+    m_btnToggleAutoFS->setFixedSize(36, 36);
+    m_btnToggleAutoFS->setIconSize(QSize(20, 20));
     connect(m_btnToggleAutoFS, &QPushButton::clicked, this, [this]() {
         emit builtinPlayerDoubleclickToggled(m_btnToggleAutoFS->isChecked());
     });
@@ -365,8 +380,9 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
 void FullscreenWidget::resizeEvent(QResizeEvent* event) {
     QWidget::resizeEvent(event);
     int hudW = qMin(width() - 40, 850);
-    QPoint globalPos = mapToGlobal(QPoint((width() - hudW) / 2, height() - 80));
-    m_hudWidget->setGeometry(globalPos.x(), globalPos.y(), hudW, 50);
+    int hudH = 100;
+    QPoint globalPos = mapToGlobal(QPoint((width() - hudW) / 2, height() - hudH - 20));
+    m_hudWidget->setGeometry(globalPos.x(), globalPos.y(), hudW, hudH);
     m_hudWidget->raise();
 }
 
@@ -1157,7 +1173,7 @@ void PreviewPanel::previewFile(const QString& filePath, const QStringList& sibli
                             "py", "cpp", "h", "sh", "md", "csv", "yml", "yaml", "properties" };
     QStringList imgExts = { "png", "jpg", "jpeg", "gif", "bmp", "webp", "svg" };
     QStringList audioExts = { "mp3", "wav", "flac", "ogg", "m4a" };
-    QStringList videoExts = { "mp4", "avi", "mkv", "mov", "webm" };
+    QStringList videoExts = { "mp4", "avi", "mkv", "mov", "webm", "flv", "wmv", "m4v", "mpg", "mpeg" };
 
     if (txtExts.contains(ext)) {
         showTextPreview(filePath);
@@ -1668,6 +1684,7 @@ void PreviewPanel::playPlaylist(const QStringList& filePaths) {
     m_metadataTable->insertRow(row);
     m_metadataTable->setItem(row, 0, new QTableWidgetItem("Playlist Status"));
     m_metadataTable->setItem(row, 1, new QTableWidgetItem(QString("Playing track %1 of %2").arg(1).arg(m_playlist.size())));
+    emit playlistChanged();
 }
 
 void PreviewPanel::addToPlaylist(const QStringList& filePaths) {
@@ -1705,6 +1722,7 @@ void PreviewPanel::addToPlaylist(const QStringList& filePaths) {
     }
 
     m_bottomTab->setCurrentIndex(1); // Switch to Playlist Queue tab
+    emit playlistChanged();
 }
 
 void PreviewPanel::onMediaStatusChanged(QMediaPlayer::MediaStatus status) {
@@ -1747,6 +1765,7 @@ void PreviewPanel::onPrevTrack() {
     m_metadataTable->insertRow(row);
     m_metadataTable->setItem(row, 0, new QTableWidgetItem("Playlist Status"));
     m_metadataTable->setItem(row, 1, new QTableWidgetItem(QString("Playing track %1 of %2").arg(m_playlistIndex + 1).arg(m_playlist.size())));
+    emit playlistChanged();
 }
 
 void PreviewPanel::onNextTrack() {
@@ -1779,6 +1798,7 @@ void PreviewPanel::onNextTrack() {
     m_metadataTable->insertRow(row);
     m_metadataTable->setItem(row, 0, new QTableWidgetItem("Playlist Status"));
     m_metadataTable->setItem(row, 1, new QTableWidgetItem(QString("Playing track %1 of %2").arg(m_playlistIndex + 1).arg(m_playlist.size())));
+    emit playlistChanged();
 }
 
 void PreviewPanel::onShuffleToggled() {
@@ -1859,6 +1879,7 @@ void PreviewPanel::onPlaylistItemDoubleClicked(QListWidgetItem* item) {
         m_metadataTable->setItem(r, 0, new QTableWidgetItem("Playlist Status"));
         m_metadataTable->setItem(r, 1, new QTableWidgetItem(QString("Playing track %1 of %2").arg(m_playlistIndex + 1).arg(m_playlist.size())));
     }
+    emit playlistChanged();
 }
 
 void PreviewPanel::showPlaylistContextMenu(const QPoint& pos) {
@@ -2108,10 +2129,16 @@ void PreviewPanel::toggleFullscreen() {
         return;
     }
 
-    QString activePath = !m_currentAudioPath.isEmpty() ? m_currentAudioPath : m_previewedFilePath;
+    QString activePath = m_player ? m_player->source().toLocalFile() : "";
+    if (activePath.isEmpty()) {
+        activePath = !m_currentAudioPath.isEmpty() ? m_currentAudioPath : m_previewedFilePath;
+    }
     if (activePath.isEmpty()) return;
 
-    bool isVideo = m_videoWidget->isVisible();
+    QFileInfo fileInfo(activePath);
+    QString ext = fileInfo.suffix().toLower();
+    static const QStringList videoExts = { "mp4", "avi", "mkv", "mov", "webm", "flv", "wmv", "m4v", "mpg", "mpeg" };
+    bool isVideo = videoExts.contains(ext);
 
     // Create the borderless fullscreen widget
     m_fullscreenWidget = new FullscreenWidget(this);
@@ -2242,6 +2269,8 @@ void PreviewPanel::exitFullscreen() {
     m_fullscreenVideoWidget = nullptr;
     m_fullscreenAudioLabel = nullptr;
     m_fullscreenTextLabel = nullptr;
+
+    emit fullscreenExited();
 }
 
 static void clearLayoutOfFullscreen(QLayout* layout) {
@@ -2258,10 +2287,16 @@ static void clearLayoutOfFullscreen(QLayout* layout) {
 void PreviewPanel::updateFullscreenTrack() {
     if (!m_fullscreenWidget) return;
 
-    QString activePath = !m_currentAudioPath.isEmpty() ? m_currentAudioPath : m_previewedFilePath;
+    QString activePath = m_player ? m_player->source().toLocalFile() : "";
+    if (activePath.isEmpty()) {
+        activePath = !m_currentAudioPath.isEmpty() ? m_currentAudioPath : m_previewedFilePath;
+    }
     if (activePath.isEmpty()) return;
 
-    bool isVideo = m_videoWidget->isVisible();
+    QFileInfo fileInfo(activePath);
+    QString ext = fileInfo.suffix().toLower();
+    static const QStringList videoExts = { "mp4", "avi", "mkv", "mov", "webm", "flv", "wmv", "m4v", "mpg", "mpeg" };
+    bool isVideo = videoExts.contains(ext);
 
     QVBoxLayout* layout = qobject_cast<QVBoxLayout*>(m_fullscreenWidget->layout());
     if (layout) {
@@ -2603,4 +2638,45 @@ void PreviewPanel::onApplyTagsColors() {
     }
 
     emit tagsChanged(m_previewedFilePath);
+}
+
+void PreviewPanel::playPlaylistIndex(int index) {
+    if (index < 0 || index >= m_playlist.size()) return;
+    m_playlistIndex = index;
+    previewFile(m_playlist[m_playlistIndex]);
+    if (m_playlistList) {
+        m_playlistList->setCurrentRow(m_playlistIndex);
+    }
+    emit playlistChanged();
+}
+
+void PreviewPanel::removeFromPlaylist(int index) {
+    if (index < 0 || index >= m_playlist.size()) return;
+    m_playlist.removeAt(index);
+    if (m_playlistList) {
+        delete m_playlistList->takeItem(index);
+    }
+    if (m_playlist.isEmpty()) {
+        clearPreview();
+        emit playlistChanged();
+    } else {
+        if (m_playlistIndex >= m_playlist.size()) {
+            m_playlistIndex = m_playlist.size() - 1;
+        }
+        if (index == m_playlistIndex) {
+            playPlaylistIndex(m_playlistIndex);
+        } else {
+            emit playlistChanged();
+        }
+    }
+}
+
+void PreviewPanel::clearPlaylist() {
+    m_playlist.clear();
+    m_playlistIndex = -1;
+    if (m_playlistList) {
+        m_playlistList->clear();
+    }
+    clearPreview();
+    emit playlistChanged();
 }

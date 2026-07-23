@@ -48,7 +48,7 @@
 #include <QDir>
 #include <QSet>
 
-static void scanMediaFilesRecursively(const QString& folderPath, QStringList& playlistPaths, int depth = 0);
+static void scanMediaFilesRecursively(const QString& folderPath, QStringList& playlistPaths, int mediaTypeFilter = 0, int depth = 0);
 static bool hasAudioFilesRecursively(const QString& folderPath, int depth = 0);
 #include <QFileInfo>
 #include <QRegularExpression>
@@ -579,7 +579,11 @@ void FilePanel::setupUI() {
             }
         }
         if (!trailerPath.isEmpty()) {
-            emit playMediaBuiltinRequested({trailerPath});
+            if (viewModeIndex() == 8 || viewModeIndex() == 9 || viewModeIndex() == 10) {
+                emit playMediaFullscreenRequested({trailerPath});
+            } else {
+                emit playMediaBuiltinRequested({trailerPath});
+            }
         } else {
             QDesktopServices::openUrl(QUrl("https://www.youtube.com/results?search_query=" + QUrl::toPercentEncoding(info.baseName() + " trailer")));
         }
@@ -589,7 +593,11 @@ void FilePanel::setupUI() {
         if (!m_bottomPanelPath.isEmpty()) {
             ShowcaseInfoDialog infoDlg(m_bottomPanelPath, this);
             connect(&infoDlg, &ShowcaseInfoDialog::playRequested, this, [this](const QString& path) {
-                emit playMediaBuiltinRequested({path});
+                if (viewModeIndex() == 8 || viewModeIndex() == 9 || viewModeIndex() == 10) {
+                    emit playMediaFullscreenRequested({path});
+                } else {
+                    emit playMediaBuiltinRequested({path});
+                }
             });
             infoDlg.exec();
         }
@@ -602,45 +610,21 @@ void FilePanel::setupUI() {
         QFileInfo info(m_bottomPanelPath);
         QStringList playlistPaths;
         if (info.isDir()) {
-            QDir dir(m_bottomPanelPath);
-            QFileInfoList files = dir.entryInfoList(QDir::Files, QDir::Name);
-            QStringList mediaExts;
-            if (viewModeIndex() == 6 || viewModeIndex() == 10) { // Audio Showcase or Music Showcase (v2)
-                mediaExts = { "mp3", "wav", "flac", "ogg", "m4a", "wma", "aac" };
-            } else { // Video Showcase, Movie Showcase (v2), TV Show Showcase (v2)
-                mediaExts = { "mp4", "mkv", "avi", "mov", "webm", "flv", "wmv", "m4v" };
-            }
-            for (const QFileInfo& fInfo : files) {
-                if (mediaExts.contains(fInfo.suffix().toLower())) {
-                    playlistPaths.append(fInfo.absoluteFilePath());
-                }
-            }
-            // Check for multi-disc folders as well (if grouping is active)
-            QSettings settings("Amifiles", "Amifiles");
-            bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool() && (viewModeIndex() == 6 || viewModeIndex() == 10);
-            if (groupMultiDisc && playlistPaths.isEmpty()) {
-                QString parentDir = info.absolutePath();
-                QDir pDir(parentDir);
-                QStringList subDirs = pDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
-                QString currentCleaned = FileFilterProxyModel::cleanAlbumFolderName(info.fileName());
-                for (const QString& subDirName : subDirs) {
-                    if (FileFilterProxyModel::cleanAlbumFolderName(subDirName) == currentCleaned) {
-                        QDir subDir(pDir.filePath(subDirName));
-                        QFileInfoList subFiles = subDir.entryInfoList(QDir::Files, QDir::Name);
-                        for (const QFileInfo& fInfo : subFiles) {
-                            if (mediaExts.contains(fInfo.suffix().toLower())) {
-                                playlistPaths.append(fInfo.absoluteFilePath());
-                            }
-                        }
-                    }
-                }
-            }
+            int filter = 0;
+            int vm = viewModeIndex();
+            if (vm == 6 || vm == 10) filter = 1;
+            else if (vm == 7 || vm == 8 || vm == 9) filter = 2;
+            scanMediaFilesRecursively(m_bottomPanelPath, playlistPaths, filter);
         } else {
             playlistPaths.append(m_bottomPanelPath);
         }
 
         if (!playlistPaths.isEmpty()) {
-            emit playMediaBuiltinRequested(playlistPaths);
+            if (viewModeIndex() == 8 || viewModeIndex() == 9 || viewModeIndex() == 10) {
+                emit playMediaFullscreenRequested(playlistPaths);
+            } else {
+                emit playMediaBuiltinRequested(playlistPaths);
+            }
         }
     });
 
@@ -1724,8 +1708,43 @@ void FilePanel::onSelectionChanged() {
             if (modeIndex == 7 || modeIndex == 8 || modeIndex == 9) {
                 // Video Showcase
                 m_bottomSynopsis->setVisible(true);
-                m_bottomPlayBtn->setText("▶ Play Media");
                 m_bottomPlayBtn->setVisible(true);
+
+                bool isTvShow = false;
+                bool isSeason = false;
+                if (pathInfo.isDir()) {
+                    QDir dir(path);
+                    QFileInfoList subDirs = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
+                    for (const QFileInfo& sub : subDirs) {
+                        QString name = sub.fileName().toLower();
+                        if (name.contains("season") || name.contains("series")) {
+                            isTvShow = true;
+                            break;
+                        }
+                    }
+                    if (!isTvShow) {
+                        QString name = pathInfo.fileName().toLower();
+                        if (name.contains("season") || name.contains("series")) {
+                            isSeason = true;
+                        }
+                    }
+                }
+
+                if (pathInfo.isDir()) {
+                    if (isTvShow) {
+                        m_bottomPlayBtn->setText("▶ Play Entire TV Show");
+                    } else if (isSeason) {
+                        m_bottomPlayBtn->setText("▶ Play Season");
+                    } else {
+                        m_bottomPlayBtn->setText("▶ Play Folder");
+                    }
+                } else {
+                    if (modeIndex == 9) {
+                        m_bottomPlayBtn->setText("▶ Play Episode");
+                    } else {
+                        m_bottomPlayBtn->setText("▶ Play Video");
+                    }
+                }
 
                 QString targetDir = pathInfo.isDir() ? path : pathInfo.absolutePath();
                 CinemaMetadata meta;
@@ -2258,13 +2277,20 @@ void FilePanel::onShowProperties() {
     QMessageBox::information(this, "Properties", details);
 }
 
-static void scanMediaFilesRecursively(const QString& folderPath, QStringList& playlistPaths, int depth) {
+static void scanMediaFilesRecursively(const QString& folderPath, QStringList& playlistPaths, int mediaTypeFilter, int depth) {
     if (depth > 3) return;
     QFileInfo fi(folderPath);
     if (fi.isSymLink()) return;
 
     QDir dir(folderPath);
-    QStringList mediaExts = { "mp3", "wav", "flac", "ogg", "m4a", "mp4", "avi", "mkv", "mov", "webm", "mpeg", "mpg" };
+    QStringList mediaExts;
+    if (mediaTypeFilter == 1) { // Audio only
+        mediaExts = { "mp3", "wav", "flac", "ogg", "m4a", "aac", "wma" };
+    } else if (mediaTypeFilter == 2) { // Video only
+        mediaExts = { "mp4", "avi", "mkv", "mov", "webm", "flv", "wmv", "m4v", "mpg", "mpeg" };
+    } else { // All
+        mediaExts = { "mp3", "wav", "flac", "ogg", "m4a", "aac", "wma", "mp4", "avi", "mkv", "mov", "webm", "flv", "wmv", "m4v", "mpg", "mpeg" };
+    }
     
     QFileInfoList files = dir.entryInfoList(QDir::Files, QDir::Name);
     for (const QFileInfo& fInfo : files) {
@@ -2276,7 +2302,7 @@ static void scanMediaFilesRecursively(const QString& folderPath, QStringList& pl
     
     QFileInfoList subdirs = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
     for (const QFileInfo& sub : subdirs) {
-        scanMediaFilesRecursively(sub.absoluteFilePath(), playlistPaths, depth + 1);
+        scanMediaFilesRecursively(sub.absoluteFilePath(), playlistPaths, mediaTypeFilter, depth + 1);
     }
 }
 
@@ -2302,10 +2328,10 @@ static bool hasAudioFilesRecursively(const QString& folderPath, int depth) {
 
 void FilePanel::onCustomContextMenu(const QPoint& pos) {
     int vMode = viewModeIndex();
-    if (vMode == 6) {
+    if (vMode == 6 || vMode == 10) {
         showAudioShowcaseContextMenu(pos);
         return;
-    } else if (vMode == 7) {
+    } else if (vMode == 7 || vMode == 8 || vMode == 9) {
         showVideoShowcaseContextMenu(pos);
         return;
     }
@@ -2446,11 +2472,11 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
                 QString currentCleaned = FileFilterProxyModel::cleanAlbumFolderName(folderInfo.fileName());
                 for (const QString& subDirName : subDirs) {
                     if (FileFilterProxyModel::cleanAlbumFolderName(subDirName) == currentCleaned) {
-                        scanMediaFilesRecursively(dir.filePath(subDirName), playlistPaths, 0);
+                        scanMediaFilesRecursively(dir.filePath(subDirName), playlistPaths, 1);
                     }
                 }
             } else {
-                scanMediaFilesRecursively(folderToCheck, playlistPaths, 0);
+                scanMediaFilesRecursively(folderToCheck, playlistPaths, 1);
             }
         } else {
             QDir dir(folderToCheck);
@@ -3277,29 +3303,68 @@ void FilePanel::showVideoShowcaseContextMenu(const QPoint& pos) {
         }
     }
 
-    QMenu menu(this);
-    QStyle* style = QApplication::style();
-
-    QAction* actOpen = menu.addAction(style->standardIcon(QStyle::SP_DialogOpenButton), "Open");
-    menu.addSeparator();
-
-    // Add an Option/Action that says "Audio tools" as a test
-    QAction* actAudioTools = menu.addAction("Audio tools");
-    connect(actAudioTools, &QAction::triggered, this, [this]() {
-        QMessageBox::information(this, "Video Showcase Test", "Audio tools option triggered in Video Showcase view.");
-    });
-
-    menu.addSeparator();
-
     QStringList curSelected = selectedPaths();
     QString selectedPath;
     bool isFolder = false;
     bool isFavorite = false;
+    bool isTvShowFolder = false;
+    bool isSeasonFolder = false;
+
     if (!curSelected.isEmpty()) {
         selectedPath = curSelected.first();
         QFileInfo info(selectedPath);
         isFolder = info.isDir();
         isFavorite = FavoritesManager::instance().isFavorite(selectedPath);
+        
+        if (isFolder) {
+            // Check if this folder contains subdirs starting with "Season" or "Series"
+            QDir dir(selectedPath);
+            QFileInfoList subDirs = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
+            for (const QFileInfo& sub : subDirs) {
+                QString name = sub.fileName().toLower();
+                if (name.contains("season") || name.contains("series")) {
+                    isTvShowFolder = true;
+                    break;
+                }
+            }
+            // If it doesn't contain season subfolders, but its own name contains "season" or "series"
+            if (!isTvShowFolder) {
+                QString name = info.fileName().toLower();
+                if (name.contains("season") || name.contains("series")) {
+                    isSeasonFolder = true;
+                }
+            }
+        }
+    }
+
+    QMenu menu(this);
+    QStyle* style = QApplication::style();
+
+    QAction* actPlay = nullptr;
+    QAction* actQueue = nullptr;
+    QAction* actOpen = nullptr;
+
+    if (!selectedPath.isEmpty()) {
+        if (isFolder) {
+            if (isTvShowFolder) {
+                actPlay = menu.addAction(style->standardIcon(QStyle::SP_MediaPlay), "▶ Play Entire TV Show in Fullscreen");
+                actQueue = menu.addAction("➕ Queue Entire TV Show to Playlist");
+                actOpen = menu.addAction(style->standardIcon(QStyle::SP_DialogOpenButton), "📁 Enter TV Show");
+            } else if (isSeasonFolder) {
+                actPlay = menu.addAction(style->standardIcon(QStyle::SP_MediaPlay), "▶ Play Season in Fullscreen");
+                actQueue = menu.addAction("➕ Queue Season to Playlist");
+                actOpen = menu.addAction(style->standardIcon(QStyle::SP_DialogOpenButton), "📁 Enter Season");
+            } else {
+                actPlay = menu.addAction(style->standardIcon(QStyle::SP_MediaPlay), "▶ Play Folder in Fullscreen");
+                actQueue = menu.addAction("➕ Queue Folder to Playlist");
+                actOpen = menu.addAction(style->standardIcon(QStyle::SP_DialogOpenButton), "📁 Enter Folder");
+            }
+        } else {
+            actPlay = menu.addAction(style->standardIcon(QStyle::SP_MediaPlay), "▶ Play in Fullscreen");
+            actQueue = menu.addAction("➕ Queue to Playlist");
+            actOpen = menu.addAction(style->standardIcon(QStyle::SP_DialogOpenButton), "Open");
+        }
+        menu.addSeparator();
     }
 
     QAction* actMediaInfoSheet = nullptr;
@@ -3322,22 +3387,23 @@ void FilePanel::showVideoShowcaseContextMenu(const QPoint& pos) {
     }
 
     QAction* actFav = nullptr;
-    if (isFolder) {
-        if (isFavorite) {
-            actFav = menu.addAction(style->standardIcon(QStyle::SP_DialogCancelButton), "Remove from Favorites");
+    if (!selectedPath.isEmpty()) {
+        if (isFolder) {
+            if (isFavorite) {
+                actFav = menu.addAction(style->standardIcon(QStyle::SP_DialogCancelButton), "Remove from Favorites");
+            } else {
+                actFav = menu.addAction(style->standardIcon(QStyle::SP_DialogYesButton), "Add to Favorites");
+            }
         } else {
-            actFav = menu.addAction(style->standardIcon(QStyle::SP_DialogYesButton), "Add to Favorites");
+            bool isCurrentFavorite = FavoritesManager::instance().isFavorite(m_currentPath);
+            if (isCurrentFavorite) {
+                actFav = menu.addAction(style->standardIcon(QStyle::SP_DialogCancelButton), "Remove Current from Favorites");
+            } else {
+                actFav = menu.addAction(style->standardIcon(QStyle::SP_DialogYesButton), "Add Current to Favorites");
+            }
         }
-    } else {
-        bool isCurrentFavorite = FavoritesManager::instance().isFavorite(m_currentPath);
-        if (isCurrentFavorite) {
-            actFav = menu.addAction(style->standardIcon(QStyle::SP_DialogCancelButton), "Remove Current from Favorites");
-        } else {
-            actFav = menu.addAction(style->standardIcon(QStyle::SP_DialogYesButton), "Add Current to Favorites");
-        }
+        menu.addSeparator();
     }
-
-    menu.addSeparator();
 
     QSettings settings("Amifiles", "Amifiles");
     bool zenActive = settings.value("preferences/zen_mode", false).toBool();
@@ -3377,10 +3443,42 @@ void FilePanel::showVideoShowcaseContextMenu(const QPoint& pos) {
         if (!selectedPath.isEmpty()) {
             onDoubleClickedPath(selectedPath);
         }
+    } else if (selected == actPlay) {
+        if (!selectedPath.isEmpty()) {
+            QStringList playlistPaths;
+            if (isFolder) {
+                scanMediaFilesRecursively(selectedPath, playlistPaths, 2);
+            } else {
+                playlistPaths.append(selectedPath);
+            }
+            if (!playlistPaths.isEmpty()) {
+                if (viewModeIndex() == 8 || viewModeIndex() == 9 || viewModeIndex() == 10) {
+                    emit playMediaFullscreenRequested(playlistPaths);
+                } else {
+                    emit playMediaBuiltinRequested(playlistPaths);
+                }
+            }
+        }
+    } else if (selected == actQueue) {
+        if (!selectedPath.isEmpty()) {
+            QStringList playlistPaths;
+            if (isFolder) {
+                scanMediaFilesRecursively(selectedPath, playlistPaths, 2);
+            } else {
+                playlistPaths.append(selectedPath);
+            }
+            if (!playlistPaths.isEmpty()) {
+                emit queueMediaBuiltinRequested(playlistPaths);
+            }
+        }
     } else if (selected == actMediaInfoSheet) {
         ShowcaseInfoDialog infoDlg(selectedPath, this);
         connect(&infoDlg, &ShowcaseInfoDialog::playRequested, this, [this](const QString& path) {
-            emit playMediaBuiltinRequested({path});
+            if (viewModeIndex() == 8 || viewModeIndex() == 9 || viewModeIndex() == 10) {
+                emit playMediaFullscreenRequested({path});
+            } else {
+                emit playMediaBuiltinRequested({path});
+            }
         });
         infoDlg.exec();
     } else if (selected == actScrapeVideoMeta) {
@@ -4506,6 +4604,13 @@ void FilePanel::onViewModeChanged(int index) {
     updateThemeMusic();
 }
 
+void FilePanel::onPlaybackStateChanged(int state) {
+    bool playing = (state == QMediaPlayer::PlayingState);
+    if (m_visualizerWidget) {
+        m_visualizerWidget->setPlaying(playing);
+    }
+}
+
 void FilePanel::onDoubleClickedPath(const QString& path) {
     QFileInfo info(path);
     bool builtinPlayerDoubleclick = false;
@@ -4528,7 +4633,8 @@ void FilePanel::onDoubleClickedPath(const QString& path) {
 
     if (info.isDir()) {
         // In standard views (Details, List, Icons, Cards, Miller, etc.), ALWAYS navigate into the directory
-        if (!isTheater) {
+        // For TV Shows / Movies / Video Showcase views, also navigate/drill-down into the directory!
+        if (!isTheater || viewModeIndex() == 7 || viewModeIndex() == 8 || viewModeIndex() == 9) {
             navigateTo(path, true);
             return;
         }
@@ -4554,16 +4660,25 @@ void FilePanel::onDoubleClickedPath(const QString& path) {
                 scanPaths.append(path);
             }
 
+            int filter = 0;
+            int vm = viewModeIndex();
+            if (vm == 6 || vm == 10) filter = 1;
+            else if (vm == 7 || vm == 8 || vm == 9) filter = 2;
+
             QStringList playlistPaths;
             for (const QString& scanPath : scanPaths) {
-                scanMediaFilesRecursively(scanPath, playlistPaths);
+                scanMediaFilesRecursively(scanPath, playlistPaths, filter);
             }
 
             if (!playlistPaths.isEmpty()) {
                 if (doubleclickAddsToQueue) {
                     emit queueMediaBuiltinRequested(playlistPaths);
                 } else if (shouldPlayOnDoubleclick) {
-                    emit playMediaBuiltinRequested(playlistPaths);
+                    if (viewModeIndex() == 8 || viewModeIndex() == 9 || viewModeIndex() == 10) {
+                        emit playMediaFullscreenRequested(playlistPaths);
+                    } else {
+                        emit playMediaBuiltinRequested(playlistPaths);
+                    }
                 }
                 return;
             }
@@ -4578,9 +4693,20 @@ void FilePanel::onDoubleClickedPath(const QString& path) {
             "mp3", "wav", "flac", "ogg", "m4a", "aac", "wma",
             "mp4", "avi", "mkv", "mov", "webm", "flv", "wmv", "m4v", "mpg", "mpeg"
         };
-        if (mediaExts.contains(ext) && doubleclickAddsToQueue) {
-            emit queueMediaBuiltinRequested({path});
-            return;
+        if (mediaExts.contains(ext)) {
+            if (doubleclickAddsToQueue) {
+                emit queueMediaBuiltinRequested({path});
+                return;
+            } else if (shouldPlayOnDoubleclick || isTheater) {
+                bool isVideo = (ext == "mp4" || ext == "mkv" || ext == "avi" || ext == "mov" || ext == "webm" || ext == "wmv" || ext == "m4v" || ext == "mpg" || ext == "mpeg");
+                bool isShowcaseVideo = (viewModeIndex() == 7 || viewModeIndex() == 8 || viewModeIndex() == 9);
+                if (viewModeIndex() == 8 || viewModeIndex() == 9 || viewModeIndex() == 10 || isShowcaseVideo || (isVideo && shouldPlayOnDoubleclick)) {
+                    emit playMediaFullscreenRequested({path});
+                } else {
+                    emit playMediaBuiltinRequested({path});
+                }
+                return;
+            }
         }
 
         bool archiveNavEnabled = settings.value("preferences/archive_nav", true).toBool();

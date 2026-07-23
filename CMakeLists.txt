@@ -30,8 +30,6 @@ add_executable(Amifiles
     src/showcasesettingsdialog.cpp
     src/previewpanel.h
     src/previewpanel.cpp
-    src/fullscreenplayer.h
-    src/fullscreenplayer.cpp
     src/favoritesmanager.h
     src/favoritesmanager.cpp
     src/metadataextractor.h

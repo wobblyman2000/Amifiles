@@ -57,14 +57,28 @@ public:
         setMinimumSize(130, 60);
         m_timer = new QTimer(this);
         connect(m_timer, &QTimer::timeout, this, [this]() {
+            if (!m_playing) return;
             for (int i = 0; i < 15; ++i) {
                 m_heights[i] = QRandomGenerator::global()->bounded(5, height() - 5);
             }
             update();
         });
-        m_timer->start(100); // 10fps animation
-        for (int i = 0; i < 15; ++i) m_heights[i] = 10;
+        for (int i = 0; i < 15; ++i) m_heights[i] = 4;
     }
+
+    void setPlaying(bool playing) {
+        m_playing = playing;
+        if (m_playing) {
+            if (!m_timer->isActive()) {
+                m_timer->start(100);
+            }
+        } else {
+            m_timer->stop();
+            for (int i = 0; i < 15; ++i) m_heights[i] = 4;
+            update();
+        }
+    }
+    bool isPlaying() const { return m_playing; }
     
 protected:
     void paintEvent(QPaintEvent* event) override {
@@ -93,8 +107,9 @@ protected:
     }
     
 private:
-    QTimer* m_timer;
+    QTimer* m_timer = nullptr;
     int m_heights[15];
+    bool m_playing = false;
 };
 
 class CasingRunnable : public QRunnable {
@@ -800,6 +815,7 @@ public:
 
 signals:
     void playMediaBuiltinRequested(const QStringList& filePaths);
+    void playMediaFullscreenRequested(const QStringList& filePaths);
     void queueMediaBuiltinRequested(const QStringList& filePaths);
     void zenModeToggled(bool enabled);
     void pathChanged(const QString& path);
@@ -829,6 +845,7 @@ public slots:
     void onNavigateBack();
     void onNavigateForward();
     void onViewModeChanged(int index);
+    void onPlaybackStateChanged(int state);
 
 private slots:
     void onPathEntered();

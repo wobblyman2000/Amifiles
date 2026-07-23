@@ -462,7 +462,6 @@ void MainWindow::setupCentralWidget() {
     m_rightTabWidget->setStyleSheet(m_leftTabWidget->styleSheet());
 
     m_previewPanel = new PreviewPanel(this);
-    m_fullscreenPlayer = new FullscreenPlayer(this);
     m_previewPanel->setZenMode(m_zenMode);
     connect(m_previewPanel, &PreviewPanel::spectrumVisualizerToggled, this, &MainWindow::onToggleSpectrum);
     connect(m_previewPanel, &PreviewPanel::tagsChanged, this, [this](const QString&) {
@@ -471,6 +470,11 @@ void MainWindow::setupCentralWidget() {
     });
     connect(m_previewPanel, &PreviewPanel::builtinPlayerDoubleclickToggled, this, &MainWindow::setBuiltinPlayerDoubleclickActive);
     connect(this, &MainWindow::builtinPlayerDoubleclickChanged, m_previewPanel, &PreviewPanel::setBuiltinPlayerDoubleclickActive);
+    connect(m_previewPanel, &PreviewPanel::fullscreenExited, this, [this]() {
+        if (m_actTogglePreview && !m_actTogglePreview->isChecked()) {
+            m_previewPanel->clearPreview();
+        }
+    });
 
     m_previewDock = new QDockWidget("File Preview Panel", this);
     m_previewDock->setObjectName("previewDockWidget");
@@ -478,6 +482,85 @@ void MainWindow::setupCentralWidget() {
     m_previewDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea | Qt::TopDockWidgetArea | Qt::BottomDockWidgetArea);
     m_previewDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetClosable);
     addDockWidget(Qt::RightDockWidgetArea, m_previewDock);
+
+    m_fullscreenQueueDock = new QDockWidget("Playback Queue", this);
+    m_fullscreenQueueDock->setObjectName("fullscreenQueueDockWidget");
+    m_fullscreenQueueDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+    m_fullscreenQueueDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetClosable);
+    
+    QWidget* queueContent = new QWidget(m_fullscreenQueueDock);
+    QVBoxLayout* queueLayout = new QVBoxLayout(queueContent);
+    queueLayout->setContentsMargins(12, 12, 12, 12);
+    queueLayout->setSpacing(8);
+    
+    QLabel* lblHeader = new QLabel("📋 CURRENT PLAYLIST", queueContent);
+    lblHeader->setStyleSheet("font-size: 11px; font-weight: bold; color: #89b4fa; letter-spacing: 1px;");
+    queueLayout->addWidget(lblHeader);
+    
+    m_fullscreenQueueList = new QListWidget(queueContent);
+    m_fullscreenQueueList->setStyleSheet(
+        "QListWidget { background-color: #11111b; color: #cdd6f4; border: 1px solid #313244; border-radius: 8px; padding: 4px; font-family: 'Outfit'; font-size: 13px; } "
+        "QListWidget::item { padding: 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); border-radius: 4px; } "
+        "QListWidget::item:hover { background-color: rgba(137, 180, 250, 0.15); color: #ffffff; } "
+        "QListWidget::item:selected { background-color: #89b4fa; color: #11111b; font-weight: bold; }"
+    );
+    queueLayout->addWidget(m_fullscreenQueueList);
+    
+    QHBoxLayout* btnRow = new QHBoxLayout();
+    btnRow->setSpacing(8);
+    
+    QPushButton* btnPlay = new QPushButton("▶ Play", queueContent);
+    QPushButton* btnRemove = new QPushButton("✖ Remove", queueContent);
+    QPushButton* btnClear = new QPushButton("🗑 Clear", queueContent);
+    
+    QString btnStyle = 
+        "QPushButton { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 6px; padding: 6px 12px; font-weight: bold; font-family: 'Outfit'; font-size: 12px; } "
+        "QPushButton:hover { background-color: #45475a; color: #ffffff; } "
+        "QPushButton:pressed { background-color: #585b70; }";
+        
+    btnPlay->setStyleSheet(btnStyle);
+    btnRemove->setStyleSheet(btnStyle);
+    btnClear->setStyleSheet(btnStyle);
+    
+    btnRow->addWidget(btnPlay);
+    btnRow->addWidget(btnRemove);
+    btnRow->addWidget(btnClear);
+    queueLayout->addLayout(btnRow);
+    
+    m_fullscreenQueueDock->setWidget(queueContent);
+    addDockWidget(Qt::RightDockWidgetArea, m_fullscreenQueueDock);
+    m_fullscreenQueueDock->setVisible(false);
+
+    connect(m_fullscreenQueueList, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem* item) {
+        int idx = m_fullscreenQueueList->row(item);
+        m_previewPanel->playPlaylistIndex(idx);
+        if (!m_previewPanel->isFullscreen()) {
+            m_previewPanel->toggleFullscreen();
+        }
+    });
+    
+    connect(btnPlay, &QPushButton::clicked, this, [this]() {
+        int idx = m_fullscreenQueueList->currentRow();
+        if (idx >= 0) {
+            m_previewPanel->playPlaylistIndex(idx);
+            if (!m_previewPanel->isFullscreen()) {
+                m_previewPanel->toggleFullscreen();
+            }
+        }
+    });
+    
+    connect(btnRemove, &QPushButton::clicked, this, [this]() {
+        int idx = m_fullscreenQueueList->currentRow();
+        if (idx >= 0) {
+            m_previewPanel->removeFromPlaylist(idx);
+        }
+    });
+    
+    connect(btnClear, &QPushButton::clicked, this, [this]() {
+        m_previewPanel->clearPlaylist();
+    });
+
+    connect(m_previewPanel, &PreviewPanel::playlistChanged, this, &MainWindow::syncFullscreenQueue);
 
     m_previewDock->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(m_previewDock, &QDockWidget::customContextMenuRequested, this, &MainWindow::onPreviewDockContextMenu);
@@ -1332,11 +1415,19 @@ void MainWindow::onPanelActivated(FilePanel* panel) {
         if (m_activePanel) {
             applyFolderRules(m_activePanel->currentPath());
         }
+        onActivePanelViewModeChanged();
     }
 }
 
 void MainWindow::onFileSelected(const QString& filePath) {
     if (sender() != m_activePanel) return;
+
+    if (m_activePanel) {
+        int vm = m_activePanel->viewModeIndex();
+        if (vm == 8 || vm == 9 || vm == 10) {
+            return;
+        }
+    }
 
     // Do not interrupt active media playback (playing or paused)
     if (m_previewPanel->player() && m_previewPanel->player()->playbackState() != QMediaPlayer::StoppedState) {
@@ -1353,6 +1444,13 @@ void MainWindow::onFileSelected(const QString& filePath) {
 
 void MainWindow::onFolderArtDetected(const QString& artPath) {
     if (sender() != m_activePanel) return;
+
+    if (m_activePanel) {
+        int vm = m_activePanel->viewModeIndex();
+        if (vm == 8 || vm == 9 || vm == 10) {
+            return;
+        }
+    }
 
     // Do not interrupt active media playback (playing or paused)
     if (m_previewPanel->player() && m_previewPanel->player()->playbackState() != QMediaPlayer::StoppedState) {
@@ -2445,7 +2543,9 @@ FilePanel* MainWindow::createTab(QTabWidget* tabWidget, const QString& path) {
     connect(panel, &FilePanel::fileSelected, this, &MainWindow::onFileSelected);
     connect(panel, &FilePanel::zenModeToggled, this, &MainWindow::setZenMode);
     connect(panel, &FilePanel::playMediaBuiltinRequested, this, &MainWindow::onPlayMediaBuiltin);
+    connect(panel, &FilePanel::playMediaFullscreenRequested, this, &MainWindow::onPlayMediaFullscreen);
     connect(panel, &FilePanel::queueMediaBuiltinRequested, this, &MainWindow::onQueueMediaBuiltin);
+    connect(panel, &FilePanel::viewModeChanged, this, &MainWindow::onActivePanelViewModeChanged);
     connect(panel, &FilePanel::folderArtDetected, this, &MainWindow::onFolderArtDetected);
     connect(panel, &FilePanel::pathChanged, this, &MainWindow::onPathChanged);
     connect(panel, &FilePanel::clonePathRequested, this, &MainWindow::onClonePathRequested);
@@ -2461,6 +2561,10 @@ FilePanel* MainWindow::createTab(QTabWidget* tabWidget, const QString& path) {
     connect(panel, &FilePanel::loadDefaultProfileRequested, this, &MainWindow::onLoadDefaultProfile);
     connect(panel, &FilePanel::saveFolderProfileRequested, this, &MainWindow::onSaveFolderProfileForCurrentDir);
     connect(panel, &FilePanel::configureFolderLayoutsRequested, this, &MainWindow::onConfigureFolderLayouts);
+
+    if (m_previewPanel && m_previewPanel->player()) {
+        panel->onPlaybackStateChanged(static_cast<int>(m_previewPanel->player()->playbackState()));
+    }
 
     panel->proxyModel()->setAgeColoringEnabled(m_ageColoringEnabled);
 
@@ -5335,12 +5439,70 @@ void MainWindow::onPlayMediaBuiltin(const QStringList& filePaths) {
     }
 }
 
+void MainWindow::onPlayMediaFullscreen(const QStringList& filePaths) {
+    if (!m_previewPanel || filePaths.isEmpty()) return;
+    m_previewPanel->clearPreview();
+    m_previewPanel->playPlaylist(filePaths);
+    if (m_previewPanel->player()) {
+        m_previewPanel->player()->play();
+    }
+    if (!m_previewPanel->isFullscreen()) {
+        m_previewPanel->toggleFullscreen();
+    }
+}
+
+void MainWindow::onActivePanelViewModeChanged() {
+    if (!m_activePanel) return;
+    int vm = m_activePanel->viewModeIndex();
+    bool isFullscreenMode = (vm == 8 || vm == 9 || vm == 10);
+    
+    if (isFullscreenMode) {
+        if (m_actTogglePreview && m_actTogglePreview->isChecked()) {
+            m_actTogglePreview->setChecked(false);
+        }
+        if (m_fullscreenQueueDock && !m_fullscreenQueueDock->isVisible()) {
+            m_fullscreenQueueDock->setVisible(true);
+            syncFullscreenQueue();
+        }
+    } else {
+        if (m_fullscreenQueueDock && m_fullscreenQueueDock->isVisible()) {
+            m_fullscreenQueueDock->setVisible(false);
+        }
+    }
+}
+
+void MainWindow::syncFullscreenQueue() {
+    if (!m_fullscreenQueueList || !m_previewPanel) return;
+    m_fullscreenQueueList->clear();
+    QStringList playlist = m_previewPanel->playlist();
+    int activeIdx = m_previewPanel->playlistIndex();
+    
+    for (int i = 0; i < playlist.size(); ++i) {
+        QFileInfo fi(playlist.at(i));
+        QString text = QString("%1. %2").arg(i + 1).arg(fi.fileName());
+        QListWidgetItem* item = new QListWidgetItem(text, m_fullscreenQueueList);
+        if (i == activeIdx) {
+            item->setSelected(true);
+            item->setText("▶ " + fi.fileName());
+            item->setFont(QFont("Outfit", 13, QFont::Bold));
+        }
+    }
+}
+
 void MainWindow::onQueueMediaBuiltin(const QStringList& filePaths) {
     if (!m_previewPanel || filePaths.isEmpty()) return;
 
-    if (m_actTogglePreview && !m_actTogglePreview->isChecked()) {
-        m_actTogglePreview->setChecked(true);
-        onTogglePreview(true);
+    bool isFullscreenMode = false;
+    if (m_activePanel) {
+        int vm = m_activePanel->viewModeIndex();
+        isFullscreenMode = (vm == 8 || vm == 9 || vm == 10);
+    }
+
+    if (!isFullscreenMode) {
+        if (m_actTogglePreview && !m_actTogglePreview->isChecked()) {
+            m_actTogglePreview->setChecked(true);
+            onTogglePreview(true);
+        }
     }
 
     m_previewPanel->addToPlaylist(filePaths);
@@ -5564,9 +5726,25 @@ void MainWindow::updateThemeMusic() {
 }
 
 void MainWindow::onMainPlayerStateChanged(QMediaPlayer::PlaybackState state) {
-    Q_UNUSED(state);
     updateMiniPlayer();
     updateThemeMusic();
+
+    QList<FilePanel*> panels;
+    if (m_leftTabWidget) {
+        for (int i = 0; i < m_leftTabWidget->count(); ++i) {
+            FilePanel* p = qobject_cast<FilePanel*>(m_leftTabWidget->widget(i));
+            if (p) panels.append(p);
+        }
+    }
+    if (m_rightTabWidget) {
+        for (int i = 0; i < m_rightTabWidget->count(); ++i) {
+            FilePanel* p = qobject_cast<FilePanel*>(m_rightTabWidget->widget(i));
+            if (p) panels.append(p);
+        }
+    }
+    for (FilePanel* panel : panels) {
+        panel->onPlaybackStateChanged(static_cast<int>(state));
+    }
 }
 
 #include "mainwindow.moc"

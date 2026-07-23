@@ -184,6 +184,12 @@ public:
     void setAudioCoverArtVisible(bool visible);
     void setSpectrumVisualizerVisible(bool visible);
     void setZenMode(bool enabled);
+    
+    QStringList playlist() const { return m_playlist; }
+    int playlistIndex() const { return m_playlistIndex; }
+    void playPlaylistIndex(int index);
+    void removeFromPlaylist(int index);
+    void clearPlaylist();
 
 public slots:
     void toggleFullscreen();
@@ -195,6 +201,8 @@ signals:
     void tagsChanged(const QString& filePath);
     void spectrumVisualizerToggled(bool checked);
     void builtinPlayerDoubleclickToggled(bool active);
+    void fullscreenExited();
+    void playlistChanged();
 
 public:
     QSize minimumSizeHint() const override { return QSize(220, 200); }
