@@ -28,6 +28,7 @@
 #include <QAudioOutput>
 #include "folderartscraperdialog.h"
 #include "showcaseinfodialog.h"
+#include "showcasesettingsdialog.h"
 #include "copyqueue.h"
 #include "archivedialog.h"
 #include <QHBoxLayout>
@@ -3717,6 +3718,8 @@ void FilePanel::onZoomChanged(int value) {
         m_listView->setGridSize(QSize(size + 60, size + 40));
     }
 
+    updateTheaterGridSize();
+
     emit zoomChanged(value);
 }
 
@@ -3787,7 +3790,6 @@ void FilePanel::syncZoom(int value) {
 }
 
 void FilePanel::updateTheaterGridSize() {
-    if (!m_theaterListView) return;
     int index = viewModeIndex();
     if (index < 6 || index > 10) return;
 
@@ -3797,15 +3799,28 @@ void FilePanel::updateTheaterGridSize() {
 
     int gw, gh;
     if (index == 6 || index == 10) {
-        // Square music/audio showcase
-        gw = qRound(185.0 * factor);
-        gh = qRound(200.0 * factor);
+        // Compact square music/audio showcase
+        gw = qRound(160.0 * factor);
+        gh = qRound(185.0 * factor);
     } else {
         // 2:3 widescreen posters for Movie/TV
-        gw = qRound(170.0 * factor);
-        gh = qRound(270.0 * factor);
+        gw = qRound(155.0 * factor);
+        gh = qRound(245.0 * factor);
     }
-    m_theaterListView->setGridSize(QSize(gw, gh));
+
+    if (m_theaterListView) {
+        m_theaterListView->setGridSize(QSize(gw, gh));
+    }
+
+    for (QListView* grid : m_theaterGrids) {
+        if (grid) {
+            grid->setGridSize(QSize(gw, gh));
+            int childCount = grid->model() ? grid->model()->rowCount(grid->rootIndex()) : 0;
+            int cols = qMax(1, (m_theaterScrollWidget ? m_theaterScrollWidget->width() : 800) / gw);
+            int rows = (childCount + cols - 1) / cols;
+            grid->setFixedHeight(rows * gh + 10);
+        }
+    }
 }
 
 void FilePanel::updateStyles() {
