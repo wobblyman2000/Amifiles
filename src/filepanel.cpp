@@ -665,12 +665,17 @@ void FilePanel::setupUI() {
 
     m_millerView = new MillerColumnsView(m_fileModel, this);
     m_millerView->installEventFilter(this);
+    m_millerView->setAcceptDrops(true);
+    if (m_millerView->viewport()) m_millerView->viewport()->installEventFilter(this);
 
     m_timelineView = new TimelineView(this);
     m_timelineView->installEventFilter(this);
+    m_timelineView->setAcceptDrops(true);
+    if (m_timelineView->viewport()) m_timelineView->viewport()->installEventFilter(this);
 
     m_filmstripView = new FilmstripView(m_fileModel, this);
     m_filmstripView->installEventFilter(this);
+    m_filmstripView->setAcceptDrops(true);
 
     m_viewStack->addWidget(m_theaterContainer);
     m_viewStack->addWidget(m_millerView);
@@ -785,6 +790,18 @@ void FilePanel::setupUI() {
     m_btnFilterArchive->setToolTip("Filter compressed archive files");
     m_btnFilterArchive->setStyleSheet("QToolButton { padding: 4px 8px; }");
 
+    m_btnFilterThreeD = new QToolButton(this);
+    m_btnFilterThreeD->setText("🧊 3D Models");
+    m_btnFilterThreeD->setCheckable(true);
+    m_btnFilterThreeD->setToolTip("Filter 3D model files (.obj, .fbx, .stl, etc.)");
+    m_btnFilterThreeD->setStyleSheet("QToolButton { padding: 4px 8px; }");
+
+    m_btnFilterFiles = new QToolButton(this);
+    m_btnFilterFiles->setText("📄 Files Only");
+    m_btnFilterFiles->setCheckable(true);
+    m_btnFilterFiles->setToolTip("Show only files, hiding folders");
+    m_btnFilterFiles->setStyleSheet("QToolButton { padding: 4px 8px; }");
+
     // Button group to make selection mutually exclusive
     QButtonGroup* filterGroup = new QButtonGroup(this);
     filterGroup->setExclusive(true);
@@ -794,6 +811,8 @@ void FilePanel::setupUI() {
     filterGroup->addButton(m_btnFilterPictures);
     filterGroup->addButton(m_btnFilterDocs);
     filterGroup->addButton(m_btnFilterArchive);
+    filterGroup->addButton(m_btnFilterThreeD);
+    filterGroup->addButton(m_btnFilterFiles);
 
     connect(m_btnFilterAll, &QToolButton::clicked, this, &FilePanel::onFilterTypeChanged);
     connect(m_btnFilterAudio, &QToolButton::clicked, this, &FilePanel::onFilterTypeChanged);
@@ -801,6 +820,8 @@ void FilePanel::setupUI() {
     connect(m_btnFilterPictures, &QToolButton::clicked, this, &FilePanel::onFilterTypeChanged);
     connect(m_btnFilterDocs, &QToolButton::clicked, this, &FilePanel::onFilterTypeChanged);
     connect(m_btnFilterArchive, &QToolButton::clicked, this, &FilePanel::onFilterTypeChanged);
+    connect(m_btnFilterThreeD, &QToolButton::clicked, this, &FilePanel::onFilterTypeChanged);
+    connect(m_btnFilterFiles, &QToolButton::clicked, this, &FilePanel::onFilterTypeChanged);
 
     m_statusLabel = new QLabel("0 items", this);
     m_statusLabel->setStyleSheet("color: #a6adc8; font-size: 11px; margin-left: 6px;");
@@ -816,6 +837,8 @@ void FilePanel::setupUI() {
     categoryLayout->addWidget(m_btnFilterPictures);
     categoryLayout->addWidget(m_btnFilterDocs);
     categoryLayout->addWidget(m_btnFilterArchive);
+    categoryLayout->addWidget(m_btnFilterThreeD);
+    categoryLayout->addWidget(m_btnFilterFiles);
 
     m_btnToggleSearchMode = new QToolButton(this);
     m_btnToggleSearchMode->setIcon(createSearchIcon(QColor("#cdd6f4")));
@@ -971,7 +994,33 @@ bool FilePanel::eventFilter(QObject* watched, QEvent* event) {
         }
     }
 
-    if (watched == m_treeView || watched == m_listView || watched == m_millerView || watched == m_timelineView || watched == m_filmstripView || watched == m_theaterListView || watched == m_theaterContainer || watched == m_bottomInfoPanel) {
+    bool isWatched = (watched == m_treeView || (m_treeView && watched == m_treeView->viewport()) ||
+                      watched == m_listView || (m_listView && watched == m_listView->viewport()) ||
+                      watched == m_searchResultsView || (m_searchResultsView && watched == m_searchResultsView->viewport()) ||
+                      watched == m_theaterListView || (m_theaterListView && watched == m_theaterListView->viewport()) ||
+                      watched == m_millerView || (m_millerView && watched == m_millerView->viewport()) ||
+                      watched == m_timelineView || (m_timelineView && watched == m_timelineView->viewport()) ||
+                      watched == m_filmstripView ||
+                      watched == m_theaterContainer || watched == m_bottomInfoPanel);
+
+    if (!isWatched && m_millerView) {
+        for (QListView* list : m_millerView->findChildren<QListView*>()) {
+            if (watched == list || watched == list->viewport()) {
+                isWatched = true;
+                break;
+            }
+        }
+    }
+    if (!isWatched && m_filmstripView) {
+        for (QListView* list : m_filmstripView->findChildren<QListView*>()) {
+            if (watched == list || watched == list->viewport()) {
+                isWatched = true;
+                break;
+            }
+        }
+    }
+
+    if (isWatched) {
         if (event->type() == QEvent::FocusIn || event->type() == QEvent::MouseButtonPress) {
             setActive(true);
             emit panelActivated(this);
@@ -1060,20 +1109,41 @@ bool FilePanel::eventFilter(QObject* watched, QEvent* event) {
                     QString destDir = m_currentPath;
                     
                     QAbstractItemView* view = qobject_cast<QAbstractItemView*>(watched);
+                    if (!view) {
+                        QWidget* viewport = qobject_cast<QWidget*>(watched);
+                        if (viewport) {
+                            view = qobject_cast<QAbstractItemView*>(viewport->parent());
+                        }
+                    }
                     if (view) {
                         QModelIndex index = view->indexAt(dropEvent->position().toPoint());
                         if (index.isValid()) {
                             QModelIndex srcIndex = index;
-                            if (watched == m_treeView) {
+                            if (view == m_treeView) {
                                 srcIndex = m_proxyModel->mapToSource(index);
-                            } else if (watched == m_listView && m_flatViewEnabled) {
+                            } else if (view == m_listView && m_flatViewEnabled) {
                                 srcIndex = m_flatProxyModel->mapToSource(index);
-                            } else if (watched == m_listView) {
+                            } else if (view == m_listView) {
                                 srcIndex = m_proxyModel->mapToSource(index);
+                            } else if (view->model() == m_fileModel) {
+                                srcIndex = index;
                             }
                             
                             if (m_fileModel && m_fileModel->isDir(srcIndex)) {
                                 destDir = m_fileModel->filePath(srcIndex);
+                            }
+                        } else {
+                            QModelIndex rootIdx = view->rootIndex();
+                            if (rootIdx.isValid()) {
+                                destDir = m_fileModel->filePath(rootIdx);
+                            }
+                        }
+                    } else if (watched == m_timelineView || (m_timelineView && watched == m_timelineView->viewport())) {
+                        QTreeWidgetItem* item = m_timelineView->itemAt(dropEvent->position().toPoint());
+                        if (item) {
+                            QString path = item->data(0, Qt::UserRole).toString();
+                            if (!path.isEmpty() && QFileInfo(path).isDir()) {
+                                destDir = path;
                             }
                         }
                     }
@@ -1525,6 +1595,10 @@ void FilePanel::onFilterTypeChanged() {
         targetType = FileFilterProxyModel::FilterDocs;
     } else if (m_btnFilterArchive->isChecked()) {
         targetType = FileFilterProxyModel::FilterArchive;
+    } else if (m_btnFilterThreeD->isChecked()) {
+        targetType = FileFilterProxyModel::FilterThreeD;
+    } else if (m_btnFilterFiles->isChecked()) {
+        targetType = FileFilterProxyModel::FilterFiles;
     }
 
     FilePanel* targetPanel = this;
@@ -1544,6 +1618,10 @@ void FilePanel::onFilterTypeChanged() {
             filters = { "*.txt", "*.log", "*.pdf", "*.doc", "*.docx", "*.xls", "*.xlsx", "*.ppt", "*.pptx", "*.odt", "*.ods", "*.odp", "*.md", "*.csv", "*.rtf", "*.html", "*.xml", "*.json" };
         } else if (targetType == FileFilterProxyModel::FilterArchive) {
             filters = { "*.zip", "*.tar", "*.gz", "*.bz2", "*.xz", "*.rar", "*.7z", "*.tgz" };
+        } else if (targetType == FileFilterProxyModel::FilterThreeD) {
+            filters = { "*.obj", "*.fbx", "*.3ds", "*.stl", "*.ply", "*.gltf", "*.glb", "*.dae", "*.blend" };
+        } else if (targetType == FileFilterProxyModel::FilterFiles) {
+            filters = { "*" };
         }
 
         QDir dir(targetPanel->currentPath());
@@ -1910,6 +1988,8 @@ QStringList FilePanel::selectedPaths() const {
         } else {
             selModel = m_theaterListView->selectionModel();
         }
+    } else if (active == m_listView) {
+        selModel = m_listView->selectionModel();
     } else {
         selModel = m_treeView->selectionModel();
     }
@@ -3841,13 +3921,15 @@ void FilePanel::syncFilterText(const QString& text) {
 }
 
 void FilePanel::syncFilterType(FileFilterProxyModel::FilterType type) {
-    if (m_btnFilterAll && m_btnFilterAudio && m_btnFilterVideos && m_btnFilterPictures && m_btnFilterDocs && m_btnFilterArchive) {
+    if (m_btnFilterAll && m_btnFilterAudio && m_btnFilterVideos && m_btnFilterPictures && m_btnFilterDocs && m_btnFilterArchive && m_btnFilterThreeD && m_btnFilterFiles) {
         m_btnFilterAll->blockSignals(true);
         m_btnFilterAudio->blockSignals(true);
         m_btnFilterVideos->blockSignals(true);
         m_btnFilterPictures->blockSignals(true);
         m_btnFilterDocs->blockSignals(true);
         m_btnFilterArchive->blockSignals(true);
+        m_btnFilterThreeD->blockSignals(true);
+        m_btnFilterFiles->blockSignals(true);
 
         m_btnFilterAll->setChecked(type == FileFilterProxyModel::FilterAll);
         m_btnFilterAudio->setChecked(type == FileFilterProxyModel::FilterAudio);
@@ -3855,6 +3937,8 @@ void FilePanel::syncFilterType(FileFilterProxyModel::FilterType type) {
         m_btnFilterPictures->setChecked(type == FileFilterProxyModel::FilterPictures);
         m_btnFilterDocs->setChecked(type == FileFilterProxyModel::FilterDocs);
         m_btnFilterArchive->setChecked(type == FileFilterProxyModel::FilterArchive);
+        m_btnFilterThreeD->setChecked(type == FileFilterProxyModel::FilterThreeD);
+        m_btnFilterFiles->setChecked(type == FileFilterProxyModel::FilterFiles);
 
         m_btnFilterAll->blockSignals(false);
         m_btnFilterAudio->blockSignals(false);
@@ -3862,6 +3946,8 @@ void FilePanel::syncFilterType(FileFilterProxyModel::FilterType type) {
         m_btnFilterPictures->blockSignals(false);
         m_btnFilterDocs->blockSignals(false);
         m_btnFilterArchive->blockSignals(false);
+        m_btnFilterThreeD->blockSignals(false);
+        m_btnFilterFiles->blockSignals(false);
     }
 }
 

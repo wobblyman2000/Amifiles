@@ -54,6 +54,19 @@ void MillerColumnsView::addColumnForPath(const QString& path, const QModelIndex&
         emit customContextMenuRequested(pos);
     });
 
+    list->setDragEnabled(true);
+    list->setAcceptDrops(true);
+    list->setDragDropMode(QAbstractItemView::DragDrop);
+
+    QObject* p = parent();
+    while (p && !p->inherits("FilePanel")) {
+        p = p->parent();
+    }
+    if (p) {
+        list->installEventFilter(p);
+        if (list->viewport()) list->viewport()->installEventFilter(p);
+    }
+
     m_layout->addWidget(list);
     m_lists.append(list);
     m_colPaths.append(path);

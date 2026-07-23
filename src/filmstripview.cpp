@@ -76,6 +76,19 @@ FilmstripView::FilmstripView(QFileSystemModel* model, QWidget* parent)
         emit customContextMenuRequested(pos);
     });
 
+    m_thumbList->setDragEnabled(true);
+    m_thumbList->setAcceptDrops(true);
+    m_thumbList->setDragDropMode(QAbstractItemView::DragDrop);
+
+    QObject* p = parent;
+    while (p && !p->inherits("FilePanel")) {
+        p = p->parent();
+    }
+    if (p) {
+        m_thumbList->installEventFilter(p);
+        if (m_thumbList->viewport()) m_thumbList->viewport()->installEventFilter(p);
+    }
+
     mainLayout->addWidget(m_thumbList);
 }
 

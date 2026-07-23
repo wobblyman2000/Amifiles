@@ -135,7 +135,7 @@ class FileFilterProxyModel : public QSortFilterProxyModel {
     friend class CasingRunnable;
 
 public:
-    enum FilterType { FilterAll, FilterAudio, FilterVideos, FilterPictures, FilterDocs, FilterArchive };
+    enum FilterType { FilterAll, FilterAudio, FilterVideos, FilterPictures, FilterDocs, FilterArchive, FilterThreeD, FilterFiles };
 
     explicit FileFilterProxyModel(QObject* parent = nullptr) : QSortFilterProxyModel(parent) {}
 
@@ -703,6 +703,13 @@ protected:
                 "zip", "tar", "gz", "bz2", "xz", "rar", "7z", "tgz"
             };
             return archiveExts.contains(ext);
+        } else if (m_filterType == FilterThreeD) {
+            static const QStringList threeDExts = {
+                "obj", "fbx", "3ds", "stl", "ply", "gltf", "glb", "dae", "blend"
+            };
+            return threeDExts.contains(ext);
+        } else if (m_filterType == FilterFiles) {
+            return true;
         }
 
         return true;
@@ -1014,6 +1021,8 @@ private:
     QToolButton* m_btnFilterPictures = nullptr;
     QToolButton* m_btnFilterDocs = nullptr;
     QToolButton* m_btnFilterArchive = nullptr;
+    QToolButton* m_btnFilterThreeD = nullptr;
+    QToolButton* m_btnFilterFiles = nullptr;
     QLabel* m_statusLabel = nullptr;
 
     QWidget* m_categoryWidget = nullptr;
