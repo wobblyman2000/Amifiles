@@ -4001,6 +4001,19 @@ void FilePanel::setFlatViewEnabled(bool enabled) {
     } else {
         updateActiveViewModel();
         if (m_categoryWidget) m_categoryWidget->setVisible(m_categoryButtonsVisible);
+
+        QModelIndex srcIndex = m_fileModel->index(m_currentPath);
+        QModelIndex proxyIndex = m_proxyModel->mapFromSource(srcIndex);
+        if (m_groupProxy && m_groupProxy->isGroupingActive()) {
+            m_groupProxy->rebuildGroups();
+            m_treeView->setRootIndex(QModelIndex());
+            m_listView->setRootIndex(QModelIndex());
+            m_theaterListView->setRootIndex(QModelIndex());
+        } else {
+            m_treeView->setRootIndex(proxyIndex);
+            m_listView->setRootIndex(proxyIndex);
+            m_theaterListView->setRootIndex(proxyIndex);
+        }
     }
 
     // Enable interactive resizing for main columns
