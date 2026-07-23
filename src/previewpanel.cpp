@@ -561,6 +561,7 @@ void FullscreenWidget::contextMenuEvent(QContextMenuEvent* event) {
 }
 
 PreviewPanel::PreviewPanel(QWidget* parent) : QWidget(parent) {
+    setMinimumWidth(200);
     // Initialize QMediaPlayer and AudioOutput first so setupUI can configure them
     m_player = new QMediaPlayer(this);
     m_audioOutput = new QAudioOutput(this);
@@ -813,21 +814,33 @@ void PreviewPanel::setupUI() {
     progressLayout->addWidget(m_sliderProgress, 1);
     progressLayout->addWidget(m_lblProgressTime);
 
-    QHBoxLayout* controlsLayout = new QHBoxLayout();
+    QHBoxLayout* controlsRow1 = new QHBoxLayout();
+    controlsRow1->setContentsMargins(0, 0, 0, 0);
+    controlsRow1->setSpacing(4);
+    controlsRow1->addWidget(m_btnPrevTrack);
+    controlsRow1->addWidget(m_btnPlayPause);
+    controlsRow1->addWidget(m_btnStop);
+    controlsRow1->addWidget(m_btnNextTrack);
+    controlsRow1->addWidget(m_btnFullscreen);
+    controlsRow1->addStretch(1);
+    controlsRow1->addWidget(lblVol);
+    controlsRow1->addWidget(m_sliderVolume);
+
+    QHBoxLayout* controlsRow2 = new QHBoxLayout();
+    controlsRow2->setContentsMargins(0, 0, 0, 0);
+    controlsRow2->setSpacing(4);
+    controlsRow2->addWidget(m_btnShuffle);
+    controlsRow2->addWidget(m_btnRepeat);
+    controlsRow2->addWidget(m_btnToggleVisualizer);
+    controlsRow2->addWidget(m_btnSubtitles);
+    controlsRow2->addWidget(m_btnAutoFS20s);
+    controlsRow2->addStretch(1);
+
+    QVBoxLayout* controlsLayout = new QVBoxLayout();
+    controlsLayout->setContentsMargins(0, 0, 0, 0);
     controlsLayout->setSpacing(4);
-    controlsLayout->addWidget(m_btnPrevTrack);
-    controlsLayout->addWidget(m_btnPlayPause);
-    controlsLayout->addWidget(m_btnStop);
-    controlsLayout->addWidget(m_btnNextTrack);
-    controlsLayout->addWidget(m_btnFullscreen);
-    controlsLayout->addWidget(m_btnShuffle);
-    controlsLayout->addWidget(m_btnRepeat);
-    controlsLayout->addWidget(m_btnToggleVisualizer);
-    controlsLayout->addWidget(m_btnSubtitles);
-    controlsLayout->addWidget(m_btnAutoFS20s);
-    controlsLayout->addStretch(1);
-    controlsLayout->addWidget(lblVol);
-    controlsLayout->addWidget(m_sliderVolume);
+    controlsLayout->addLayout(controlsRow1);
+    controlsLayout->addLayout(controlsRow2);
 
     m_visualizer = new SpectrumVisualizerWidget(m_mediaView);
     m_visualizer->setMinimumHeight(80);
@@ -845,9 +858,11 @@ void PreviewPanel::setupUI() {
 
     // 5. Bottom Tabbed Area
     m_bottomTab = new QTabWidget(this);
+    m_bottomTab->tabBar()->setUsesScrollButtons(true);
+    m_bottomTab->tabBar()->setElideMode(Qt::ElideRight);
     m_bottomTab->setStyleSheet(
         "QTabWidget::pane { border: 1px solid #313244; background-color: transparent; border-radius: 4px; }"
-        "QTabBar::tab { background-color: #11111b; color: #a6adc8; padding: 6px 12px; border-top-left-radius: 4px; border-top-right-radius: 4px; }"
+        "QTabBar::tab { background-color: #11111b; color: #a6adc8; padding: 4px 8px; font-size: 11px; border-top-left-radius: 4px; border-top-right-radius: 4px; }"
         "QTabBar::tab:selected { background-color: #313244; color: #cdd6f4; }"
     );
 

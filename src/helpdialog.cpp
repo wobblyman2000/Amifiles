@@ -395,6 +395,7 @@ void HelpDialog::onSectionChanged(int index) {
                     "<li><b>CC Subtitles:</b> Click the <b>CC</b> button to load subtitle tracks (e.g. .srt, .vtt) and choose active subtitles.</li>"
                     "<li><b>Playback Modes:</b> Toggle <b>Shuffle (🔀)</b> to randomize the queue, or cycle <b>Repeat (🔁)</b> (None, Repeat Track, Repeat All).</li>"
                     "<li><b>Status Bar Mini-Player:</b> Collapsing the preview panel transfers media controls to a compact status bar player.</li>"
+                    "<li><b>Responsive Dock &amp; Independent Scrolling:</b> The preview dock features fluid resizability with smooth vertical scrolling across metadata tabs, file property details, tag editors, and media visualizers.</li>"
                     "<li><b>Playlist Context Menu:</b> Right-click any track in the queue to <i>Play Track</i>, <i>Remove Track</i>, <i>Stop</i>, or <i>Clear Queue</i>.</li>"
                     "<li><b>Folder Drop:</b> Drag and drop a folder into the Preview Panel to enqueue all media files inside.</li>"
                     "</ul>"

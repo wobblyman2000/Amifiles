@@ -196,6 +196,10 @@ signals:
     void spectrumVisualizerToggled(bool checked);
     void builtinPlayerDoubleclickToggled(bool active);
 
+public:
+    QSize minimumSizeHint() const override { return QSize(220, 200); }
+    QSize sizeHint() const override { return QSize(280, 500); }
+
 protected:
     void resizeEvent(QResizeEvent* event) override;
     void keyPressEvent(class QKeyEvent* event) override;
