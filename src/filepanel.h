@@ -862,6 +862,7 @@ private slots:
     void updateCloneButtonIcon();
     void onCustomContextMenu(const QPoint& pos);
     void showAudioShowcaseContextMenu(const QPoint& pos);
+    void showMusicShowcaseContextMenu(const QPoint& pos);
     void showVideoShowcaseContextMenu(const QPoint& pos);
     void onFavoriteButtonContextMenu(const QPoint& pos);
     void onToggleViewMode();

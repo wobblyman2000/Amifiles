@@ -2352,8 +2352,11 @@ static bool hasAudioFilesRecursively(const QString& folderPath, int depth) {
 
 void FilePanel::onCustomContextMenu(const QPoint& pos) {
     int vMode = viewModeIndex();
-    if (vMode == 6 || vMode == 10) {
+    if (vMode == 6) {
         showAudioShowcaseContextMenu(pos);
+        return;
+    } else if (vMode == 10) {
+        showMusicShowcaseContextMenu(pos);
         return;
     } else if (vMode == 7 || vMode == 8 || vMode == 9) {
         showVideoShowcaseContextMenu(pos);
@@ -3184,20 +3187,7 @@ void FilePanel::showAudioShowcaseContextMenu(const QPoint& pos) {
     QMenu menu(this);
     QStyle* style = QApplication::style();
 
-    QStringList curSelected = selectedPaths();
-    QString selectedPath;
-    bool isFolder = false;
-    bool isFavorite = false;
-    if (!curSelected.isEmpty()) {
-        selectedPath = curSelected.first();
-        QFileInfo info(selectedPath);
-        isFolder = info.isDir();
-        isFavorite = FavoritesManager::instance().isFavorite(selectedPath);
-    }
-
     QAction* actOpen = menu.addAction(style->standardIcon(QStyle::SP_DialogOpenButton), "Open");
-    QAction* actPlay = menu.addAction(style->standardIcon(QStyle::SP_MediaPlay), isFolder ? "Play Album" : "Play Track");
-    QAction* actQueue = menu.addAction(style->standardIcon(QStyle::SP_MediaVolume), isFolder ? "Queue Album to Playlist" : "Queue Track to Playlist");
     menu.addSeparator();
 
     // Add a Menu that says "Audio tools" as a test
@@ -3214,6 +3204,17 @@ void FilePanel::showAudioShowcaseContextMenu(const QPoint& pos) {
     });
 
     menu.addSeparator();
+
+    QStringList curSelected = selectedPaths();
+    QString selectedPath;
+    bool isFolder = false;
+    bool isFavorite = false;
+    if (!curSelected.isEmpty()) {
+        selectedPath = curSelected.first();
+        QFileInfo info(selectedPath);
+        isFolder = info.isDir();
+        isFavorite = FavoritesManager::instance().isFavorite(selectedPath);
+    }
 
     QAction* actFav = nullptr;
     if (isFolder) {
@@ -3276,7 +3277,115 @@ void FilePanel::showAudioShowcaseContextMenu(const QPoint& pos) {
         if (!selectedPath.isEmpty()) {
             onDoubleClickedPath(selectedPath);
         }
-    } else if (selected == actPlay) {
+    } else if (selected == actFav) {
+        if (isFolder) {
+            if (isFavorite) {
+                FavoritesManager::instance().removeFavorite(selectedPath);
+            } else {
+                FavoritesManager::instance().addFavorite(selectedPath);
+            }
+        } else {
+            bool isCurrentFavorite = FavoritesManager::instance().isFavorite(m_currentPath);
+            if (isCurrentFavorite) {
+                FavoritesManager::instance().removeFavorite(m_currentPath);
+            } else {
+                FavoritesManager::instance().addFavorite(m_currentPath);
+            }
+        }
+    } else if (selected == actToggleInfoPanel) {
+        settings.setValue("audio_showcase/show_info_panel", !showInfoPanel);
+        onSelectionChanged();
+    } else if (selected == actToggleZen) {
+        emit zenModeToggled(!zenActive);
+    } else if (selected == actToggleDoubleclick) {
+        settings.setValue("preferences/builtin_player_doubleclick", !builtinDoubleclick);
+        emit mediaPlaybackSettingsChanged();
+    } else if (selected == actToggleDoubleclickQueue) {
+        settings.setValue("preferences/doubleclick_adds_to_queue", !doubleclickQueue);
+        emit mediaPlaybackSettingsChanged();
+    } else if (selected == actGroupMultiDisc) {
+        settings.setValue("theater/group_multi_disc", !groupMultiDisc);
+        m_proxyModel->setGroupMultiDiscActive(!groupMultiDisc);
+        refresh();
+        if (m_groupProxy && m_groupProxy->isGroupingActive() && m_viewStack->currentWidget() == m_theaterContainer) {
+            rebuildTheaterGroups();
+        }
+    } else if (selected == actHideAuxiliaryFiles) {
+        settings.setValue("audio_showcase/hide_active", !hideAuxiliary);
+        updateHideSettings();
+        refresh();
+    } else if (selected == actHideExtensions) {
+        promptHideExtensions();
+    } else if (selected == actConfigureFolderLayouts) {
+        emit configureFolderLayoutsRequested();
+    }
+}
+
+void FilePanel::showMusicShowcaseContextMenu(const QPoint& pos) {
+    QModelIndex index = m_theaterListView->indexAt(pos);
+    if (index.isValid()) {
+        if (!m_theaterListView->selectionModel()->isSelected(index)) {
+            m_theaterListView->selectionModel()->select(index, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+            m_theaterListView->setCurrentIndex(index);
+        }
+    }
+
+    QMenu menu(this);
+    QStyle* style = QApplication::style();
+
+    QStringList curSelected = selectedPaths();
+    QString selectedPath;
+    bool isFolder = false;
+    bool isFavorite = false;
+    if (!curSelected.isEmpty()) {
+        selectedPath = curSelected.first();
+        QFileInfo info(selectedPath);
+        isFolder = info.isDir();
+        isFavorite = FavoritesManager::instance().isFavorite(selectedPath);
+    }
+
+    QAction* actPlay = menu.addAction(style->standardIcon(QStyle::SP_MediaPlay), isFolder ? "Play Album" : "Play Track");
+    QAction* actQueue = menu.addAction(style->standardIcon(QStyle::SP_MediaVolume), isFolder ? "Queue Album to Playlist" : "Queue Track to Playlist");
+    menu.addSeparator();
+
+    QAction* actFav = nullptr;
+    if (isFolder) {
+        if (isFavorite) {
+            actFav = menu.addAction(style->standardIcon(QStyle::SP_DialogCancelButton), "Remove from Favorites");
+        } else {
+            actFav = menu.addAction(style->standardIcon(QStyle::SP_DialogYesButton), "Add to Favorites");
+        }
+    } else {
+        bool isCurrentFavorite = FavoritesManager::instance().isFavorite(m_currentPath);
+        if (isCurrentFavorite) {
+            actFav = menu.addAction(style->standardIcon(QStyle::SP_DialogCancelButton), "Remove Current from Favorites");
+        } else {
+            actFav = menu.addAction(style->standardIcon(QStyle::SP_DialogYesButton), "Add Current to Favorites");
+        }
+    }
+
+    menu.addSeparator();
+
+    QSettings settings("Amifiles", "Amifiles");
+    bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool();
+    bool hideAuxiliary = settings.value("audio_showcase/hide_active", true).toBool();
+
+    QAction* actGroupMultiDisc = menu.addAction("Group Multi-Disc Albums");
+    actGroupMultiDisc->setCheckable(true);
+    actGroupMultiDisc->setChecked(groupMultiDisc);
+
+    QAction* actHideAuxiliaryFiles = menu.addAction("Hide Auxiliary / Artwork Files");
+    actHideAuxiliaryFiles->setCheckable(true);
+    actHideAuxiliaryFiles->setChecked(hideAuxiliary);
+
+    QAction* actHideExtensions = menu.addAction("Hide File Extensions...");
+
+    QAction* actConfigureFolderLayouts = menu.addAction("Configure Folder-Specific Layouts...");
+
+    QAction* selected = menu.exec(QCursor::pos());
+    if (!selected) return;
+
+    if (selected == actPlay) {
         if (!selectedPath.isEmpty()) {
             QStringList playlistPaths;
             if (isFolder) {
@@ -3285,11 +3394,7 @@ void FilePanel::showAudioShowcaseContextMenu(const QPoint& pos) {
                 playlistPaths.append(selectedPath);
             }
             if (!playlistPaths.isEmpty()) {
-                if (viewModeIndex() == 8 || viewModeIndex() == 9 || viewModeIndex() == 10) {
-                    emit playMediaFullscreenRequested(playlistPaths);
-                } else {
-                    emit playMediaBuiltinRequested(playlistPaths);
-                }
+                emit playMediaFullscreenRequested(playlistPaths);
             }
         }
     } else if (selected == actQueue) {
@@ -3319,17 +3424,6 @@ void FilePanel::showAudioShowcaseContextMenu(const QPoint& pos) {
                 FavoritesManager::instance().addFavorite(m_currentPath);
             }
         }
-    } else if (selected == actToggleInfoPanel) {
-        settings.setValue("audio_showcase/show_info_panel", !showInfoPanel);
-        onSelectionChanged();
-    } else if (selected == actToggleZen) {
-        emit zenModeToggled(!zenActive);
-    } else if (selected == actToggleDoubleclick) {
-        settings.setValue("preferences/builtin_player_doubleclick", !builtinDoubleclick);
-        emit mediaPlaybackSettingsChanged();
-    } else if (selected == actToggleDoubleclickQueue) {
-        settings.setValue("preferences/doubleclick_adds_to_queue", !doubleclickQueue);
-        emit mediaPlaybackSettingsChanged();
     } else if (selected == actGroupMultiDisc) {
         settings.setValue("theater/group_multi_disc", !groupMultiDisc);
         m_proxyModel->setGroupMultiDiscActive(!groupMultiDisc);
