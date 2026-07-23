@@ -2680,3 +2680,7 @@ void PreviewPanel::clearPlaylist() {
     clearPreview();
     emit playlistChanged();
 }
+
+void PreviewPanel::setVolume(int value) {
+    onVolumeChanged(value);
+}

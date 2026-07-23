@@ -833,6 +833,8 @@ signals:
     void loadDefaultProfileRequested();
     void saveFolderProfileRequested();
     void configureFolderLayoutsRequested();
+    void playPauseRequested();
+    void volumeChangedRequested(int value);
     void mediaPlaybackSettingsChanged();
 
 protected:

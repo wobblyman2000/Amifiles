@@ -542,17 +542,25 @@ void FilePanel::setupUI() {
         }
     });
     connect(m_btnPlayPause, &QToolButton::clicked, this, [this]() {
-        if (m_btnPlayPause->text() == "▶") {
-            m_btnPlayPause->setText("⏸");
-            if (m_themePlayer) m_themePlayer->play();
+        if (viewModeIndex() == 10) {
+            emit playPauseRequested();
         } else {
-            m_btnPlayPause->setText("▶");
-            if (m_themePlayer) m_themePlayer->pause();
+            if (m_btnPlayPause->text() == "▶") {
+                m_btnPlayPause->setText("⏸");
+                if (m_themePlayer) m_themePlayer->play();
+            } else {
+                m_btnPlayPause->setText("▶");
+                if (m_themePlayer) m_themePlayer->pause();
+            }
         }
     });
     connect(m_musicVolumeSlider, &QSlider::valueChanged, this, [this](int value) {
-        if (m_themeAudio) {
-            m_themeAudio->setVolume((float)value / 100.0f);
+        if (viewModeIndex() == 10) {
+            emit volumeChangedRequested(value);
+        } else {
+            if (m_themeAudio) {
+                m_themeAudio->setVolume((float)value / 100.0f);
+            }
         }
     });
     connect(m_trackListWidget, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem* item) {
@@ -4761,6 +4769,9 @@ void FilePanel::onPlaybackStateChanged(int state) {
     if (m_visualizerWidget) {
         m_visualizerWidget->setPlaying(playing);
     }
+    if (m_btnPlayPause) {
+        m_btnPlayPause->setText(playing ? "⏸" : "▶");
+    }
 }
 
 void FilePanel::onDoubleClickedPath(const QString& path) {
@@ -4826,10 +4837,10 @@ void FilePanel::onDoubleClickedPath(const QString& path) {
             if (!playlistPaths.isEmpty()) {
                 if (doubleclickAddsToQueue) {
                     emit queueMediaBuiltinRequested(playlistPaths);
-                } else if (shouldPlayOnDoubleclick) {
+                } else {
                     if (viewModeIndex() == 8 || viewModeIndex() == 9 || viewModeIndex() == 10) {
                         emit playMediaFullscreenRequested(playlistPaths);
-                    } else {
+                    } else if (shouldPlayOnDoubleclick) {
                         emit playMediaBuiltinRequested(playlistPaths);
                     }
                 }

@@ -2558,6 +2558,21 @@ FilePanel* MainWindow::createTab(QTabWidget* tabWidget, const QString& path) {
     connect(panel, &FilePanel::playlistPlayRequested, this, [this](const QStringList& paths) {
         if (m_previewPanel) m_previewPanel->playPlaylist(paths);
     });
+    connect(panel, &FilePanel::playPauseRequested, this, [this]() {
+        if (m_previewPanel && m_previewPanel->player()) {
+            QMediaPlayer* p = m_previewPanel->player();
+            if (p->playbackState() == QMediaPlayer::PlayingState) {
+                p->pause();
+            } else {
+                p->play();
+            }
+        }
+    });
+    connect(panel, &FilePanel::volumeChangedRequested, this, [this](int value) {
+        if (m_previewPanel) {
+            m_previewPanel->setVolume(value);
+        }
+    });
     connect(panel, &FilePanel::saveDefaultProfileRequested, this, &MainWindow::onSaveDefaultProfile);
     connect(panel, &FilePanel::loadDefaultProfileRequested, this, &MainWindow::onLoadDefaultProfile);
     connect(panel, &FilePanel::saveFolderProfileRequested, this, &MainWindow::onSaveFolderProfileForCurrentDir);
