@@ -788,6 +788,10 @@ public:
     void onDelete();
     void onRename();
     void onNewFolder();
+    void onAdvancedNewFolder();
+    void onCopyFileName();
+    void onCopyPath();
+    void onCopyFolderContents();
     void onShowProperties();
 
     // Age Coloring support

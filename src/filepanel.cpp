@@ -23,6 +23,9 @@
 #include "theaterviewdelegate.h"
 #include "theaterlistview.h"
 #include "videoscraperdialog.h"
+#include "advancednewfolderdialog.h"
+#include <QDirIterator>
+#include <QGuiApplication>
 #include "pathbarwidget.h"
 #include <QMediaPlayer>
 #include <QAudioOutput>
@@ -2362,6 +2365,60 @@ void FilePanel::onNewFolder() {
     }
 }
 
+void FilePanel::onAdvancedNewFolder() {
+    AdvancedNewFolderDialog dlg(m_currentPath, this);
+    if (dlg.exec() == QDialog::Accepted) {
+        refresh();
+    }
+}
+
+void FilePanel::onCopyFileName() {
+    QStringList paths = selectedPaths();
+    if (paths.isEmpty()) return;
+    QStringList names;
+    for (const QString& path : paths) {
+        names.append(QFileInfo(path).fileName());
+    }
+    QGuiApplication::clipboard()->setText(names.join("\n"));
+}
+
+void FilePanel::onCopyPath() {
+    QStringList paths = selectedPaths();
+    if (paths.isEmpty()) {
+        QGuiApplication::clipboard()->setText(QDir::toNativeSeparators(m_currentPath));
+    } else {
+        QStringList nativePaths;
+        for (const QString& path : paths) {
+            nativePaths.append(QDir::toNativeSeparators(path));
+        }
+        QGuiApplication::clipboard()->setText(nativePaths.join("\n"));
+    }
+}
+
+void FilePanel::onCopyFolderContents() {
+    QStringList paths = selectedPaths();
+    QStringList targets;
+    if (paths.isEmpty()) {
+        targets.append(m_currentPath);
+    } else {
+        for (const QString& p : paths) {
+            if (QFileInfo(p).isDir()) {
+                targets.append(p);
+            }
+        }
+    }
+    if (targets.isEmpty()) return;
+
+    QStringList results;
+    for (const QString& target : targets) {
+        QDirIterator it(target, QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
+        while (it.hasNext()) {
+            results.append(QDir::toNativeSeparators(it.next()));
+        }
+    }
+    QGuiApplication::clipboard()->setText(results.join("\n"));
+}
+
 void FilePanel::onShowProperties() {
     QStringList paths = selectedPaths();
     QString targetPath = paths.isEmpty() ? m_currentPath : paths.first();
@@ -2500,6 +2557,11 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     QAction* actRename = nullptr;
     QAction* actBulkRename = nullptr;
     QAction* actNewFolder = nullptr;
+    QAction* actAdvancedNewFolder = nullptr;
+    QMenu* menuCopyToClipboard = nullptr;
+    QAction* actCopyFileName = nullptr;
+    QAction* actCopyPath = nullptr;
+    QAction* actCopyFolderContents = nullptr;
 
     if (!isTheater) {
         actCopy = menu.addAction(style->standardIcon(QStyle::SP_DialogSaveButton), "Copy");
@@ -2510,6 +2572,11 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         
         actPaste = menu.addAction("Paste");
         actPaste->setShortcut(QKeySequence::Paste);
+
+        menuCopyToClipboard = menu.addMenu("Copy to Clipboard");
+        actCopyFileName = menuCopyToClipboard->addAction("Copy File Name(s)");
+        actCopyPath = menuCopyToClipboard->addAction("Copy Full Path(s)");
+        actCopyFolderContents = menuCopyToClipboard->addAction("Copy Folder Contents (Paths List)");
 
         actCopyToSibling = menu.addAction("Copy to Sibling Panel");
         actCopyToSibling->setShortcut(QKeySequence(Qt::Key_F5));
@@ -2525,6 +2592,7 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         menu.addSeparator();
         
         actNewFolder = menu.addAction(style->standardIcon(QStyle::SP_FileDialogNewFolder), "New Folder");
+        actAdvancedNewFolder = menu.addAction("Advanced New Folder...");
         menu.addSeparator();
     }
     menu.addSeparator();
@@ -2744,6 +2812,10 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         actRename->setEnabled(hasSelection);
         actBulkRename->setEnabled(hasSelection);
         menuColorLabel->setEnabled(hasSelection);
+        menuCopyToClipboard->setEnabled(hasSelection || !m_currentPath.isEmpty());
+        actCopyFileName->setEnabled(hasSelection);
+        actCopyPath->setEnabled(hasSelection || !m_currentPath.isEmpty());
+        actCopyFolderContents->setEnabled(hasSelection || !m_currentPath.isEmpty());
 
         bool canCompareSelected = (curSelected.size() == 2 && QFileInfo(curSelected[0]).isFile() && QFileInfo(curSelected[1]).isFile());
         actCompareSelected->setEnabled(canCompareSelected);
@@ -2974,6 +3046,14 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         }
     } else if (selected == actNewFolder) {
         onNewFolder();
+    } else if (selected == actAdvancedNewFolder) {
+        onAdvancedNewFolder();
+    } else if (selected == actCopyFileName) {
+        onCopyFileName();
+    } else if (selected == actCopyPath) {
+        onCopyPath();
+    } else if (selected == actCopyFolderContents) {
+        onCopyFolderContents();
     } else if (selected == actPlayPlaylist) {
         emit playlistPlayRequested(playlistPaths);
     } else if (selected == actPlayFullscreen) {

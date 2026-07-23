@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(Amifiles VERSION 2.0.15 LANGUAGES CXX)
+project(Amifiles VERSION 2.0.16 LANGUAGES CXX)
 
 configure_file(
     "${PROJECT_SOURCE_DIR}/src/version.h.in"
@@ -61,6 +61,8 @@ add_executable(Amifiles
     src/helpdialog.cpp
     src/spaceanalyzer.h
     src/spaceanalyzer.cpp
+    src/advancednewfolderdialog.h
+    src/advancednewfolderdialog.cpp
     src/diffdialog.h
     src/diffdialog.cpp
     src/tageditordialog.h
