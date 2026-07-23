@@ -333,7 +333,7 @@ void FolderLayoutDialog::setupUI() {
 
     viewGrid->addWidget(new QLabel("View Mode:", this), 0, 0);
     m_comboViewMode = new QComboBox(this);
-    m_comboViewMode->addItems({"No Change", "List", "Grid", "Card", "Miller", "Timeline", "Filmstrip", "Audio Showcase", "Video Showcase"});
+    m_comboViewMode->addItems({"No Change", "List", "Grid", "Card", "Miller", "Timeline", "Filmstrip", "Audio Showcase (Classic)", "Video Showcase (Classic)", "Movies Full Screen", "TV Shows Full Screen", "Music Full Screen"});
     viewGrid->addWidget(m_comboViewMode, 0, 1);
 
     QLabel* lblCustomButtons = new QLabel("Filter Custom Buttons:", this);

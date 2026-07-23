@@ -245,11 +245,11 @@ void FilePanel::setupUI() {
         "Miller Columns",
         "Chronological Timeline",
         "Filmstrip View",
-        "Audio Showcase",
-        "Video Showcase",
-        "Movie Showcase (v2)",
-        "TV Show Showcase (v2)",
-        "Music Showcase (v2)"
+        "Audio Showcase (Classic)",
+        "Video Showcase (Classic)",
+        "Movies Full Screen",
+        "TV Shows Full Screen",
+        "Music Full Screen"
     });
     m_comboViewMode->setToolTip("Switch active file listing visual layout view mode");
     m_comboViewMode->setStyleSheet("QComboBox { background-color: #313244; color: #89b4fa; border: 1px solid #45475a; border-radius: 4px; padding: 2px 6px; font-weight: bold; }");

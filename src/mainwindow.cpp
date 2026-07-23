@@ -3345,8 +3345,11 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
         else if (r.viewMode == "Miller") targetPanel->setViewModeIndex(3);
         else if (r.viewMode == "Timeline") targetPanel->setViewModeIndex(4);
         else if (r.viewMode == "Filmstrip") targetPanel->setViewModeIndex(5);
-        else if (r.viewMode == "Theater" || r.viewMode == "Music Showcase" || r.viewMode == "Audio Showcase") targetPanel->setViewModeIndex(6);
-        else if (r.viewMode == "Cinema Showcase" || r.viewMode == "Video Showcase") targetPanel->setViewModeIndex(7);
+        else if (r.viewMode == "Theater" || r.viewMode == "Music Showcase" || r.viewMode == "Audio Showcase" || r.viewMode == "Audio Showcase (Classic)") targetPanel->setViewModeIndex(6);
+        else if (r.viewMode == "Cinema Showcase" || r.viewMode == "Video Showcase" || r.viewMode == "Video Showcase (Classic)") targetPanel->setViewModeIndex(7);
+        else if (r.viewMode == "Movies Full Screen" || r.viewMode == "Movie Showcase (v2)") targetPanel->setViewModeIndex(8);
+        else if (r.viewMode == "TV Shows Full Screen" || r.viewMode == "TV Show Showcase (v2)") targetPanel->setViewModeIndex(9);
+        else if (r.viewMode == "Music Full Screen" || r.viewMode == "Music Showcase (v2)") targetPanel->setViewModeIndex(10);
     }
 
     // 2. Toolbar filter
@@ -3866,8 +3869,11 @@ void MainWindow::onSaveFolderProfileForCurrentDir() {
     else if (idx == 3) r.viewMode = "Miller";
     else if (idx == 4) r.viewMode = "Timeline";
     else if (idx == 5) r.viewMode = "Filmstrip";
-    else if (idx == 6) r.viewMode = "Music Showcase";
-    else if (idx == 7) r.viewMode = "Cinema Showcase";
+    else if (idx == 6) r.viewMode = "Audio Showcase (Classic)";
+    else if (idx == 7) r.viewMode = "Video Showcase (Classic)";
+    else if (idx == 8) r.viewMode = "Movies Full Screen";
+    else if (idx == 9) r.viewMode = "TV Shows Full Screen";
+    else if (idx == 10) r.viewMode = "Music Full Screen";
     else r.viewMode = "No Change";
 
     // 2. Capture custom buttons filter list
@@ -3968,8 +3974,11 @@ void MainWindow::onSaveDefaultProfile() {
         else if (idx == 3) r.viewMode = "Miller";
         else if (idx == 4) r.viewMode = "Timeline";
         else if (idx == 5) r.viewMode = "Filmstrip";
-        else if (idx == 6) r.viewMode = "Music Showcase";
-        else if (idx == 7) r.viewMode = "Cinema Showcase";
+        else if (idx == 6) r.viewMode = "Audio Showcase (Classic)";
+        else if (idx == 7) r.viewMode = "Video Showcase (Classic)";
+        else if (idx == 8) r.viewMode = "Movies Full Screen";
+        else if (idx == 9) r.viewMode = "TV Shows Full Screen";
+        else if (idx == 10) r.viewMode = "Music Full Screen";
         else r.viewMode = "No Change";
         
         // 4. Capture Custom Background Color
