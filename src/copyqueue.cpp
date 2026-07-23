@@ -14,6 +14,7 @@
 #include <QPainterPath>
 #include <QLinearGradient>
 #include <QGridLayout>
+#include <QTimer>
 
 // ================= CopyQueueWorker =================
 
@@ -409,16 +410,8 @@ void CopyQueueManager::queueCopy(const QStringList& srcPaths, const QString& des
     }
 
     bool prioritize = false;
-    if (isBusy && totalNewSize > 0 && totalNewSize < 50 * 1024 * 1024) {
-        QMessageBox::StandardButton reply = QMessageBox::question(
-            parent, "Prioritize Transfer?",
-            "An active background transfer is currently running.\n\n"
-            "Would you like to temporarily pause it and copy this smaller item first?",
-            QMessageBox::Yes | QMessageBox::No
-        );
-        if (reply == QMessageBox::Yes) {
-            prioritize = true;
-        }
+    if (isBusy && totalNewSize > 0 && totalNewSize <= 50 * 1024 * 1024) {
+        prioritize = true;
     }
 
     if (prioritize) {
@@ -693,6 +686,11 @@ CopyQueueDialog::CopyQueueDialog(QWidget* parent) : QDialog(parent) {
     connect(worker, &CopyQueueWorker::speedUpdated, this, &CopyQueueDialog::onSpeedUpdated);
 
     updatePendingList();
+
+    // If the queue has already finished by the time the dialog is initialized, close it immediately!
+    if (!worker->isBusy() && m_listPending->count() == 0) {
+        QTimer::singleShot(0, this, &QDialog::accept);
+    }
 }
 
 void CopyQueueDialog::setupUI() {
