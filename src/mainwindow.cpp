@@ -5179,6 +5179,13 @@ void MainWindow::onTabContextMenuRequested(const QPoint& pos) {
         "QMenu::item:selected { background-color: #313244; color: #a6e3a1; }"
     );
 
+    QAction* actNewTab = menu.addAction("New Tab");
+    QAction* actCloseTab = nullptr;
+    if (tabIndex != -1) {
+        actCloseTab = menu.addAction("Close Tab");
+    }
+    menu.addSeparator();
+
     QAction* actPin = nullptr;
     QAction* actLockPath = nullptr;
     QAction* actLockSubdirs = nullptr;
@@ -5223,7 +5230,33 @@ void MainWindow::onTabContextMenuRequested(const QPoint& pos) {
     QAction* selected = menu.exec(tabWidget->mapToGlobal(pos));
     if (!selected) return;
 
-    if (selected == actConfigure) {
+    if (selected == actNewTab) {
+        QString currentPath = QDir::homePath();
+        FilePanel* currentPanel = qobject_cast<FilePanel*>(tabWidget->currentWidget());
+        if (currentPanel) {
+            currentPath = currentPanel->currentPath();
+        }
+        createTab(tabWidget, currentPath);
+        statusBar()->showMessage("New tab opened.", 2000);
+    } else if (actCloseTab && selected == actCloseTab) {
+        if (tabWidget->count() <= 1) {
+            statusBar()->showMessage("Cannot close the last tab.", 3000);
+        } else {
+            QWidget* widget = tabWidget->widget(tabIndex);
+            FilePanel* panelToClose = qobject_cast<FilePanel*>(widget);
+            if (panelToClose && panelToClose->isPinned()) {
+                QMessageBox::warning(this, "Pinned Tab", "This tab is pinned and cannot be closed.");
+            } else {
+                tabWidget->removeTab(tabIndex);
+                widget->deleteLater();
+                updateSiblingLinks();
+                FilePanel* active = qobject_cast<FilePanel*>(tabWidget->currentWidget());
+                if (active) {
+                    onPanelActivated(active);
+                }
+            }
+        }
+    } else if (selected == actConfigure) {
         onConfigureFolderLayouts();
     } else if (selected == actSaveFolder) {
         onSaveFolderProfileForCurrentDir();
