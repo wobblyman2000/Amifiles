@@ -445,23 +445,28 @@ void FilePanel::setupUI() {
     m_btnShuffle->setText("🔀");
     m_btnShuffle->setCheckable(true);
     m_btnShuffle->setToolTip("Shuffle Playback");
+    m_btnShuffle->setFixedSize(28, 28);
     
     m_btnPrev = new QToolButton(m_musicControlsWidget);
     m_btnPrev->setText("⏮");
     m_btnPrev->setToolTip("Previous Track");
+    m_btnPrev->setFixedSize(28, 28);
 
     m_btnPlayPause = new QToolButton(m_musicControlsWidget);
     m_btnPlayPause->setText("▶");
     m_btnPlayPause->setToolTip("Play / Pause");
+    m_btnPlayPause->setFixedSize(30, 30);
 
     m_btnNext = new QToolButton(m_musicControlsWidget);
     m_btnNext->setText("⏭");
     m_btnNext->setToolTip("Next Track");
+    m_btnNext->setFixedSize(28, 28);
 
     m_btnRepeat = new QToolButton(m_musicControlsWidget);
     m_btnRepeat->setText("🔁");
     m_btnRepeat->setCheckable(true);
     m_btnRepeat->setToolTip("Repeat Album");
+    m_btnRepeat->setFixedSize(28, 28);
 
     m_musicVolumeSlider = new QSlider(Qt::Horizontal, m_musicControlsWidget);
     m_musicVolumeSlider->setRange(0, 100);
@@ -474,7 +479,9 @@ void FilePanel::setupUI() {
     musicCtrlLayout->addWidget(m_btnPlayPause);
     musicCtrlLayout->addWidget(m_btnNext);
     musicCtrlLayout->addWidget(m_btnRepeat);
+    musicCtrlLayout->addSpacing(4);
     musicCtrlLayout->addWidget(m_musicVolumeSlider);
+    musicCtrlLayout->addStretch(1);
 
     QString toolBtnStyle = "QToolButton { background-color: #313244; color: #cdd6f4; border: none; padding: 4px; border-radius: 4px; } QToolButton:hover { background-color: #45475a; } QToolButton:checked { background-color: #fab387; color: #11111b; }";
     m_btnShuffle->setStyleSheet(toolBtnStyle);
@@ -512,14 +519,26 @@ void FilePanel::setupUI() {
         int row = m_trackListWidget->currentRow();
         if (row > 0) {
             m_trackListWidget->setCurrentRow(row - 1);
-            emit playMediaBuiltinRequested({m_trackListWidget->currentItem()->data(Qt::UserRole).toString()});
+            QString path = m_trackListWidget->currentItem()->data(Qt::UserRole).toString();
+            int vm = viewModeIndex();
+            if (vm == 8 || vm == 9 || vm == 10) {
+                emit playMediaFullscreenRequested({path});
+            } else {
+                emit playMediaBuiltinRequested({path});
+            }
         }
     });
     connect(m_btnNext, &QToolButton::clicked, this, [this]() {
         int row = m_trackListWidget->currentRow();
         if (row >= 0 && row < m_trackListWidget->count() - 1) {
             m_trackListWidget->setCurrentRow(row + 1);
-            emit playMediaBuiltinRequested({m_trackListWidget->currentItem()->data(Qt::UserRole).toString()});
+            QString path = m_trackListWidget->currentItem()->data(Qt::UserRole).toString();
+            int vm = viewModeIndex();
+            if (vm == 8 || vm == 9 || vm == 10) {
+                emit playMediaFullscreenRequested({path});
+            } else {
+                emit playMediaBuiltinRequested({path});
+            }
         }
     });
     connect(m_btnPlayPause, &QToolButton::clicked, this, [this]() {
@@ -540,7 +559,12 @@ void FilePanel::setupUI() {
         QString trackPath = item->data(Qt::UserRole).toString();
         if (!trackPath.isEmpty()) {
             m_btnPlayPause->setText("⏸");
-            emit playMediaBuiltinRequested({trackPath});
+            int vm = viewModeIndex();
+            if (vm == 8 || vm == 9 || vm == 10) {
+                emit playMediaFullscreenRequested({trackPath});
+            } else {
+                emit playMediaBuiltinRequested({trackPath});
+            }
         }
     });
 
@@ -3160,7 +3184,20 @@ void FilePanel::showAudioShowcaseContextMenu(const QPoint& pos) {
     QMenu menu(this);
     QStyle* style = QApplication::style();
 
+    QStringList curSelected = selectedPaths();
+    QString selectedPath;
+    bool isFolder = false;
+    bool isFavorite = false;
+    if (!curSelected.isEmpty()) {
+        selectedPath = curSelected.first();
+        QFileInfo info(selectedPath);
+        isFolder = info.isDir();
+        isFavorite = FavoritesManager::instance().isFavorite(selectedPath);
+    }
+
     QAction* actOpen = menu.addAction(style->standardIcon(QStyle::SP_DialogOpenButton), "Open");
+    QAction* actPlay = menu.addAction(style->standardIcon(QStyle::SP_MediaPlay), isFolder ? "Play Album" : "Play Track");
+    QAction* actQueue = menu.addAction(style->standardIcon(QStyle::SP_MediaVolume), isFolder ? "Queue Album to Playlist" : "Queue Track to Playlist");
     menu.addSeparator();
 
     // Add a Menu that says "Audio tools" as a test
@@ -3177,17 +3214,6 @@ void FilePanel::showAudioShowcaseContextMenu(const QPoint& pos) {
     });
 
     menu.addSeparator();
-
-    QStringList curSelected = selectedPaths();
-    QString selectedPath;
-    bool isFolder = false;
-    bool isFavorite = false;
-    if (!curSelected.isEmpty()) {
-        selectedPath = curSelected.first();
-        QFileInfo info(selectedPath);
-        isFolder = info.isDir();
-        isFavorite = FavoritesManager::instance().isFavorite(selectedPath);
-    }
 
     QAction* actFav = nullptr;
     if (isFolder) {
@@ -3249,6 +3275,34 @@ void FilePanel::showAudioShowcaseContextMenu(const QPoint& pos) {
     if (selected == actOpen) {
         if (!selectedPath.isEmpty()) {
             onDoubleClickedPath(selectedPath);
+        }
+    } else if (selected == actPlay) {
+        if (!selectedPath.isEmpty()) {
+            QStringList playlistPaths;
+            if (isFolder) {
+                scanMediaFilesRecursively(selectedPath, playlistPaths, 1);
+            } else {
+                playlistPaths.append(selectedPath);
+            }
+            if (!playlistPaths.isEmpty()) {
+                if (viewModeIndex() == 8 || viewModeIndex() == 9 || viewModeIndex() == 10) {
+                    emit playMediaFullscreenRequested(playlistPaths);
+                } else {
+                    emit playMediaBuiltinRequested(playlistPaths);
+                }
+            }
+        }
+    } else if (selected == actQueue) {
+        if (!selectedPath.isEmpty()) {
+            QStringList playlistPaths;
+            if (isFolder) {
+                scanMediaFilesRecursively(selectedPath, playlistPaths, 1);
+            } else {
+                playlistPaths.append(selectedPath);
+            }
+            if (!playlistPaths.isEmpty()) {
+                emit queueMediaBuiltinRequested(playlistPaths);
+            }
         }
     } else if (selected == actFav) {
         if (isFolder) {
@@ -4641,7 +4695,8 @@ void FilePanel::onDoubleClickedPath(const QString& path) {
 
         // In Theater / Showcase view: Only trigger media playback for actual playable album/movie folders
         bool isPlayableAlbum = isPlayableAlbumFolder(path);
-        if (isPlayableAlbum && (shouldPlayOnDoubleclick || doubleclickAddsToQueue)) {
+        bool isMusicShowcaseV2 = (viewModeIndex() == 10);
+        if (isPlayableAlbum && (isMusicShowcaseV2 || shouldPlayOnDoubleclick || doubleclickAddsToQueue)) {
             bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool() && isTheater;
 
             QStringList scanPaths;
