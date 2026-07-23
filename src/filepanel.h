@@ -135,7 +135,7 @@ class FileFilterProxyModel : public QSortFilterProxyModel {
     friend class CasingRunnable;
 
 public:
-    enum FilterType { FilterAll, FilterAudio, FilterVideos, FilterPictures, FilterDocs, FilterArchive, FilterThreeD, FilterFiles };
+    enum FilterType { FilterAll, FilterAudio, FilterVideos, FilterPictures, FilterDocs, FilterArchive, FilterThreeD, FilterFiles, FilterFolders };
 
     explicit FileFilterProxyModel(QObject* parent = nullptr) : QSortFilterProxyModel(parent) {}
 
@@ -230,11 +230,22 @@ public:
     }
 
     void setFilterType(FilterType type) {
-        m_filterType = type;
+        m_filterTypes.clear();
+        m_filterTypes.insert(type);
         invalidate();
     }
 
-    FilterType filterType() const { return m_filterType; }
+    FilterType filterType() const {
+        if (m_filterTypes.contains(FilterAll) || m_filterTypes.isEmpty()) return FilterAll;
+        return *m_filterTypes.begin();
+    }
+
+    void setFilterTypes(const QSet<FilterType>& types) {
+        m_filterTypes = types;
+        invalidate();
+    }
+
+    QSet<FilterType> filterTypes() const { return m_filterTypes; }
 
     void setFilterText(const QString& text) {
         m_filterText = text;
@@ -667,56 +678,50 @@ protected:
         }
 
         // 4. Apply Type Filter
-        if (m_filterType == FilterAll) {
+        if (m_filterTypes.contains(FilterAll) || m_filterTypes.isEmpty()) {
             return true;
         }
 
-        // Hide directory nodes when a specific type filter is active to show only documents/media/etc.
         if (isDir) {
-            return false;
+            return m_filterTypes.contains(FilterFolders);
         }
 
         QString ext = QFileInfo(fileName).suffix().toLower();
-        if (m_filterType == FilterAudio) {
-            static const QStringList audioExts = {
-                "mp3", "wav", "flac", "ogg", "m4a", "wma", "aac", "mid", "midi"
-            };
-            return audioExts.contains(ext);
-        } else if (m_filterType == FilterVideos) {
-            static const QStringList videoExts = {
-                "mp4", "avi", "mkv", "mov", "webm", "flv", "wmv", "m4v", "mpg", "mpeg"
-            };
-            return videoExts.contains(ext);
-        } else if (m_filterType == FilterPictures) {
-            static const QStringList pictureExts = {
-                "png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "tiff", "ico"
-            };
-            return pictureExts.contains(ext);
-        } else if (m_filterType == FilterDocs) {
-            static const QStringList docExts = {
-                "txt", "log", "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt",
-                "ods", "odp", "md", "csv", "rtf", "html", "xml", "json"
-            };
-            return docExts.contains(ext);
-        } else if (m_filterType == FilterArchive) {
-            static const QStringList archiveExts = {
-                "zip", "tar", "gz", "bz2", "xz", "rar", "7z", "tgz"
-            };
-            return archiveExts.contains(ext);
-        } else if (m_filterType == FilterThreeD) {
-            static const QStringList threeDExts = {
-                "obj", "fbx", "3ds", "stl", "ply", "gltf", "glb", "dae", "blend"
-            };
-            return threeDExts.contains(ext);
-        } else if (m_filterType == FilterFiles) {
+        
+        if (m_filterTypes.contains(FilterFiles)) {
             return true;
         }
 
-        return true;
+        if (m_filterTypes.contains(FilterAudio)) {
+            static const QStringList audioExts = { "mp3", "wav", "flac", "ogg", "m4a", "wma", "aac", "mid", "midi" };
+            if (audioExts.contains(ext)) return true;
+        }
+        if (m_filterTypes.contains(FilterVideos)) {
+            static const QStringList videoExts = { "mp4", "avi", "mkv", "mov", "webm", "flv", "wmv", "m4v", "mpg", "mpeg" };
+            if (videoExts.contains(ext)) return true;
+        }
+        if (m_filterTypes.contains(FilterPictures)) {
+            static const QStringList pictureExts = { "png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "tiff", "ico" };
+            if (pictureExts.contains(ext)) return true;
+        }
+        if (m_filterTypes.contains(FilterDocs)) {
+            static const QStringList docExts = { "txt", "log", "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "odp", "md", "csv", "rtf", "html", "xml", "json" };
+            if (docExts.contains(ext)) return true;
+        }
+        if (m_filterTypes.contains(FilterArchive)) {
+            static const QStringList archiveExts = { "zip", "tar", "gz", "bz2", "xz", "rar", "7z", "tgz" };
+            if (archiveExts.contains(ext)) return true;
+        }
+        if (m_filterTypes.contains(FilterThreeD)) {
+            static const QStringList threeDExts = { "obj", "fbx", "3ds", "stl", "ply", "gltf", "glb", "dae", "blend" };
+            if (threeDExts.contains(ext)) return true;
+        }
+
+        return false;
     }
 
 private:
-    FilterType m_filterType = FilterAll;
+    QSet<FilterType> m_filterTypes = { FilterAll };
     QString m_filterText;
     QString m_currentPath;
     bool m_ageColoringEnabled = true; // Enabled by default
@@ -803,6 +808,7 @@ public:
     QString filterText() const;
     void syncFilterText(const QString& text);
     void syncFilterType(FileFilterProxyModel::FilterType type);
+    void syncFilterTypes(const QSet<FileFilterProxyModel::FilterType>& types);
     void syncZoom(int value);
     void setViewModeGrid(bool grid) {
         if (grid && m_viewStack && m_viewStack->currentWidget() == m_treeView) {
@@ -1023,6 +1029,8 @@ private:
     QToolButton* m_btnFilterArchive = nullptr;
     QToolButton* m_btnFilterThreeD = nullptr;
     QToolButton* m_btnFilterFiles = nullptr;
+    QToolButton* m_btnFilterFolders = nullptr;
+    QToolButton* m_btnStickyFilters = nullptr;
     QLabel* m_statusLabel = nullptr;
 
     QWidget* m_categoryWidget = nullptr;

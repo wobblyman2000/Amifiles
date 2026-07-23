@@ -85,6 +85,10 @@ void PreferencesDialog::setupUI() {
     m_chkDrivesMenu->setToolTip("Integrates drop-down shortcuts of all partitions under the Drives menu.");
     layGen->addWidget(m_chkDrivesMenu);
 
+    m_chkStickyFilters = new QCheckBox("Remember active category filters during folder navigation (Sticky Filters)", this);
+    m_chkStickyFilters->setToolTip("Keeps your checked file type filters active when navigating through directories.");
+    layGen->addWidget(m_chkStickyFilters);
+
     layGen->addStretch(1);
     m_stackPages->addWidget(pageGeneral);
 
@@ -300,6 +304,7 @@ void PreferencesDialog::loadPreferences() {
     m_chkHorizontalSplit->setChecked(settings.value("preferences/horizontal_split", false).toBool());
     m_chkDrivesToolbar->setChecked(settings.value("layout/drives_toolbar_visible", true).toBool());
     m_chkDrivesMenu->setChecked(settings.value("layout/drives_menu_visible", true).toBool());
+    m_chkStickyFilters->setChecked(settings.value("preferences/sticky_filters", false).toBool());
 
     m_chkAgeColoring->setChecked(settings.value("preferences/age_coloring_enabled", true).toBool());
 
@@ -328,6 +333,7 @@ void PreferencesDialog::savePreferences() {
     settings.setValue("preferences/horizontal_split", m_chkHorizontalSplit->isChecked());
     settings.setValue("layout/drives_toolbar_visible", m_chkDrivesToolbar->isChecked());
     settings.setValue("layout/drives_menu_visible", m_chkDrivesMenu->isChecked());
+    settings.setValue("preferences/sticky_filters", m_chkStickyFilters->isChecked());
 
     settings.setValue("preferences/age_coloring_enabled", m_chkAgeColoring->isChecked());
 

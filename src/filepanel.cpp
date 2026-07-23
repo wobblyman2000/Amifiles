@@ -802,9 +802,26 @@ void FilePanel::setupUI() {
     m_btnFilterFiles->setToolTip("Show only files, hiding folders");
     m_btnFilterFiles->setStyleSheet("QToolButton { padding: 4px 8px; }");
 
-    // Button group to make selection mutually exclusive
+    m_btnFilterFolders = new QToolButton(this);
+    m_btnFilterFolders->setText("📁 Folders");
+    m_btnFilterFolders->setCheckable(true);
+    m_btnFilterFolders->setToolTip("Show only directories, hiding files");
+    m_btnFilterFolders->setStyleSheet("QToolButton { padding: 4px 8px; }");
+
+    m_btnStickyFilters = new QToolButton(this);
+    m_btnStickyFilters->setText("📌 Sticky");
+    m_btnStickyFilters->setCheckable(true);
+    m_btnStickyFilters->setToolTip("Keep active filters when changing directories");
+    m_btnStickyFilters->setStyleSheet("QToolButton { padding: 4px 8px; }");
+    connect(m_btnStickyFilters, &QToolButton::toggled, this, [](bool checked) {
+        QSettings settings("Amifiles", "Amifiles");
+        settings.setValue("preferences/sticky_filters", checked);
+    });
+    m_btnStickyFilters->setChecked(settings.value("preferences/sticky_filters", false).toBool());
+
+    // Button group to manage checks, not exclusive to allow multi-selection
     QButtonGroup* filterGroup = new QButtonGroup(this);
-    filterGroup->setExclusive(true);
+    filterGroup->setExclusive(false);
     filterGroup->addButton(m_btnFilterAll);
     filterGroup->addButton(m_btnFilterAudio);
     filterGroup->addButton(m_btnFilterVideos);
@@ -813,6 +830,7 @@ void FilePanel::setupUI() {
     filterGroup->addButton(m_btnFilterArchive);
     filterGroup->addButton(m_btnFilterThreeD);
     filterGroup->addButton(m_btnFilterFiles);
+    filterGroup->addButton(m_btnFilterFolders);
 
     connect(m_btnFilterAll, &QToolButton::clicked, this, &FilePanel::onFilterTypeChanged);
     connect(m_btnFilterAudio, &QToolButton::clicked, this, &FilePanel::onFilterTypeChanged);
@@ -822,6 +840,7 @@ void FilePanel::setupUI() {
     connect(m_btnFilterArchive, &QToolButton::clicked, this, &FilePanel::onFilterTypeChanged);
     connect(m_btnFilterThreeD, &QToolButton::clicked, this, &FilePanel::onFilterTypeChanged);
     connect(m_btnFilterFiles, &QToolButton::clicked, this, &FilePanel::onFilterTypeChanged);
+    connect(m_btnFilterFolders, &QToolButton::clicked, this, &FilePanel::onFilterTypeChanged);
 
     m_statusLabel = new QLabel("0 items", this);
     m_statusLabel->setStyleSheet("color: #a6adc8; font-size: 11px; margin-left: 6px;");
@@ -839,6 +858,8 @@ void FilePanel::setupUI() {
     categoryLayout->addWidget(m_btnFilterArchive);
     categoryLayout->addWidget(m_btnFilterThreeD);
     categoryLayout->addWidget(m_btnFilterFiles);
+    categoryLayout->addWidget(m_btnFilterFolders);
+    categoryLayout->addWidget(m_btnStickyFilters);
 
     m_btnToggleSearchMode = new QToolButton(this);
     m_btnToggleSearchMode->setIcon(createSearchIcon(QColor("#cdd6f4")));
@@ -1384,27 +1405,23 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
     m_currentPath = dir.absolutePath();
     m_pathEdit->setText(QDir::toNativeSeparators(m_currentPath));
 
-    // Reset filter to All if target directory has no matching files for the current category
-    FileFilterProxyModel::FilterType currentFilter = m_proxyModel->filterType();
-    if (currentFilter != FileFilterProxyModel::FilterAll) {
-        QStringList filters;
-        if (currentFilter == FileFilterProxyModel::FilterAudio) {
-            filters = { "*.mp3", "*.wav", "*.flac", "*.ogg", "*.m4a", "*.wma", "*.aac", "*.mid", "*.midi" };
-        } else if (currentFilter == FileFilterProxyModel::FilterVideos) {
-            filters = { "*.mp4", "*.avi", "*.mkv", "*.mov", "*.webm", "*.flv", "*.wmv", "*.m4v", "*.mpg", "*.mpeg" };
-        } else if (currentFilter == FileFilterProxyModel::FilterPictures) {
-            filters = { "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp", "*.webp", "*.svg", "*.tiff", "*.ico" };
-        } else if (currentFilter == FileFilterProxyModel::FilterDocs) {
-            filters = { "*.txt", "*.log", "*.pdf", "*.doc", "*.docx", "*.xls", "*.xlsx", "*.ppt", "*.pptx", "*.odt", "*.ods", "*.odp", "*.md", "*.csv", "*.rtf", "*.html", "*.xml", "*.json" };
-        } else if (currentFilter == FileFilterProxyModel::FilterArchive) {
-            filters = { "*.zip", "*.tar", "*.gz", "*.bz2", "*.xz", "*.rar", "*.7z", "*.tgz" };
-        }
-
-        QFileInfoList list = dir.entryInfoList(filters, QDir::Files);
-        if (list.isEmpty()) {
+    // Sticky filters logic on folder navigation
+    QSettings settings("Amifiles", "Amifiles");
+    bool stickyFilters = settings.value("preferences/sticky_filters", false).toBool();
+    if (!stickyFilters) {
+        if (m_btnFilterAll) {
             m_btnFilterAll->setChecked(true);
-            m_proxyModel->setFilterType(FileFilterProxyModel::FilterAll);
+            m_btnFilterAudio->setChecked(false);
+            m_btnFilterVideos->setChecked(false);
+            m_btnFilterPictures->setChecked(false);
+            m_btnFilterDocs->setChecked(false);
+            m_btnFilterArchive->setChecked(false);
+            m_btnFilterThreeD->setChecked(false);
+            m_btnFilterFiles->setChecked(false);
+            m_btnFilterFolders->setChecked(false);
         }
+        QSet<FileFilterProxyModel::FilterType> allFilter = { FileFilterProxyModel::FilterAll };
+        m_proxyModel->setFilterTypes(allFilter);
     }
 
     // Update tree view root
@@ -1583,22 +1600,44 @@ void FilePanel::onFilterChanged(const QString& filterText) {
 }
 
 void FilePanel::onFilterTypeChanged() {
-    FileFilterProxyModel::FilterType targetType = FileFilterProxyModel::FilterAll;
-    
-    if (m_btnFilterAudio->isChecked()) {
-        targetType = FileFilterProxyModel::FilterAudio;
-    } else if (m_btnFilterVideos->isChecked()) {
-        targetType = FileFilterProxyModel::FilterVideos;
-    } else if (m_btnFilterPictures->isChecked()) {
-        targetType = FileFilterProxyModel::FilterPictures;
-    } else if (m_btnFilterDocs->isChecked()) {
-        targetType = FileFilterProxyModel::FilterDocs;
-    } else if (m_btnFilterArchive->isChecked()) {
-        targetType = FileFilterProxyModel::FilterArchive;
-    } else if (m_btnFilterThreeD->isChecked()) {
-        targetType = FileFilterProxyModel::FilterThreeD;
-    } else if (m_btnFilterFiles->isChecked()) {
-        targetType = FileFilterProxyModel::FilterFiles;
+    QObject* clickedButton = sender();
+    if (clickedButton == m_btnFilterAll) {
+        m_btnFilterAll->setChecked(true);
+        m_btnFilterAudio->setChecked(false);
+        m_btnFilterVideos->setChecked(false);
+        m_btnFilterPictures->setChecked(false);
+        m_btnFilterDocs->setChecked(false);
+        m_btnFilterArchive->setChecked(false);
+        m_btnFilterThreeD->setChecked(false);
+        m_btnFilterFiles->setChecked(false);
+        m_btnFilterFolders->setChecked(false);
+    } else if (clickedButton) {
+        m_btnFilterAll->setChecked(false);
+        bool anyChecked = m_btnFilterAudio->isChecked() ||
+                          m_btnFilterVideos->isChecked() ||
+                          m_btnFilterPictures->isChecked() ||
+                          m_btnFilterDocs->isChecked() ||
+                          m_btnFilterArchive->isChecked() ||
+                          m_btnFilterThreeD->isChecked() ||
+                          m_btnFilterFiles->isChecked() ||
+                          m_btnFilterFolders->isChecked();
+        if (!anyChecked) {
+            m_btnFilterAll->setChecked(true);
+        }
+    }
+
+    QSet<FileFilterProxyModel::FilterType> activeTypes;
+    if (m_btnFilterAll->isChecked()) {
+        activeTypes.insert(FileFilterProxyModel::FilterAll);
+    } else {
+        if (m_btnFilterAudio->isChecked()) activeTypes.insert(FileFilterProxyModel::FilterAudio);
+        if (m_btnFilterVideos->isChecked()) activeTypes.insert(FileFilterProxyModel::FilterVideos);
+        if (m_btnFilterPictures->isChecked()) activeTypes.insert(FileFilterProxyModel::FilterPictures);
+        if (m_btnFilterDocs->isChecked()) activeTypes.insert(FileFilterProxyModel::FilterDocs);
+        if (m_btnFilterArchive->isChecked()) activeTypes.insert(FileFilterProxyModel::FilterArchive);
+        if (m_btnFilterThreeD->isChecked()) activeTypes.insert(FileFilterProxyModel::FilterThreeD);
+        if (m_btnFilterFiles->isChecked()) activeTypes.insert(FileFilterProxyModel::FilterFiles);
+        if (m_btnFilterFolders->isChecked()) activeTypes.insert(FileFilterProxyModel::FilterFolders);
     }
 
     FilePanel* targetPanel = this;
@@ -1606,39 +1645,11 @@ void FilePanel::onFilterTypeChanged() {
         targetPanel = m_siblingPanel;
     }
 
-    if (targetType != FileFilterProxyModel::FilterAll) {
-        QStringList filters;
-        if (targetType == FileFilterProxyModel::FilterAudio) {
-            filters = { "*.mp3", "*.wav", "*.flac", "*.ogg", "*.m4a", "*.wma", "*.aac", "*.mid", "*.midi" };
-        } else if (targetType == FileFilterProxyModel::FilterVideos) {
-            filters = { "*.mp4", "*.avi", "*.mkv", "*.mov", "*.webm", "*.flv", "*.wmv", "*.m4v", "*.mpg", "*.mpeg" };
-        } else if (targetType == FileFilterProxyModel::FilterPictures) {
-            filters = { "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp", "*.webp", "*.svg", "*.tiff", "*.ico" };
-        } else if (targetType == FileFilterProxyModel::FilterDocs) {
-            filters = { "*.txt", "*.log", "*.pdf", "*.doc", "*.docx", "*.xls", "*.xlsx", "*.ppt", "*.pptx", "*.odt", "*.ods", "*.odp", "*.md", "*.csv", "*.rtf", "*.html", "*.xml", "*.json" };
-        } else if (targetType == FileFilterProxyModel::FilterArchive) {
-            filters = { "*.zip", "*.tar", "*.gz", "*.bz2", "*.xz", "*.rar", "*.7z", "*.tgz" };
-        } else if (targetType == FileFilterProxyModel::FilterThreeD) {
-            filters = { "*.obj", "*.fbx", "*.3ds", "*.stl", "*.ply", "*.gltf", "*.glb", "*.dae", "*.blend" };
-        } else if (targetType == FileFilterProxyModel::FilterFiles) {
-            filters = { "*" };
-        }
-
-        QDir dir(targetPanel->currentPath());
-        QFileInfoList list = dir.entryInfoList(filters, QDir::Files);
-        if (list.isEmpty()) {
-            m_btnFilterAll->setChecked(true);
-            targetPanel->proxyModel()->setFilterType(FileFilterProxyModel::FilterAll);
-            m_statusLabel->setText("No matching files found. Showing all.");
-            return;
-        }
-    }
-
-    targetPanel->proxyModel()->setFilterType(targetType);
+    targetPanel->proxyModel()->setFilterTypes(activeTypes);
     targetPanel->updateStatusText();
 
     if (targetPanel != this) {
-        targetPanel->syncFilterType(targetType);
+        targetPanel->syncFilterTypes(activeTypes);
     }
 }
 
@@ -3921,7 +3932,12 @@ void FilePanel::syncFilterText(const QString& text) {
 }
 
 void FilePanel::syncFilterType(FileFilterProxyModel::FilterType type) {
-    if (m_btnFilterAll && m_btnFilterAudio && m_btnFilterVideos && m_btnFilterPictures && m_btnFilterDocs && m_btnFilterArchive && m_btnFilterThreeD && m_btnFilterFiles) {
+    QSet<FileFilterProxyModel::FilterType> types = { type };
+    syncFilterTypes(types);
+}
+
+void FilePanel::syncFilterTypes(const QSet<FileFilterProxyModel::FilterType>& types) {
+    if (m_btnFilterAll && m_btnFilterAudio && m_btnFilterVideos && m_btnFilterPictures && m_btnFilterDocs && m_btnFilterArchive && m_btnFilterThreeD && m_btnFilterFiles && m_btnFilterFolders) {
         m_btnFilterAll->blockSignals(true);
         m_btnFilterAudio->blockSignals(true);
         m_btnFilterVideos->blockSignals(true);
@@ -3930,15 +3946,17 @@ void FilePanel::syncFilterType(FileFilterProxyModel::FilterType type) {
         m_btnFilterArchive->blockSignals(true);
         m_btnFilterThreeD->blockSignals(true);
         m_btnFilterFiles->blockSignals(true);
+        m_btnFilterFolders->blockSignals(true);
 
-        m_btnFilterAll->setChecked(type == FileFilterProxyModel::FilterAll);
-        m_btnFilterAudio->setChecked(type == FileFilterProxyModel::FilterAudio);
-        m_btnFilterVideos->setChecked(type == FileFilterProxyModel::FilterVideos);
-        m_btnFilterPictures->setChecked(type == FileFilterProxyModel::FilterPictures);
-        m_btnFilterDocs->setChecked(type == FileFilterProxyModel::FilterDocs);
-        m_btnFilterArchive->setChecked(type == FileFilterProxyModel::FilterArchive);
-        m_btnFilterThreeD->setChecked(type == FileFilterProxyModel::FilterThreeD);
-        m_btnFilterFiles->setChecked(type == FileFilterProxyModel::FilterFiles);
+        m_btnFilterAll->setChecked(types.contains(FileFilterProxyModel::FilterAll));
+        m_btnFilterAudio->setChecked(types.contains(FileFilterProxyModel::FilterAudio));
+        m_btnFilterVideos->setChecked(types.contains(FileFilterProxyModel::FilterVideos));
+        m_btnFilterPictures->setChecked(types.contains(FileFilterProxyModel::FilterPictures));
+        m_btnFilterDocs->setChecked(types.contains(FileFilterProxyModel::FilterDocs));
+        m_btnFilterArchive->setChecked(types.contains(FileFilterProxyModel::FilterArchive));
+        m_btnFilterThreeD->setChecked(types.contains(FileFilterProxyModel::FilterThreeD));
+        m_btnFilterFiles->setChecked(types.contains(FileFilterProxyModel::FilterFiles));
+        m_btnFilterFolders->setChecked(types.contains(FileFilterProxyModel::FilterFolders));
 
         m_btnFilterAll->blockSignals(false);
         m_btnFilterAudio->blockSignals(false);
@@ -3948,6 +3966,7 @@ void FilePanel::syncFilterType(FileFilterProxyModel::FilterType type) {
         m_btnFilterArchive->blockSignals(false);
         m_btnFilterThreeD->blockSignals(false);
         m_btnFilterFiles->blockSignals(false);
+        m_btnFilterFolders->blockSignals(false);
     }
 }
 

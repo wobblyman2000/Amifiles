@@ -1203,7 +1203,6 @@ void MainWindow::setupMenus() {
 
     m_menuSettings = menuBar()->addMenu("Settings");
     m_menuSettings->addAction(m_actPreferences);
-    m_menuSettings->addAction(m_actMediaPreferences);
     m_menuSettings->addAction(m_actBypassFolderProfiles);
     m_menuSettings->addSeparator();
 
