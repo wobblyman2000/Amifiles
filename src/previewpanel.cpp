@@ -2283,6 +2283,18 @@ void PreviewPanel::toggleFullscreen() {
 
     m_fullscreenWidget->setMediaState(isVideo, m_player, m_audioOutput);
     m_fullscreenWidget->updateProgress(m_player->position(), m_player->duration());
+
+    QString currentName = QFileInfo(activePath).fileName();
+    QString nextName;
+    if (!m_playlist.isEmpty() && m_playlistIndex >= 0 && m_playlistIndex < m_playlist.size()) {
+        if (m_playlistIndex < m_playlist.size() - 1) {
+            nextName = QFileInfo(m_playlist[m_playlistIndex + 1]).fileName();
+        } else if (m_repeatMode == 2) {
+            nextName = QFileInfo(m_playlist[0]).fileName();
+        }
+    }
+    m_fullscreenWidget->setTrackNames(currentName, nextName);
+
     m_fullscreenWidget->showFullScreen();
     m_fullscreenWidget->setFocus();
 }
