@@ -395,6 +395,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     }
 
     m_isInitializing = false;
+    onActivePanelViewModeChanged();
 
     updateWidgetStylesheets();
     updateTooltips();
