@@ -252,6 +252,8 @@ public:
         invalidate();
     }
 
+    QString filterText() const { return m_filterText; }
+
     void setSizeFilter(qint64 minSize, qint64 maxSize) {
         m_minSize = minSize;
         m_maxSize = maxSize;
@@ -578,32 +580,52 @@ public:
 
 protected:
     bool filterAcceptsRow(int source_row, const QModelIndex& source_parent) const override {
+        QString filePath;
+        QString fileName;
+        bool isDir = false;
+        qint64 size = 0;
+        QDateTime modDate;
+        QString ext;
+
         QFileSystemModel* fileModel = qobject_cast<QFileSystemModel*>(sourceModel());
-        if (!fileModel) return true;
+        FlatFileSystemModel* flatModel = qobject_cast<FlatFileSystemModel*>(sourceModel());
 
-        QModelIndex index = fileModel->index(source_row, 0, source_parent);
-        QString filePath = QDir::cleanPath(fileModel->filePath(index));
+        if (fileModel) {
+            QModelIndex index = fileModel->index(source_row, 0, source_parent);
+            filePath = QDir::cleanPath(fileModel->filePath(index));
+            fileName = fileModel->fileName(index);
+            isDir = fileModel->isDir(index);
+            size = fileModel->size(index);
+            modDate = fileModel->lastModified(index);
+            ext = fileModel->fileInfo(index).suffix().toLower();
 
-        // 1. ALWAYS accept ancestors of the current path and the current path itself.
-        if (m_currentPath.startsWith(filePath, Qt::CaseInsensitive)) {
+            // 1. ALWAYS accept ancestors of the current path and the current path itself.
+            if (m_currentPath.startsWith(filePath, Qt::CaseInsensitive)) {
+                return true;
+            }
+
+            // 2. Check if this is a descendant of the current directory subtree.
+            bool isDescendant = filePath.startsWith(m_currentPath + "/", Qt::CaseInsensitive);
+            if (!isDescendant) {
+                return true;
+            }
+        } else if (flatModel) {
+            QFileInfo info = flatModel->fileInfo(source_row);
+            filePath = QDir::cleanPath(info.absoluteFilePath());
+            fileName = info.fileName();
+            isDir = info.isDir();
+            size = info.size();
+            modDate = info.lastModified();
+            ext = info.suffix().toLower();
+        } else {
             return true;
         }
-
-        // 2. Check if this is a descendant of the current directory subtree.
-        bool isDescendant = filePath.startsWith(m_currentPath + "/", Qt::CaseInsensitive);
-        if (!isDescendant) {
-            return true;
-        }
-
-        QString fileName = fileModel->fileName(index);
-        bool isDir = fileModel->isDir(index);
 
         if (m_hideAuxiliaryFilesActive && !isDir) {
             if (QDir::match(m_hidePatterns, fileName)) {
                 return false;
             }
 
-            QString ext = fileModel->fileInfo(index).suffix().toLower();
             if (m_hiddenExtensions.contains(ext)) {
                 return false;
             }
@@ -642,7 +664,6 @@ protected:
         }
 
         if (!isDir) {
-            qint64 size = fileModel->size(index);
             if (m_minSize != -1 && size < m_minSize) {
                 return false;
             }
@@ -650,7 +671,6 @@ protected:
                 return false;
             }
 
-            QDateTime modDate = fileModel->lastModified(index);
             if (m_minDate.isValid() && modDate < m_minDate) {
                 return false;
             }
@@ -685,8 +705,6 @@ protected:
         if (isDir) {
             return m_filterTypes.contains(FilterFolders);
         }
-
-        QString ext = QFileInfo(fileName).suffix().toLower();
         
         if (m_filterTypes.contains(FilterFiles)) {
             return true;
@@ -971,7 +989,7 @@ private:
     QComboBox* m_comboGrouping = nullptr;
 
     FlatFileSystemModel* m_flatModel = nullptr;
-    QSortFilterProxyModel* m_flatProxyModel = nullptr;
+    FileFilterProxyModel* m_flatProxyModel = nullptr;
     bool m_flatViewEnabled = false;
 
     class SmartFolderModel* m_smartModel = nullptr;

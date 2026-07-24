@@ -360,7 +360,7 @@ void FilePanel::setupUI() {
     connect(m_groupProxy, &QAbstractItemModel::modelReset, this, &FilePanel::rebuildTheaterGroups);
 
     m_flatModel = new FlatFileSystemModel(this);
-    m_flatProxyModel = new QSortFilterProxyModel(this);
+    m_flatProxyModel = new FileFilterProxyModel(this);
     m_flatProxyModel->setSourceModel(m_flatModel);
     m_flatProxyModel->setFilterKeyColumn(0);
     m_flatProxyModel->setFilterCaseSensitivity(Qt::CaseInsensitive);
@@ -1596,7 +1596,7 @@ void FilePanel::updateFavoritesUI() {
 void FilePanel::onFilterChanged(const QString& filterText) {
     if (m_siblingPanel && !m_isActive && !m_siblingPanel->isFilterTextBarVisible()) {
         if (m_siblingPanel->isFlatViewEnabled()) {
-            m_siblingPanel->m_flatProxyModel->setFilterFixedString(filterText);
+            m_siblingPanel->m_flatProxyModel->setFilterText(filterText);
         } else {
             m_siblingPanel->proxyModel()->setFilterText(filterText);
         }
@@ -1604,7 +1604,7 @@ void FilePanel::onFilterChanged(const QString& filterText) {
         m_siblingPanel->syncFilterText(filterText);
     } else {
         if (m_flatViewEnabled) {
-            m_flatProxyModel->setFilterFixedString(filterText);
+            m_flatProxyModel->setFilterText(filterText);
         } else {
             m_proxyModel->setFilterText(filterText);
         }
@@ -1659,6 +1659,9 @@ void FilePanel::onFilterTypeChanged() {
     }
 
     targetPanel->proxyModel()->setFilterTypes(activeTypes);
+    if (targetPanel->m_flatProxyModel) {
+        targetPanel->m_flatProxyModel->setFilterTypes(activeTypes);
+    }
     targetPanel->updateStatusText();
 
     if (targetPanel != this) {
@@ -3983,10 +3986,12 @@ void FilePanel::updateHideSettings() {
     }
 
     m_proxyModel->setHideAuxiliaryFilesActive(hideActive);
+    if (m_flatProxyModel) m_flatProxyModel->setHideAuxiliaryFilesActive(hideActive);
     
     QStringList patternsList = patternsStr.split(',', Qt::SkipEmptyParts);
     for (auto& p : patternsList) p = p.trimmed();
     m_proxyModel->setHidePatterns(patternsList);
+    if (m_flatProxyModel) m_flatProxyModel->setHidePatterns(patternsList);
     
     for (auto& ext : hiddenExts) {
         ext = ext.trimmed().toLower();
@@ -3999,6 +4004,7 @@ void FilePanel::updateHideSettings() {
         }
     }
     m_proxyModel->setHiddenExtensions(hiddenExts);
+    if (m_flatProxyModel) m_flatProxyModel->setHiddenExtensions(hiddenExts);
 }
 
 void FilePanel::setFilterTextBarVisible(bool visible) {
@@ -4090,8 +4096,12 @@ void FilePanel::setFlatViewEnabled(bool enabled) {
 
     if (enabled) {
         updateActiveViewModel();
+        if (m_flatProxyModel) {
+            m_flatProxyModel->setFilterTypes(m_proxyModel->filterTypes());
+            m_flatProxyModel->setFilterText(m_proxyModel->filterText());
+        }
         m_flatModel->setRootPath(m_currentPath);
-        if (m_categoryWidget) m_categoryWidget->hide();
+        if (m_categoryWidget) m_categoryWidget->setVisible(m_categoryButtonsVisible);
 
         connect(m_flatModel, &FlatFileSystemModel::scanStarted, this, [this]() {
             m_statusLabel->setText("Scanning directory recursively...");
