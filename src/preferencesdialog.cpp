@@ -191,6 +191,10 @@ void PreferencesDialog::setupUI() {
     m_chkAutoPlayThemeMusic->setToolTip("Automatically plays theme.mp3 background audio when entering TV show folders in Video Showcase mode.");
     layMedia->addWidget(m_chkAutoPlayThemeMusic);
 
+    m_chkRememberVideoProgress = new QCheckBox("Remember and resume video playback progress (TV shows & movies)", this);
+    m_chkRememberVideoProgress->setToolTip("Saves progress periodically and prompts to resume when reopening TV shows or movie files.");
+    layMedia->addWidget(m_chkRememberVideoProgress);
+
     QFrame* lineMedia = new QFrame(this);
     lineMedia->setFrameShape(QFrame::HLine);
     lineMedia->setFrameShadow(QFrame::Sunken);
@@ -319,6 +323,7 @@ void PreferencesDialog::loadPreferences() {
     m_chkDoubleclickAddsToQueue->setChecked(settings.value("preferences/doubleclick_adds_to_queue", false).toBool());
     m_chkAutoFullscreen->setChecked(settings.value("preview/auto_fullscreen", true).toBool());
     m_chkAutoPlayThemeMusic->setChecked(settings.value("theater/auto_play_theme_music", true).toBool());
+    m_chkRememberVideoProgress->setChecked(settings.value("preview/resume_progress", false).toBool());
 
     QString defaultHide = "folder.jpg, folder.jpeg, folder.png, cover.jpg, cover.jpeg, cover.png, fanart.jpg, fanart.jpeg, fanart.png, backdrop.jpg, backdrop.jpeg, backdrop.png, poster.jpg, poster.jpeg, poster.png, *.nfo, *.xml, *.txt, *.srt, *.sub, *.vtt, *.ini, *.db";
     m_editHidePatterns->setText(settings.value("theater/hide_patterns", defaultHide).toString());
@@ -348,6 +353,7 @@ void PreferencesDialog::savePreferences() {
     settings.setValue("preferences/doubleclick_adds_to_queue", m_chkDoubleclickAddsToQueue->isChecked());
     settings.setValue("preview/auto_fullscreen", m_chkAutoFullscreen->isChecked());
     settings.setValue("theater/auto_play_theme_music", m_chkAutoPlayThemeMusic->isChecked());
+    settings.setValue("preview/resume_progress", m_chkRememberVideoProgress->isChecked());
     settings.setValue("theater/hide_patterns", m_editHidePatterns->text().trimmed());
 
     settings.setValue("services/tmdb_api_key", m_editTmdbApiKey->text().trimmed());

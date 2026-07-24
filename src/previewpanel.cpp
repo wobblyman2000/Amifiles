@@ -1121,16 +1121,18 @@ void PreviewPanel::setupUI() {
 
 void PreviewPanel::clearPreview() {
     if (m_videoWidget->isVisible() && !m_previewedFilePath.isEmpty()) {
-        qint64 pos = m_player->position();
-        qint64 dur = m_player->duration();
-        if (pos > 5000) {
-            QSettings settings("Amifiles", "Amifiles");
-            if (dur > 0 && pos >= dur * 0.95) {
-                settings.remove(QString("watched_progress/%1").arg(m_previewedFilePath));
-                TagManager::instance().setFileOverlayIcon(m_previewedFilePath, "emblem-ok");
-                emit tagsChanged(m_previewedFilePath);
-            } else {
-                settings.setValue(QString("watched_progress/%1").arg(m_previewedFilePath), pos);
+        QSettings settings("Amifiles", "Amifiles");
+        if (settings.value("preview/resume_progress", false).toBool()) {
+            qint64 pos = m_player->position();
+            qint64 dur = m_player->duration();
+            if (pos > 5000) {
+                if (dur > 0 && pos >= dur * 0.95) {
+                    settings.remove(QString("watched_progress/%1").arg(m_previewedFilePath));
+                    TagManager::instance().setFileOverlayIcon(m_previewedFilePath, "emblem-ok");
+                    emit tagsChanged(m_previewedFilePath);
+                } else {
+                    settings.setValue(QString("watched_progress/%1").arg(m_previewedFilePath), pos);
+                }
             }
         }
     }
@@ -1379,34 +1381,37 @@ void PreviewPanel::showMediaPreview(const QString& filePath, bool isVideo) {
 
     if (isVideo) {
         m_lastProgressSaveTime = 0;
-        QTimer::singleShot(250, this, [this, filePath]() {
-            QSettings settings("Amifiles", "Amifiles");
-            qint64 savedPos = settings.value(QString("watched_progress/%1").arg(filePath), 0).toLongLong();
-            if (savedPos > 5000) {
-                m_player->pause();
+        QSettings settings("Amifiles", "Amifiles");
+        if (settings.value("preview/resume_progress", false).toBool()) {
+            QTimer::singleShot(250, this, [this, filePath]() {
+                QSettings settings("Amifiles", "Amifiles");
+                qint64 savedPos = settings.value(QString("watched_progress/%1").arg(filePath), 0).toLongLong();
+                if (savedPos > 5000) {
+                    m_player->pause();
 
-                QWidget* parentWidget = m_fullscreenWidget ? (QWidget*)m_fullscreenWidget : (QWidget*)this;
-                QMessageBox msgBox(parentWidget);
-                msgBox.setWindowTitle("Resume Playback");
-                msgBox.setText(QString("Would you like to resume playing from %1?").arg(formatDuration(savedPos)));
-                msgBox.setIcon(QMessageBox::Question);
-                QPushButton* btnResume = msgBox.addButton("Resume", QMessageBox::YesRole);
-                QPushButton* btnStartOver = msgBox.addButton("Start Over", QMessageBox::NoRole);
-                msgBox.setDefaultButton(btnResume);
-                msgBox.setStyleSheet(
-                    "QMessageBox { background-color: #1e1e2e; color: #cdd6f4; font-family: 'Outfit'; font-size: 14px; } "
-                    "QLabel { color: #cdd6f4; } "
-                    "QPushButton { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 6px; padding: 6px 12px; font-weight: bold; } "
-                    "QPushButton:hover { background-color: #45475a; color: #ffffff; }"
-                );
-                if (msgBox.exec() == 0 || msgBox.clickedButton() == btnResume) {
-                    m_player->setPosition(savedPos);
-                } else {
-                    m_player->setPosition(0);
+                    QWidget* parentWidget = m_fullscreenWidget ? (QWidget*)m_fullscreenWidget : (QWidget*)this;
+                    QMessageBox msgBox(parentWidget);
+                    msgBox.setWindowTitle("Resume Playback");
+                    msgBox.setText(QString("Would you like to resume playing from %1?").arg(formatDuration(savedPos)));
+                    msgBox.setIcon(QMessageBox::Question);
+                    QPushButton* btnResume = msgBox.addButton("Resume", QMessageBox::YesRole);
+                    QPushButton* btnStartOver = msgBox.addButton("Start Over", QMessageBox::NoRole);
+                    msgBox.setDefaultButton(btnResume);
+                    msgBox.setStyleSheet(
+                        "QMessageBox { background-color: #1e1e2e; color: #cdd6f4; font-family: 'Outfit'; font-size: 14px; } "
+                        "QLabel { color: #cdd6f4; } "
+                        "QPushButton { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 6px; padding: 6px 12px; font-weight: bold; } "
+                        "QPushButton:hover { background-color: #45475a; color: #ffffff; }"
+                    );
+                    if (msgBox.exec() == 0 || msgBox.clickedButton() == btnResume) {
+                        m_player->setPosition(savedPos);
+                    } else {
+                        m_player->setPosition(0);
+                    }
+                    m_player->play();
                 }
-                m_player->play();
-            }
-        });
+            });
+        }
     }
 }
 
@@ -1555,16 +1560,18 @@ void PreviewPanel::onPlaybackStateChanged(QMediaPlayer::PlaybackState state) {
         }
 
         if (m_videoWidget->isVisible() && !m_previewedFilePath.isEmpty()) {
-            qint64 pos = m_player->position();
-            qint64 dur = m_player->duration();
-            if (pos > 5000) {
-                QSettings settings("Amifiles", "Amifiles");
-                if (dur > 0 && pos >= dur * 0.95) {
-                    settings.remove(QString("watched_progress/%1").arg(m_previewedFilePath));
-                    TagManager::instance().setFileOverlayIcon(m_previewedFilePath, "emblem-ok");
-                    emit tagsChanged(m_previewedFilePath);
-                } else {
-                    settings.setValue(QString("watched_progress/%1").arg(m_previewedFilePath), pos);
+            QSettings settings("Amifiles", "Amifiles");
+            if (settings.value("preview/resume_progress", false).toBool()) {
+                qint64 pos = m_player->position();
+                qint64 dur = m_player->duration();
+                if (pos > 5000) {
+                    if (dur > 0 && pos >= dur * 0.95) {
+                        settings.remove(QString("watched_progress/%1").arg(m_previewedFilePath));
+                        TagManager::instance().setFileOverlayIcon(m_previewedFilePath, "emblem-ok");
+                        emit tagsChanged(m_previewedFilePath);
+                    } else {
+                        settings.setValue(QString("watched_progress/%1").arg(m_previewedFilePath), pos);
+                    }
                 }
             }
         }
@@ -1586,17 +1593,19 @@ void PreviewPanel::onPositionChanged(qint64 position) {
     }
 
     if (m_videoWidget->isVisible() && !m_previewedFilePath.isEmpty() && m_player->playbackState() == QMediaPlayer::PlayingState) {
-        qint64 curTime = QDateTime::currentMSecsSinceEpoch();
-        if (curTime - m_lastProgressSaveTime >= 5000) {
-            m_lastProgressSaveTime = curTime;
-            QSettings settings("Amifiles", "Amifiles");
-            qint64 dur = m_player->duration();
-            if (dur > 0 && position >= dur * 0.95) {
-                settings.remove(QString("watched_progress/%1").arg(m_previewedFilePath));
-                TagManager::instance().setFileOverlayIcon(m_previewedFilePath, "emblem-ok");
-                emit tagsChanged(m_previewedFilePath);
-            } else if (position > 5000) {
-                settings.setValue(QString("watched_progress/%1").arg(m_previewedFilePath), position);
+        QSettings settings("Amifiles", "Amifiles");
+        if (settings.value("preview/resume_progress", false).toBool()) {
+            qint64 curTime = QDateTime::currentMSecsSinceEpoch();
+            if (curTime - m_lastProgressSaveTime >= 5000) {
+                m_lastProgressSaveTime = curTime;
+                qint64 dur = m_player->duration();
+                if (dur > 0 && position >= dur * 0.95) {
+                    settings.remove(QString("watched_progress/%1").arg(m_previewedFilePath));
+                    TagManager::instance().setFileOverlayIcon(m_previewedFilePath, "emblem-ok");
+                    emit tagsChanged(m_previewedFilePath);
+                } else if (position > 5000) {
+                    settings.setValue(QString("watched_progress/%1").arg(m_previewedFilePath), position);
+                }
             }
         }
     }

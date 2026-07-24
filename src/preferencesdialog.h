@@ -59,6 +59,7 @@ private:
     QCheckBox* m_chkDoubleclickAddsToQueue = nullptr;
     QCheckBox* m_chkAutoFullscreen = nullptr;
     QCheckBox* m_chkAutoPlayThemeMusic = nullptr;
+    QCheckBox* m_chkRememberVideoProgress = nullptr;
 
     // Services & API keys
     QLineEdit* m_editTmdbApiKey = nullptr;

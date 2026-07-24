@@ -5736,7 +5736,7 @@ void FilePanel::updateThemeMusic() {
     bool autoPlayTheme = settings.value("theater/auto_play_theme_music", true).toBool();
 
     int vMode = viewModeIndex();
-    if (!autoPlayTheme || (vMode != 6 && vMode != 7)) { // 6 = Audio Showcase, 7 = Video Showcase
+    if (!autoPlayTheme || (vMode != 6 && vMode != 7 && vMode != 8 && vMode != 9 && vMode != 10)) { // 6 = Audio, 7 = Video, 8 = Movie FS, 9 = TV FS, 10 = Music FS
         stopThemeMusic();
         return;
     }
