@@ -5567,9 +5567,11 @@ void MainWindow::onPlayMediaFullscreen(const QStringList& filePaths) {
 
 void MainWindow::onPlayQueueFullscreen() {
     if (!m_previewPanel || m_previewPanel->playlist().isEmpty()) return;
-    if (m_previewPanel->player()) {
-        m_previewPanel->player()->play();
+    int idx = m_previewPanel->playlistIndex();
+    if (idx < 0 || idx >= m_previewPanel->playlist().size()) {
+        idx = 0;
     }
+    m_previewPanel->playPlaylistIndex(idx);
     if (!m_previewPanel->isFullscreen()) {
         m_previewPanel->toggleFullscreen();
     }

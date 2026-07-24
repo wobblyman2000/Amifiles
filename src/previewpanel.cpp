@@ -28,6 +28,7 @@
 #include <QDateTime>
 #include <QSettings>
 #include <QMessageBox>
+#include <QDockWidget>
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QMimeData>
@@ -2391,6 +2392,23 @@ void PreviewPanel::toggleFullscreen() {
 
 void PreviewPanel::exitFullscreen() {
     if (!m_fullscreenWidget) return;
+
+    if (m_player) {
+        bool previewDockVisible = false;
+        QWidget* pTemp = parentWidget();
+        while (pTemp && !pTemp->inherits("MainWindow")) {
+            pTemp = pTemp->parentWidget();
+        }
+        if (pTemp) {
+            QDockWidget* dock = pTemp->findChild<QDockWidget*>("previewDockWidget");
+            if (dock && dock->isVisible()) {
+                previewDockVisible = true;
+            }
+        }
+        if (!previewDockVisible) {
+            m_player->pause();
+        }
+    }
 
     m_player->setVideoOutput(m_videoWidget);
 
