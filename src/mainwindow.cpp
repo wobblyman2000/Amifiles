@@ -550,8 +550,20 @@ void MainWindow::setupCentralWidget() {
     });
     
     connect(btnPlay, &QPushButton::clicked, this, [this]() {
-        int idx = m_fullscreenQueueList->currentRow();
-        if (idx >= 0) {
+        QList<QListWidgetItem*> selected = m_fullscreenQueueList->selectedItems();
+        int idx = -1;
+        if (!selected.isEmpty()) {
+            idx = m_fullscreenQueueList->row(selected.first());
+        } else {
+            idx = m_fullscreenQueueList->currentRow();
+        }
+        if (idx < 0 && m_previewPanel) {
+            idx = m_previewPanel->playlistIndex();
+        }
+        if (idx < 0) {
+            idx = 0;
+        }
+        if (m_previewPanel && idx >= 0 && idx < m_previewPanel->playlist().size()) {
             m_previewPanel->playPlaylistIndex(idx);
             if (!m_previewPanel->isFullscreen()) {
                 m_previewPanel->toggleFullscreen();
@@ -560,8 +572,14 @@ void MainWindow::setupCentralWidget() {
     });
     
     connect(btnRemove, &QPushButton::clicked, this, [this]() {
-        int idx = m_fullscreenQueueList->currentRow();
-        if (idx >= 0) {
+        QList<QListWidgetItem*> selected = m_fullscreenQueueList->selectedItems();
+        int idx = -1;
+        if (!selected.isEmpty()) {
+            idx = m_fullscreenQueueList->row(selected.first());
+        } else {
+            idx = m_fullscreenQueueList->currentRow();
+        }
+        if (m_previewPanel && idx >= 0 && idx < m_previewPanel->playlist().size()) {
             m_previewPanel->removeFromPlaylist(idx);
         }
     });

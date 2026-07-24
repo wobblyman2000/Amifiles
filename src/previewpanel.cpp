@@ -1168,7 +1168,12 @@ void PreviewPanel::clearPreview() {
 }
 
 void PreviewPanel::previewFile(const QString& filePath, const QStringList& siblingSelections, bool startPlaying) {
-    m_prePreviewPlaybackState = startPlaying ? m_player->playbackState() : QMediaPlayer::StoppedState;
+    if (m_forcePlayNext) {
+        m_prePreviewPlaybackState = QMediaPlayer::PlayingState;
+        m_forcePlayNext = false;
+    } else {
+        m_prePreviewPlaybackState = startPlaying ? m_player->playbackState() : QMediaPlayer::StoppedState;
+    }
     m_previewedFilePaths = siblingSelections;
     if (m_previewedFilePaths.isEmpty() && !filePath.isEmpty()) {
         m_previewedFilePaths.append(filePath);
@@ -1790,7 +1795,7 @@ void PreviewPanel::playPlaylist(const QStringList& filePaths) {
         return;
     }
 
-    m_prePreviewPlaybackState = QMediaPlayer::PlayingState;
+    m_forcePlayNext = true;
     previewFile(m_playlist[0]);
     m_playlistList->setCurrentRow(0);
     m_bottomTab->setCurrentIndex(1); // Switch to Playlist Queue tab
@@ -1869,7 +1874,7 @@ void PreviewPanel::onPrevTrack() {
         }
     }
 
-    m_prePreviewPlaybackState = QMediaPlayer::PlayingState;
+    m_forcePlayNext = true;
     previewFile(m_playlist[m_playlistIndex]);
     m_playlistList->setCurrentRow(m_playlistIndex);
 
@@ -1903,7 +1908,7 @@ void PreviewPanel::onNextTrack() {
         }
     }
 
-    m_prePreviewPlaybackState = QMediaPlayer::PlayingState;
+    m_forcePlayNext = true;
     previewFile(m_playlist[m_playlistIndex]);
     m_playlistList->setCurrentRow(m_playlistIndex);
 
@@ -1984,6 +1989,7 @@ void PreviewPanel::onPlaylistItemDoubleClicked(QListWidgetItem* item) {
     int row = m_playlistList->row(item);
     if (row >= 0 && row < m_playlist.size()) {
         m_playlistIndex = row;
+        m_forcePlayNext = true;
         previewFile(m_playlist[m_playlistIndex]);
         m_playlistList->setCurrentRow(m_playlistIndex);
 
@@ -2779,7 +2785,7 @@ void PreviewPanel::onApplyTagsColors() {
 void PreviewPanel::playPlaylistIndex(int index) {
     if (index < 0 || index >= m_playlist.size()) return;
     m_playlistIndex = index;
-    m_prePreviewPlaybackState = QMediaPlayer::PlayingState;
+    m_forcePlayNext = true;
     previewFile(m_playlist[m_playlistIndex]);
     if (m_playlistList) {
         m_playlistList->setCurrentRow(m_playlistIndex);
