@@ -328,6 +328,7 @@ private:
     FilePanel* m_activePanel = nullptr;
     bool m_isDualPane = true;
     bool m_showPreview = true;
+    bool m_previewDockAutoShownForPlayback = false;
     bool m_ageColoringEnabled = true;
 
     // Custom Buttons List

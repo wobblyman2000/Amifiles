@@ -1491,6 +1491,7 @@ void MainWindow::onToggleDualPane(bool checked) {
 }
 
 void MainWindow::onTogglePreview(bool checked) {
+    m_previewDockAutoShownForPlayback = false;
     if (m_previewDock) {
         m_previewDock->setVisible(checked);
     }
@@ -3604,6 +3605,18 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
 void MainWindow::applyFolderRules(const QString& path) {
     if (!m_activePanel) return;
 
+    if (m_previewDockAutoShownForPlayback) {
+        m_previewDockAutoShownForPlayback = false;
+        bool shouldShow = false;
+        if (m_hasActiveFolderRule && m_activeFolderRule.overridePreview) {
+            shouldShow = m_activeFolderRule.previewVisible;
+        }
+        if (m_actTogglePreview) {
+            m_actTogglePreview->setChecked(shouldShow);
+            if (m_previewDock) m_previewDock->setVisible(shouldShow);
+        }
+    }
+
     QSettings settings("Amifiles", "Amifiles");
     bool bypassRules = settings.value("preferences/bypass_folder_rules", false).toBool();
     if (bypassRules) {
@@ -5472,6 +5485,7 @@ void MainWindow::onPlayMediaBuiltin(const QStringList& filePaths) {
     // Show preview panel if it is hidden
     if (!isFullscreenMode && m_actTogglePreview && !m_actTogglePreview->isChecked()) {
         m_actTogglePreview->setChecked(true);
+        m_previewDockAutoShownForPlayback = true;
     }
 
     if (filePaths.size() == 1) {
@@ -5576,6 +5590,7 @@ void MainWindow::onQueueMediaBuiltin(const QStringList& filePaths) {
         if (m_actTogglePreview && !m_actTogglePreview->isChecked()) {
             m_actTogglePreview->setChecked(true);
             onTogglePreview(true);
+            m_previewDockAutoShownForPlayback = true;
         }
     }
 
