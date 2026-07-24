@@ -394,8 +394,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
         applyFolderRules(m_activePanel->currentPath());
     }
 
-    m_isInitializing = false;
     onActivePanelViewModeChanged();
+    m_isInitializing = false;
 
     updateWidgetStylesheets();
     updateTooltips();
@@ -5543,9 +5543,11 @@ void MainWindow::onActivePanelViewModeChanged() {
         if (m_actTogglePreview && m_actTogglePreview->isChecked()) {
             m_actTogglePreview->setChecked(false);
         }
-        if (m_fullscreenQueueDock && !m_fullscreenQueueDock->isVisible()) {
+        if (!m_isInitializing && m_fullscreenQueueDock && !m_fullscreenQueueDock->isVisible()) {
             m_fullscreenQueueDock->setVisible(true);
             syncFullscreenQueue();
+        } else if (m_isInitializing && m_fullscreenQueueDock && m_fullscreenQueueDock->isVisible()) {
+            m_fullscreenQueueDock->setVisible(false);
         }
     } else {
         if (m_fullscreenQueueDock && m_fullscreenQueueDock->isVisible()) {
