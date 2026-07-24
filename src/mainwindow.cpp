@@ -1441,6 +1441,7 @@ void MainWindow::onPanelActivated(FilePanel* panel) {
         }
         if (m_activePanel) {
             applyFolderRules(m_activePanel->currentPath());
+            m_activePanel->updateThemeMusic();
         }
         onActivePanelViewModeChanged();
     }
@@ -1497,6 +1498,9 @@ void MainWindow::onPathChanged(const QString& path) {
         m_terminalPanel->syncDirectory(path);
     }
     applyFolderRules(path);
+    if (m_activePanel) {
+        m_activePanel->updateThemeMusic();
+    }
 }
 
 void MainWindow::onToggleDualPane(bool checked) {
