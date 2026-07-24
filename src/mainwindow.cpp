@@ -5463,8 +5463,14 @@ void MainWindow::setZenMode(bool enabled) {
 void MainWindow::onPlayMediaBuiltin(const QStringList& filePaths) {
     if (!m_previewPanel || filePaths.isEmpty()) return;
 
+    bool isFullscreenMode = false;
+    if (m_activePanel) {
+        int vm = m_activePanel->viewModeIndex();
+        isFullscreenMode = (vm == 8 || vm == 9 || vm == 10);
+    }
+
     // Show preview panel if it is hidden
-    if (m_actTogglePreview && !m_actTogglePreview->isChecked()) {
+    if (!isFullscreenMode && m_actTogglePreview && !m_actTogglePreview->isChecked()) {
         m_actTogglePreview->setChecked(true);
     }
 
@@ -5529,6 +5535,12 @@ void MainWindow::onActivePanelViewModeChanged() {
     } else {
         if (m_fullscreenQueueDock && m_fullscreenQueueDock->isVisible()) {
             m_fullscreenQueueDock->setVisible(false);
+        }
+        if (m_hasActiveFolderRule && m_activeFolderRule.overridePreview) {
+            if (m_actTogglePreview) {
+                m_actTogglePreview->setChecked(m_activeFolderRule.previewVisible);
+                if (m_previewDock) m_previewDock->setVisible(m_activeFolderRule.previewVisible);
+            }
         }
     }
 }
