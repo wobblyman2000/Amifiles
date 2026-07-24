@@ -5520,6 +5520,11 @@ void MainWindow::onPlayMediaBuiltin(const QStringList& filePaths) {
             m_previewPanel->toggleFullscreen();
         }
     }
+
+    if (isFullscreenMode && m_fullscreenQueueDock && !m_fullscreenQueueDock->isVisible()) {
+        m_fullscreenQueueDock->setVisible(true);
+        syncFullscreenQueue();
+    }
 }
 
 void MainWindow::onPlayMediaFullscreen(const QStringList& filePaths) {
@@ -5543,10 +5548,11 @@ void MainWindow::onActivePanelViewModeChanged() {
         if (m_actTogglePreview && m_actTogglePreview->isChecked()) {
             m_actTogglePreview->setChecked(false);
         }
-        if (!m_isInitializing && m_fullscreenQueueDock && !m_fullscreenQueueDock->isVisible()) {
+        bool hasPlaylist = (m_previewPanel && !m_previewPanel->playlist().isEmpty());
+        if (!m_isInitializing && hasPlaylist && m_fullscreenQueueDock && !m_fullscreenQueueDock->isVisible()) {
             m_fullscreenQueueDock->setVisible(true);
             syncFullscreenQueue();
-        } else if (m_isInitializing && m_fullscreenQueueDock && m_fullscreenQueueDock->isVisible()) {
+        } else if ((m_isInitializing || !hasPlaylist) && m_fullscreenQueueDock && m_fullscreenQueueDock->isVisible()) {
             m_fullscreenQueueDock->setVisible(false);
         }
     } else {
@@ -5598,6 +5604,11 @@ void MainWindow::onQueueMediaBuiltin(const QStringList& filePaths) {
     }
 
     m_previewPanel->addToPlaylist(filePaths);
+
+    if (isFullscreenMode && m_fullscreenQueueDock && !m_fullscreenQueueDock->isVisible()) {
+        m_fullscreenQueueDock->setVisible(true);
+        syncFullscreenQueue();
+    }
 }
 
 void MainWindow::onBackupSettings() {
