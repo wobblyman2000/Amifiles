@@ -281,6 +281,7 @@ void FilePanel::setupUI() {
 
     // Central Tree View
     m_treeView = new QTreeView(this);
+    m_treeView->setMinimumHeight(50);
     m_treeView->setAlternatingRowColors(true);
     m_treeView->setSortingEnabled(true);
     m_treeView->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -295,6 +296,7 @@ void FilePanel::setupUI() {
 
     // Icon Grid List View
     m_listView = new QListView(this);
+    m_listView->setMinimumHeight(50);
     m_defaultDelegate = m_listView->itemDelegate();
     m_cardDelegate = new CardViewDelegate(m_listView);
     m_listView->setViewMode(QListView::IconMode);
@@ -312,12 +314,14 @@ void FilePanel::setupUI() {
     m_listView->setDragDropMode(QAbstractItemView::DragDrop);
 
     m_viewStack = new QStackedWidget(this);
+    m_viewStack->setMinimumHeight(50);
     m_viewStack->addWidget(m_treeView);
     m_viewStack->addWidget(m_listView);
 
     // Global Search UI Setup
 
     m_searchResultsView = new QListView(this);
+    m_searchResultsView->setMinimumHeight(50);
     m_searchResultsView->setVisible(false);
     m_searchResultsView->setContextMenuPolicy(Qt::CustomContextMenu);
     m_searchResultsView->installEventFilter(this);
@@ -365,6 +369,7 @@ void FilePanel::setupUI() {
     m_archiveModel = new ArchiveModel(this);
     m_dashboardWidget = new DiskDashboardWidget(this);
     m_theaterListView = new TheaterListView(this);
+    m_theaterListView->setMinimumHeight(50);
     m_theaterListView->setContextMenuPolicy(Qt::CustomContextMenu);
     m_theaterDelegate = new TheaterViewDelegate(m_theaterListView);
     m_theaterListView->setItemDelegate(m_theaterDelegate);
@@ -377,6 +382,7 @@ void FilePanel::setupUI() {
 
     // Slide-out tracks drawer container
     m_theaterContainer = new QWidget(this);
+    m_theaterContainer->setMinimumHeight(50);
     QVBoxLayout* theaterLayout = new QVBoxLayout(m_theaterContainer);
     theaterLayout->setContentsMargins(0, 0, 0, 0);
     theaterLayout->setSpacing(0);
@@ -667,16 +673,19 @@ void FilePanel::setupUI() {
     m_bottomInfoPanel->installEventFilter(this);
 
     m_millerView = new MillerColumnsView(m_fileModel, this);
+    m_millerView->setMinimumHeight(50);
     m_millerView->installEventFilter(this);
     m_millerView->setAcceptDrops(true);
     if (m_millerView->viewport()) m_millerView->viewport()->installEventFilter(this);
 
     m_timelineView = new TimelineView(this);
+    m_timelineView->setMinimumHeight(50);
     m_timelineView->installEventFilter(this);
     m_timelineView->setAcceptDrops(true);
     if (m_timelineView->viewport()) m_timelineView->viewport()->installEventFilter(this);
 
     m_filmstripView = new FilmstripView(m_fileModel, this);
+    m_filmstripView->setMinimumHeight(50);
     m_filmstripView->installEventFilter(this);
     m_filmstripView->setAcceptDrops(true);
 
@@ -1245,6 +1254,9 @@ void FilePanel::updateActiveViewModel() {
     
     if (m_treeView->selectionModel()) {
         connect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
+    }
+    if (m_filmstripView) {
+        m_filmstripView->setRootPath(m_currentPath);
     }
 }
 
