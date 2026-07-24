@@ -115,6 +115,7 @@ private slots:
 
 private:
     void showHud();
+    void updateHudGeometry();
 
     class QWidget* m_hudWidget = nullptr;
     class QPushButton* m_btnPlayPause = nullptr;

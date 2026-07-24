@@ -53,6 +53,7 @@
 #include <QRandomGenerator>
 
 #include <QScreen>
+#include <QWindow>
 #include <QKeyEvent>
 #include <QMouseEvent>
 
@@ -523,10 +524,22 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
 
 void FullscreenWidget::resizeEvent(QResizeEvent* event) {
     QWidget::resizeEvent(event);
-    int hudW = qMin(width() - 40, 850);
-    int hudH = 130;
-    QPoint globalPos = mapToGlobal(QPoint((width() - hudW) / 2, height() - hudH - 20));
-    m_hudWidget->setGeometry(globalPos.x(), globalPos.y(), hudW, hudH);
+    updateHudGeometry();
+}
+
+void FullscreenWidget::updateHudGeometry() {
+    QScreen* screen = QGuiApplication::primaryScreen();
+    if (window() && window()->windowHandle()) {
+        screen = window()->windowHandle()->screen();
+    }
+    if (screen) {
+        QRect screenGeom = screen->geometry();
+        int hudW = qMin(screenGeom.width() - 40, 850);
+        int hudH = 130;
+        int x = screenGeom.left() + (screenGeom.width() - hudW) / 2;
+        int y = screenGeom.top() + screenGeom.height() - hudH - 30; // Centered at bottom with 30px padding
+        m_hudWidget->setGeometry(x, y, hudW, hudH);
+    }
     m_hudWidget->raise();
 }
 
@@ -571,10 +584,7 @@ void FullscreenWidget::setTrackNames(const QString& current, const QString& next
 }
 
 void FullscreenWidget::showHud() {
-    int hudW = qMin(width() - 40, 850);
-    int hudH = 130;
-    QPoint globalPos = mapToGlobal(QPoint((width() - hudW) / 2, height() - hudH - 20));
-    m_hudWidget->setGeometry(globalPos.x(), globalPos.y(), hudW, hudH);
+    updateHudGeometry();
     m_hudWidget->show();
     m_hudWidget->raise();
     m_hideTimer->start(3000);
