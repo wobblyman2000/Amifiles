@@ -1,4 +1,5 @@
 #include "mainwindow.h"
+#include <iostream>
 #include "copyqueue.h"
 #include "theme.h"
 #include "favoritesmanager.h"
@@ -3708,6 +3709,10 @@ void MainWindow::applyFolderRules(const QString& path) {
         }
 
     if (foundMatch) {
+        if (m_hasActiveFolderRule && m_activeFolderRule.name == matchedRule.name) {
+            return;
+        }
+
         if (!matchedRule.linkedProfile.isEmpty() && matchedRule.linkedProfile != matchedRule.name) {
             FolderLayoutRule inheritedRule = matchedRule;
             bool foundInherited = false;
@@ -3737,6 +3742,10 @@ void MainWindow::applyFolderRules(const QString& path) {
             }
         }
         if (foundDefault) {
+            if (m_hasActiveFolderRule && m_activeFolderRule.name == defaultRule.name) {
+                return;
+            }
+
             if (!defaultRule.linkedProfile.isEmpty() && defaultRule.linkedProfile != defaultRule.name) {
                 FolderLayoutRule inheritedRule = defaultRule;
                 for (const auto& r : m_folderRules) {
