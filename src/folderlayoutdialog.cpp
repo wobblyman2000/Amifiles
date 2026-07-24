@@ -119,6 +119,24 @@ private:
 
 FolderLayoutDialog::FolderLayoutDialog(const QList<FolderLayoutRule>& existingRules, const QList<CustomButton>& availableButtons, QWidget* parent)
     : QDialog(parent), m_rules(existingRules), m_availableButtons(availableButtons) {
+    
+    bool hasDefault = false;
+    for (const auto& r : m_rules) {
+        if (r.name.toLower() == "default") {
+            hasDefault = true;
+            break;
+        }
+    }
+    if (!hasDefault) {
+        FolderLayoutRule def;
+        def.name = "Default";
+        def.ruleType = "Path";
+        def.value = "";
+        def.autoApply = true;
+        def.viewMode = "List";
+        m_rules.prepend(def);
+    }
+
     setWindowTitle("Folder Profiles & Layouts");
     resize(920, 600);
     setStyleSheet("QDialog { background-color: #1e1e2e; color: #cdd6f4; }"
@@ -607,6 +625,38 @@ void FolderLayoutDialog::updateModeVisibility(bool advanced) {
 void FolderLayoutDialog::populateList() {
     m_listWidget->clear();
 
+    // --- SECTION 0: GLOBAL DEFAULT PROFILE ---
+    QListWidgetItem* hdrDefault = new QListWidgetItem("★ GLOBAL DEFAULT PROFILE", m_listWidget);
+    hdrDefault->setFlags(Qt::NoItemFlags);
+    hdrDefault->setForeground(QColor("#f38ba8")); // Red
+    hdrDefault->setBackground(QColor("#181825"));
+    hdrDefault->setFont(QFont("sans-serif", 9, QFont::Bold));
+    hdrDefault->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+
+    int defaultIndex = -1;
+    for (int i = 0; i < m_rules.size(); ++i) {
+        if (m_rules[i].name.toLower() == "default") {
+            defaultIndex = i;
+            break;
+        }
+    }
+
+    if (defaultIndex != -1) {
+        QListWidgetItem* item = new QListWidgetItem(m_listWidget);
+        item->setSizeHint(QSize(200, 36));
+        item->setData(Qt::UserRole, defaultIndex);
+
+        ProfileListItemWidget* widget = new ProfileListItemWidget("Default Layout Profile (Fallback)", m_rules[defaultIndex].autoApply, this);
+        widget->setTextColor("#f38ba8"); // Styled in red
+        connect(widget, &ProfileListItemWidget::toggled, this, [this, defaultIndex](bool checked) {
+            m_rules[defaultIndex].autoApply = checked;
+            if (m_currentIndex == defaultIndex) {
+                m_checkAutoApply->setChecked(checked);
+            }
+        });
+        m_listWidget->setItemWidget(item, widget);
+    }
+
     // --- SECTION 1: LAYOUT TEMPLATES HEADER ---
     QListWidgetItem* hdrTemplates = new QListWidgetItem("❖ LAYOUT TEMPLATES", m_listWidget);
     hdrTemplates->setFlags(Qt::NoItemFlags);
@@ -617,6 +667,8 @@ void FolderLayoutDialog::populateList() {
 
     for (int i = 0; i < m_rules.size(); ++i) {
         const auto& r = m_rules[i];
+        if (r.name.toLower() == "default") continue; // Exclude default fallback rule
+
         if (r.ruleType == "Category" || r.ruleType == "Template" || (r.value.isEmpty() && r.linkedProfile.isEmpty())) {
             QListWidgetItem* item = new QListWidgetItem(m_listWidget);
             item->setSizeHint(QSize(200, 36));
@@ -644,6 +696,8 @@ void FolderLayoutDialog::populateList() {
 
     for (int i = 0; i < m_rules.size(); ++i) {
         const auto& r = m_rules[i];
+        if (r.name.toLower() == "default") continue; // Exclude default fallback rule
+
         if (r.ruleType == "Path" && !r.value.isEmpty()) {
             QListWidgetItem* item = new QListWidgetItem(m_listWidget);
             item->setSizeHint(QSize(200, 36));
@@ -666,10 +720,21 @@ void FolderLayoutDialog::populateList() {
 }
 
 void FolderLayoutDialog::populateFields(const FolderLayoutRule& r) {
+    bool isDefault = (r.name.toLower() == "default");
+
     m_editName->setText(r.name);
+    m_editName->setEnabled(!isDefault);
+
     m_checkAutoApply->setChecked(r.autoApply);
+    m_checkAutoApply->setEnabled(!isDefault);
+
     m_comboRuleType->setCurrentText(r.ruleType);
+    m_comboRuleType->setEnabled(!isDefault);
+
     m_editValue->setText(r.value);
+    m_editValue->setEnabled(!isDefault);
+    m_btnBrowse->setEnabled(!isDefault);
+    m_btnUseActivePath->setEnabled(!isDefault);
 
     int depthIdx = m_comboSubfolderDepth->findData(r.subfolderDepth);
     if (depthIdx != -1) {
@@ -677,6 +742,7 @@ void FolderLayoutDialog::populateFields(const FolderLayoutRule& r) {
     } else {
         m_comboSubfolderDepth->setCurrentIndex(3); // Default to 3 levels deep
     }
+    m_comboSubfolderDepth->setEnabled(!isDefault);
 
     updateLinkedProfileCombo();
     int linkIdx = m_comboLinkedProfile->findData(r.linkedProfile);
@@ -685,6 +751,7 @@ void FolderLayoutDialog::populateFields(const FolderLayoutRule& r) {
     } else {
         m_comboLinkedProfile->setCurrentIndex(0);
     }
+    m_comboLinkedProfile->setEnabled(!isDefault);
 
     bool isLinked = !r.linkedProfile.isEmpty();
     m_viewGroup->setEnabled(!isLinked);
@@ -829,12 +896,21 @@ void FolderLayoutDialog::harvestCurrentProfile(int index) {
     r.windowState = m_capturedWindowState;
 
     // Update list widget item text and state dynamically
-    QListWidgetItem* item = m_listWidget->item(index);
-    if (item) {
-        ProfileListItemWidget* widget = qobject_cast<ProfileListItemWidget*>(m_listWidget->itemWidget(item));
-        if (widget) {
-            widget->setName(r.name.isEmpty() ? "(Unnamed Profile)" : r.name);
-            widget->setChecked(r.autoApply);
+    for (int row = 0; row < m_listWidget->count(); ++row) {
+        QListWidgetItem* item = m_listWidget->item(row);
+        if (item && (item->flags() & Qt::ItemIsSelectable) && item->data(Qt::UserRole).toInt() == index) {
+            ProfileListItemWidget* widget = qobject_cast<ProfileListItemWidget*>(m_listWidget->itemWidget(item));
+            if (widget) {
+                QString displayName = r.name.isEmpty() ? "(Unnamed Profile)" : r.name;
+                if (r.name.toLower() == "default") {
+                    displayName = "Default Layout Profile (Fallback)";
+                } else if (r.ruleType == "Path" && !r.value.isEmpty() && !r.linkedProfile.isEmpty()) {
+                    displayName += QString(" [%1]").arg(r.linkedProfile);
+                }
+                widget->setName(displayName);
+                widget->setChecked(r.autoApply);
+            }
+            break;
         }
     }
 }
@@ -897,8 +973,16 @@ void FolderLayoutDialog::onProfileSelected(int row) {
     if (realIndex >= 0 && realIndex < m_rules.size()) {
         m_editorWidget->setEnabled(true);
         populateFields(m_rules[realIndex]);
+
+        bool isDefault = (m_rules[realIndex].name.toLower() == "default");
+        m_btnDelete->setEnabled(!isDefault);
+        m_btnMoveUp->setEnabled(!isDefault);
+        m_btnMoveDown->setEnabled(!isDefault);
     } else {
         m_editorWidget->setEnabled(false);
+        m_btnDelete->setEnabled(false);
+        m_btnMoveUp->setEnabled(false);
+        m_btnMoveDown->setEnabled(false);
     }
 }
 
@@ -956,6 +1040,10 @@ void FolderLayoutDialog::onDeleteProfile() {
     if (realIndex < 0 || realIndex >= m_rules.size()) return;
 
     const auto& r = m_rules[realIndex];
+    if (r.name.toLower() == "default") {
+        QMessageBox::warning(this, "Cannot Delete", "The Global Default Profile is the fallback layout for all folders and cannot be deleted.");
+        return;
+    }
     if (QMessageBox::question(this, "Confirm Delete", QString("Are you sure you want to delete '%1'?").arg(r.name)) == QMessageBox::Yes) {
         m_rules.removeAt(realIndex);
         m_currentIndex = -1;
@@ -970,22 +1058,82 @@ void FolderLayoutDialog::onDeleteProfile() {
 
 void FolderLayoutDialog::onMoveUpProfile() {
     int row = m_listWidget->currentRow();
-    if (row <= 0 || row >= m_rules.size()) return;
+    if (row <= 0 || row >= m_listWidget->count()) return;
+    QListWidgetItem* item = m_listWidget->item(row);
+    if (!item || (item->flags() & Qt::ItemIsSelectable) == 0) return;
 
-    harvestCurrentProfile(row);
-    m_rules.swapItemsAt(row, row - 1);
+    int realIndex = item->data(Qt::UserRole).toInt();
+    if (realIndex < 0 || realIndex >= m_rules.size()) return;
+
+    harvestCurrentProfile(realIndex);
+
+    int prevRow = row - 1;
+    QListWidgetItem* prevItem = nullptr;
+    while (prevRow >= 0) {
+        QListWidgetItem* tempItem = m_listWidget->item(prevRow);
+        if (tempItem && (tempItem->flags() & Qt::ItemIsSelectable)) {
+            prevItem = tempItem;
+            break;
+        }
+        prevRow--;
+    }
+
+    if (!prevItem) return;
+
+    int prevRealIndex = prevItem->data(Qt::UserRole).toInt();
+    if (prevRealIndex < 0 || prevRealIndex >= m_rules.size()) return;
+
+    if (m_rules[prevRealIndex].name.toLower() == "default") return;
+
+    m_rules.swapItemsAt(realIndex, prevRealIndex);
     populateList();
-    m_listWidget->setCurrentRow(row - 1);
+
+    for (int r = 0; r < m_listWidget->count(); ++r) {
+        QListWidgetItem* checkItem = m_listWidget->item(r);
+        if (checkItem && (checkItem->flags() & Qt::ItemIsSelectable) && checkItem->data(Qt::UserRole).toInt() == prevRealIndex) {
+            m_listWidget->setCurrentRow(r);
+            break;
+        }
+    }
 }
 
 void FolderLayoutDialog::onMoveDownProfile() {
     int row = m_listWidget->currentRow();
-    if (row < 0 || row >= m_rules.size() - 1) return;
+    if (row < 0 || row >= m_listWidget->count()) return;
+    QListWidgetItem* item = m_listWidget->item(row);
+    if (!item || (item->flags() & Qt::ItemIsSelectable) == 0) return;
 
-    harvestCurrentProfile(row);
-    m_rules.swapItemsAt(row, row + 1);
+    int realIndex = item->data(Qt::UserRole).toInt();
+    if (realIndex < 0 || realIndex >= m_rules.size()) return;
+
+    harvestCurrentProfile(realIndex);
+
+    int nextRow = row + 1;
+    QListWidgetItem* nextItem = nullptr;
+    while (nextRow < m_listWidget->count()) {
+        QListWidgetItem* tempItem = m_listWidget->item(nextRow);
+        if (tempItem && (tempItem->flags() & Qt::ItemIsSelectable)) {
+            nextItem = tempItem;
+            break;
+        }
+        nextRow++;
+    }
+
+    if (!nextItem) return;
+
+    int nextRealIndex = nextItem->data(Qt::UserRole).toInt();
+    if (nextRealIndex < 0 || nextRealIndex >= m_rules.size()) return;
+
+    m_rules.swapItemsAt(realIndex, nextRealIndex);
     populateList();
-    m_listWidget->setCurrentRow(row + 1);
+
+    for (int r = 0; r < m_listWidget->count(); ++r) {
+        QListWidgetItem* checkItem = m_listWidget->item(r);
+        if (checkItem && (checkItem->flags() & Qt::ItemIsSelectable) && checkItem->data(Qt::UserRole).toInt() == nextRealIndex) {
+            m_listWidget->setCurrentRow(r);
+            break;
+        }
+    }
 }
 
 void FolderLayoutDialog::onRuleTypeChanged(const QString& type) {

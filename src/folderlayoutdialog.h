@@ -90,6 +90,7 @@ public:
     }
     
     void setName(const QString& name) { m_label->setText(name); }
+    void setTextColor(const QString& colorStr) { m_label->setStyleSheet(QString("font-weight: bold; color: %1;").arg(colorStr)); }
     bool isChecked() const { return m_switch->isChecked(); }
     void setChecked(bool checked) { m_switch->setChecked(checked); }
     ToggleSwitch* toggle() const { return m_switch; }
