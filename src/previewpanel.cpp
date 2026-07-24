@@ -327,13 +327,19 @@ static QIcon createAutoFsIcon(const QColor& color) {
     return QIcon(pix);
 }
 
+FullscreenWidget::~FullscreenWidget() {
+    if (m_hudWidget) {
+        m_hudWidget->deleteLater();
+    }
+}
+
 FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window | Qt::FramelessWindowHint) {
     setStyleSheet("background-color: #000000;");
     setMouseTracking(true);
     installEventFilter(this);
 
     // Create HUD Overlay Panel
-    m_hudWidget = new QWidget(this, Qt::ToolTip | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::WindowDoesNotAcceptFocus);
+    m_hudWidget = new QWidget(nullptr, Qt::ToolTip | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::WindowDoesNotAcceptFocus);
     m_hudWidget->setAttribute(Qt::WA_StyledBackground, true);
     m_hudWidget->setObjectName("hudPanel");
     m_hudWidget->setFocusPolicy(Qt::NoFocus);
