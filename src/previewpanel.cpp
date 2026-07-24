@@ -1121,7 +1121,7 @@ void PreviewPanel::setupUI() {
 }
 
 void PreviewPanel::clearPreview() {
-    if (m_videoWidget->isVisible() && !m_previewedFilePath.isEmpty()) {
+    if (m_isVideo && !m_previewedFilePath.isEmpty()) {
         QSettings settings("Amifiles", "Amifiles");
         if (settings.value("preview/resume_progress", false).toBool()) {
             qint64 pos = m_player->position();
@@ -1144,6 +1144,7 @@ void PreviewPanel::clearPreview() {
         m_autoFsTimer->stop();
     }
     m_previewedFilePath.clear();
+    m_isVideo = false;
     m_currentAudioPath.clear();
     m_originalPixmap = QPixmap();
     m_imageLabel->clear();
@@ -1351,6 +1352,7 @@ void PreviewPanel::openFullscreenImage() {
 }
 
 void PreviewPanel::showMediaPreview(const QString& filePath, bool isVideo, bool startPlaying) {
+    m_isVideo = isVideo;
     m_videoWidget->setVisible(isVideo);
     m_audioPlaceholder->setVisible(!isVideo);
     m_visualizer->setVisible(!isVideo && m_spectrumVisualizerEnabled);
@@ -1565,7 +1567,7 @@ void PreviewPanel::onPlaybackStateChanged(QMediaPlayer::PlaybackState state) {
             m_autoFsTimer->stop();
         }
 
-        if (m_videoWidget->isVisible() && !m_previewedFilePath.isEmpty()) {
+        if (m_isVideo && !m_previewedFilePath.isEmpty()) {
             QSettings settings("Amifiles", "Amifiles");
             if (settings.value("preview/resume_progress", false).toBool()) {
                 qint64 pos = m_player->position();
@@ -1598,7 +1600,7 @@ void PreviewPanel::onPositionChanged(qint64 position) {
         m_fullscreenWidget->updateProgress(position, m_player->duration());
     }
 
-    if (m_videoWidget->isVisible() && !m_previewedFilePath.isEmpty() && m_player->playbackState() == QMediaPlayer::PlayingState) {
+    if (m_isVideo && !m_previewedFilePath.isEmpty() && m_player->playbackState() == QMediaPlayer::PlayingState) {
         QSettings settings("Amifiles", "Amifiles");
         if (settings.value("preview/resume_progress", false).toBool()) {
             qint64 curTime = QDateTime::currentMSecsSinceEpoch();
