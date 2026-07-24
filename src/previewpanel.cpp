@@ -1321,7 +1321,7 @@ void PreviewPanel::showMediaPreview(const QString& filePath, bool isVideo) {
     bool muted = settings.value("preview/muted", false).toBool();
     setMuted(muted);
 
-    if (isVisible() || m_prePreviewPlaybackState == QMediaPlayer::PlayingState) {
+    if (isVisible() || isFullscreen() || m_prePreviewPlaybackState == QMediaPlayer::PlayingState) {
         m_player->play();
         m_btnPlayPause->setIcon(style()->standardIcon(QStyle::SP_MediaPause));
         if (m_btnAutoFS20s && m_btnAutoFS20s->isChecked() && m_autoFsTimer) {
@@ -1676,6 +1676,7 @@ void PreviewPanel::playPlaylist(const QStringList& filePaths) {
         return;
     }
 
+    m_prePreviewPlaybackState = QMediaPlayer::PlayingState;
     previewFile(m_playlist[0]);
     m_playlistList->setCurrentRow(0);
     m_bottomTab->setCurrentIndex(1); // Switch to Playlist Queue tab
@@ -1758,6 +1759,7 @@ void PreviewPanel::onPrevTrack() {
         }
     }
 
+    m_prePreviewPlaybackState = QMediaPlayer::PlayingState;
     previewFile(m_playlist[m_playlistIndex]);
     m_playlistList->setCurrentRow(m_playlistIndex);
 
@@ -1791,6 +1793,7 @@ void PreviewPanel::onNextTrack() {
         }
     }
 
+    m_prePreviewPlaybackState = QMediaPlayer::PlayingState;
     previewFile(m_playlist[m_playlistIndex]);
     m_playlistList->setCurrentRow(m_playlistIndex);
 
@@ -2643,6 +2646,7 @@ void PreviewPanel::onApplyTagsColors() {
 void PreviewPanel::playPlaylistIndex(int index) {
     if (index < 0 || index >= m_playlist.size()) return;
     m_playlistIndex = index;
+    m_prePreviewPlaybackState = QMediaPlayer::PlayingState;
     previewFile(m_playlist[m_playlistIndex]);
     if (m_playlistList) {
         m_playlistList->setCurrentRow(m_playlistIndex);
