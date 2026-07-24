@@ -5,6 +5,7 @@
 #include <QHeaderView>
 #include <QFileInfo>
 #include <QDir>
+#include <QDirIterator>
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -379,9 +380,11 @@ void VideoScraperDialog::onApplyClicked() {
     const auto& res = m_results[row];
     int successCount = 0;
 
+    QStringList resolvedPaths;
     for (const QString& path : m_filePaths) {
         QFileInfo pathInfo(path);
-        QString targetFolder = pathInfo.isDir() ? path : pathInfo.absolutePath();
+        QString currentPath = path;
+        QString targetFolder = pathInfo.isDir() ? currentPath : pathInfo.absolutePath();
 
         // 1. Save Poster Artwork
         if (m_chkSavePoster->isChecked() && !m_downloadedPosterData.isEmpty()) {
@@ -407,7 +410,7 @@ void VideoScraperDialog::onApplyClicked() {
 
         // 2. Save .nfo File
         if (m_chkSaveNfo->isChecked()) {
-            writeNfoFile(path, res);
+            writeNfoFile(currentPath, res);
         }
 
         // 3. Rename File/Folder
@@ -416,10 +419,23 @@ void VideoScraperDialog::onApplyClicked() {
             // Remove invalid filename characters
             sanitizedTitle.remove(QRegularExpression(R"([\\\/\:\*\?\"\<\>\|])"));
             QString newBaseName = QString("%1 (%2)").arg(sanitizedTitle).arg(res.year);
-            renameTarget(path, newBaseName);
+            currentPath = renameTarget(currentPath, newBaseName);
         }
 
+        resolvedPaths.append(currentPath);
         successCount++;
+    }
+
+    // If it's a TV Show, process episodes (rename them and save episode .nfo files)
+    if (res.type == "TV Show") {
+        QList<EpisodeInfo> episodes = fetchEpisodesList(res.id);
+        if (!episodes.isEmpty()) {
+            for (const QString& path : resolvedPaths) {
+                QFileInfo pathInfo(path);
+                QString targetFolder = pathInfo.isDir() ? path : pathInfo.absolutePath();
+                processTVShowEpisodes(targetFolder, res.title, episodes);
+            }
+        }
     }
 
     // If it's a TV Show, download season posters recursively if checked
@@ -479,7 +495,7 @@ void VideoScraperDialog::onApplyClicked() {
                 }
 
                 // Download season posters and write them
-                for (const QString& path : m_filePaths) {
+                for (const QString& path : resolvedPaths) {
                     QFileInfo pathInfo(path);
                     QString targetFolder = pathInfo.isDir() ? path : pathInfo.absolutePath();
                     QDir parentDir(targetFolder);
@@ -571,7 +587,7 @@ void VideoScraperDialog::writeNfoFile(const QString& path, const VideoSearchResu
     }
 }
 
-void VideoScraperDialog::renameTarget(const QString& path, const QString& newName) {
+QString VideoScraperDialog::renameTarget(const QString& path, const QString& newName) {
     QFileInfo info(path);
     QDir parentDir = info.absoluteDir();
     QString newPath;
@@ -582,6 +598,229 @@ void VideoScraperDialog::renameTarget(const QString& path, const QString& newNam
     }
 
     if (path != newPath) {
-        QFile::rename(path, newPath);
+        if (QFile::rename(path, newPath)) {
+            return newPath;
+        }
+    }
+    return path;
+}
+
+VideoScraperDialog::SeasonEpisode VideoScraperDialog::parseSeasonEpisode(const QString& fileName) {
+    SeasonEpisode se;
+    // Try S01E02 pattern first
+    QRegularExpression reSxE(R"([Ss](\d+)\s*[Ee](\d+))");
+    QRegularExpressionMatch matchSxE = reSxE.match(fileName);
+    if (matchSxE.hasMatch()) {
+        se.season = matchSxE.captured(1).toInt();
+        se.episode = matchSxE.captured(2).toInt();
+        return se;
+    }
+    
+    // Try 1x02 pattern
+    QRegularExpression reCross(R"(\b(\d+)[Xx](\d+)\b)");
+    QRegularExpressionMatch matchCross = reCross.match(fileName);
+    if (matchCross.hasMatch()) {
+        se.season = matchCross.captured(1).toInt();
+        se.episode = matchCross.captured(2).toInt();
+        return se;
+    }
+    
+    return se;
+}
+
+QList<EpisodeInfo> VideoScraperDialog::fetchEpisodesList(const QString& showId) {
+    QList<EpisodeInfo> list;
+    if (!m_apiKey.isEmpty()) {
+        // Fetch TMDB show details to get seasons list
+        QUrl showUrl(QString("https://api.themoviedb.org/3/tv/%1").arg(showId));
+        QUrlQuery q;
+        q.addQueryItem("api_key", m_apiKey);
+        showUrl.setQuery(q);
+
+        QNetworkRequest req(showUrl);
+        req.setHeader(QNetworkRequest::UserAgentHeader, "Amifiles Video Scraper");
+        QNetworkReply* reply = m_networkManager->get(req);
+        
+        QEventLoop loop;
+        connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+        loop.exec();
+
+        if (reply->error() == QNetworkReply::NoError) {
+            QByteArray data = reply->readAll();
+            QJsonDocument doc = QJsonDocument::fromJson(data);
+            if (!doc.isNull()) {
+                QJsonObject obj = doc.object();
+                QJsonArray seasonsArr = obj["seasons"].toArray();
+                for (const QJsonValue& val : seasonsArr) {
+                    QJsonObject sobj = val.toObject();
+                    int sNum = sobj["season_number"].toInt();
+                    
+                    // Fetch details for each season
+                    QUrl seasonUrl(QString("https://api.themoviedb.org/3/tv/%1/season/%2").arg(showId).arg(sNum));
+                    QUrlQuery sq;
+                    sq.addQueryItem("api_key", m_apiKey);
+                    seasonUrl.setQuery(sq);
+
+                    QNetworkRequest sReq(seasonUrl);
+                    sReq.setHeader(QNetworkRequest::UserAgentHeader, "Amifiles Video Scraper");
+                    QNetworkReply* sReply = m_networkManager->get(sReq);
+                    
+                    QEventLoop sLoop;
+                    connect(sReply, &QNetworkReply::finished, &sLoop, &QEventLoop::quit);
+                    sLoop.exec();
+
+                    if (sReply->error() == QNetworkReply::NoError) {
+                        QByteArray sData = sReply->readAll();
+                        QJsonDocument sDoc = QJsonDocument::fromJson(sData);
+                        if (!sDoc.isNull()) {
+                            QJsonObject sObj = sDoc.object();
+                            QJsonArray epArr = sObj["episodes"].toArray();
+                            for (const QJsonValue& epVal : epArr) {
+                                QJsonObject epObj = epVal.toObject();
+                                EpisodeInfo ep;
+                                ep.season = sNum;
+                                ep.episode = epObj["episode_number"].toInt();
+                                ep.title = epObj["name"].toString();
+                                ep.overview = epObj["overview"].toString();
+                                list.append(ep);
+                            }
+                        }
+                    }
+                    sReply->deleteLater();
+                }
+            }
+        }
+        reply->deleteLater();
+    } else {
+        // Fetch TVmaze episodes list in one API call
+        QUrl epUrl(QString("https://api.tvmaze.com/shows/%1/episodes").arg(showId));
+        QNetworkRequest req(epUrl);
+        req.setHeader(QNetworkRequest::UserAgentHeader, "Amifiles Video Scraper");
+        QNetworkReply* reply = m_networkManager->get(req);
+        
+        QEventLoop loop;
+        connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+        loop.exec();
+
+        if (reply->error() == QNetworkReply::NoError) {
+            QByteArray data = reply->readAll();
+            QJsonDocument doc = QJsonDocument::fromJson(data);
+            if (!doc.isNull() && doc.isArray()) {
+                QJsonArray arr = doc.array();
+                for (const QJsonValue& val : arr) {
+                    QJsonObject obj = val.toObject();
+                    EpisodeInfo ep;
+                    ep.season = obj["season"].toInt();
+                    ep.episode = obj["number"].toInt();
+                    ep.title = obj["name"].toString();
+                    
+                    QString summary = obj["summary"].toString();
+                    QTextDocument docText;
+                    docText.setHtml(summary);
+                    ep.overview = docText.toPlainText();
+                    
+                    list.append(ep);
+                }
+            }
+        }
+        reply->deleteLater();
+    }
+    return list;
+}
+
+void VideoScraperDialog::processTVShowEpisodes(const QString& targetFolder, const QString& showTitle, const QList<EpisodeInfo>& episodes) {
+    // 1. Rename existing Season subdirectories to correct format "Season XX"
+    QDir dir(targetFolder);
+    QStringList subdirs = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+    for (const QString& subdir : subdirs) {
+        QRegularExpression re(R"((?i)\bseason\s*(\d+)\b|\bs\s*(\d+)\b)");
+        QRegularExpressionMatch m = re.match(subdir);
+        if (m.hasMatch()) {
+            int sNum = !m.captured(1).isEmpty() ? m.captured(1).toInt() : m.captured(2).toInt();
+            QString correctName = QString("Season %1").arg(sNum, 2, 10, QChar('0'));
+            if (subdir != correctName) {
+                QString oldPath = dir.filePath(subdir);
+                QString newPath = dir.filePath(correctName);
+                if (!QFile::exists(newPath)) {
+                    QDir().rename(oldPath, newPath);
+                }
+            }
+        }
+    }
+
+    // Refresh subdirs after possible renaming
+    subdirs = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+
+    // 2. Scan recursively for video files to match and rename
+    QDirIterator it(targetFolder, { "*.mp4", "*.mkv", "*.avi", "*.mov", "*.webm", "*.flv", "*.wmv", "*.m4v", "*.mpg", "*.mpeg" }, QDir::Files, QDirIterator::Subdirectories);
+    struct FileRenameTask {
+        QString oldPath;
+        QString newPath;
+        EpisodeInfo ep;
+    };
+    QList<FileRenameTask> renameTasks;
+
+    while (it.hasNext()) {
+        QString filePath = it.next();
+        QFileInfo fileInfo(filePath);
+
+        SeasonEpisode se = parseSeasonEpisode(fileInfo.fileName());
+        if (se.season != -1 && se.episode != -1) {
+            for (const EpisodeInfo& ep : episodes) {
+                if (ep.season == se.season && ep.episode == se.episode) {
+                    QString sStr = QString("S%1").arg(ep.season, 2, 10, QChar('0'));
+                    QString eStr = QString("E%1").arg(ep.episode, 2, 10, QChar('0'));
+                    QString sanitizedEpTitle = ep.title;
+                    sanitizedEpTitle.remove(QRegularExpression(R"([\\\/\:\*\?\"\<\>\|])"));
+
+                    QString newFileName = QString("%1 - %2%3 - %4.%5")
+                        .arg(showTitle)
+                        .arg(sStr)
+                        .arg(eStr)
+                        .arg(sanitizedEpTitle)
+                        .arg(fileInfo.suffix());
+
+                    QString newPath = fileInfo.absoluteDir().filePath(newFileName);
+                    renameTasks.append({filePath, newPath, ep});
+                    break;
+                }
+            }
+        }
+    }
+
+    // Apply the renames & create NFO files
+    for (const auto& task : renameTasks) {
+        if (m_chkRename->isChecked()) {
+            if (task.oldPath != task.newPath) {
+                QFile::rename(task.oldPath, task.newPath);
+            }
+            if (m_chkSaveNfo->isChecked()) {
+                writeEpisodeNfoFile(task.newPath, task.ep, showTitle);
+            }
+        } else {
+            if (m_chkSaveNfo->isChecked()) {
+                writeEpisodeNfoFile(task.oldPath, task.ep, showTitle);
+            }
+        }
+    }
+}
+
+void VideoScraperDialog::writeEpisodeNfoFile(const QString& filePath, const EpisodeInfo& ep, const QString& showTitle) {
+    QFileInfo info(filePath);
+    QString nfoPath = info.absoluteDir().filePath(info.completeBaseName() + ".nfo");
+
+    QFile file(nfoPath);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QTextStream out(&file);
+        out.setEncoding(QStringConverter::Utf8);
+        out << "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\" ?>\n";
+        out << "<episodedetails>\n";
+        out << "    <title>" << ep.title.toHtmlEscaped() << "</title>\n";
+        out << "    <showtitle>" << showTitle.toHtmlEscaped() << "</showtitle>\n";
+        out << "    <season>" << ep.season << "</season>\n";
+        out << "    <episode>" << ep.episode << "</episode>\n";
+        out << "    <plot>" << ep.overview.toHtmlEscaped() << "</plot>\n";
+        out << "</episodedetails>\n";
+        file.close();
     }
 }

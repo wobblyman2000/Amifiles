@@ -27,6 +27,13 @@ struct VideoSearchResult {
     QString studio;
 };
 
+struct EpisodeInfo {
+    int season = -1;
+    int episode = -1;
+    QString title;
+    QString overview;
+};
+
 class VideoScraperDialog : public QDialog {
     Q_OBJECT
 public:
@@ -46,7 +53,16 @@ private:
     void triggerSearch(const QString& query, const QString& type);
     void fetchPoster(const QString& url);
     void writeNfoFile(const QString& targetFolder, const VideoSearchResult& res);
-    void renameTarget(const QString& path, const QString& newName);
+    QString renameTarget(const QString& path, const QString& newName);
+
+    struct SeasonEpisode {
+        int season = -1;
+        int episode = -1;
+    };
+    SeasonEpisode parseSeasonEpisode(const QString& fileName);
+    QList<EpisodeInfo> fetchEpisodesList(const QString& showId);
+    void processTVShowEpisodes(const QString& targetFolder, const QString& showTitle, const QList<EpisodeInfo>& episodes);
+    void writeEpisodeNfoFile(const QString& filePath, const EpisodeInfo& ep, const QString& showTitle);
 
     QStringList m_filePaths;
     QString m_apiKey;
