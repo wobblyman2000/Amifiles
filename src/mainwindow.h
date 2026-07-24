@@ -192,6 +192,7 @@ private slots:
     void setZenMode(bool enabled);
     void onPlayMediaBuiltin(const QStringList& filePaths);
     void onPlayMediaFullscreen(const QStringList& filePaths);
+    void onPlayQueueFullscreen();
     void onQueueMediaBuiltin(const QStringList& filePaths);
     void onActivePanelViewModeChanged();
     void syncFullscreenQueue();

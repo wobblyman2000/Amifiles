@@ -2554,6 +2554,7 @@ FilePanel* MainWindow::createTab(QTabWidget* tabWidget, const QString& path) {
     connect(panel, &FilePanel::zenModeToggled, this, &MainWindow::setZenMode);
     connect(panel, &FilePanel::playMediaBuiltinRequested, this, &MainWindow::onPlayMediaBuiltin);
     connect(panel, &FilePanel::playMediaFullscreenRequested, this, &MainWindow::onPlayMediaFullscreen);
+    connect(panel, &FilePanel::playQueueFullscreenRequested, this, &MainWindow::onPlayQueueFullscreen);
     connect(panel, &FilePanel::queueMediaBuiltinRequested, this, &MainWindow::onQueueMediaBuiltin);
     connect(panel, &FilePanel::viewModeChanged, this, &MainWindow::onActivePanelViewModeChanged);
     connect(panel, &FilePanel::folderArtDetected, this, &MainWindow::onFolderArtDetected);
@@ -5538,6 +5539,16 @@ void MainWindow::onPlayMediaFullscreen(const QStringList& filePaths) {
     if (!m_previewPanel || filePaths.isEmpty()) return;
     m_previewPanel->clearPreview();
     m_previewPanel->playPlaylist(filePaths);
+    if (m_previewPanel->player()) {
+        m_previewPanel->player()->play();
+    }
+    if (!m_previewPanel->isFullscreen()) {
+        m_previewPanel->toggleFullscreen();
+    }
+}
+
+void MainWindow::onPlayQueueFullscreen() {
+    if (!m_previewPanel || m_previewPanel->playlist().isEmpty()) return;
     if (m_previewPanel->player()) {
         m_previewPanel->player()->play();
     }

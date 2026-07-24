@@ -3668,25 +3668,30 @@ void FilePanel::showVideoShowcaseContextMenu(const QPoint& pos) {
     QAction* actPlay = nullptr;
     QAction* actQueue = nullptr;
     QAction* actOpen = nullptr;
+    QAction* actPlayQueue = nullptr;
 
     if (!selectedPath.isEmpty()) {
         if (isFolder) {
             if (isTvShowFolder) {
                 actPlay = menu.addAction(style->standardIcon(QStyle::SP_MediaPlay), "▶ Play Entire TV Show in Fullscreen");
                 actQueue = menu.addAction("➕ Queue Entire TV Show to Playlist");
+                actPlayQueue = menu.addAction(style->standardIcon(QStyle::SP_MediaPlay), "▶ Play Playlist Queue in Fullscreen");
                 actOpen = menu.addAction(style->standardIcon(QStyle::SP_DialogOpenButton), "📁 Enter TV Show");
             } else if (isSeasonFolder) {
                 actPlay = menu.addAction(style->standardIcon(QStyle::SP_MediaPlay), "▶ Play Season in Fullscreen");
                 actQueue = menu.addAction("➕ Queue Season to Playlist");
+                actPlayQueue = menu.addAction(style->standardIcon(QStyle::SP_MediaPlay), "▶ Play Playlist Queue in Fullscreen");
                 actOpen = menu.addAction(style->standardIcon(QStyle::SP_DialogOpenButton), "📁 Enter Season");
             } else {
                 actPlay = menu.addAction(style->standardIcon(QStyle::SP_MediaPlay), "▶ Play Folder in Fullscreen");
                 actQueue = menu.addAction("➕ Queue Folder to Playlist");
+                actPlayQueue = menu.addAction(style->standardIcon(QStyle::SP_MediaPlay), "▶ Play Playlist Queue in Fullscreen");
                 actOpen = menu.addAction(style->standardIcon(QStyle::SP_DialogOpenButton), "📁 Enter Folder");
             }
         } else {
             actPlay = menu.addAction(style->standardIcon(QStyle::SP_MediaPlay), "▶ Play in Fullscreen");
             actQueue = menu.addAction("➕ Queue to Playlist");
+            actPlayQueue = menu.addAction(style->standardIcon(QStyle::SP_MediaPlay), "▶ Play Playlist Queue in Fullscreen");
             actOpen = menu.addAction(style->standardIcon(QStyle::SP_DialogOpenButton), "Open");
         }
         menu.addSeparator();
@@ -3796,6 +3801,8 @@ void FilePanel::showVideoShowcaseContextMenu(const QPoint& pos) {
                 emit queueMediaBuiltinRequested(playlistPaths);
             }
         }
+    } else if (selected == actPlayQueue) {
+        emit playQueueFullscreenRequested();
     } else if (selected == actMediaInfoSheet) {
         ShowcaseInfoDialog infoDlg(selectedPath, this);
         connect(&infoDlg, &ShowcaseInfoDialog::playRequested, this, [this](const QString& path) {

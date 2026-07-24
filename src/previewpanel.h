@@ -175,7 +175,7 @@ public:
     explicit PreviewPanel(QWidget* parent = nullptr);
     ~PreviewPanel() override;
 
-    void previewFile(const QString& filePath, const QStringList& siblingSelections = QStringList());
+    void previewFile(const QString& filePath, const QStringList& siblingSelections = QStringList(), bool startPlaying = true);
     void previewFolderArt(const QString& artPath, const QString& folderPath);
     void clearPreview();
     void playPlaylist(const QStringList& filePaths);
@@ -245,7 +245,7 @@ private:
     void setupUI();
     void showTextPreview(const QString& filePath);
     void showImagePreview(const QString& filePath);
-    void showMediaPreview(const QString& filePath, bool isVideo);
+    void showMediaPreview(const QString& filePath, bool isVideo, bool startPlaying = true);
     void updateMetadataDisplay(const FileMetadata& meta);
     void scaleImage();
     void updateAudioPlaceholder(const QString& filePath);

@@ -1167,8 +1167,8 @@ void PreviewPanel::clearPreview() {
     m_metadataTable->setRowCount(0);
 }
 
-void PreviewPanel::previewFile(const QString& filePath, const QStringList& siblingSelections) {
-    m_prePreviewPlaybackState = m_player->playbackState();
+void PreviewPanel::previewFile(const QString& filePath, const QStringList& siblingSelections, bool startPlaying) {
+    m_prePreviewPlaybackState = startPlaying ? m_player->playbackState() : QMediaPlayer::StoppedState;
     m_previewedFilePaths = siblingSelections;
     if (m_previewedFilePaths.isEmpty() && !filePath.isEmpty()) {
         m_previewedFilePaths.append(filePath);
@@ -1224,9 +1224,9 @@ void PreviewPanel::previewFile(const QString& filePath, const QStringList& sibli
     } else if (imgExts.contains(ext)) {
         showImagePreview(filePath);
     } else if (audioExts.contains(ext)) {
-        showMediaPreview(filePath, false);
+        showMediaPreview(filePath, false, startPlaying);
     } else if (videoExts.contains(ext)) {
-        showMediaPreview(filePath, true);
+        showMediaPreview(filePath, true, startPlaying);
     } else if (ext == "pdf") {
         if (m_pdfViewer) {
             m_pdfViewer->loadPdf(filePath);
@@ -1344,7 +1344,7 @@ void PreviewPanel::openFullscreenImage() {
     }
 }
 
-void PreviewPanel::showMediaPreview(const QString& filePath, bool isVideo) {
+void PreviewPanel::showMediaPreview(const QString& filePath, bool isVideo, bool startPlaying) {
     m_videoWidget->setVisible(isVideo);
     m_audioPlaceholder->setVisible(!isVideo);
     m_visualizer->setVisible(!isVideo && m_spectrumVisualizerEnabled);
@@ -1365,7 +1365,7 @@ void PreviewPanel::showMediaPreview(const QString& filePath, bool isVideo) {
     bool muted = settings.value("preview/muted", false).toBool();
     setMuted(muted);
 
-    if (isVisible() || isFullscreen() || m_prePreviewPlaybackState == QMediaPlayer::PlayingState) {
+    if (startPlaying && (isVisible() || isFullscreen() || m_prePreviewPlaybackState == QMediaPlayer::PlayingState)) {
         m_player->play();
         m_btnPlayPause->setIcon(style()->standardIcon(QStyle::SP_MediaPause));
         if (m_btnAutoFS20s && m_btnAutoFS20s->isChecked() && m_autoFsTimer) {
@@ -1379,7 +1379,7 @@ void PreviewPanel::showMediaPreview(const QString& filePath, bool isVideo) {
         }
     }
 
-    if (isVideo) {
+    if (isVideo && startPlaying) {
         m_lastProgressSaveTime = 0;
         QSettings settings("Amifiles", "Amifiles");
         if (settings.value("preview/resume_progress", false).toBool()) {
@@ -1814,12 +1814,8 @@ void PreviewPanel::addToPlaylist(const QStringList& filePaths) {
 
     if (wasEmpty) {
         m_playlistIndex = 0;
-        previewFile(m_playlist[0]);
+        previewFile(m_playlist[0], QStringList(), false);
         m_playlistList->setCurrentRow(0);
-
-        if (m_player) {
-            m_player->play();
-        }
     } else {
         int statusRow = -1;
         for (int i = 0; i < m_metadataTable->rowCount(); ++i) {

@@ -834,6 +834,7 @@ signals:
     void playMediaBuiltinRequested(const QStringList& filePaths);
     void playMediaFullscreenRequested(const QStringList& filePaths);
     void queueMediaBuiltinRequested(const QStringList& filePaths);
+    void playQueueFullscreenRequested();
     void zenModeToggled(bool enabled);
     void pathChanged(const QString& path);
     void fileSelected(const QString& filePath);
