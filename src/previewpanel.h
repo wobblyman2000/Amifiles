@@ -81,6 +81,7 @@ public:
 
     void setMediaState(bool isVideo, class QMediaPlayer* player, class QAudioOutput* audioOutput);
     void updateProgress(qint64 position, qint64 duration);
+    void setTrackNames(const QString& current, const QString& next);
 
 signals:
     void exitRequested();
@@ -128,6 +129,8 @@ private:
     class QTimer* m_mousePollTimer = nullptr;
     QPoint m_lastMousePos;
     class QMediaPlayer* m_player = nullptr;
+    class QLabel* m_lblCurrentPlaying = nullptr;
+    class QLabel* m_lblNextPlaying = nullptr;
 public:
     QPushButton* hudShuffleButton() const { return m_btnShuffle; }
     QPushButton* hudRepeatButton() const { return m_btnRepeat; }

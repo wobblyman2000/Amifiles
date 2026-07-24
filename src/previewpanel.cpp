@@ -303,10 +303,24 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
     btnExit->setIconSize(defaultIconSize);
     connect(btnExit, &QPushButton::clicked, this, &FullscreenWidget::exitRequested);
 
-    // Build two-row layout
+    // Build three-row layout
     QVBoxLayout* hudMainLayout = new QVBoxLayout(m_hudWidget);
     hudMainLayout->setContentsMargins(15, 12, 15, 12);
     hudMainLayout->setSpacing(8);
+
+    m_lblCurrentPlaying = new QLabel("Now Playing: -", m_hudWidget);
+    m_lblCurrentPlaying->setStyleSheet("QLabel { color: #89b4fa; font-size: 14px; font-weight: bold; font-family: 'Outfit'; background: transparent; border: none; }");
+    m_lblCurrentPlaying->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+
+    m_lblNextPlaying = new QLabel("", m_hudWidget);
+    m_lblNextPlaying->setStyleSheet("QLabel { color: #a6adc8; font-size: 12px; font-family: 'Outfit'; font-style: italic; background: transparent; border: none; }");
+    m_lblNextPlaying->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+
+    QHBoxLayout* titleLayout = new QHBoxLayout();
+    titleLayout->setContentsMargins(0, 0, 0, 0);
+    titleLayout->addWidget(m_lblCurrentPlaying, 1);
+    titleLayout->addWidget(m_lblNextPlaying, 1);
+    hudMainLayout->addLayout(titleLayout);
 
     QHBoxLayout* row1Layout = new QHBoxLayout();
     row1Layout->setContentsMargins(0, 0, 0, 0);
@@ -380,7 +394,7 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
 void FullscreenWidget::resizeEvent(QResizeEvent* event) {
     QWidget::resizeEvent(event);
     int hudW = qMin(width() - 40, 850);
-    int hudH = 100;
+    int hudH = 130;
     QPoint globalPos = mapToGlobal(QPoint((width() - hudW) / 2, height() - hudH - 20));
     m_hudWidget->setGeometry(globalPos.x(), globalPos.y(), hudW, hudH);
     m_hudWidget->raise();
@@ -415,10 +429,22 @@ void FullscreenWidget::updateProgress(qint64 position, qint64 duration) {
     }
 }
 
+void FullscreenWidget::setTrackNames(const QString& current, const QString& next) {
+    if (m_lblCurrentPlaying) {
+        m_lblCurrentPlaying->setText(current.isEmpty() ? "Now Playing: -" : "Now Playing: " + current);
+        m_lblCurrentPlaying->setToolTip(current);
+    }
+    if (m_lblNextPlaying) {
+        m_lblNextPlaying->setText(next.isEmpty() ? "" : "Next: " + next);
+        m_lblNextPlaying->setToolTip(next);
+    }
+}
+
 void FullscreenWidget::showHud() {
     int hudW = qMin(width() - 40, 850);
-    QPoint globalPos = mapToGlobal(QPoint((width() - hudW) / 2, height() - 80));
-    m_hudWidget->setGeometry(globalPos.x(), globalPos.y(), hudW, 50);
+    int hudH = 130;
+    QPoint globalPos = mapToGlobal(QPoint((width() - hudW) / 2, height() - hudH - 20));
+    m_hudWidget->setGeometry(globalPos.x(), globalPos.y(), hudW, hudH);
     m_hudWidget->show();
     m_hudWidget->raise();
     m_hideTimer->start(3000);
@@ -2388,6 +2414,17 @@ void PreviewPanel::updateFullscreenTrack() {
 
     m_fullscreenWidget->setMediaState(isVideo, m_player, m_audioOutput);
     m_fullscreenWidget->updateProgress(m_player->position(), m_player->duration());
+
+    QString currentName = QFileInfo(activePath).fileName();
+    QString nextName;
+    if (!m_playlist.isEmpty() && m_playlistIndex >= 0 && m_playlistIndex < m_playlist.size()) {
+        if (m_playlistIndex < m_playlist.size() - 1) {
+            nextName = QFileInfo(m_playlist[m_playlistIndex + 1]).fileName();
+        } else if (m_repeatMode == 2) {
+            nextName = QFileInfo(m_playlist[0]).fileName();
+        }
+    }
+    m_fullscreenWidget->setTrackNames(currentName, nextName);
 }
 
 #include <QRandomGenerator>
