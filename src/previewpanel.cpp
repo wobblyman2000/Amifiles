@@ -1,4 +1,5 @@
 #include "previewpanel.h"
+#include <functional>
 #include <QVBoxLayout>
 #include <QSplitter>
 #include <QPainterPath>
@@ -54,6 +55,133 @@
 #include <QScreen>
 #include <QKeyEvent>
 #include <QMouseEvent>
+
+class ResumeOverlay : public QFrame {
+public:
+    ResumeOverlay(QWidget* parent, qint64 savedPos, const QString& formattedTime, std::function<void(bool)> callback)
+        : QFrame(parent), m_callback(callback) {
+        
+        setObjectName("ResumeOverlay");
+        setStyleSheet(
+            "QFrame#ResumeOverlay { "
+            "  background-color: rgba(30, 30, 46, 0.95); "
+            "  border: 2px solid #313244; "
+            "  border-radius: 12px; "
+            "} "
+            "QLabel { "
+            "  color: #cdd6f4; "
+            "  font-family: 'Outfit'; "
+            "  font-size: 15px; "
+            "} "
+            "QPushButton { "
+            "  background-color: #313244; "
+            "  color: #cdd6f4; "
+            "  font-family: 'Outfit'; "
+            "  font-size: 14px; "
+            "  font-weight: bold; "
+            "  border: 1px solid #45475a; "
+            "  border-radius: 6px; "
+            "  padding: 8px 16px; "
+            "} "
+            "QPushButton:hover { "
+            "  background-color: #89b4fa; "
+            "  color: #11111b; "
+            "  border: 1px solid #89b4fa; "
+            "} "
+            "QPushButton#resumeBtn { "
+            "  background-color: #89b4fa; "
+            "  color: #11111b; "
+            "  border: 1px solid #89b4fa; "
+            "} "
+            "QPushButton#resumeBtn:hover { "
+            "  background-color: #b4befe; "
+            "  color: #11111b; "
+            "  border: 1px solid #b4befe; "
+            "}"
+        );
+        
+        QVBoxLayout* mainLayout = new QVBoxLayout(this);
+        mainLayout->setContentsMargins(20, 20, 20, 20);
+        mainLayout->setSpacing(16);
+        
+        QLabel* titleLabel = new QLabel("Resume Playback", this);
+        titleLabel->setStyleSheet("font-size: 18px; font-weight: bold; color: #89b4fa;");
+        titleLabel->setAlignment(Qt::AlignCenter);
+        mainLayout->addWidget(titleLabel);
+        
+        QLabel* textLabel = new QLabel(QString("Would you like to resume playing from %1?").arg(formattedTime), this);
+        textLabel->setAlignment(Qt::AlignCenter);
+        textLabel->setWordWrap(true);
+        mainLayout->addWidget(textLabel);
+        
+        QHBoxLayout* btnLayout = new QHBoxLayout();
+        btnLayout->setSpacing(12);
+        
+        QPushButton* btnStartOver = new QPushButton("Start Over", this);
+        btnStartOver->setCursor(Qt::PointingHandCursor);
+        
+        QPushButton* btnResume = new QPushButton("Resume", this);
+        btnResume->setObjectName("resumeBtn");
+        btnResume->setCursor(Qt::PointingHandCursor);
+        
+        btnLayout->addWidget(btnStartOver);
+        btnLayout->addWidget(btnResume);
+        mainLayout->addLayout(btnLayout);
+        
+        connect(btnResume, &QPushButton::clicked, this, [this]() {
+            m_callback(true);
+            closeAndDestroy();
+        });
+        
+        connect(btnStartOver, &QPushButton::clicked, this, [this]() {
+            m_callback(false);
+            closeAndDestroy();
+        });
+        
+        if (parent) {
+            parent->installEventFilter(this);
+        }
+        
+        adjustSize();
+        centerInParent();
+        
+        btnResume->setFocus();
+    }
+    
+protected:
+    bool eventFilter(QObject* watched, QEvent* event) override {
+        if (watched == parentWidget() && event->type() == QEvent::Resize) {
+            centerInParent();
+        }
+        return QFrame::eventFilter(watched, event);
+    }
+    
+    void keyPressEvent(QKeyEvent* event) override {
+        if (event->key() == Qt::Key_Escape) {
+            m_callback(false);
+            closeAndDestroy();
+            event->accept();
+        } else {
+            QFrame::keyPressEvent(event);
+        }
+    }
+    
+private:
+    void centerInParent() {
+        if (parentWidget()) {
+            int x = (parentWidget()->width() - width()) / 2;
+            int y = (parentWidget()->height() - height()) / 2;
+            move(x, y);
+        }
+    }
+    
+    void closeAndDestroy() {
+        hide();
+        deleteLater();
+    }
+    
+    std::function<void(bool)> m_callback;
+};
 
 static QIcon createShuffleIcon(const QColor& color) {
     QPixmap pix(24, 24);
@@ -1398,25 +1526,15 @@ void PreviewPanel::showMediaPreview(const QString& filePath, bool isVideo, bool 
                     m_player->pause();
 
                     QWidget* parentWidget = m_fullscreenWidget ? (QWidget*)m_fullscreenWidget : (QWidget*)this;
-                    QMessageBox msgBox(parentWidget);
-                    msgBox.setWindowTitle("Resume Playback");
-                    msgBox.setText(QString("Would you like to resume playing from %1?").arg(formatDuration(savedPos)));
-                    msgBox.setIcon(QMessageBox::Question);
-                    QPushButton* btnResume = msgBox.addButton("Resume", QMessageBox::YesRole);
-                    QPushButton* btnStartOver = msgBox.addButton("Start Over", QMessageBox::NoRole);
-                    msgBox.setDefaultButton(btnResume);
-                    msgBox.setStyleSheet(
-                        "QMessageBox { background-color: #1e1e2e; color: #cdd6f4; font-family: 'Outfit'; font-size: 14px; } "
-                        "QLabel { color: #cdd6f4; } "
-                        "QPushButton { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 6px; padding: 6px 12px; font-weight: bold; } "
-                        "QPushButton:hover { background-color: #45475a; color: #ffffff; }"
-                    );
-                    if (msgBox.exec() == 0 || msgBox.clickedButton() == btnResume) {
-                        m_player->setPosition(savedPos);
-                    } else {
-                        m_player->setPosition(0);
-                    }
-                    m_player->play();
+                    ResumeOverlay* overlay = new ResumeOverlay(parentWidget, savedPos, formatDuration(savedPos), [this, savedPos](bool resume) {
+                        if (resume) {
+                            m_player->setPosition(savedPos);
+                        } else {
+                            m_player->setPosition(0);
+                        }
+                        m_player->play();
+                    });
+                    overlay->show();
                 }
             });
         }
