@@ -397,6 +397,13 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     onActivePanelViewModeChanged();
     m_isInitializing = false;
 
+    QTimer::singleShot(200, this, [this]() {
+        if (m_activePanel) {
+            applyFolderRules(m_activePanel->currentPath());
+            onActivePanelViewModeChanged();
+        }
+    });
+
     updateWidgetStylesheets();
     updateTooltips();
 }
