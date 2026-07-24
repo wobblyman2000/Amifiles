@@ -40,6 +40,8 @@ private:
 
     QProcess* m_process = nullptr;
     bool m_isRunning = false;
+    int m_totalFiles = 0;
+    int m_processedFiles = 0;
 
     // UI elements
     QLabel* m_lblTitle = nullptr;

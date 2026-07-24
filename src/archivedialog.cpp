@@ -13,6 +13,7 @@
 #include <QDir>
 #include <QMessageBox>
 #include <QProcess>
+#include <QRegularExpression>
 
 ArchiveDialog::ArchiveDialog(Mode mode, const QStringList& sourcePaths, const QString& currentDir, bool enablePassword, QWidget* parent)
     : QDialog(parent), m_mode(mode), m_sourcePaths(sourcePaths), m_currentDir(currentDir) {
@@ -169,17 +170,50 @@ void ArchiveDialog::startExtraction() {
         return;
     }
 
+    m_processedFiles = 0;
+    m_totalFiles = 0;
+
+    QString ext = QFileInfo(m_archivePath).suffix().toLower();
+
+    // Pre-calculate file count for zip and tar archives
+    if (ext == "zip") {
+        QProcess p;
+        p.start("zipinfo", {"-1", m_archivePath});
+        if (p.waitForFinished(2000)) {
+            QString out = QString::fromLocal8Bit(p.readAllStandardOutput());
+            m_totalFiles = out.split('\n', Qt::SkipEmptyParts).size();
+        }
+    } else if (ext == "tar" || m_archivePath.endsWith(".tar.gz") || m_archivePath.endsWith(".tgz") || m_archivePath.endsWith(".tar.xz") || m_archivePath.endsWith(".tar.bz2")) {
+        QProcess p;
+        if (m_archivePath.endsWith(".tar.gz") || m_archivePath.endsWith(".tgz")) {
+            p.start("tar", {"-tzf", m_archivePath});
+        } else if (m_archivePath.endsWith(".tar.xz")) {
+            p.start("tar", {"-tJf", m_archivePath});
+        } else if (m_archivePath.endsWith(".tar.bz2")) {
+            p.start("tar", {"-tjf", m_archivePath});
+        } else {
+            p.start("tar", {"-tf", m_archivePath});
+        }
+        if (p.waitForFinished(2000)) {
+            QString out = QString::fromLocal8Bit(p.readAllStandardOutput());
+            m_totalFiles = out.split('\n', Qt::SkipEmptyParts).size();
+        }
+    }
+
     m_btnAction->setEnabled(false);
     m_progressBar->setVisible(true);
-    m_progressBar->setRange(0, 0); // Indeterminate busy indicator during extraction
+    if (m_totalFiles > 0) {
+        m_progressBar->setRange(0, m_totalFiles);
+        m_progressBar->setValue(0);
+    } else {
+        m_progressBar->setRange(0, 100);
+        m_progressBar->setValue(0);
+    }
     m_lblStatus->setText("Extracting files...");
     m_isRunning = true;
 
     m_process = new QProcess(this);
     m_process->setWorkingDirectory(m_currentDir);
-
-    QString ext = QFileInfo(m_archivePath).suffix().toLower();
-    QStringList args;
 
     if (m_archivePath.endsWith(".tar.gz") || m_archivePath.endsWith(".tgz")) {
         m_process->start("tar", {"-xzvf", m_archivePath, "-C", m_currentDir});
@@ -195,13 +229,13 @@ void ArchiveDialog::startExtraction() {
         } else {
             m_process->start("unzip", {"-o", m_archivePath, "-d", m_currentDir});
         }
-    } else if (ext == "7z" || ext == "iso" || ext == "img") {
+    } else if (ext == "7z" || ext == "iso" || ext == "img" || ext == "rar") {
         QStringList args;
         args << "x";
         if (m_chkPassword->isChecked() && !m_txtPassword->text().isEmpty()) {
             args << QString("-p%1").arg(m_txtPassword->text());
         }
-        args << m_archivePath << QString("-o%1").arg(m_currentDir) << "-y";
+        args << m_archivePath << QString("-o%1").arg(m_currentDir) << "-y" << "-bsp1";
         m_process->start("7z", args);
     } else if (ext == "d64") {
         QString cmd = QString("for f in $(c1541 -attach \"%1\" -list | grep -o '\"[^\"]*\"' | tr -d '\"'); do c1541 -attach \"%1\" -read \"$f\" \"%2/$f\"; done").arg(m_archivePath).arg(m_currentDir);
@@ -212,7 +246,7 @@ void ArchiveDialog::startExtraction() {
         // Double fallback: try 7z first for unknown format, then tar
         if (ext == "7z" || ext == "rar") {
             QStringList args;
-            args << "x" << m_archivePath << QString("-o%1").arg(m_currentDir) << "-y";
+            args << "x" << m_archivePath << QString("-o%1").arg(m_currentDir) << "-y" << "-bsp1";
             m_process->start("7z", args);
         } else {
             m_process->start("tar", {"-xvf", m_archivePath, "-C", m_currentDir});
@@ -243,11 +277,20 @@ void ArchiveDialog::startCreation() {
         QFile::remove(m_archivePath);
     }
 
+    m_processedFiles = 0;
+    m_totalFiles = m_sourcePaths.size();
+
     m_btnAction->setEnabled(false);
     m_txtTargetName->setEnabled(false);
     m_comboFormat->setEnabled(false);
     m_progressBar->setVisible(true);
-    m_progressBar->setRange(0, 0); // Busy indicator
+    if (m_totalFiles > 0) {
+        m_progressBar->setRange(0, m_totalFiles);
+        m_progressBar->setValue(0);
+    } else {
+        m_progressBar->setRange(0, 100);
+        m_progressBar->setValue(0);
+    }
     m_lblStatus->setText("Creating archive...");
     m_isRunning = true;
 
@@ -270,7 +313,7 @@ void ArchiveDialog::startCreation() {
         m_process->start("zip", args);
     } else if (format == ".7z") {
         QStringList args;
-        args << "a";
+        args << "a" << "-bsp1";
         if (m_chkPassword->isChecked() && !m_txtPassword->text().isEmpty()) {
             args << QString("-p%1").arg(m_txtPassword->text()) << "-mhe=on";
         }
@@ -302,7 +345,57 @@ void ArchiveDialog::onProcessReadyRead() {
     QString err = QString::fromLocal8Bit(m_process->readAllStandardError());
 
     QString text = output.isEmpty() ? err : output;
+    
+    // 1. Parse percentages for 7z (both create and extract)
+    QRegularExpression rePercent(R"(\b(\d+)%)");
+    QRegularExpressionMatchIterator itPercent = rePercent.globalMatch(text);
+    int maxPercent = -1;
+    while (itPercent.hasNext()) {
+        QRegularExpressionMatch match = itPercent.next();
+        int val = match.captured(1).toInt();
+        if (val > maxPercent) {
+            maxPercent = val;
+        }
+    }
+    if (maxPercent != -1) {
+        m_progressBar->setRange(0, 100);
+        m_progressBar->setValue(maxPercent);
+    }
+
+    // 2. Parse file-by-file progress for zip, unzip, and tar
     QStringList lines = text.split('\n', Qt::SkipEmptyParts);
+    for (const QString& line : lines) {
+        QString trimmed = line.trimmed();
+        bool isFileProcessed = false;
+
+        if (m_mode == ModeExtract) {
+            // unzip outputs lines starting with inflating:, creating:, extracting:
+            if (trimmed.startsWith("inflating:") || trimmed.startsWith("creating:") || trimmed.startsWith("extracting:")) {
+                isFileProcessed = true;
+            }
+            // tar outputs file name lines in verbose mode
+            else if (!trimmed.isEmpty() && !trimmed.startsWith("tar:") && !trimmed.contains("Warning") && m_archivePath.contains("tar")) {
+                isFileProcessed = true;
+            }
+        } else { // ModeCreate
+            // zip outputs lines starting with adding: or copying:
+            if (trimmed.startsWith("adding:") || trimmed.startsWith("copying:")) {
+                isFileProcessed = true;
+            }
+            // tar outputs file name lines in verbose mode
+            else if (!trimmed.isEmpty() && !trimmed.startsWith("tar:") && !trimmed.contains("Warning") && !trimmed.contains("compressing")) {
+                isFileProcessed = true;
+            }
+        }
+
+        if (isFileProcessed && m_totalFiles > 0) {
+            m_processedFiles++;
+            if (m_processedFiles <= m_totalFiles) {
+                m_progressBar->setValue(m_processedFiles);
+            }
+        }
+    }
+
     if (!lines.isEmpty()) {
         QString lastLine = lines.last().trimmed();
         if (lastLine.length() > 60) {
