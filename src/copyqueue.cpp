@@ -79,6 +79,7 @@ void CopyQueueWorker::run() {
             QMutexLocker locker(&m_mutex);
             while (m_queue.isEmpty() && m_running) {
                 m_isBusy = false;
+                m_currentFileIndex = 0;
                 m_cond.wait(&m_mutex);
             }
             if (!m_running) break;
@@ -92,24 +93,83 @@ void CopyQueueWorker::run() {
 
         emit jobStarted(job.srcPath, job.destPath, job.isMove);
 
-        QStringList pathsToScan = { job.srcPath };
-        m_batchBytesTotal = calculateTotalSize(pathsToScan);
-        m_batchBytesCopied = 0;
-        m_currentFileIndex = 0;
+        // Reset overall batch stats if starting a new batch
+        if (m_currentFileIndex == 0) {
+            m_batchBytesTotal = 0;
+            m_totalFileCount = 0;
+            m_batchBytesCopied = 0;
+        }
 
-        m_totalFileCount = 0;
-        QFileInfo srcInfo(job.srcPath);
-        if (srcInfo.isDir()) {
-            QStringList fileList;
-            scanDirForFiles(job.srcPath, fileList);
-            m_totalFileCount = fileList.size();
-        } else {
-            m_totalFileCount = 1;
+        // Calculate size of current job if not already done
+        if (job.totalBytes == -1) {
+            qint64 jBytes = 0;
+            int jFiles = 0;
+            QFileInfo srcInfo(job.srcPath);
+            if (srcInfo.isDir()) {
+                QDirIterator it(job.srcPath, QDir::Files, QDirIterator::Subdirectories);
+                while (it.hasNext()) {
+                    it.next();
+                    jBytes += it.fileInfo().size();
+                    jFiles++;
+                }
+            } else {
+                jBytes = srcInfo.size();
+                jFiles = 1;
+            }
+            job.totalBytes = jBytes;
+            job.totalFiles = jFiles;
+            
+            m_batchBytesTotal += jBytes;
+            m_totalFileCount += jFiles;
+        }
+
+        // Scan and update all pending jobs in the queue that haven't been calculated yet
+        QList<CopyJob> pendingCopy;
+        {
+            QMutexLocker locker(&m_mutex);
+            pendingCopy = QList<CopyJob>(m_queue.begin(), m_queue.end());
+        }
+
+        bool updatedAny = false;
+        for (int i = 0; i < pendingCopy.size(); ++i) {
+            if (pendingCopy[i].totalBytes == -1) {
+                qint64 jBytes = 0;
+                int jFiles = 0;
+                QFileInfo srcInfo(pendingCopy[i].srcPath);
+                if (srcInfo.isDir()) {
+                    QDirIterator it(pendingCopy[i].srcPath, QDir::Files, QDirIterator::Subdirectories);
+                    while (it.hasNext()) {
+                        it.next();
+                        jBytes += it.fileInfo().size();
+                        jFiles++;
+                    }
+                } else {
+                    jBytes = srcInfo.size();
+                    jFiles = 1;
+                }
+                pendingCopy[i].totalBytes = jBytes;
+                pendingCopy[i].totalFiles = jFiles;
+                
+                m_batchBytesTotal += jBytes;
+                m_totalFileCount += jFiles;
+                updatedAny = true;
+            }
+        }
+
+        // If we updated any pending jobs, write the calculated sizes back into the queue
+        if (updatedAny) {
+            QMutexLocker locker(&m_mutex);
+            for (int i = 0; i < m_queue.size() && i < pendingCopy.size(); ++i) {
+                if (m_queue[i].srcPath == pendingCopy[i].srcPath) {
+                    m_queue[i].totalBytes = pendingCopy[i].totalBytes;
+                    m_queue[i].totalFiles = pendingCopy[i].totalFiles;
+                }
+            }
         }
 
         m_batchTimer.start();
         m_lastElapsed = 0;
-        m_lastBytesCopied = 0;
+        m_lastBytesCopied = m_batchBytesCopied;
 
         bool success = processJob(job);
         emit jobFinished(job.srcPath, job.destPath, success);

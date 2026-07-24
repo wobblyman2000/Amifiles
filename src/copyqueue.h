@@ -28,6 +28,8 @@ struct CopyJob {
     QString srcPath;
     QString destPath;
     bool isMove;
+    qint64 totalBytes = -1;
+    int totalFiles = -1;
 };
 
 class CopyQueueWorker : public QThread {
