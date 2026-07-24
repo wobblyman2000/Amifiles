@@ -339,8 +339,7 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
     installEventFilter(this);
 
     // Create HUD Overlay Panel
-    m_hudWidget = new QFrame(nullptr, Qt::ToolTip | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::WindowDoesNotAcceptFocus | Qt::BypassWindowManagerHint);
-    m_hudWidget->setAttribute(Qt::WA_TranslucentBackground, true);
+    m_hudWidget = new QFrame(this);
     m_hudWidget->setAttribute(Qt::WA_StyledBackground, true);
     m_hudWidget->setObjectName("hudPanel");
     m_hudWidget->setFocusPolicy(Qt::NoFocus);
@@ -535,18 +534,16 @@ void FullscreenWidget::resizeEvent(QResizeEvent* event) {
 }
 
 void FullscreenWidget::updateHudGeometry() {
-    QScreen* scr = this->screen();
-    if (!scr) {
-        scr = QGuiApplication::primaryScreen();
-    }
-    if (scr) {
-        QRect screenGeom = scr->geometry();
-        int hudW = qMin(screenGeom.width() - 40, 850);
-        int hudH = 130;
-        int x = screenGeom.left() + (screenGeom.width() - hudW) / 2;
-        int y = screenGeom.top() + screenGeom.height() - hudH - 30; // Centered at bottom with 30px padding
-        m_hudWidget->setGeometry(x, y, hudW, hudH);
-    }
+    int parentW = this->width();
+    int parentH = this->height();
+
+    int hudW = qMin(parentW - 40, 850);
+    int hudH = 130;
+
+    int x = (parentW - hudW) / 2;
+    int y = parentH - hudH - 30; // 30px padding from the bottom
+
+    m_hudWidget->setGeometry(x, y, hudW, hudH);
     m_hudWidget->raise();
 }
 
