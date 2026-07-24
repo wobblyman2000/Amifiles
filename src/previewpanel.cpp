@@ -339,13 +339,13 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
     installEventFilter(this);
 
     // Create HUD Overlay Panel
-    m_hudWidget = new QWidget(nullptr, Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::WindowDoesNotAcceptFocus);
+    m_hudWidget = new QFrame(this, Qt::ToolTip | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::WindowDoesNotAcceptFocus | Qt::BypassWindowManagerHint);
     m_hudWidget->setAttribute(Qt::WA_TranslucentBackground, true);
     m_hudWidget->setAttribute(Qt::WA_StyledBackground, true);
     m_hudWidget->setObjectName("hudPanel");
     m_hudWidget->setFocusPolicy(Qt::NoFocus);
     m_hudWidget->setStyleSheet(
-        "QWidget#hudPanel { background-color: rgba(30, 30, 46, 230); border: 1px solid rgba(69, 71, 90, 150); border-radius: 16px; }"
+        "QFrame#hudPanel { background-color: rgba(30, 30, 46, 230); border: 1px solid rgba(69, 71, 90, 150); border-radius: 16px; }"
         "QLabel { color: #cdd6f4; font-size: 12px; font-weight: bold; background: transparent; border: none; }"
         "QPushButton { border: none; background-color: transparent; color: #cdd6f4; border-radius: 18px; }"
         "QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); }"

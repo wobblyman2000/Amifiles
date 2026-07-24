@@ -117,7 +117,7 @@ private:
     void showHud();
     void updateHudGeometry();
 
-    class QWidget* m_hudWidget = nullptr;
+    class QFrame* m_hudWidget = nullptr;
     class QPushButton* m_btnPlayPause = nullptr;
     class QPushButton* m_btnSubtitles = nullptr;
     class QPushButton* m_btnShuffle = nullptr;
