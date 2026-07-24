@@ -535,15 +535,14 @@ void FullscreenWidget::resizeEvent(QResizeEvent* event) {
 }
 
 void FullscreenWidget::updateHudGeometry() {
-    QPoint globalTopLeft = this->mapToGlobal(QPoint(0, 0));
     int parentW = this->width();
     int parentH = this->height();
 
     int hudW = qMin(parentW - 40, 850);
     int hudH = 130;
 
-    int x = globalTopLeft.x() + (parentW - hudW) / 2;
-    int y = globalTopLeft.y() + parentH - hudH - 30; // 30px padding from the bottom
+    int x = (parentW - hudW) / 2;
+    int y = parentH - hudH - 30; // 30px padding from the bottom
 
     m_hudWidget->setGeometry(x, y, hudW, hudH);
     m_hudWidget->raise();
