@@ -2,6 +2,7 @@
 #include "tagmanager.h"
 #include "comicthumbnailrunnable.h"
 #include <QPainter>
+#include <QPainterPath>
 #include <QIcon>
 #include <QPixmap>
 #include <QSettings>
@@ -250,18 +251,35 @@ QIcon CustomFileSystemModel::drawRetroDiskIcon(const QString& filename, const QS
             int w = sz - 2 * pad;
             int h = sz - 2 * pad;
 
-            // 1. Main Disk Body Casing (Dark Charcoal Textured Plastic)
+            // 1. Main Disk Body Casing (Dark Charcoal Textured Plastic with authentic cuts)
+            QPainterPath bodyPath;
+            bodyPath.moveTo(pad, pad + qRound(2 * s)); // top-left start
+            bodyPath.lineTo(pad + w - qRound(7 * s), pad); // to top-right cut start
+            bodyPath.lineTo(pad + w, pad + qRound(7 * s)); // diagonal cut to right side
+            bodyPath.lineTo(pad + w, pad + qRound(16 * s)); // right indentation top
+            bodyPath.lineTo(pad + w - qRound(2 * s), pad + qRound(16 * s));
+            bodyPath.lineTo(pad + w - qRound(2 * s), pad + qRound(24 * s));
+            bodyPath.lineTo(pad + w, pad + qRound(24 * s)); // right indentation bottom
+            bodyPath.lineTo(pad + w, pad + h); // bottom-right corner
+            bodyPath.lineTo(pad, pad + h); // bottom-left corner
+            bodyPath.lineTo(pad, pad + qRound(24 * s)); // left indentation bottom
+            bodyPath.lineTo(pad + qRound(2 * s), pad + qRound(24 * s));
+            bodyPath.lineTo(pad + qRound(2 * s), pad + qRound(16 * s));
+            bodyPath.lineTo(pad, pad + qRound(16 * s)); // left indentation top
+            bodyPath.closeSubpath();
+
             QLinearGradient bodyGrad(pad, pad, pad, pad + h);
-            bodyGrad.setColorAt(0.0, QColor("#313244")); // Lighter top edge
-            bodyGrad.setColorAt(1.0, QColor("#11111b")); // Darker bottom edge
+            bodyGrad.setColorAt(0.0, QColor("#313244")); // Lighter grey/blue top edge
+            bodyGrad.setColorAt(0.5, QColor("#1e1e2e")); // Darker middle
+            bodyGrad.setColorAt(1.0, QColor("#111116")); // Deep black/charcoal bottom
             painter.setBrush(bodyGrad);
             painter.setPen(QPen(QColor("#0b0b10"), qMax(1.0, 0.5 * s)));
-            painter.drawRoundedRect(pad, pad, w, h, 3 * s, 3 * s);
+            painter.drawPath(bodyPath);
 
-            // Subtle 3D inner bevel highlight
+            // Subtle 3D inner bevel highlight along the path
             painter.setBrush(Qt::NoBrush);
-            painter.setPen(QPen(QColor(255, 255, 255, 30), qMax(1.0, 0.5 * s)));
-            painter.drawRoundedRect(pad + 1, pad + 1, w - 2, h - 2, 2.5 * s, 2.5 * s);
+            painter.setPen(QPen(QColor(255, 255, 255, 25), qMax(1.0, 0.5 * s)));
+            painter.drawPath(bodyPath);
 
             // Write-protect cutout at the bottom right
             painter.setBrush(QColor("#0b0b10"));
@@ -300,10 +318,16 @@ QIcon CustomFileSystemModel::drawRetroDiskIcon(const QString& filename, const QS
             painter.setPen(QPen(QColor("#313244"), qMax(1.0, 0.5 * s)));
             painter.drawRoundedRect(pad + qRound(4 * s), pad + qRound(18 * s), w - qRound(8 * s), h - qRound(20 * s), 1 * s, 1 * s);
 
-            // Blue header stripe on label
-            painter.setBrush(QColor("#1e66f5")); // Retro blue stripe
-            painter.setPen(Qt::NoPen);
-            painter.drawRect(pad + qRound(5 * s), pad + qRound(19 * s), w - qRound(10 * s), qRound(3 * s));
+            // Header line: "AMIGA DISK" (bold black)
+            painter.setPen(QColor("#11111b"));
+            QFont headerFont("Outfit", qMax(4, qRound(5.0 * s)));
+            headerFont.setBold(true);
+            painter.setFont(headerFont);
+            painter.drawText(QRectF(pad + qRound(6 * s), pad + qRound(19 * s), w - qRound(12 * s), qRound(6 * s)), Qt::AlignLeft | Qt::AlignVCenter, "AMIGA DISK");
+
+            // Red divider line
+            painter.setPen(QPen(QColor("#f38ba8"), qMax(1.0, 0.7 * s))); // Rose/red divider
+            painter.drawLine(pad + qRound(6 * s), pad + qRound(25 * s), pad + w - qRound(10 * s), pad + qRound(25 * s));
 
             // Amiga Rainbow checkmark in the bottom right corner
             QLinearGradient rainbowGrad(pad + w - qRound(16 * s), pad + h - qRound(10 * s), pad + w - qRound(6 * s), pad + h - qRound(4 * s));
@@ -325,29 +349,33 @@ QIcon CustomFileSystemModel::drawRetroDiskIcon(const QString& filename, const QS
                       << QPointF(pad + w - qRound(6 * s), pad + h - qRound(12 * s));
             painter.drawPolyline(checkPoly);
 
-            // 4. Name Text (wrapped, black color, bold font)
-            painter.setPen(QColor("#11111b"));
-            QFont f("Outfit", qMax(5, qRound(5.5 * s)));
+            // Write filename (wrapped, black color, bold font, dynamically sized)
+            int fontSize = qMax(4, qRound(5.0 * s));
+            if (filename.length() > 12) fontSize = qMax(4, qRound(4.2 * s));
+            if (filename.length() > 20) fontSize = qMax(4, qRound(3.5 * s));
+            if (filename.length() > 30) fontSize = qMax(3, qRound(2.8 * s));
+
+            QFont f("Outfit", fontSize);
             f.setBold(true);
             painter.setFont(f);
-            QRect textRect(pad + qRound(6 * s), pad + qRound(23 * s), w - qRound(22 * s), h - qRound(25 * s));
-            painter.drawText(textRect, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextWordWrap, filename);
+            
+            painter.setPen(QColor("#11111b"));
+            QRectF textRect(pad + qRound(6 * s), pad + qRound(26 * s), w - qRound(22 * s), h - qRound(34 * s));
+            painter.drawText(textRect, Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, filename);
 
-            // 5. Diagonal Gloss Overlay (3D Shine)
-            QLinearGradient shineGrad(0, 0, sz, sz);
-            shineGrad.setColorAt(0.0, QColor(255, 255, 255, 55));
-            shineGrad.setColorAt(0.3, QColor(255, 255, 255, 30));
+            // Mock bottom subtext ("A500 | CSI | SYNC") in small/light font
+            painter.setPen(QColor("#585b70")); // medium grey
+            QFont subFont("Outfit", qMax(3, qRound(3.2 * s)));
+            painter.setFont(subFont);
+            painter.drawText(QRectF(pad + qRound(6 * s), pad + h - qRound(7 * s), w - qRound(25 * s), qRound(5 * s)), Qt::AlignLeft | Qt::AlignBottom, "A500 | C.S.I. | SYNC");
+
+            // 5. Diagonal Gloss Overlay (3D Shine) - linear gradient across top-left
+            QLinearGradient shineGrad(0, 0, sz, sz / 2);
+            shineGrad.setColorAt(0.0, QColor(255, 255, 255, 60));
             shineGrad.setColorAt(0.5, QColor(255, 255, 255, 0));
-            shineGrad.setColorAt(1.0, QColor(255, 255, 255, 0));
             painter.setBrush(shineGrad);
             painter.setPen(Qt::NoPen);
-            
-            QPolygon glossPoly;
-            glossPoly << QPoint(0, 0)
-                      << QPoint(sz, 0)
-                      << QPoint(0, sz);
-            painter.drawPolygon(glossPoly);
-
+            painter.drawRect(0, 0, sz, sz);
         } else if (ext == "d64" || ext == "g64") {
             // C64 5.25" Disk
             QColor casingColor("#11111b"); // black floppy
