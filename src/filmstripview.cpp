@@ -90,6 +90,7 @@ FilmstripView::FilmstripView(QFileSystemModel* model, QWidget* parent)
     }
 
     mainLayout->addWidget(m_thumbList);
+    connectSelectionModel();
 }
 
 void FilmstripView::setRootPath(const QString& path) {
@@ -142,6 +143,13 @@ void FilmstripView::setRootPath(const QString& path) {
 
 void FilmstripView::setModel(QAbstractItemModel* model) {
     m_thumbList->setModel(model);
+    connectSelectionModel();
+}
+
+void FilmstripView::connectSelectionModel() {
+    if (m_thumbList && m_thumbList->selectionModel()) {
+        connect(m_thumbList->selectionModel(), &QItemSelectionModel::currentChanged, this, &FilmstripView::onItemClicked, Qt::UniqueConnection);
+    }
 }
 
 void FilmstripView::onItemClicked(const QModelIndex& index) {

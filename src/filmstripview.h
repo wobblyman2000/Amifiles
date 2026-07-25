@@ -28,6 +28,7 @@ private slots:
 
 private:
     void updatePreview(const QString& path);
+    void connectSelectionModel();
 
     QFileSystemModel* m_model = nullptr;
     QString m_rootPath;
