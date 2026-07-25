@@ -3373,6 +3373,20 @@ void MainWindow::loadFolderRules() {
         r.centerOpsVisible = true;
         r.overrideFavoritesSidebar = true;
         r.favoritesSidebarVisible = true;
+        r.overrideZenMode = true;
+        r.zenModeActive = false;
+        r.overrideBuiltinPlayerDoubleclick = true;
+        r.builtinPlayerDoubleclick = false;
+        r.overrideFullScreenPlayer = true;
+        r.fullScreenPlayerActive = true;
+        r.overrideVisualizer = true;
+        r.visualizerActive = true;
+        r.overrideDualPane = true;
+        r.dualPaneActive = true;
+        r.overrideHorizontalSplit = true;
+        r.horizontalSplitActive = false;
+        r.overrideCasingOverlays = true;
+        r.casingOverlaysActive = true;
         m_folderRules.prepend(r); // Keep Default at the very top
         addedPreset = true;
     }
@@ -4115,6 +4129,22 @@ void MainWindow::onSaveFolderProfileForCurrentDir() {
     r.overrideBuiltinPlayerDoubleclick = true;
     r.builtinPlayerDoubleclick = isBuiltinPlayerDoubleclickActive();
 
+    QSettings settings("Amifiles", "Amifiles");
+    r.overrideFullScreenPlayer = true;
+    r.fullScreenPlayerActive = settings.value("preview/auto_fullscreen", true).toBool();
+
+    r.overrideVisualizer = true;
+    r.visualizerActive = m_previewPanel ? m_previewPanel->isSpectrumVisualizerEnabled() : settings.value("preview/show_spectrum_visualizer", true).toBool();
+
+    r.overrideDualPane = true;
+    r.dualPaneActive = (m_actToggleDualPane && m_actToggleDualPane->isChecked());
+
+    r.overrideHorizontalSplit = true;
+    r.horizontalSplitActive = (m_actToggleHorizontalSplit && m_actToggleHorizontalSplit->isChecked());
+
+    r.overrideCasingOverlays = true;
+    r.casingOverlaysActive = (m_actToggleCasingOverlays && m_actToggleCasingOverlays->isChecked());
+
     // 4. Capture Custom Background Color
     QString customBg = m_activePanel->customBgColor();
     if (!customBg.isEmpty()) {
@@ -4234,6 +4264,22 @@ void MainWindow::onSaveDefaultProfile() {
 
     r.overrideBuiltinPlayerDoubleclick = true;
     r.builtinPlayerDoubleclick = isBuiltinPlayerDoubleclickActive();
+
+    QSettings settings("Amifiles", "Amifiles");
+    r.overrideFullScreenPlayer = true;
+    r.fullScreenPlayerActive = settings.value("preview/auto_fullscreen", true).toBool();
+
+    r.overrideVisualizer = true;
+    r.visualizerActive = m_previewPanel ? m_previewPanel->isSpectrumVisualizerEnabled() : settings.value("preview/show_spectrum_visualizer", true).toBool();
+
+    r.overrideDualPane = true;
+    r.dualPaneActive = (m_actToggleDualPane && m_actToggleDualPane->isChecked());
+
+    r.overrideHorizontalSplit = true;
+    r.horizontalSplitActive = (m_actToggleHorizontalSplit && m_actToggleHorizontalSplit->isChecked());
+
+    r.overrideCasingOverlays = true;
+    r.casingOverlaysActive = (m_actToggleCasingOverlays && m_actToggleCasingOverlays->isChecked());
 
     // 5. Capture Custom Toolbars visibility
     r.overrideToolbars = true;
