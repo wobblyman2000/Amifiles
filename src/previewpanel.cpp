@@ -566,14 +566,11 @@ void FullscreenWidget::setMediaState(bool isVideo, QMediaPlayer* player, QAudioO
     // Reparent HUD to float natively on top of the active display widget in Wayland video composition
     QWidget* activeDisplay = nullptr;
     if (isVideo) {
-        activeDisplay = findChild<QVideoWidget*>();
+        activeDisplay = findChild<QVideoWidget*>("", Qt::FindDirectChildrenOnly);
     } else {
-        QList<QLabel*> labels = findChildren<QLabel*>();
-        for (QLabel* lbl : labels) {
-            if (lbl != m_lblCurrentPlaying && lbl != m_lblNextPlaying && lbl != m_lblTime) {
-                activeDisplay = lbl;
-                break;
-            }
+        QList<QLabel*> labels = findChildren<QLabel*>("", Qt::FindDirectChildrenOnly);
+        if (!labels.isEmpty()) {
+            activeDisplay = labels.first();
         }
     }
 
