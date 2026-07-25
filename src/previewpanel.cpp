@@ -339,7 +339,8 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
     installEventFilter(this);
 
     // Create HUD Overlay Panel
-    m_hudWidget = new QFrame(this);
+    m_hudWidget = new QFrame(this, Qt::SubWindow | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::WindowDoesNotAcceptFocus);
+    m_hudWidget->setAttribute(Qt::WA_TranslucentBackground, true);
     m_hudWidget->setAttribute(Qt::WA_StyledBackground, true);
     m_hudWidget->setObjectName("hudPanel");
     m_hudWidget->setFocusPolicy(Qt::NoFocus);
@@ -575,7 +576,7 @@ void FullscreenWidget::setMediaState(bool isVideo, QMediaPlayer* player, QAudioO
     }
 
     if (activeDisplay && m_hudWidget->parentWidget() != activeDisplay) {
-        m_hudWidget->setParent(activeDisplay);
+        m_hudWidget->setParent(activeDisplay, Qt::SubWindow | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::WindowDoesNotAcceptFocus);
         m_hudWidget->show();
         updateHudGeometry();
     }
