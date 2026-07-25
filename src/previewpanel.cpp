@@ -339,8 +339,7 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
     installEventFilter(this);
 
     // Create HUD Overlay Panel
-    m_hudWidget = new QFrame(this, Qt::SubWindow | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::WindowDoesNotAcceptFocus);
-    m_hudWidget->setAttribute(Qt::WA_TranslucentBackground, true);
+    m_hudWidget = new QFrame(this);
     m_hudWidget->setAttribute(Qt::WA_StyledBackground, true);
     m_hudWidget->setObjectName("hudPanel");
     m_hudWidget->setFocusPolicy(Qt::NoFocus);
@@ -535,8 +534,11 @@ void FullscreenWidget::resizeEvent(QResizeEvent* event) {
 }
 
 void FullscreenWidget::updateHudGeometry() {
-    int parentW = this->width();
-    int parentH = this->height();
+    QWidget* p = m_hudWidget->parentWidget();
+    if (!p) p = this;
+
+    int parentW = p->width();
+    int parentH = p->height();
 
     int hudW = qMin(parentW - 40, 850);
     int hudH = 130;
@@ -559,6 +561,26 @@ void FullscreenWidget::setMediaState(bool isVideo, QMediaPlayer* player, QAudioO
     }
     if (audioOutput) {
         m_sliderVolume->setValue(qRound(audioOutput->volume() * 100));
+    }
+
+    // Reparent HUD to float natively on top of the active display widget in Wayland video composition
+    QWidget* activeDisplay = nullptr;
+    if (isVideo) {
+        activeDisplay = findChild<QVideoWidget*>();
+    } else {
+        QList<QLabel*> labels = findChildren<QLabel*>();
+        for (QLabel* lbl : labels) {
+            if (lbl != m_lblCurrentPlaying && lbl != m_lblNextPlaying && lbl != m_lblTime) {
+                activeDisplay = lbl;
+                break;
+            }
+        }
+    }
+
+    if (activeDisplay && m_hudWidget->parentWidget() != activeDisplay) {
+        m_hudWidget->setParent(activeDisplay);
+        m_hudWidget->show();
+        updateHudGeometry();
     }
 }
 
