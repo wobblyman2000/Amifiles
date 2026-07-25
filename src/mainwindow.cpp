@@ -5709,6 +5709,11 @@ void MainWindow::onActivePanelViewModeChanged() {
     if (!m_activePanel) return;
     int vm = m_activePanel->viewModeIndex();
     bool isFullscreenMode = (vm == 8 || vm == 9 || vm == 10);
+    bool isAudioMode = (vm != 7 && vm != 8 && vm != 9);
+
+    if (m_previewPanel) {
+        m_previewPanel->setPlaylistMode(isAudioMode);
+    }
     
     if (isFullscreenMode) {
         if (m_actTogglePreview && m_actTogglePreview->isChecked()) {

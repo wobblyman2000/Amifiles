@@ -1908,6 +1908,14 @@ void PreviewPanel::setAudioCoverArtVisible(bool visible) {
 }
 
 void PreviewPanel::playPlaylist(const QStringList& filePaths) {
+    if (!filePaths.isEmpty()) {
+        QFileInfo fi(filePaths.first());
+        QString ext = fi.suffix().toLower();
+        QStringList videoExts = { "mp4", "avi", "mkv", "mov", "webm", "flv", "wmv", "m4v", "mpg", "mpeg" };
+        bool isVideo = videoExts.contains(ext);
+        setPlaylistMode(!isVideo);
+    }
+
     m_playlist = filePaths;
     m_playlistIndex = 0;
     
@@ -1935,6 +1943,12 @@ void PreviewPanel::playPlaylist(const QStringList& filePaths) {
 
 void PreviewPanel::addToPlaylist(const QStringList& filePaths) {
     if (filePaths.isEmpty()) return;
+
+    QFileInfo fi(filePaths.first());
+    QString ext = fi.suffix().toLower();
+    QStringList videoExts = { "mp4", "avi", "mkv", "mov", "webm", "flv", "wmv", "m4v", "mpg", "mpeg" };
+    bool isVideo = videoExts.contains(ext);
+    setPlaylistMode(!isVideo);
 
     bool wasEmpty = m_playlist.isEmpty();
 
@@ -2976,4 +2990,41 @@ void PreviewPanel::clearPlaylist() {
 
 void PreviewPanel::setVolume(int value) {
     onVolumeChanged(value);
+}
+
+void PreviewPanel::setPlaylistMode(bool audio) {
+    if (m_isAudioMode == audio) return;
+
+    // Save current playlist state
+    if (m_isAudioMode) {
+        m_audioPlaylist = m_playlist;
+        m_audioPlaylistIndex = m_playlistIndex;
+    } else {
+        m_videoPlaylist = m_playlist;
+        m_videoPlaylistIndex = m_playlistIndex;
+    }
+
+    m_isAudioMode = audio;
+
+    // Restore new playlist state
+    if (m_isAudioMode) {
+        m_playlist = m_audioPlaylist;
+        m_playlistIndex = m_audioPlaylistIndex;
+    } else {
+        m_playlist = m_videoPlaylist;
+        m_playlistIndex = m_videoPlaylistIndex;
+    }
+
+    // Refresh m_playlistList widget
+    if (m_playlistList) {
+        m_playlistList->clear();
+        for (const QString& path : m_playlist) {
+            m_playlistList->addItem(QFileInfo(path).fileName());
+        }
+        if (m_playlistIndex >= 0 && m_playlistIndex < m_playlist.size()) {
+            m_playlistList->setCurrentRow(m_playlistIndex);
+        }
+    }
+
+    emit playlistChanged();
 }
