@@ -1211,8 +1211,11 @@ void FolderLayoutDialog::onCaptureUI() {
         else if (idx == 3) m_comboViewMode->setCurrentText("Miller");
         else if (idx == 4) m_comboViewMode->setCurrentText("Timeline");
         else if (idx == 5) m_comboViewMode->setCurrentText("Filmstrip");
-        else if (idx == 6) m_comboViewMode->setCurrentText("Music Showcase");
-        else if (idx == 7) m_comboViewMode->setCurrentText("Cinema Showcase");
+        else if (idx == 6) m_comboViewMode->setCurrentText("Audio Showcase (Classic)");
+        else if (idx == 7) m_comboViewMode->setCurrentText("Video Showcase (Classic)");
+        else if (idx == 8) m_comboViewMode->setCurrentText("Movies Full Screen");
+        else if (idx == 9) m_comboViewMode->setCurrentText("TV Shows Full Screen");
+        else if (idx == 10) m_comboViewMode->setCurrentText("Music Full Screen");
     }
 
     // 2. Capture custom buttons filter list

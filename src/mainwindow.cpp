@@ -944,6 +944,7 @@ void MainWindow::setupActions() {
     connect(m_actBypassFolderProfiles, &QAction::triggered, this, [this](bool checked) {
         QSettings settings("Amifiles", "Amifiles");
         settings.setValue("preferences/bypass_folder_rules", checked);
+        m_hasActiveFolderRule = false;
         if (m_activePanel) {
             applyFolderRules(m_activePanel->currentPath());
         }
@@ -3982,6 +3983,7 @@ void MainWindow::onConfigureFolderLayouts() {
     if (dlg.exec() == QDialog::Accepted) {
         m_folderRules = dlg.rules();
         saveFolderRules();
+        m_hasActiveFolderRule = false;
         if (m_activePanel) {
             applyFolderRules(m_activePanel->currentPath());
         }
@@ -4017,6 +4019,7 @@ void MainWindow::onApplyProfileToCurrentFolder(const QString& profileName) {
     }
 
     saveFolderRules();
+    m_hasActiveFolderRule = false;
     applyFolderRules(currentPath);
 
     QMessageBox::information(this, "Profile Linked", 
