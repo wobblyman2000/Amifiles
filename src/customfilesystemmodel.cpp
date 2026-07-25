@@ -3,6 +3,7 @@
 #include "comicthumbnailrunnable.h"
 #include <QPainter>
 #include <QPainterPath>
+#include <QFontMetricsF>
 #include <QIcon>
 #include <QPixmap>
 #include <QSettings>
@@ -318,18 +319,28 @@ QIcon CustomFileSystemModel::drawRetroDiskIcon(const QString& filename, const QS
             painter.setPen(QPen(QColor("#313244"), qMax(1.0, 0.5 * s)));
             painter.drawRoundedRect(pad + qRound(4 * s), pad + qRound(18 * s), w - qRound(8 * s), h - qRound(20 * s), 1 * s, 1 * s);
 
-            // Write filename (wrapped, black color, bold font, dynamically sized)
-            int fontSize = qMax(4, qRound(5.0 * s));
-            if (filename.length() > 12) fontSize = qMax(4, qRound(4.2 * s));
-            if (filename.length() > 20) fontSize = qMax(4, qRound(3.5 * s));
-            if (filename.length() > 30) fontSize = qMax(3, qRound(2.8 * s));
-
-            QFont f("Outfit", fontSize);
+            // Write filename (wrapped, black color, handwriting font, dynamically scaled to fit)
+            double fontSize = 6.0 * s;
+            QFont f;
+            f.setFamilies({"Caveat", "Architects Daughter", "Kalam", "Comic Sans MS", "Purisa", "Chalkboard", "Outfit"});
+            f.setPointSizeF(fontSize);
             f.setBold(true);
-            painter.setFont(f);
-            
-            painter.setPen(QColor("#11111b"));
+
             QRectF textRect(pad + qRound(6 * s), pad + qRound(20 * s), w - qRound(22 * s), h - qRound(28 * s));
+
+            // Reduce font size progressively until the text bounding box fits within textRect height
+            while (fontSize > 1.5) {
+                f.setPointSizeF(fontSize);
+                QFontMetricsF fm(f);
+                QRectF bounds = fm.boundingRect(textRect, Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, filename);
+                if (bounds.height() <= textRect.height()) {
+                    break;
+                }
+                fontSize -= 0.25;
+            }
+
+            painter.setFont(f);
+            painter.setPen(QColor("#11111b"));
             painter.drawText(textRect, Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, filename);
 
             // Amiga Rainbow checkmark in the bottom right corner (restored)
