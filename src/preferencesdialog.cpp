@@ -89,6 +89,10 @@ void PreferencesDialog::setupUI() {
     m_chkStickyFilters->setToolTip("Keeps your checked file type filters active when navigating through directories.");
     layGen->addWidget(m_chkStickyFilters);
 
+    m_chkAlwaysCenterSplitter = new QCheckBox("Always keep dual panels centered (50/50 balance)", this);
+    m_chkAlwaysCenterSplitter->setToolTip("Locks dual file pane layout to always occupy exactly 50% width/height each when resizing or toggling side panels.");
+    layGen->addWidget(m_chkAlwaysCenterSplitter);
+
     layGen->addStretch(1);
     m_stackPages->addWidget(pageGeneral);
 
@@ -309,6 +313,7 @@ void PreferencesDialog::loadPreferences() {
     m_chkDrivesToolbar->setChecked(settings.value("layout/drives_toolbar_visible", true).toBool());
     m_chkDrivesMenu->setChecked(settings.value("layout/drives_menu_visible", true).toBool());
     m_chkStickyFilters->setChecked(settings.value("preferences/sticky_filters", false).toBool());
+    m_chkAlwaysCenterSplitter->setChecked(settings.value("preferences/always_center_splitter", true).toBool());
 
     m_chkAgeColoring->setChecked(settings.value("preferences/age_coloring_enabled", true).toBool());
 
@@ -339,6 +344,7 @@ void PreferencesDialog::savePreferences() {
     settings.setValue("layout/drives_toolbar_visible", m_chkDrivesToolbar->isChecked());
     settings.setValue("layout/drives_menu_visible", m_chkDrivesMenu->isChecked());
     settings.setValue("preferences/sticky_filters", m_chkStickyFilters->isChecked());
+    settings.setValue("preferences/always_center_splitter", m_chkAlwaysCenterSplitter->isChecked());
 
     settings.setValue("preferences/age_coloring_enabled", m_chkAgeColoring->isChecked());
 

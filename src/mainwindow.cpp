@@ -1528,6 +1528,7 @@ void MainWindow::onTogglePreview(bool checked) {
     if (m_previewDock) {
         m_previewDock->setVisible(checked);
     }
+    adjustSplitterSizes();
 }
 
 void MainWindow::updateMiniPlayer() {
@@ -1598,6 +1599,7 @@ void MainWindow::resizeEvent(QResizeEvent* event) {
             onToggleDualPane(true);
         }
     }
+    adjustSplitterSizes();
 }
 
 void MainWindow::onToggleAgeColoring(bool checked) {
@@ -4378,6 +4380,21 @@ void MainWindow::adjustSplitterSizes() {
     int mainWidth = qMax(100, totalWidth - sidebarWidth);
 
     m_splitter->setSizes({sidebarWidth, mainWidth});
+
+    if (m_dualSplitter && m_isDualPane) {
+        QSettings settings("Amifiles", "Amifiles");
+        bool alwaysCenter = settings.value("preferences/always_center_splitter", true).toBool();
+        if (alwaysCenter) {
+            int w = m_dualSplitter->width();
+            int h = m_dualSplitter->height();
+            bool isHorizontal = (m_dualSplitter->orientation() == Qt::Horizontal);
+            int total = isHorizontal ? w : h;
+            int centerSize = (m_tbCenterOps && m_tbCenterOps->isVisible()) ? (isHorizontal ? m_tbCenterOps->width() : m_tbCenterOps->height()) : 0;
+            if (centerSize <= 0 && m_tbCenterOps && m_tbCenterOps->isVisible()) centerSize = 38;
+            int sideSize = qMax(50, (total - centerSize) / 2);
+            m_dualSplitter->setSizes({sideSize, centerSize, sideSize});
+        }
+    }
 }
 
 #include "dynamicfavoritesdialog.h"
@@ -4598,6 +4615,7 @@ void MainWindow::onPreferencesAction() {
             FilePanel* p = qobject_cast<FilePanel*>(m_rightTabWidget->widget(i));
             if (p) p->refresh();
         }
+        adjustSplitterSizes();
     });
     dlg.exec();
 }
@@ -4638,6 +4656,7 @@ void MainWindow::onMediaPreferences() {
             FilePanel* p = qobject_cast<FilePanel*>(m_rightTabWidget->widget(i));
             if (p) p->refresh();
         }
+        adjustSplitterSizes();
     });
     dlg.exec();
 }

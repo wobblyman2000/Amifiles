@@ -41,6 +41,7 @@ private:
     QCheckBox* m_chkDrivesToolbar = nullptr;
     QCheckBox* m_chkDrivesMenu = nullptr;
     QCheckBox* m_chkStickyFilters = nullptr;
+    QCheckBox* m_chkAlwaysCenterSplitter = nullptr;
 
     // View & Style Colors
     QCheckBox* m_chkAgeColoring = nullptr;
