@@ -697,10 +697,26 @@ protected:
             }
         }
 
-        // 3. Apply Text Filter (case-insensitive substring contains check)
+        // 3. Apply Text Filter (normalized case-insensitive check ignoring spaces, dots, hyphens, etc.)
         if (!m_filterText.isEmpty()) {
-            if (!fileName.contains(m_filterText, Qt::CaseInsensitive)) {
-                return false;
+            QString cleanQuery;
+            cleanQuery.reserve(m_filterText.size());
+            for (QChar c : m_filterText) {
+                if (c.isLetterOrNumber()) {
+                    cleanQuery.append(c.toLower());
+                }
+            }
+            if (!cleanQuery.isEmpty()) {
+                QString cleanName;
+                cleanName.reserve(fileName.size());
+                for (QChar c : fileName) {
+                    if (c.isLetterOrNumber()) {
+                        cleanName.append(c.toLower());
+                    }
+                }
+                if (!cleanName.contains(cleanQuery)) {
+                    return false;
+                }
             }
         }
 
