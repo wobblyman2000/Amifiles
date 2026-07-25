@@ -318,18 +318,21 @@ QIcon CustomFileSystemModel::drawRetroDiskIcon(const QString& filename, const QS
             painter.setPen(QPen(QColor("#313244"), qMax(1.0, 0.5 * s)));
             painter.drawRoundedRect(pad + qRound(4 * s), pad + qRound(18 * s), w - qRound(8 * s), h - qRound(20 * s), 1 * s, 1 * s);
 
-            // Header line: "AMIGA DISK" (bold black)
+            // Write filename (wrapped, black color, bold font, dynamically sized)
+            int fontSize = qMax(4, qRound(5.0 * s));
+            if (filename.length() > 12) fontSize = qMax(4, qRound(4.2 * s));
+            if (filename.length() > 20) fontSize = qMax(4, qRound(3.5 * s));
+            if (filename.length() > 30) fontSize = qMax(3, qRound(2.8 * s));
+
+            QFont f("Outfit", fontSize);
+            f.setBold(true);
+            painter.setFont(f);
+            
             painter.setPen(QColor("#11111b"));
-            QFont headerFont("Outfit", qMax(4, qRound(5.0 * s)));
-            headerFont.setBold(true);
-            painter.setFont(headerFont);
-            painter.drawText(QRectF(pad + qRound(6 * s), pad + qRound(19 * s), w - qRound(12 * s), qRound(6 * s)), Qt::AlignLeft | Qt::AlignVCenter, "AMIGA DISK");
+            QRectF textRect(pad + qRound(6 * s), pad + qRound(20 * s), w - qRound(22 * s), h - qRound(28 * s));
+            painter.drawText(textRect, Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, filename);
 
-            // Red divider line
-            painter.setPen(QPen(QColor("#f38ba8"), qMax(1.0, 0.7 * s))); // Rose/red divider
-            painter.drawLine(pad + qRound(6 * s), pad + qRound(25 * s), pad + w - qRound(10 * s), pad + qRound(25 * s));
-
-            // Amiga Rainbow checkmark in the bottom right corner
+            // Amiga Rainbow checkmark in the bottom right corner (restored)
             QLinearGradient rainbowGrad(pad + w - qRound(16 * s), pad + h - qRound(10 * s), pad + w - qRound(6 * s), pad + h - qRound(4 * s));
             rainbowGrad.setColorAt(0.0, QColor("#e64553")); // Red
             rainbowGrad.setColorAt(0.25, QColor("#fe640b")); // Orange
@@ -348,20 +351,6 @@ QIcon CustomFileSystemModel::drawRetroDiskIcon(const QString& filename, const QS
                       << QPointF(pad + w - qRound(11 * s), pad + h - qRound(5 * s))
                       << QPointF(pad + w - qRound(6 * s), pad + h - qRound(12 * s));
             painter.drawPolyline(checkPoly);
-
-            // Write filename (wrapped, black color, bold font, dynamically sized)
-            int fontSize = qMax(4, qRound(5.0 * s));
-            if (filename.length() > 12) fontSize = qMax(4, qRound(4.2 * s));
-            if (filename.length() > 20) fontSize = qMax(4, qRound(3.5 * s));
-            if (filename.length() > 30) fontSize = qMax(3, qRound(2.8 * s));
-
-            QFont f("Outfit", fontSize);
-            f.setBold(true);
-            painter.setFont(f);
-            
-            painter.setPen(QColor("#11111b"));
-            QRectF textRect(pad + qRound(6 * s), pad + qRound(26 * s), w - qRound(22 * s), h - qRound(34 * s));
-            painter.drawText(textRect, Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, filename);
 
             // Mock bottom subtext ("A500 | CSI | SYNC") in small/light font
             painter.setPen(QColor("#585b70")); // medium grey
