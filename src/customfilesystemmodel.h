@@ -22,18 +22,24 @@ public:
     QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
 
     void clearCache();
-
     void loadColumnLayout();
     void saveColumnLayout();
     QList<CustomColumn> activeColumns() const { return m_activeColumns; }
     void setActiveColumns(const QList<CustomColumn>& cols);
 
+public slots:
+    void onThumbnailGenerated(const QString& filePath, const QImage& img);
+
 private:
     FileMetadata getMetadata(const QString& filePath) const;
     QIcon getEmbeddedArtworkIcon(const QString& filePath) const;
+    QIcon getRetroOrComicIcon(const QString& filePath) const;
+    QIcon drawRetroDiskIcon(const QString& filename, const QString& ext, int size) const;
 
     mutable QHash<QString, FileMetadata> m_metadataCache;
     QList<CustomColumn> m_activeColumns;
+    mutable QHash<QString, QIcon> m_thumbnailCache;
+    mutable QSet<QString> m_pendingThumbnails;
 };
 
 #endif // CUSTOMFILESYSTEMMODEL_H

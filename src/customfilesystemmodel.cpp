@@ -1,5 +1,6 @@
 #include "customfilesystemmodel.h"
 #include "tagmanager.h"
+#include "comicthumbnailrunnable.h"
 #include <QPainter>
 #include <QIcon>
 #include <QPixmap>
@@ -7,6 +8,14 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QThreadPool>
+#include <QCryptographicHash>
+#include <QDir>
+#include <cmath>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 CustomFileSystemModel::CustomFileSystemModel(QObject* parent)
     : QFileSystemModel(parent) {
@@ -34,7 +43,10 @@ QVariant CustomFileSystemModel::data(const QModelIndex& index, int role) const {
     if (col == 0) {
         QString filePath = fileInfo(index).absoluteFilePath();
         if (role == Qt::DecorationRole) {
-            QIcon baseIcon = QFileSystemModel::data(index, role).value<QIcon>();
+            QIcon baseIcon = getRetroOrComicIcon(filePath);
+            if (baseIcon.isNull()) {
+                baseIcon = QFileSystemModel::data(index, role).value<QIcon>();
+            }
             if (fileInfo(index).isDir()) {
                 QString dirName = fileInfo(index).fileName();
                 QString dirNameLower = dirName.toLower();
@@ -186,6 +198,8 @@ QVariant CustomFileSystemModel::data(const QModelIndex& index, int role) const {
 
 void CustomFileSystemModel::clearCache() {
     m_metadataCache.clear();
+    m_thumbnailCache.clear();
+    m_pendingThumbnails.clear();
 }
 
 FileMetadata CustomFileSystemModel::getMetadata(const QString& filePath) const {
@@ -217,6 +231,235 @@ QIcon CustomFileSystemModel::getEmbeddedArtworkIcon(const QString& filePath) con
     
     artworkCache[filePath] = QIcon();
     return QIcon();
+}
+
+QIcon CustomFileSystemModel::drawRetroDiskIcon(const QString& filename, const QString& ext, int /*size*/) const {
+    QIcon icon;
+    QList<int> targetSizes = {16, 24, 32, 48, 64, 96, 128};
+    for (int sz : targetSizes) {
+        QPixmap pix(sz, sz);
+        pix.fill(Qt::transparent);
+        QPainter painter(&pix);
+        painter.setRenderHint(QPainter::Antialiasing);
+
+        double s = sz / 48.0; // scale factor based on 48px baseline
+
+        if (ext == "adf" || ext == "dms") {
+            // Amiga 3.5" Disk
+            QColor casingColor("#243a5e"); // Nice Amiga dark blue
+            painter.setBrush(casingColor);
+            painter.setPen(QPen(QColor("#11111b"), qMax(1.0, 0.5 * s)));
+            int pad = qMax(1, qRound(2 * s));
+            int w = sz - 2 * pad;
+            int h = sz - 2 * pad;
+            painter.drawRoundedRect(pad, pad, w, h, 3 * s, 3 * s);
+
+            // Metal shutter
+            painter.setBrush(QColor("#a6adc8")); // silver/grey
+            painter.setPen(Qt::NoPen);
+            painter.drawRect(pad + qRound(12 * s), pad, qRound(14 * s), qRound(16 * s));
+            painter.setBrush(QColor("#45475a"));
+            painter.drawRect(pad + qRound(15 * s), pad + qRound(2 * s), qRound(2 * s), qRound(12 * s));
+
+            // Label
+            painter.setBrush(QColor("#f5e0dc")); // white/cream label
+            painter.drawRoundedRect(pad + qRound(4 * s), pad + qRound(18 * s), w - qRound(8 * s), h - qRound(20 * s), 1 * s, 1 * s);
+
+            // Retro stripe on label
+            painter.setBrush(QColor("#f38ba8")); // rose red stripe
+            painter.drawRect(pad + qRound(4 * s), pad + qRound(18 * s), w - qRound(8 * s), qRound(3 * s));
+
+            // Text
+            painter.setPen(QColor("#11111b"));
+            QFont f("Outfit", qMax(5, qRound(5.5 * s)));
+            f.setBold(true);
+            painter.setFont(f);
+            QRect textRect(pad + qRound(6 * s), pad + qRound(22 * s), w - qRound(12 * s), h - qRound(24 * s));
+            painter.drawText(textRect, Qt::AlignCenter | Qt::TextWordWrap, filename);
+
+            // Amiga red checkmark / logo in corner
+            painter.setPen(QPen(QColor("#f38ba8"), qMax(1.0, 1.0 * s)));
+            painter.drawLine(pad + qRound(4 * s), pad + qRound(6 * s), pad + qRound(6 * s), pad + qRound(10 * s));
+            painter.drawLine(pad + qRound(6 * s), pad + qRound(10 * s), pad + qRound(10 * s), pad + qRound(3 * s));
+
+        } else if (ext == "d64" || ext == "g64") {
+            // C64 5.25" Disk
+            QColor casingColor("#11111b"); // black floppy
+            painter.setBrush(casingColor);
+            painter.setPen(QPen(QColor("#313244"), qMax(1.0, 0.5 * s)));
+            int pad = qMax(1, qRound(2 * s));
+            int w = sz - 2 * pad;
+            int h = sz - 2 * pad;
+            painter.drawRect(pad, pad, w, h);
+
+            // Write protect notch
+            painter.setBrush(QColor("#1e1e2e"));
+            painter.drawRect(pad + w - qRound(3 * s), pad + qRound(10 * s), qRound(4 * s), qRound(6 * s));
+
+            // Center hub ring & hole
+            int cx = sz / 2;
+            int cy = sz / 2;
+            painter.setBrush(QColor("#313244"));
+            painter.drawEllipse(cx - qRound(7 * s), cy - qRound(7 * s), qRound(14 * s), qRound(14 * s));
+            painter.setBrush(QColor("#1e1e2e"));
+            painter.drawEllipse(cx - qRound(4 * s), cy - qRound(4 * s), qRound(8 * s), qRound(8 * s));
+
+            // C64 label at the top
+            painter.setBrush(QColor("#fab387")); // orange retro label
+            painter.drawRect(pad + qRound(4 * s), pad + qRound(2 * s), w - qRound(8 * s), qRound(12 * s));
+
+            // Text
+            painter.setPen(QColor("#11111b"));
+            QFont f("Outfit", qMax(5, qRound(5.0 * s)));
+            f.setBold(true);
+            painter.setFont(f);
+            QRect textRect(pad + qRound(5 * s), pad + qRound(2 * s), w - qRound(10 * s), qRound(12 * s));
+            painter.drawText(textRect, Qt::AlignCenter | Qt::TextWordWrap, filename);
+
+        } else if (ext == "t64" || ext == "tap") {
+            // C64 Cassette Tape
+            painter.setBrush(QColor("#313244")); // dark grey casing
+            painter.setPen(QPen(QColor("#45475a"), qMax(1.0, 0.5 * s)));
+            int padX = qMax(1, qRound(2 * s));
+            int padY = qMax(1, qRound(6 * s));
+            int w = sz - 2 * padX;
+            int h = sz - 2 * padY;
+            painter.drawRoundedRect(padX, padY, w, h, 2 * s, 2 * s);
+
+            // Label strip
+            painter.setBrush(QColor("#cdd6f4")); // white label
+            painter.drawRect(padX + qRound(4 * s), padY + qRound(4 * s), w - qRound(8 * s), qRound(12 * s));
+
+            // Spindle holes
+            painter.setBrush(QColor("#1e1e2e"));
+            painter.drawEllipse(padX + qRound(10 * s), padY + qRound(20 * s), qRound(6 * s), qRound(6 * s));
+            painter.drawEllipse(padX + w - qRound(16 * s), padY + qRound(20 * s), qRound(6 * s), qRound(6 * s));
+
+            // Text on label
+            painter.setPen(QColor("#11111b"));
+            QFont f("Outfit", qMax(5, qRound(5.0 * s)));
+            f.setBold(true);
+            painter.setFont(f);
+            QRect textRect(padX + qRound(5 * s), padY + qRound(4 * s), w - qRound(10 * s), qRound(12 * s));
+            painter.drawText(textRect, Qt::AlignCenter | Qt::TextWordWrap, filename);
+
+        } else if (ext == "crt") {
+            // C64 Cartridge
+            painter.setBrush(QColor("#585b70")); // C64 grey-brown cartridge
+            painter.setPen(QPen(QColor("#313244"), qMax(1.0, 0.5 * s)));
+            int padX = qMax(1, qRound(6 * s));
+            int padY = qMax(1, qRound(2 * s));
+            int w = sz - 2 * padX;
+            int h = sz - 2 * padY;
+            painter.drawRoundedRect(padX, padY, w, h, 3 * s, 3 * s);
+
+            // Cartridge label
+            painter.setBrush(QColor("#f9e2af")); // yellow retro label
+            painter.drawRect(padX + qRound(4 * s), padY + qRound(6 * s), w - qRound(8 * s), h - qRound(12 * s));
+
+            // Text
+            painter.setPen(QColor("#11111b"));
+            QFont f("Outfit", qMax(5, qRound(5.0 * s)));
+            f.setBold(true);
+            painter.setFont(f);
+            QRect textRect(padX + qRound(5 * s), padY + qRound(6 * s), w - qRound(10 * s), h - qRound(12 * s));
+            painter.drawText(textRect, Qt::AlignCenter | Qt::TextWordWrap, filename);
+        }
+
+        painter.end();
+        icon.addPixmap(pix);
+    }
+    return icon;
+}
+
+QIcon CustomFileSystemModel::getRetroOrComicIcon(const QString& filePath) const {
+    if (m_thumbnailCache.contains(filePath)) {
+        return m_thumbnailCache[filePath];
+    }
+
+    QFileInfo info(filePath);
+    QString ext = info.suffix().toLower();
+    QString filename = info.baseName();
+
+    if (ext == "adf" || ext == "dms" || ext == "d64" || ext == "g64" || ext == "t64" || ext == "tap" || ext == "crt") {
+        QIcon icon = drawRetroDiskIcon(filename, ext, 48);
+        m_thumbnailCache[filePath] = icon;
+        return icon;
+    }
+
+    if (ext == "cbz" || ext == "cbr") {
+        QString appDir = "/home/dave/.gemini/antigravity";
+        QByteArray hash = QCryptographicHash::hash(filePath.toUtf8(), QCryptographicHash::Md5);
+        QString cachedName = hash.toHex() + ".png";
+        QString cachedPath = QDir(appDir).filePath("thumbnails/" + cachedName);
+
+        if (QFile::exists(cachedPath)) {
+            QPixmap pix(cachedPath);
+            if (!pix.isNull()) {
+                QIcon icon(pix);
+                m_thumbnailCache[filePath] = icon;
+                return icon;
+            }
+        }
+
+        if (!m_pendingThumbnails.contains(filePath)) {
+            m_pendingThumbnails.insert(filePath);
+            ComicThumbnailRunnable* task = new ComicThumbnailRunnable(filePath, cachedPath, const_cast<CustomFileSystemModel*>(this));
+            QThreadPool::globalInstance()->start(task);
+        }
+
+        QIcon placeholder;
+        QList<int> targetSizes = {16, 24, 32, 48, 64, 96, 128};
+        for (int sz : targetSizes) {
+            QPixmap pix(sz, sz);
+            pix.fill(Qt::transparent);
+            QPainter painter(&pix);
+            painter.setRenderHint(QPainter::Antialiasing);
+            double s = sz / 48.0;
+
+            painter.setBrush(QColor("#f38ba8")); // rose red book cover
+            painter.setPen(QPen(QColor("#11111b"), qMax(1.0, 0.5 * s)));
+            painter.drawRect(qMax(1, qRound(4 * s)), qMax(1, qRound(2 * s)), sz - qMax(2, qRound(8 * s)), sz - qMax(2, qRound(4 * s)));
+
+            painter.setBrush(QColor("#f9e2af")); // yellow burst
+            QPolygonF star;
+            double cx = sz / 2.0;
+            double cy = sz / 2.0;
+            double r1 = 12.0 * s;
+            double r2 = 5.0 * s;
+            for (int i = 0; i < 16; ++i) {
+                double angle = i * M_PI / 8.0;
+                double r = (i % 2 == 0) ? r1 : r2;
+                star << QPointF(cx + r * cos(angle), cy + r * sin(angle));
+            }
+            painter.drawPolygon(star);
+
+            painter.setPen(QColor("#11111b"));
+            QFont f("Outfit", qMax(4, qRound(4.5 * s)));
+            f.setBold(true);
+            painter.setFont(f);
+            painter.drawText(QRect(0, 0, sz, sz), Qt::AlignCenter, "COMIC");
+
+            painter.end();
+            placeholder.addPixmap(pix);
+        }
+        return placeholder;
+    }
+
+    return QIcon();
+}
+
+void CustomFileSystemModel::onThumbnailGenerated(const QString& filePath, const QImage& img) {
+    m_pendingThumbnails.remove(filePath);
+    if (!img.isNull()) {
+        QIcon icon(QPixmap::fromImage(img));
+        m_thumbnailCache[filePath] = icon;
+    }
+
+    QModelIndex idx = index(filePath);
+    if (idx.isValid()) {
+        emit dataChanged(idx, idx, {Qt::DecorationRole});
+    }
 }
 
 void CustomFileSystemModel::loadColumnLayout() {
