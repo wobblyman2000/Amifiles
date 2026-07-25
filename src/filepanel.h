@@ -514,8 +514,15 @@ public:
         }
 
         if (role == Qt::DecorationRole && index.column() == 0) {
-            QSettings settings("Amifiles", "Amifiles");
-            bool casingEnabled = settings.value("preferences/casing_overlays", true).toBool();
+            bool casingEnabled = true;
+            QObject* pObj = const_cast<FileFilterProxyModel*>(this)->parent();
+            while (pObj) {
+                if (pObj->inherits("MainWindow")) {
+                    casingEnabled = pObj->property("casingOverlaysEnabled").toBool();
+                    break;
+                }
+                pObj = pObj->parent();
+            }
             if (casingEnabled) {
                 QModelIndex srcIndex = mapToSource(index);
                 QFileSystemModel* fileModel = qobject_cast<QFileSystemModel*>(sourceModel());

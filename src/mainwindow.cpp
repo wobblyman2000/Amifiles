@@ -1515,8 +1515,10 @@ void MainWindow::onToggleDualPane(bool checked) {
         onPanelActivated(leftPanel());
     }
 
-    QSettings settings("Amifiles", "Amifiles");
-    settings.setValue("preferences/dual_pane", checked);
+    if (!m_isApplyingFolderProfile) {
+        QSettings settings("Amifiles", "Amifiles");
+        settings.setValue("preferences/dual_pane", checked);
+    }
 
     adjustSplitterSizes();
 }
@@ -2012,9 +2014,11 @@ void MainWindow::onToggleDrivesToolbar(bool checked) {
     if (m_tbDrives) {
         m_tbDrives->setVisible(checked);
     }
-    // Save to settings
-    QSettings settings("Amifiles", "Amifiles");
-    settings.setValue("drives/toolbar_visible", checked);
+    if (!m_isApplyingFolderProfile) {
+        // Save to settings
+        QSettings settings("Amifiles", "Amifiles");
+        settings.setValue("drives/toolbar_visible", checked);
+    }
 }
 
 void MainWindow::onMutePreview(bool checked) {
@@ -2052,8 +2056,10 @@ void MainWindow::onToggleArchiveWrite(bool checked) {
 }
 
 void MainWindow::onToggleHorizontalSplit(bool checked) {
-    QSettings settings("Amifiles", "Amifiles");
-    settings.setValue("preferences/horizontal_split", checked);
+    if (!m_isApplyingFolderProfile) {
+        QSettings settings("Amifiles", "Amifiles");
+        settings.setValue("preferences/horizontal_split", checked);
+    }
     if (m_dualSplitter) {
         if (checked) {
             m_dualSplitter->setOrientation(Qt::Vertical);
@@ -2100,8 +2106,10 @@ void MainWindow::onToggleHorizontalSplit(bool checked) {
 }
 
 void MainWindow::onToggleCasingOverlays(bool checked) {
-    QSettings settings("Amifiles", "Amifiles");
-    settings.setValue("preferences/casing_overlays", checked);
+    if (!m_isApplyingFolderProfile) {
+        QSettings settings("Amifiles", "Amifiles");
+        settings.setValue("preferences/casing_overlays", checked);
+    }
     for (int i = 0; i < m_leftTabWidget->count(); ++i) {
         FilePanel* p = qobject_cast<FilePanel*>(m_leftTabWidget->widget(i));
         if (p) p->refresh();
@@ -2179,8 +2187,10 @@ void MainWindow::onToggleConsole(bool checked) {
     if (m_bottomTabWidget) {
         m_bottomTabWidget->setVisible(checked);
     }
-    QSettings settings("Amifiles", "Amifiles");
-    settings.setValue("console/visible", checked);
+    if (!m_isApplyingFolderProfile) {
+        QSettings settings("Amifiles", "Amifiles");
+        settings.setValue("console/visible", checked);
+    }
 }
 
 void MainWindow::onToggleFlatView(bool checked) {
@@ -2784,8 +2794,10 @@ void MainWindow::onSpaceAnalyzerAction() {
 void MainWindow::onToggleFavoritesSidebar(bool checked) {
     if (m_sidebarTabWidget) {
         m_sidebarTabWidget->setVisible(checked);
-        QSettings settings("Amifiles", "Amifiles");
-        settings.setValue("favorites/sidebar_visible", checked);
+        if (!m_isApplyingFolderProfile) {
+            QSettings settings("Amifiles", "Amifiles");
+            settings.setValue("favorites/sidebar_visible", checked);
+        }
         adjustSplitterSizes();
     }
 }
@@ -3502,6 +3514,7 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
     if (!targetPanel) targetPanel = m_activePanel;
     if (!targetPanel) return;
 
+    m_isApplyingFolderProfile = true;
     m_activeFolderRule = r;
     m_hasActiveFolderRule = true;
 
@@ -3684,6 +3697,7 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
     }
     emit builtinPlayerDoubleclickChanged(isDoubleclickActive);
     targetPanel->updateThemeMusic();
+    m_isApplyingFolderProfile = false;
 }
 
 void MainWindow::applyFolderRules(const QString& path) {
@@ -3861,6 +3875,7 @@ void MainWindow::applyFolderRules(const QString& path) {
             }
         } else {
             m_hasActiveFolderRule = false;
+            m_isApplyingFolderProfile = true;
             
             QSettings settings("Amifiles", "Amifiles");
             QByteArray defaultState = settings.value("window/state").toByteArray();
@@ -3913,6 +3928,9 @@ void MainWindow::applyFolderRules(const QString& path) {
             bool console = settings.value("console/visible", true).toBool();
             bool favorites = settings.value("favorites/sidebar_visible", false).toBool();
             bool zen = settings.value("preferences/zen_mode", false).toBool();
+            bool dualPane = settings.value("preferences/dual_pane", true).toBool();
+            bool horizontalSplit = settings.value("preferences/horizontal_split", false).toBool();
+            bool casingOverlays = settings.value("preferences/casing_overlays", true).toBool();
 
             m_actToggleDrivesToolbar->setChecked(drivesToolbar);
             if (m_tbDrives) m_tbDrives->setVisible(drivesToolbar);
@@ -3928,11 +3946,26 @@ void MainWindow::applyFolderRules(const QString& path) {
             
             setZenMode(zen);
 
+            if (m_actToggleDualPane) {
+                m_actToggleDualPane->setChecked(dualPane);
+                onToggleDualPane(dualPane);
+            }
+            if (m_actToggleHorizontalSplit) {
+                m_actToggleHorizontalSplit->setChecked(horizontalSplit);
+                onToggleHorizontalSplit(horizontalSplit);
+            }
+            if (m_actToggleCasingOverlays) {
+                m_actToggleCasingOverlays->setChecked(casingOverlays);
+                onToggleCasingOverlays(casingOverlays);
+            }
+
             if (m_previewPanel) {
                 bool prefVisualizer = settings.value("preview/show_spectrum_visualizer", true).toBool();
                 m_previewPanel->setSpectrumVisualizerVisible(prefVisualizer);
             }
             emit builtinPlayerDoubleclickChanged(settings.value("preferences/builtin_player_doubleclick", false).toBool());
+            
+            m_isApplyingFolderProfile = false;
         }
     }
 
@@ -5192,8 +5225,10 @@ void MainWindow::onToggleCenterOps(bool checked) {
     if (m_tbCenterOps) {
         m_tbCenterOps->setVisible(checked && m_isDualPane);
     }
-    QSettings settings("Amifiles", "Amifiles");
-    settings.setValue("layout/center_ops_visible", checked);
+    if (!m_isApplyingFolderProfile) {
+        QSettings settings("Amifiles", "Amifiles");
+        settings.setValue("layout/center_ops_visible", checked);
+    }
 }
 
 void MainWindow::onPreviewDockContextMenu(const QPoint& pos) {
@@ -5548,8 +5583,10 @@ void MainWindow::onToggleDetailedTooltips(bool enabled) {
 
 void MainWindow::setZenMode(bool enabled) {
     m_zenMode = enabled;
-    QSettings settings("Amifiles", "Amifiles");
-    settings.setValue("preferences/zen_mode", enabled);
+    if (!m_isApplyingFolderProfile) {
+        QSettings settings("Amifiles", "Amifiles");
+        settings.setValue("preferences/zen_mode", enabled);
+    }
 
     // Hide/show main window menu bar, toolbars, center ops, bottom tabs, status bar
     if (menuBar()) menuBar()->setVisible(!enabled);

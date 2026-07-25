@@ -4979,7 +4979,21 @@ void FilePanel::onViewModeChanged(int index) {
         m_proxyModel->setGroupMultiDiscActive(groupMultiDisc);
         updateHideSettings();
     }
-    settings.setValue("file_panel/view_mode_index", index);
+
+    // Do not save view mode change if it is triggered programmatically by a folder profile
+    QWidget* w = this;
+    MainWindow* mainWin = nullptr;
+    while (w) {
+        if (MainWindow* mw = qobject_cast<MainWindow*>(w)) {
+            mainWin = mw;
+            break;
+        }
+        w = w->parentWidget();
+    }
+    if (!mainWin || !mainWin->isApplyingFolderProfile()) {
+        settings.setValue("file_panel/view_mode_index", index);
+    }
+
     onSelectionChanged(); // Trigger layout update for bottom info panel
 
     if (m_btnToggleSidePane) {

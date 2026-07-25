@@ -160,11 +160,14 @@ struct DecryptedVault {
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
+    Q_PROPERTY(bool casingOverlaysEnabled READ isCasingOverlaysEnabled)
     friend class FolderLayoutDialog;
 public:
     explicit MainWindow(QWidget* parent = nullptr);
     Q_INVOKABLE bool isBuiltinPlayerDoubleclickActive() const;
     Q_INVOKABLE void setBuiltinPlayerDoubleclickActive(bool active);
+    bool isApplyingFolderProfile() const { return m_isApplyingFolderProfile; }
+    bool isCasingOverlaysEnabled() const { return m_actToggleCasingOverlays ? m_actToggleCasingOverlays->isChecked() : true; }
     static QJsonObject ruleToJson(const FolderLayoutRule& r);
     static FolderLayoutRule jsonToRule(const QJsonObject& obj);
     ~MainWindow() override;
@@ -445,6 +448,7 @@ private:
     FolderLayoutRule m_activeFolderRule;
     bool m_hasActiveFolderRule = false;
     bool m_isInitializing = false;
+    bool m_isApplyingFolderProfile = false;
     bool isToolbarDefaultVisible(const QString& toolbarId);
     QScrollBar* m_leftScrollConnected = nullptr;
     QScrollBar* m_rightScrollConnected = nullptr;
