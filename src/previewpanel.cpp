@@ -339,13 +339,13 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
     installEventFilter(this);
 
     // Create HUD Overlay Panel
-    m_hudWidget = new QFrame(this, Qt::SubWindow | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::WindowDoesNotAcceptFocus);
-    m_hudWidget->setAttribute(Qt::WA_TranslucentBackground, true);
+    m_hudWidget = new QFrame(this);
+    m_hudWidget->setFixedHeight(110);
     m_hudWidget->setAttribute(Qt::WA_StyledBackground, true);
     m_hudWidget->setObjectName("hudPanel");
     m_hudWidget->setFocusPolicy(Qt::NoFocus);
     m_hudWidget->setStyleSheet(
-        "QFrame#hudPanel { background-color: rgba(30, 30, 46, 230); border: 1px solid rgba(69, 71, 90, 150); border-radius: 16px; }"
+        "QFrame#hudPanel { background-color: #1e1e2e; border-top: 1px solid #45475a; }"
         "QLabel { color: #cdd6f4; font-size: 12px; font-weight: bold; background: transparent; border: none; }"
         "QPushButton { border: none; background-color: transparent; color: #cdd6f4; border-radius: 18px; }"
         "QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); }"
@@ -535,20 +535,7 @@ void FullscreenWidget::resizeEvent(QResizeEvent* event) {
 }
 
 void FullscreenWidget::updateHudGeometry() {
-    QWidget* p = m_hudWidget->parentWidget();
-    if (!p) p = this;
-
-    int parentW = p->width();
-    int parentH = p->height();
-
-    int hudW = qMin(parentW - 40, 850);
-    int hudH = 130;
-
-    int x = (parentW - hudW) / 2;
-    int y = parentH - hudH - 30; // 30px padding from the bottom
-
-    m_hudWidget->setGeometry(x, y, hudW, hudH);
-    m_hudWidget->raise();
+    // Layout manager handles size and geometry automatically
 }
 
 void FullscreenWidget::setMediaState(bool isVideo, QMediaPlayer* player, QAudioOutput* audioOutput) {
@@ -562,23 +549,6 @@ void FullscreenWidget::setMediaState(bool isVideo, QMediaPlayer* player, QAudioO
     }
     if (audioOutput) {
         m_sliderVolume->setValue(qRound(audioOutput->volume() * 100));
-    }
-
-    // Reparent HUD to float natively on top of the active display widget in Wayland video composition
-    QWidget* activeDisplay = nullptr;
-    if (isVideo) {
-        activeDisplay = findChild<QVideoWidget*>("", Qt::FindDirectChildrenOnly);
-    } else {
-        QList<QLabel*> labels = findChildren<QLabel*>("", Qt::FindDirectChildrenOnly);
-        if (!labels.isEmpty()) {
-            activeDisplay = labels.first();
-        }
-    }
-
-    if (activeDisplay && m_hudWidget->parentWidget() != activeDisplay) {
-        m_hudWidget->setParent(activeDisplay, Qt::SubWindow | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::WindowDoesNotAcceptFocus);
-        m_hudWidget->show();
-        updateHudGeometry();
     }
 }
 
@@ -2452,6 +2422,7 @@ void PreviewPanel::toggleFullscreen() {
 
     QVBoxLayout* layout = new QVBoxLayout(m_fullscreenWidget);
     layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
 
     if (isVideo) {
         m_fullscreenVideoWidget = new QVideoWidget(m_fullscreenWidget);
@@ -2526,6 +2497,8 @@ void PreviewPanel::toggleFullscreen() {
         m_fullscreenAudioLabel->installEventFilter(m_fullscreenWidget);
         m_fullscreenTextLabel->installEventFilter(m_fullscreenWidget);
     }
+
+    layout->addWidget(m_fullscreenWidget->hudWidget());
 
     m_fullscreenWidget->setMediaState(isVideo, m_player, m_audioOutput);
     m_fullscreenWidget->updateProgress(m_player->position(), m_player->duration());
@@ -2605,9 +2578,11 @@ void PreviewPanel::updateFullscreenTrack() {
     QVBoxLayout* layout = qobject_cast<QVBoxLayout*>(m_fullscreenWidget->layout());
     if (layout) {
         clearLayoutOfFullscreen(layout);
+        layout->setSpacing(0);
     } else {
         layout = new QVBoxLayout(m_fullscreenWidget);
         layout->setContentsMargins(0, 0, 0, 0);
+        layout->setSpacing(0);
     }
 
     m_fullscreenVideoWidget = nullptr;
@@ -2686,6 +2661,8 @@ void PreviewPanel::updateFullscreenTrack() {
         m_fullscreenAudioLabel->installEventFilter(m_fullscreenWidget);
         m_fullscreenTextLabel->installEventFilter(m_fullscreenWidget);
     }
+
+    layout->addWidget(m_fullscreenWidget->hudWidget());
 
     m_fullscreenWidget->setMediaState(isVideo, m_player, m_audioOutput);
     m_fullscreenWidget->updateProgress(m_player->position(), m_player->duration());

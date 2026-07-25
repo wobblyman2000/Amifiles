@@ -82,6 +82,7 @@ public:
     void setMediaState(bool isVideo, class QMediaPlayer* player, class QAudioOutput* audioOutput);
     void updateProgress(qint64 position, qint64 duration);
     void setTrackNames(const QString& current, const QString& next);
+    class QWidget* hudWidget() const { return (class QWidget*)m_hudWidget; }
 
 signals:
     void exitRequested();
