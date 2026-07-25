@@ -320,6 +320,9 @@ QIcon CustomFileSystemModel::drawRetroDiskIcon(const QString& filename, const QS
             painter.drawRoundedRect(pad + qRound(4 * s), pad + qRound(18 * s), w - qRound(8 * s), h - qRound(20 * s), 1 * s, 1 * s);
 
             // Write filename (wrapped, black color, handwriting font, dynamically scaled to fit)
+            QString displayName = filename;
+            displayName.replace('_', ' ').replace('-', ' ');
+
             double fontSize = 6.0 * s;
             QFont f;
             f.setFamilies({"Caveat", "Architects Daughter", "Kalam", "Comic Sans MS", "Purisa", "Chalkboard", "Outfit"});
@@ -328,12 +331,12 @@ QIcon CustomFileSystemModel::drawRetroDiskIcon(const QString& filename, const QS
 
             QRectF textRect(pad + qRound(6 * s), pad + qRound(20 * s), w - qRound(22 * s), h - qRound(28 * s));
 
-            // Reduce font size progressively until the text bounding box fits within textRect height
-            while (fontSize > 1.5) {
+            // Reduce font size progressively until the text bounding box fits within textRect bounds
+            while (fontSize > 1.0) {
                 f.setPointSizeF(fontSize);
                 QFontMetricsF fm(f);
-                QRectF bounds = fm.boundingRect(textRect, Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, filename);
-                if (bounds.height() <= textRect.height()) {
+                QRectF bounds = fm.boundingRect(textRect, Qt::AlignLeft | Qt::AlignTop | Qt::TextWrapAnywhere, displayName);
+                if (bounds.height() <= textRect.height() && bounds.width() <= textRect.width()) {
                     break;
                 }
                 fontSize -= 0.25;
@@ -341,7 +344,7 @@ QIcon CustomFileSystemModel::drawRetroDiskIcon(const QString& filename, const QS
 
             painter.setFont(f);
             painter.setPen(QColor("#11111b"));
-            painter.drawText(textRect, Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, filename);
+            painter.drawText(textRect, Qt::AlignLeft | Qt::AlignTop | Qt::TextWrapAnywhere, displayName);
 
             // Amiga Rainbow checkmark in the bottom right corner (restored)
             QLinearGradient rainbowGrad(pad + w - qRound(16 * s), pad + h - qRound(10 * s), pad + w - qRound(6 * s), pad + h - qRound(4 * s));
