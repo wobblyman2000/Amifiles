@@ -781,6 +781,7 @@ public:
     void setViewModeIndex(int index);
 
     QString currentPath() const;
+    void syncPlaylist(const QStringList& playlistPaths, int currentIndex);
     void setCustomBgColor(const QString& hexColor);
     QString customBgColor() const { return m_customBgColor; }
     void setPath(const QString& path);

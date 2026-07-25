@@ -574,14 +574,23 @@ void FilePanel::setupUI() {
         }
     });
     connect(m_trackListWidget, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem* item) {
-        QString trackPath = item->data(Qt::UserRole).toString();
-        if (!trackPath.isEmpty()) {
-            m_btnPlayPause->setText("⏸");
+        if (!item) return;
+        QWidget* w = parentWidget();
+        MainWindow* mainWin = nullptr;
+        while (w) {
+            MainWindow* mw = qobject_cast<MainWindow*>(w);
+            if (mw) {
+                mainWin = mw;
+                break;
+            }
+            w = w->parentWidget();
+        }
+        if (mainWin && mainWin->previewPanel()) {
+            int idx = m_trackListWidget->row(item);
+            mainWin->previewPanel()->playPlaylistIndex(idx);
             int vm = viewModeIndex();
-            if (vm == 8 || vm == 9 || vm == 10) {
-                emit playMediaFullscreenRequested({trackPath});
-            } else {
-                emit playMediaBuiltinRequested({trackPath});
+            if ((vm == 8 || vm == 9) && !mainWin->previewPanel()->isFullscreen()) {
+                mainWin->previewPanel()->toggleFullscreen();
             }
         }
     });
@@ -1470,15 +1479,18 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
             
             m_theaterListView->setVisible(true);
             m_theaterScrollArea->setVisible(false);
-            if (m_trackListWidget) m_trackListWidget->setVisible(viewModeIndex() == 10);
+            if (m_trackListWidget) m_trackListWidget->setVisible(viewModeIndex() >= 7 && viewModeIndex() <= 10);
         }
 
         if (m_btnToggleSidePane) {
             int index = viewModeIndex();
             bool groupingActive = m_groupProxy && m_groupProxy->isGroupingActive();
-            m_btnToggleSidePane->setVisible(index == 10 || groupingActive);
+            m_btnToggleSidePane->setVisible((index >= 7 && index <= 10) || groupingActive);
             if (m_theaterSideContainer) {
                 m_theaterSideContainer->setVisible(m_btnToggleSidePane->isVisible() && m_btnToggleSidePane->isChecked());
+            }
+            if (m_trackListWidget) {
+                m_trackListWidget->setVisible(index >= 7 && index <= 10 && !groupingActive);
             }
         }
     }
@@ -1877,7 +1889,7 @@ void FilePanel::onSelectionChanged() {
             // Hide/Show widgets based on view mode index
             if (m_musicControlsWidget) m_musicControlsWidget->setVisible(modeIndex == 10);
             if (m_visualizerWidget) m_visualizerWidget->setVisible(modeIndex == 10);
-            if (m_trackListWidget) m_trackListWidget->setVisible(modeIndex == 10);
+            if (m_trackListWidget) m_trackListWidget->setVisible(modeIndex >= 7 && modeIndex <= 10);
             if (m_cinemaButtonsWidget) m_cinemaButtonsWidget->setVisible(modeIndex == 8 || modeIndex == 9);
 
             if (modeIndex == 7 || modeIndex == 8 || modeIndex == 9) {
@@ -5036,9 +5048,12 @@ void FilePanel::onViewModeChanged(int index) {
 
     if (m_btnToggleSidePane) {
         bool groupingActive = m_groupProxy && m_groupProxy->isGroupingActive();
-        m_btnToggleSidePane->setVisible(index == 10 || groupingActive);
+        m_btnToggleSidePane->setVisible((index >= 7 && index <= 10) || groupingActive);
         if (m_theaterSideContainer) {
             m_theaterSideContainer->setVisible(m_btnToggleSidePane->isVisible() && m_btnToggleSidePane->isChecked());
+        }
+        if (m_trackListWidget) {
+            m_trackListWidget->setVisible(index >= 7 && index <= 10 && !groupingActive);
         }
     }
     emit viewModeChanged();
@@ -5885,4 +5900,18 @@ void FilePanel::stopThemeMusic() {
     if (m_themePlayer) {
         m_themePlayer->stop();
     }
+}
+
+void FilePanel::syncPlaylist(const QStringList& playlistPaths, int currentIndex) {
+    if (!m_trackListWidget) return;
+    m_trackListWidget->blockSignals(true);
+    m_trackListWidget->clear();
+    for (const QString& path : playlistPaths) {
+        QListWidgetItem* item = new QListWidgetItem(QFileInfo(path).fileName(), m_trackListWidget);
+        item->setData(Qt::UserRole, path);
+    }
+    if (currentIndex >= 0 && currentIndex < m_trackListWidget->count()) {
+        m_trackListWidget->setCurrentRow(currentIndex);
+    }
+    m_trackListWidget->blockSignals(false);
 }

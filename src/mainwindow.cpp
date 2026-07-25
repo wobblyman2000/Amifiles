@@ -493,100 +493,7 @@ void MainWindow::setupCentralWidget() {
     m_previewDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetClosable);
     addDockWidget(Qt::RightDockWidgetArea, m_previewDock);
 
-    m_fullscreenQueueDock = new QDockWidget("Playback Queue", this);
-    m_fullscreenQueueDock->setObjectName("fullscreenQueueDockWidget");
-    m_fullscreenQueueDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-    m_fullscreenQueueDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetClosable);
-    
-    QWidget* queueContent = new QWidget(m_fullscreenQueueDock);
-    QVBoxLayout* queueLayout = new QVBoxLayout(queueContent);
-    queueLayout->setContentsMargins(12, 12, 12, 12);
-    queueLayout->setSpacing(8);
-    
-    QLabel* lblHeader = new QLabel("📋 CURRENT PLAYLIST", queueContent);
-    lblHeader->setStyleSheet("font-size: 11px; font-weight: bold; color: #89b4fa; letter-spacing: 1px;");
-    queueLayout->addWidget(lblHeader);
-    
-    m_fullscreenQueueList = new QListWidget(queueContent);
-    m_fullscreenQueueList->setStyleSheet(
-        "QListWidget { background-color: #11111b; color: #cdd6f4; border: 1px solid #313244; border-radius: 8px; padding: 4px; font-family: 'Outfit'; font-size: 13px; } "
-        "QListWidget::item { padding: 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); border-radius: 4px; } "
-        "QListWidget::item:hover { background-color: rgba(137, 180, 250, 0.15); color: #ffffff; } "
-        "QListWidget::item:selected { background-color: #89b4fa; color: #11111b; font-weight: bold; }"
-    );
-    queueLayout->addWidget(m_fullscreenQueueList);
-    
-    QHBoxLayout* btnRow = new QHBoxLayout();
-    btnRow->setSpacing(8);
-    
-    QPushButton* btnPlay = new QPushButton("▶ Play", queueContent);
-    QPushButton* btnRemove = new QPushButton("✖ Remove", queueContent);
-    QPushButton* btnClear = new QPushButton("🗑 Clear", queueContent);
-    
-    QString btnStyle = 
-        "QPushButton { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 6px; padding: 6px 12px; font-weight: bold; font-family: 'Outfit'; font-size: 12px; } "
-        "QPushButton:hover { background-color: #45475a; color: #ffffff; } "
-        "QPushButton:pressed { background-color: #585b70; }";
-        
-    btnPlay->setStyleSheet(btnStyle);
-    btnRemove->setStyleSheet(btnStyle);
-    btnClear->setStyleSheet(btnStyle);
-    
-    btnRow->addWidget(btnPlay);
-    btnRow->addWidget(btnRemove);
-    btnRow->addWidget(btnClear);
-    queueLayout->addLayout(btnRow);
-    
-    m_fullscreenQueueDock->setWidget(queueContent);
-    addDockWidget(Qt::RightDockWidgetArea, m_fullscreenQueueDock);
-    m_fullscreenQueueDock->setVisible(false);
 
-    connect(m_fullscreenQueueList, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem* item) {
-        int idx = m_fullscreenQueueList->row(item);
-        m_previewPanel->playPlaylistIndex(idx);
-        if (!m_previewPanel->isFullscreen()) {
-            m_previewPanel->toggleFullscreen();
-        }
-    });
-    
-    connect(btnPlay, &QPushButton::clicked, this, [this]() {
-        QList<QListWidgetItem*> selected = m_fullscreenQueueList->selectedItems();
-        int idx = -1;
-        if (!selected.isEmpty()) {
-            idx = m_fullscreenQueueList->row(selected.first());
-        } else {
-            idx = m_fullscreenQueueList->currentRow();
-        }
-        if (idx < 0 && m_previewPanel) {
-            idx = m_previewPanel->playlistIndex();
-        }
-        if (idx < 0) {
-            idx = 0;
-        }
-        if (m_previewPanel && idx >= 0 && idx < m_previewPanel->playlist().size()) {
-            m_previewPanel->playPlaylistIndex(idx);
-            if (!m_previewPanel->isFullscreen()) {
-                m_previewPanel->toggleFullscreen();
-            }
-        }
-    });
-    
-    connect(btnRemove, &QPushButton::clicked, this, [this]() {
-        QList<QListWidgetItem*> selected = m_fullscreenQueueList->selectedItems();
-        int idx = -1;
-        if (!selected.isEmpty()) {
-            idx = m_fullscreenQueueList->row(selected.first());
-        } else {
-            idx = m_fullscreenQueueList->currentRow();
-        }
-        if (m_previewPanel && idx >= 0 && idx < m_previewPanel->playlist().size()) {
-            m_previewPanel->removeFromPlaylist(idx);
-        }
-    });
-    
-    connect(btnClear, &QPushButton::clicked, this, [this]() {
-        m_previewPanel->clearPlaylist();
-    });
 
     connect(m_previewPanel, &PreviewPanel::playlistChanged, this, &MainWindow::syncFullscreenQueue);
 
@@ -5694,8 +5601,7 @@ void MainWindow::onPlayMediaBuiltin(const QStringList& filePaths) {
         }
     }
 
-    if (isFullscreenMode && m_fullscreenQueueDock && !m_fullscreenQueueDock->isVisible()) {
-        m_fullscreenQueueDock->setVisible(true);
+    if (isFullscreenMode) {
         syncFullscreenQueue();
     }
 }
@@ -5739,16 +5645,10 @@ void MainWindow::onActivePanelViewModeChanged() {
             m_actTogglePreview->setChecked(false);
         }
         bool hasPlaylist = (m_previewPanel && !m_previewPanel->playlist().isEmpty());
-        if (!m_isInitializing && hasPlaylist && m_fullscreenQueueDock && !m_fullscreenQueueDock->isVisible()) {
-            m_fullscreenQueueDock->setVisible(true);
+        if (!m_isInitializing && hasPlaylist) {
             syncFullscreenQueue();
-        } else if ((m_isInitializing || !hasPlaylist) && m_fullscreenQueueDock && m_fullscreenQueueDock->isVisible()) {
-            m_fullscreenQueueDock->setVisible(false);
         }
     } else {
-        if (m_fullscreenQueueDock && m_fullscreenQueueDock->isVisible()) {
-            m_fullscreenQueueDock->setVisible(false);
-        }
         if (m_hasActiveFolderRule && m_activeFolderRule.overridePreview) {
             if (m_actTogglePreview) {
                 m_actTogglePreview->setChecked(m_activeFolderRule.previewVisible);
@@ -5759,21 +5659,12 @@ void MainWindow::onActivePanelViewModeChanged() {
 }
 
 void MainWindow::syncFullscreenQueue() {
-    if (!m_fullscreenQueueList || !m_previewPanel) return;
-    m_fullscreenQueueList->clear();
+    if (!m_previewPanel) return;
     QStringList playlist = m_previewPanel->playlist();
     int activeIdx = m_previewPanel->playlistIndex();
     
-    for (int i = 0; i < playlist.size(); ++i) {
-        QFileInfo fi(playlist.at(i));
-        QString text = QString("%1. %2").arg(i + 1).arg(fi.fileName());
-        QListWidgetItem* item = new QListWidgetItem(text, m_fullscreenQueueList);
-        if (i == activeIdx) {
-            item->setSelected(true);
-            item->setText("▶ " + fi.fileName());
-            item->setFont(QFont("Outfit", 13, QFont::Bold));
-        }
-    }
+    if (leftPanel()) leftPanel()->syncPlaylist(playlist, activeIdx);
+    if (rightPanel()) rightPanel()->syncPlaylist(playlist, activeIdx);
 }
 
 void MainWindow::onQueueMediaBuiltin(const QStringList& filePaths) {
@@ -5795,8 +5686,7 @@ void MainWindow::onQueueMediaBuiltin(const QStringList& filePaths) {
 
     m_previewPanel->addToPlaylist(filePaths);
 
-    if (isFullscreenMode && m_fullscreenQueueDock && !m_fullscreenQueueDock->isVisible()) {
-        m_fullscreenQueueDock->setVisible(true);
+    if (isFullscreenMode) {
         syncFullscreenQueue();
     }
 }

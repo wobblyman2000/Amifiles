@@ -167,6 +167,7 @@ public:
     Q_INVOKABLE bool isBuiltinPlayerDoubleclickActive() const;
     Q_INVOKABLE void setBuiltinPlayerDoubleclickActive(bool active);
     bool isApplyingFolderProfile() const { return m_isApplyingFolderProfile; }
+    class PreviewPanel* previewPanel() const { return m_previewPanel; }
     bool isCasingOverlaysEnabled() const { return m_actToggleCasingOverlays ? m_actToggleCasingOverlays->isChecked() : true; }
     static QJsonObject ruleToJson(const FolderLayoutRule& r);
     static FolderLayoutRule jsonToRule(const QJsonObject& obj);
