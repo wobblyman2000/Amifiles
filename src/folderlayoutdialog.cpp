@@ -377,139 +377,115 @@ void FolderLayoutDialog::setupUI() {
 
     scrollLayout->addWidget(m_viewGroup);
 
-    // 3. Visibility Overrides
-    m_visGroup = new QGroupBox("3. Layout & Docks Visibility Overrides", this);
+    // 3. Visibility States
+    m_visGroup = new QGroupBox("3. Layout, Docks & Panels (On/Off States)", this);
     QGridLayout* visGrid = new QGridLayout(m_visGroup);
     visGrid->setSpacing(8);
     visGrid->setColumnStretch(0, 0);
     visGrid->setColumnStretch(1, 0);
-    visGrid->setColumnStretch(2, 0);
-    visGrid->setColumnStretch(3, 1);
+    visGrid->setColumnStretch(2, 1);
 
     visGrid->addWidget(new QLabel("Layout Component", this), 0, 0);
-    QLabel* hdrOverride = new QLabel("Force Custom State?", this);
-    hdrOverride->setStyleSheet("font-weight: bold; color: #89b4fa;");
-    hdrOverride->setToolTip("Check this to force a custom visibility setting for this component. If left unchecked, the component inherits the current system state.");
-    visGrid->addWidget(hdrOverride, 0, 1);
-    
-    QLabel* hdrState = new QLabel("Enforced ON / OFF State", this);
+    QLabel* hdrState = new QLabel("State (On / Off)", this);
     hdrState->setStyleSheet("font-weight: bold; color: #a6e3a1;");
-    hdrState->setToolTip("Define the state when this profile is active: Checked = Force ON (Visible), Unchecked = Force OFF (Hidden).");
-    visGrid->addWidget(hdrState, 0, 2);
+    hdrState->setToolTip("Define the state when this profile is active: ON = Enabled/Visible, OFF = Disabled/Hidden.");
+    visGrid->addWidget(hdrState, 0, 1);
 
     // Drives
-    m_overrideDrives = new ToggleSwitch(this);
-    m_overrideDrives->setToolTip("Force custom Drives Toolbar visibility.");
     m_stateDrives = new ToggleSwitch(this);
-    m_stateDrives->setToolTip("Toggle slide switch to force visible (ON) or hidden (OFF).");
+    m_stateDrives->setToolTip("Enforce Drives Toolbar visibility: ON = Visible, OFF = Hidden.");
     visGrid->addWidget(new QLabel("Drives Toolbar", this), 1, 0);
-    visGrid->addWidget(m_overrideDrives, 1, 1);
-    visGrid->addWidget(m_stateDrives, 1, 2);
-    connect(m_overrideDrives, &ToggleSwitch::toggled, m_stateDrives, &ToggleSwitch::setEnabled);
+    visGrid->addWidget(m_stateDrives, 1, 1);
 
     // Center Ops
-    m_overrideCenterOps = new ToggleSwitch(this);
-    m_overrideCenterOps->setToolTip("Force custom Operations Bar visibility.");
     m_stateCenterOps = new ToggleSwitch(this);
-    m_stateCenterOps->setToolTip("Toggle slide switch to force visible (ON) or hidden (OFF).");
+    m_stateCenterOps->setToolTip("Enforce Operations Bar visibility: ON = Visible, OFF = Hidden.");
     visGrid->addWidget(new QLabel("Operations Bar", this), 2, 0);
-    visGrid->addWidget(m_overrideCenterOps, 2, 1);
-    visGrid->addWidget(m_stateCenterOps, 2, 2);
-    connect(m_overrideCenterOps, &ToggleSwitch::toggled, m_stateCenterOps, &ToggleSwitch::setEnabled);
+    visGrid->addWidget(m_stateCenterOps, 2, 1);
 
     // Console
-    m_overrideConsole = new ToggleSwitch(this);
-    m_overrideConsole->setToolTip("Force custom Console Panel visibility.");
     m_stateConsole = new ToggleSwitch(this);
-    m_stateConsole->setToolTip("Toggle slide switch to force visible (ON) or hidden (OFF).");
+    m_stateConsole->setToolTip("Enforce Console Panel visibility: ON = Visible, OFF = Hidden.");
     visGrid->addWidget(new QLabel("Console Panel", this), 3, 0);
-    visGrid->addWidget(m_overrideConsole, 3, 1);
-    visGrid->addWidget(m_stateConsole, 3, 2);
-    connect(m_overrideConsole, &ToggleSwitch::toggled, m_stateConsole, &ToggleSwitch::setEnabled);
+    visGrid->addWidget(m_stateConsole, 3, 1);
 
     // Preview Pane
-    m_overridePreview = new ToggleSwitch(this);
-    m_overridePreview->setToolTip("Force custom Preview Pane visibility.");
     m_statePreview = new ToggleSwitch(this);
-    m_statePreview->setToolTip("Toggle slide switch to force visible (ON) or hidden (OFF).");
+    m_statePreview->setToolTip("Enforce Preview Pane visibility: ON = Visible, OFF = Hidden.");
     visGrid->addWidget(new QLabel("Preview Pane", this), 4, 0);
-    visGrid->addWidget(m_overridePreview, 4, 1);
-    visGrid->addWidget(m_statePreview, 4, 2);
-    connect(m_overridePreview, &ToggleSwitch::toggled, m_statePreview, &ToggleSwitch::setEnabled);
+    visGrid->addWidget(m_statePreview, 4, 1);
 
     // Favorites
-    m_overrideFavorites = new ToggleSwitch(this);
-    m_overrideFavorites->setToolTip("Force custom Favorites/Bookmarks Sidebar visibility.");
     m_stateFavorites = new ToggleSwitch(this);
-    m_stateFavorites->setToolTip("Toggle slide switch to force visible (ON) or hidden (OFF).");
+    m_stateFavorites->setToolTip("Enforce Favorites Sidebar visibility: ON = Visible, OFF = Hidden.");
     visGrid->addWidget(new QLabel("Favorites Sidebar", this), 5, 0);
-    visGrid->addWidget(m_overrideFavorites, 5, 1);
-    visGrid->addWidget(m_stateFavorites, 5, 2);
-    connect(m_overrideFavorites, &ToggleSwitch::toggled, m_stateFavorites, &ToggleSwitch::setEnabled);
+    visGrid->addWidget(m_stateFavorites, 5, 1);
 
     // Zen
-    m_overrideZen = new ToggleSwitch(this);
-    m_overrideZen->setToolTip("Force custom Zen Mode state.");
     m_stateZen = new ToggleSwitch(this);
-    m_stateZen->setToolTip("Toggle slide switch to enable Zen Mode (ON) or disable it (OFF).");
+    m_stateZen->setToolTip("Enforce Zen Mode state: ON = Enabled (Hidden Layout), OFF = Disabled.");
     visGrid->addWidget(new QLabel("Zen Mode State", this), 6, 0);
-    visGrid->addWidget(m_overrideZen, 6, 1);
-    visGrid->addWidget(m_stateZen, 6, 2);
-    connect(m_overrideZen, &ToggleSwitch::toggled, m_stateZen, &ToggleSwitch::setEnabled);
+    visGrid->addWidget(m_stateZen, 6, 1);
 
     // Built-in Fullscreen Playback
-    m_overrideBuiltinPlayerDoubleclick = new ToggleSwitch(this);
-    m_overrideBuiltinPlayerDoubleclick->setToolTip("Force double-click playback preference.");
     m_stateBuiltinPlayerDoubleclick = new ToggleSwitch(this);
-    m_stateBuiltinPlayerDoubleclick->setToolTip("Toggle slide switch to force media to play in the built-in player (ON) or external system player (OFF).");
+    m_stateBuiltinPlayerDoubleclick->setToolTip("Enforce double-click playback preference: ON = Built-in player, OFF = System player.");
     visGrid->addWidget(new QLabel("Built-in Fullscreen", this), 7, 0);
-    visGrid->addWidget(m_overrideBuiltinPlayerDoubleclick, 7, 1);
-    visGrid->addWidget(m_stateBuiltinPlayerDoubleclick, 7, 2);
-    connect(m_overrideBuiltinPlayerDoubleclick, &ToggleSwitch::toggled, m_stateBuiltinPlayerDoubleclick, &ToggleSwitch::setEnabled);
+    visGrid->addWidget(m_stateBuiltinPlayerDoubleclick, 7, 1);
 
     // Auto-Fullscreen playback
-    m_overrideFullScreenPlayer = new ToggleSwitch(this);
-    m_overrideFullScreenPlayer->setToolTip("Force auto-fullscreen settings when starting playback.");
     m_stateFullScreenPlayer = new ToggleSwitch(this);
-    m_stateFullScreenPlayer->setToolTip("Toggle slide switch to force open fullscreen media player (ON) or standard panel player (OFF).");
+    m_stateFullScreenPlayer->setToolTip("Enforce auto-fullscreen on playback preference: ON = Auto Fullscreen, OFF = Standard player.");
     visGrid->addWidget(new QLabel("Auto Fullscreen", this), 8, 0);
-    visGrid->addWidget(m_overrideFullScreenPlayer, 8, 1);
-    visGrid->addWidget(m_stateFullScreenPlayer, 8, 2);
-    connect(m_overrideFullScreenPlayer, &ToggleSwitch::toggled, m_stateFullScreenPlayer, &ToggleSwitch::setEnabled);
+    visGrid->addWidget(m_stateFullScreenPlayer, 8, 1);
 
     // Audio Visualizer
-    m_overrideVisualizer = new ToggleSwitch(this);
-    m_overrideVisualizer->setToolTip("Force spectrum visualizer visibility settings.");
     m_stateVisualizer = new ToggleSwitch(this);
-    m_stateVisualizer->setToolTip("Toggle slide switch to force show spectrum visualizer (ON) or keep visualizer hidden (OFF).");
+    m_stateVisualizer->setToolTip("Enforce audio spectrum visualizer visibility: ON = Visible, OFF = Hidden.");
     visGrid->addWidget(new QLabel("Audio Visualizer", this), 9, 0);
-    visGrid->addWidget(m_overrideVisualizer, 9, 1);
-    visGrid->addWidget(m_stateVisualizer, 9, 2);
-    connect(m_overrideVisualizer, &ToggleSwitch::toggled, m_stateVisualizer, &ToggleSwitch::setEnabled);
+    visGrid->addWidget(m_stateVisualizer, 9, 1);
 
-    // Custom Toolbars Override
-    m_overrideToolbars = new ToggleSwitch(this);
-    m_overrideToolbars->setToolTip("Force custom active toolbars list.");
+    // Dual Pane View
+    m_stateDualPane = new ToggleSwitch(this);
+    m_stateDualPane->setToolTip("Enforce Dual Pane view state: ON = Dual Pane, OFF = Single Pane.");
+    visGrid->addWidget(new QLabel("Dual Pane View", this), 10, 0);
+    visGrid->addWidget(m_stateDualPane, 10, 1);
+
+    // Split Panels Horizontally
+    m_stateHorizontalSplit = new ToggleSwitch(this);
+    m_stateHorizontalSplit->setToolTip("Enforce horizontal panels split orientation: ON = Stacked horizontally (Top/Bottom), OFF = Vertical (Side-by-side).");
+    visGrid->addWidget(new QLabel("Split Panels Horizontally", this), 11, 0);
+    visGrid->addWidget(m_stateHorizontalSplit, 11, 1);
+
+    // CD Artwork Overlays
+    m_stateCasingOverlays = new ToggleSwitch(this);
+    m_stateCasingOverlays->setToolTip("Enforce media casing overlays (CD/DVD cases): ON = Enabled, OFF = Disabled.");
+    visGrid->addWidget(new QLabel("CD Artwork Overlay", this), 12, 0);
+    visGrid->addWidget(m_stateCasingOverlays, 12, 1);
+
+    // Custom Toolbars
+    m_stateToolbars = new ToggleSwitch(this);
+    m_stateToolbars->setToolTip("Enforce custom active toolbars list.");
     m_btnSelectToolbars = new QPushButton("Select Active Toolbars...", this);
     m_btnSelectToolbars->setToolTip("Choose which toolbar panels are displayed.");
     m_btnSelectToolbars->setEnabled(false);
     connect(m_btnSelectToolbars, &QPushButton::clicked, this, &FolderLayoutDialog::onSelectToolbars);
-    connect(m_overrideToolbars, &ToggleSwitch::toggled, m_btnSelectToolbars, &QPushButton::setEnabled);
-    visGrid->addWidget(new QLabel("Custom Toolbars", this), 10, 0);
-    visGrid->addWidget(m_overrideToolbars, 10, 1);
-    visGrid->addWidget(m_btnSelectToolbars, 10, 2);
+    connect(m_stateToolbars, &ToggleSwitch::toggled, m_btnSelectToolbars, &QPushButton::setEnabled);
+    visGrid->addWidget(new QLabel("Custom Toolbars", this), 13, 0);
+    visGrid->addWidget(m_stateToolbars, 13, 1);
+    visGrid->addWidget(m_btnSelectToolbars, 13, 2);
 
-    // Custom Menus Override
-    m_overrideMenus = new ToggleSwitch(this);
-    m_overrideMenus->setToolTip("Force custom active context menus list.");
+    // Custom Menus
+    m_stateMenus = new ToggleSwitch(this);
+    m_stateMenus->setToolTip("Enforce custom active context menus list.");
     m_btnSelectMenus = new QPushButton("Select Custom Menus...", this);
     m_btnSelectMenus->setToolTip("Choose which custom right-click context menus are active.");
     m_btnSelectMenus->setEnabled(false);
     connect(m_btnSelectMenus, &QPushButton::clicked, this, &FolderLayoutDialog::onSelectMenus);
-    connect(m_overrideMenus, &ToggleSwitch::toggled, m_btnSelectMenus, &QPushButton::setEnabled);
-    visGrid->addWidget(new QLabel("Custom Menus", this), 11, 0);
-    visGrid->addWidget(m_overrideMenus, 11, 1);
-    visGrid->addWidget(m_btnSelectMenus, 11, 2);
+    connect(m_stateMenus, &ToggleSwitch::toggled, m_btnSelectMenus, &QPushButton::setEnabled);
+    visGrid->addWidget(new QLabel("Custom Menus", this), 14, 0);
+    visGrid->addWidget(m_stateMenus, 14, 1);
+    visGrid->addWidget(m_btnSelectMenus, 14, 2);
 
     scrollLayout->addWidget(m_visGroup);
 
@@ -776,49 +752,26 @@ void FolderLayoutDialog::populateFields(const FolderLayoutRule& r) {
     m_btnChooseButtons->setText(r.customButtons.isEmpty() ? "All Buttons (Default)" : QString("%1 Selected").arg(r.customButtons.size()));
 
     // Visibility checkboxes
-    m_overrideDrives->setChecked(r.overrideDrivesToolbar);
     m_stateDrives->setChecked(r.drivesToolbarVisible);
-    m_stateDrives->setEnabled(r.overrideDrivesToolbar);
-
-    m_overrideCenterOps->setChecked(r.overrideCenterOps);
     m_stateCenterOps->setChecked(r.centerOpsVisible);
-    m_stateCenterOps->setEnabled(r.overrideCenterOps);
-
-    m_overrideConsole->setChecked(r.overrideConsole);
     m_stateConsole->setChecked(r.consoleVisible);
-    m_stateConsole->setEnabled(r.overrideConsole);
-
-    m_overridePreview->setChecked(r.overridePreview);
     m_statePreview->setChecked(r.previewVisible);
-    m_statePreview->setEnabled(r.overridePreview);
-
-    m_overrideFavorites->setChecked(r.overrideFavoritesSidebar);
     m_stateFavorites->setChecked(r.favoritesSidebarVisible);
-    m_stateFavorites->setEnabled(r.overrideFavoritesSidebar);
-
-    m_overrideZen->setChecked(r.overrideZenMode);
     m_stateZen->setChecked(r.zenModeActive);
-    m_stateZen->setEnabled(r.overrideZenMode);
-
-    m_overrideBuiltinPlayerDoubleclick->setChecked(r.overrideBuiltinPlayerDoubleclick);
     m_stateBuiltinPlayerDoubleclick->setChecked(r.builtinPlayerDoubleclick);
-    m_stateBuiltinPlayerDoubleclick->setEnabled(r.overrideBuiltinPlayerDoubleclick);
-
-    m_overrideFullScreenPlayer->setChecked(r.overrideFullScreenPlayer);
     m_stateFullScreenPlayer->setChecked(r.fullScreenPlayerActive);
-    m_stateFullScreenPlayer->setEnabled(r.overrideFullScreenPlayer);
-
-    m_overrideVisualizer->setChecked(r.overrideVisualizer);
     m_stateVisualizer->setChecked(r.visualizerActive);
-    m_stateVisualizer->setEnabled(r.overrideVisualizer);
+    m_stateDualPane->setChecked(r.dualPaneActive);
+    m_stateHorizontalSplit->setChecked(r.horizontalSplitActive);
+    m_stateCasingOverlays->setChecked(r.casingOverlaysActive);
 
     // Toolbar & Menu Overrides
-    m_overrideToolbars->setChecked(r.overrideToolbars);
+    m_stateToolbars->setChecked(r.overrideToolbars);
     m_btnSelectToolbars->setEnabled(r.overrideToolbars);
     m_selectedToolbars = r.selectedToolbars;
     m_btnSelectToolbars->setText(r.selectedToolbars.isEmpty() ? "Select Toolbars..." : QString("%1 Selected").arg(r.selectedToolbars.size()));
 
-    m_overrideMenus->setChecked(r.overrideMenus);
+    m_stateMenus->setChecked(r.overrideMenus);
     m_btnSelectMenus->setEnabled(r.overrideMenus);
     m_selectedMenus = r.selectedMenus;
     m_btnSelectMenus->setText(r.selectedMenus.isEmpty() ? "Select Custom Menus..." : QString("%1 Selected").arg(r.selectedMenus.size()));
@@ -856,37 +809,46 @@ void FolderLayoutDialog::harvestCurrentProfile(int index) {
     r.viewMode = m_comboViewMode->currentText();
     r.customButtons = m_btnChooseButtons->property("selectedButtons").toStringList();
 
-    r.overrideDrivesToolbar = m_overrideDrives->isChecked();
+    r.overrideDrivesToolbar = true;
     r.drivesToolbarVisible = m_stateDrives->isChecked();
 
-    r.overrideCenterOps = m_overrideCenterOps->isChecked();
+    r.overrideCenterOps = true;
     r.centerOpsVisible = m_stateCenterOps->isChecked();
 
-    r.overrideConsole = m_overrideConsole->isChecked();
+    r.overrideConsole = true;
     r.consoleVisible = m_stateConsole->isChecked();
 
-    r.overridePreview = m_overridePreview->isChecked();
+    r.overridePreview = true;
     r.previewVisible = m_statePreview->isChecked();
 
-    r.overrideFavoritesSidebar = m_overrideFavorites->isChecked();
+    r.overrideFavoritesSidebar = true;
     r.favoritesSidebarVisible = m_stateFavorites->isChecked();
 
-    r.overrideZenMode = m_overrideZen->isChecked();
+    r.overrideZenMode = true;
     r.zenModeActive = m_stateZen->isChecked();
 
-    r.overrideBuiltinPlayerDoubleclick = m_overrideBuiltinPlayerDoubleclick->isChecked();
+    r.overrideBuiltinPlayerDoubleclick = true;
     r.builtinPlayerDoubleclick = m_stateBuiltinPlayerDoubleclick->isChecked();
 
-    r.overrideFullScreenPlayer = m_overrideFullScreenPlayer->isChecked();
+    r.overrideFullScreenPlayer = true;
     r.fullScreenPlayerActive = m_stateFullScreenPlayer->isChecked();
 
-    r.overrideVisualizer = m_overrideVisualizer->isChecked();
+    r.overrideVisualizer = true;
     r.visualizerActive = m_stateVisualizer->isChecked();
 
-    r.overrideToolbars = m_overrideToolbars->isChecked();
+    r.overrideDualPane = true;
+    r.dualPaneActive = m_stateDualPane->isChecked();
+
+    r.overrideHorizontalSplit = true;
+    r.horizontalSplitActive = m_stateHorizontalSplit->isChecked();
+
+    r.overrideCasingOverlays = true;
+    r.casingOverlaysActive = m_stateCasingOverlays->isChecked();
+
+    r.overrideToolbars = m_stateToolbars->isChecked();
     r.selectedToolbars = m_selectedToolbars;
 
-    r.overrideMenus = m_overrideMenus->isChecked();
+    r.overrideMenus = m_stateMenus->isChecked();
     r.selectedMenus = m_selectedMenus;
 
     r.useBgColor = m_useBgColor->isChecked();
@@ -1258,26 +1220,24 @@ void FolderLayoutDialog::onCaptureUI() {
     m_btnChooseButtons->setText(mw->m_activeToolbarFilter.isEmpty() ? "All Buttons (Default)" : QString("%1 Selected").arg(mw->m_activeToolbarFilter.size()));
 
     // 3. Visibilities
-    m_overrideDrives->setChecked(true);
     m_stateDrives->setChecked(mw->m_actToggleDrivesToolbar && mw->m_actToggleDrivesToolbar->isChecked());
-
-    m_overrideCenterOps->setChecked(true);
     m_stateCenterOps->setChecked(mw->m_actToggleCenterOps && mw->m_actToggleCenterOps->isChecked());
-
-    m_overrideConsole->setChecked(true);
     m_stateConsole->setChecked(mw->m_actToggleConsole && mw->m_actToggleConsole->isChecked());
-
-    m_overridePreview->setChecked(true);
     m_statePreview->setChecked(mw->m_actTogglePreview && mw->m_actTogglePreview->isChecked());
-
-    m_overrideFavorites->setChecked(true);
     m_stateFavorites->setChecked(mw->m_actToggleFavoritesSidebar && mw->m_actToggleFavoritesSidebar->isChecked());
-
-    m_overrideZen->setChecked(true);
     m_stateZen->setChecked(mw->m_zenMode);
-
-    m_overrideBuiltinPlayerDoubleclick->setChecked(true);
     m_stateBuiltinPlayerDoubleclick->setChecked(mw->isBuiltinPlayerDoubleclickActive());
+
+    QSettings settings("Amifiles", "Amifiles");
+    m_stateFullScreenPlayer->setChecked(settings.value("preview/auto_fullscreen", true).toBool());
+
+    if (mw->m_previewPanel) {
+        m_stateVisualizer->setChecked(mw->m_previewPanel->isSpectrumVisualizerEnabled());
+    }
+
+    m_stateDualPane->setChecked(mw->m_actToggleDualPane && mw->m_actToggleDualPane->isChecked());
+    m_stateHorizontalSplit->setChecked(mw->m_actToggleHorizontalSplit && mw->m_actToggleHorizontalSplit->isChecked());
+    m_stateCasingOverlays->setChecked(mw->m_actToggleCasingOverlays && mw->m_actToggleCasingOverlays->isChecked());
 
     m_capturedWindowState = mw->saveState();
 }

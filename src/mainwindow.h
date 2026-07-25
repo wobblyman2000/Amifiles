@@ -117,6 +117,12 @@ struct FolderLayoutRule {
     bool fullScreenPlayerActive = false;
     bool overrideVisualizer = false;
     bool visualizerActive = false;
+    bool overrideDualPane = false;
+    bool dualPaneActive = false;
+    bool overrideHorizontalSplit = false;
+    bool horizontalSplitActive = false;
+    bool overrideCasingOverlays = false;
+    bool casingOverlaysActive = false;
 
     // Toolbar & Menu Overrides
     bool overrideToolbars = false;

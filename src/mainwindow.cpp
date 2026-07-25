@@ -3173,6 +3173,12 @@ QJsonObject MainWindow::ruleToJson(const FolderLayoutRule& r) {
     obj["fullScreenPlayerActive"] = r.fullScreenPlayerActive;
     obj["overrideVisualizer"] = r.overrideVisualizer;
     obj["visualizerActive"] = r.visualizerActive;
+    obj["overrideDualPane"] = r.overrideDualPane;
+    obj["dualPaneActive"] = r.dualPaneActive;
+    obj["overrideHorizontalSplit"] = r.overrideHorizontalSplit;
+    obj["horizontalSplitActive"] = r.horizontalSplitActive;
+    obj["overrideCasingOverlays"] = r.overrideCasingOverlays;
+    obj["casingOverlaysActive"] = r.casingOverlaysActive;
 
     obj["overrideToolbars"] = r.overrideToolbars;
     obj["selectedToolbars"] = QJsonArray::fromStringList(r.selectedToolbars);
@@ -3227,6 +3233,12 @@ FolderLayoutRule MainWindow::jsonToRule(const QJsonObject& obj) {
     r.fullScreenPlayerActive = obj["fullScreenPlayerActive"].toBool(false);
     r.overrideVisualizer = obj["overrideVisualizer"].toBool(false);
     r.visualizerActive = obj["visualizerActive"].toBool(false);
+    r.overrideDualPane = obj["overrideDualPane"].toBool(false);
+    r.dualPaneActive = obj["dualPaneActive"].toBool(false);
+    r.overrideHorizontalSplit = obj["overrideHorizontalSplit"].toBool(false);
+    r.horizontalSplitActive = obj["horizontalSplitActive"].toBool(false);
+    r.overrideCasingOverlays = obj["overrideCasingOverlays"].toBool(false);
+    r.casingOverlaysActive = obj["casingOverlaysActive"].toBool(false);
 
     r.overrideToolbars = obj["overrideToolbars"].toBool(false);
     QJsonArray tbs = obj["selectedToolbars"].toArray();
@@ -3590,6 +3602,30 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
     if (r.overrideVisualizer) {
         if (m_previewPanel) {
             m_previewPanel->setSpectrumVisualizerVisible(r.visualizerActive);
+        }
+    }
+
+    // 4c. Dual Pane override
+    if (r.overrideDualPane) {
+        if (m_actToggleDualPane) {
+            m_actToggleDualPane->setChecked(r.dualPaneActive);
+            onToggleDualPane(r.dualPaneActive);
+        }
+    }
+
+    // 4d. Horizontal Split override
+    if (r.overrideHorizontalSplit) {
+        if (m_actToggleHorizontalSplit) {
+            m_actToggleHorizontalSplit->setChecked(r.horizontalSplitActive);
+            onToggleHorizontalSplit(r.horizontalSplitActive);
+        }
+    }
+
+    // 4e. CD Casing Overlays override
+    if (r.overrideCasingOverlays) {
+        if (m_actToggleCasingOverlays) {
+            m_actToggleCasingOverlays->setChecked(r.casingOverlaysActive);
+            onToggleCasingOverlays(r.casingOverlaysActive);
         }
     }
 

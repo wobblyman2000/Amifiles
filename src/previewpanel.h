@@ -189,6 +189,7 @@ public:
     bool isMuted() const;
     void setAudioCoverArtVisible(bool visible);
     void setSpectrumVisualizerVisible(bool visible);
+    bool isSpectrumVisualizerEnabled() const { return m_spectrumVisualizerEnabled; }
     void setZenMode(bool enabled);
     
     QStringList playlist() const { return m_playlist; }

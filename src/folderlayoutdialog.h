@@ -181,31 +181,25 @@ private:
     class QGroupBox* m_styleGroup = nullptr;
     class QGroupBox* m_tabsGroup = nullptr;
 
-    // Visibility Overrides & States
-    QAbstractButton* m_overrideDrives = nullptr;
+    // Visibility States (One Switch per component)
     QAbstractButton* m_stateDrives = nullptr;
-    QAbstractButton* m_overrideCenterOps = nullptr;
     QAbstractButton* m_stateCenterOps = nullptr;
-    QAbstractButton* m_overrideConsole = nullptr;
     QAbstractButton* m_stateConsole = nullptr;
-    QAbstractButton* m_overridePreview = nullptr;
     QAbstractButton* m_statePreview = nullptr;
-    QAbstractButton* m_overrideFavorites = nullptr;
     QAbstractButton* m_stateFavorites = nullptr;
-    QAbstractButton* m_overrideZen = nullptr;
     QAbstractButton* m_stateZen = nullptr;
-    QAbstractButton* m_overrideBuiltinPlayerDoubleclick = nullptr;
     QAbstractButton* m_stateBuiltinPlayerDoubleclick = nullptr;
-    QAbstractButton* m_overrideFullScreenPlayer = nullptr;
     QAbstractButton* m_stateFullScreenPlayer = nullptr;
-    QAbstractButton* m_overrideVisualizer = nullptr;
     QAbstractButton* m_stateVisualizer = nullptr;
+    QAbstractButton* m_stateDualPane = nullptr;
+    QAbstractButton* m_stateHorizontalSplit = nullptr;
+    QAbstractButton* m_stateCasingOverlays = nullptr;
 
     // Toolbar & Menu overrides
-    QAbstractButton* m_overrideToolbars = nullptr;
+    QAbstractButton* m_stateToolbars = nullptr;
     QPushButton* m_btnSelectToolbars = nullptr;
     QStringList m_selectedToolbars;
-    QAbstractButton* m_overrideMenus = nullptr;
+    QAbstractButton* m_stateMenus = nullptr;
     QPushButton* m_btnSelectMenus = nullptr;
     QStringList m_selectedMenus;
 
