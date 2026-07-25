@@ -168,7 +168,7 @@ private:
 };
 
 bool MainWindow::isBuiltinPlayerDoubleclickActive() const {
-    if (m_hasActiveFolderRule && m_activeFolderRule.overrideBuiltinPlayerDoubleclick) {
+    if (m_hasActiveFolderRule && (m_activeFolderRule.overrideBuiltinPlayerDoubleclick || m_activeFolderRule.name.toLower() == "default")) {
         return m_activeFolderRule.builtinPlayerDoubleclick;
     }
     QSettings settings("Amifiles", "Amifiles");
@@ -3505,6 +3505,8 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
     m_activeFolderRule = r;
     m_hasActiveFolderRule = true;
 
+    bool isDefaultProfile = (r.name.toLower() == "default");
+
     if (!m_isInitializing) {
         if (!r.windowState.isEmpty()) {
             restoreState(r.windowState);
@@ -3538,27 +3540,27 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
     rebuildCustomToolBar();
 
     // 3. Visibility overrides
-    if (r.overrideDrivesToolbar) {
+    if (r.overrideDrivesToolbar || isDefaultProfile) {
         m_actToggleDrivesToolbar->setChecked(r.drivesToolbarVisible);
         if (m_tbDrives) m_tbDrives->setVisible(r.drivesToolbarVisible);
     }
-    if (r.overrideCenterOps) {
+    if (r.overrideCenterOps || isDefaultProfile) {
         m_actToggleCenterOps->setChecked(r.centerOpsVisible);
         if (m_tbCenterOps) m_tbCenterOps->setVisible(r.centerOpsVisible && m_isDualPane);
     }
-    if (r.overrideConsole) {
+    if (r.overrideConsole || isDefaultProfile) {
         m_actToggleConsole->setChecked(r.consoleVisible);
         if (m_bottomTabWidget) m_bottomTabWidget->setVisible(r.consoleVisible);
     }
-    if (r.overridePreview) {
+    if (r.overridePreview || isDefaultProfile) {
         m_actTogglePreview->setChecked(r.previewVisible);
         if (m_previewDock) m_previewDock->setVisible(r.previewVisible);
     }
-    if (r.overrideFavoritesSidebar) {
+    if (r.overrideFavoritesSidebar || isDefaultProfile) {
         m_actToggleFavoritesSidebar->setChecked(r.favoritesSidebarVisible);
         if (m_sidebarTabWidget) m_sidebarTabWidget->setVisible(r.favoritesSidebarVisible);
     }
-    if (r.overrideZenMode) {
+    if (r.overrideZenMode || isDefaultProfile) {
         setZenMode(r.zenModeActive);
     }
 
@@ -3614,14 +3616,14 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
     }
 
     // 4b. Visualizer override
-    if (r.overrideVisualizer) {
+    if (r.overrideVisualizer || isDefaultProfile) {
         if (m_previewPanel) {
             m_previewPanel->setSpectrumVisualizerVisible(r.visualizerActive);
         }
     }
 
     // 4c. Dual Pane override
-    if (r.overrideDualPane) {
+    if (r.overrideDualPane || isDefaultProfile) {
         if (m_actToggleDualPane) {
             m_actToggleDualPane->setChecked(r.dualPaneActive);
             onToggleDualPane(r.dualPaneActive);
@@ -3629,7 +3631,7 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
     }
 
     // 4d. Horizontal Split override
-    if (r.overrideHorizontalSplit) {
+    if (r.overrideHorizontalSplit || isDefaultProfile) {
         if (m_actToggleHorizontalSplit) {
             m_actToggleHorizontalSplit->setChecked(r.horizontalSplitActive);
             onToggleHorizontalSplit(r.horizontalSplitActive);
@@ -3637,7 +3639,7 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
     }
 
     // 4e. CD Casing Overlays override
-    if (r.overrideCasingOverlays) {
+    if (r.overrideCasingOverlays || isDefaultProfile) {
         if (m_actToggleCasingOverlays) {
             m_actToggleCasingOverlays->setChecked(r.casingOverlaysActive);
             onToggleCasingOverlays(r.casingOverlaysActive);
@@ -5617,7 +5619,7 @@ void MainWindow::onPlayMediaBuiltin(const QStringList& filePaths) {
     
     // Go fullscreen if preferred
     bool autoFullscreen = true;
-    if (m_hasActiveFolderRule && m_activeFolderRule.overrideFullScreenPlayer) {
+    if (m_hasActiveFolderRule && (m_activeFolderRule.overrideFullScreenPlayer || m_activeFolderRule.name.toLower() == "default")) {
         autoFullscreen = m_activeFolderRule.fullScreenPlayerActive;
     } else {
         QSettings settings("Amifiles", "Amifiles");
