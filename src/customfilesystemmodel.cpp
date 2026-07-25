@@ -245,42 +245,108 @@ QIcon CustomFileSystemModel::drawRetroDiskIcon(const QString& filename, const QS
         double s = sz / 48.0; // scale factor based on 48px baseline
 
         if (ext == "adf" || ext == "dms") {
-            // Amiga 3.5" Disk
-            QColor casingColor("#243a5e"); // Nice Amiga dark blue
-            painter.setBrush(casingColor);
-            painter.setPen(QPen(QColor("#11111b"), qMax(1.0, 0.5 * s)));
+            // Amiga 3.5" Disk (Option 1: Realistic 3D Glossy Mockup)
             int pad = qMax(1, qRound(2 * s));
             int w = sz - 2 * pad;
             int h = sz - 2 * pad;
+
+            // 1. Main Disk Body Casing (Dark Charcoal Textured Plastic)
+            QLinearGradient bodyGrad(pad, pad, pad, pad + h);
+            bodyGrad.setColorAt(0.0, QColor("#313244")); // Lighter top edge
+            bodyGrad.setColorAt(1.0, QColor("#11111b")); // Darker bottom edge
+            painter.setBrush(bodyGrad);
+            painter.setPen(QPen(QColor("#0b0b10"), qMax(1.0, 0.5 * s)));
             painter.drawRoundedRect(pad, pad, w, h, 3 * s, 3 * s);
 
-            // Metal shutter
-            painter.setBrush(QColor("#a6adc8")); // silver/grey
-            painter.setPen(Qt::NoPen);
-            painter.drawRect(pad + qRound(12 * s), pad, qRound(14 * s), qRound(16 * s));
-            painter.setBrush(QColor("#45475a"));
-            painter.drawRect(pad + qRound(15 * s), pad + qRound(2 * s), qRound(2 * s), qRound(12 * s));
+            // Subtle 3D inner bevel highlight
+            painter.setBrush(Qt::NoBrush);
+            painter.setPen(QPen(QColor(255, 255, 255, 30), qMax(1.0, 0.5 * s)));
+            painter.drawRoundedRect(pad + 1, pad + 1, w - 2, h - 2, 2.5 * s, 2.5 * s);
 
-            // Label
-            painter.setBrush(QColor("#f5e0dc")); // white/cream label
+            // Write-protect cutout at the bottom right
+            painter.setBrush(QColor("#0b0b10"));
+            painter.setPen(Qt::NoPen);
+            painter.drawRect(pad + w - qRound(7 * s), pad + h - qRound(7 * s), qRound(5 * s), qRound(5 * s));
+            // Red slider inside write-protect hole
+            painter.setBrush(QColor("#f38ba8")); // Red plastic
+            painter.drawRect(pad + w - qRound(6 * s), pad + h - qRound(5 * s), qRound(3 * s), qRound(2 * s));
+
+            // 2. Metal sliding shutter (top-center/left)
+            // Silver brushed metal gradient
+            QLinearGradient metalGrad(pad + qRound(11 * s), pad, pad + qRound(25 * s), pad);
+            metalGrad.setColorAt(0.0, QColor("#89b4fa")); // Tinted blue-silver
+            metalGrad.setColorAt(0.3, QColor("#b4befe"));
+            metalGrad.setColorAt(0.5, QColor("#a6adc8"));
+            metalGrad.setColorAt(0.7, QColor("#cdd6f4"));
+            metalGrad.setColorAt(1.0, QColor("#6c7086"));
+            painter.setBrush(metalGrad);
+            painter.setPen(QPen(QColor("#181825"), qMax(1.0, 0.5 * s)));
+            painter.drawRoundedRect(pad + qRound(11 * s), pad, qRound(14 * s), qRound(15 * s), 0.5 * s, 0.5 * s);
+
+            // Shutter slot cutout (black vertical slot)
+            painter.setBrush(QColor("#11111b"));
+            painter.setPen(Qt::NoPen);
+            painter.drawRect(pad + qRound(15 * s), pad + qRound(2 * s), qRound(3 * s), qRound(11 * s));
+
+            // 3. Recessed Label Pocket (white/cream paper sticker)
+            painter.setBrush(QColor("#11111b"));
+            painter.drawRoundedRect(pad + qRound(4 * s), pad + qRound(17 * s), w - qRound(8 * s), h - qRound(19 * s), 1 * s, 1 * s);
+
+            // Paper label
+            QLinearGradient labelGrad(pad + qRound(4 * s), pad + qRound(18 * s), pad + qRound(4 * s), pad + h - 1);
+            labelGrad.setColorAt(0.0, QColor("#ffffff"));
+            labelGrad.setColorAt(1.0, QColor("#e6e9ef"));
+            painter.setBrush(labelGrad);
+            painter.setPen(QPen(QColor("#313244"), qMax(1.0, 0.5 * s)));
             painter.drawRoundedRect(pad + qRound(4 * s), pad + qRound(18 * s), w - qRound(8 * s), h - qRound(20 * s), 1 * s, 1 * s);
 
-            // Retro stripe on label
-            painter.setBrush(QColor("#f38ba8")); // rose red stripe
-            painter.drawRect(pad + qRound(4 * s), pad + qRound(18 * s), w - qRound(8 * s), qRound(3 * s));
+            // Blue header stripe on label
+            painter.setBrush(QColor("#1e66f5")); // Retro blue stripe
+            painter.setPen(Qt::NoPen);
+            painter.drawRect(pad + qRound(5 * s), pad + qRound(19 * s), w - qRound(10 * s), qRound(3 * s));
 
-            // Text
+            // Amiga Rainbow checkmark in the bottom right corner
+            QLinearGradient rainbowGrad(pad + w - qRound(16 * s), pad + h - qRound(10 * s), pad + w - qRound(6 * s), pad + h - qRound(4 * s));
+            rainbowGrad.setColorAt(0.0, QColor("#e64553")); // Red
+            rainbowGrad.setColorAt(0.25, QColor("#fe640b")); // Orange
+            rainbowGrad.setColorAt(0.5, QColor("#df8e1d")); // Yellow
+            rainbowGrad.setColorAt(0.75, QColor("#40a02b")); // Green
+            rainbowGrad.setColorAt(1.0, QColor("#1e66f5")); // Blue
+
+            QPen rainbowPen(rainbowGrad, qMax(1.5, 1.5 * s));
+            rainbowPen.setCapStyle(Qt::RoundCap);
+            rainbowPen.setJoinStyle(Qt::RoundJoin);
+            painter.setPen(rainbowPen);
+            painter.setBrush(Qt::NoBrush);
+
+            QPolygonF checkPoly;
+            checkPoly << QPointF(pad + w - qRound(15 * s), pad + h - qRound(10 * s))
+                      << QPointF(pad + w - qRound(11 * s), pad + h - qRound(5 * s))
+                      << QPointF(pad + w - qRound(6 * s), pad + h - qRound(12 * s));
+            painter.drawPolyline(checkPoly);
+
+            // 4. Name Text (wrapped, black color, bold font)
             painter.setPen(QColor("#11111b"));
             QFont f("Outfit", qMax(5, qRound(5.5 * s)));
             f.setBold(true);
             painter.setFont(f);
-            QRect textRect(pad + qRound(6 * s), pad + qRound(22 * s), w - qRound(12 * s), h - qRound(24 * s));
-            painter.drawText(textRect, Qt::AlignCenter | Qt::TextWordWrap, filename);
+            QRect textRect(pad + qRound(6 * s), pad + qRound(23 * s), w - qRound(22 * s), h - qRound(25 * s));
+            painter.drawText(textRect, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextWordWrap, filename);
 
-            // Amiga red checkmark / logo in corner
-            painter.setPen(QPen(QColor("#f38ba8"), qMax(1.0, 1.0 * s)));
-            painter.drawLine(pad + qRound(4 * s), pad + qRound(6 * s), pad + qRound(6 * s), pad + qRound(10 * s));
-            painter.drawLine(pad + qRound(6 * s), pad + qRound(10 * s), pad + qRound(10 * s), pad + qRound(3 * s));
+            // 5. Diagonal Gloss Overlay (3D Shine)
+            QLinearGradient shineGrad(0, 0, sz, sz);
+            shineGrad.setColorAt(0.0, QColor(255, 255, 255, 55));
+            shineGrad.setColorAt(0.3, QColor(255, 255, 255, 30));
+            shineGrad.setColorAt(0.5, QColor(255, 255, 255, 0));
+            shineGrad.setColorAt(1.0, QColor(255, 255, 255, 0));
+            painter.setBrush(shineGrad);
+            painter.setPen(Qt::NoPen);
+            
+            QPolygon glossPoly;
+            glossPoly << QPoint(0, 0)
+                      << QPoint(sz, 0)
+                      << QPoint(0, sz);
+            painter.drawPolygon(glossPoly);
 
         } else if (ext == "d64" || ext == "g64") {
             // C64 5.25" Disk
