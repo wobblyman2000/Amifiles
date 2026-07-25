@@ -1427,7 +1427,7 @@ void MainWindow::onToggleDualPane(bool checked) {
         settings.setValue("preferences/dual_pane", checked);
     }
 
-    adjustSplitterSizes();
+    queueAdjustSplitterSizes();
 }
 
 void MainWindow::onTogglePreview(bool checked) {
@@ -1435,7 +1435,7 @@ void MainWindow::onTogglePreview(bool checked) {
     if (m_previewDock) {
         m_previewDock->setVisible(checked);
     }
-    adjustSplitterSizes();
+    queueAdjustSplitterSizes();
 }
 
 void MainWindow::updateMiniPlayer() {
@@ -1506,7 +1506,7 @@ void MainWindow::resizeEvent(QResizeEvent* event) {
             onToggleDualPane(true);
         }
     }
-    adjustSplitterSizes();
+    queueAdjustSplitterSizes();
 }
 
 void MainWindow::onToggleAgeColoring(bool checked) {
@@ -2707,7 +2707,7 @@ void MainWindow::onToggleFavoritesSidebar(bool checked) {
             QSettings settings("Amifiles", "Amifiles");
             settings.setValue("favorites/sidebar_visible", checked);
         }
-        adjustSplitterSizes();
+        queueAdjustSplitterSizes();
     }
 }
 
@@ -4304,6 +4304,52 @@ void MainWindow::adjustSplitterSizes() {
     }
 }
 
+void MainWindow::queueAdjustSplitterSizes() {
+    QTimer::singleShot(0, this, &MainWindow::adjustSplitterSizes);
+}
+
+void MainWindow::updateLayoutLockState() {
+    QSettings settings("Amifiles", "Amifiles");
+    bool lockLayout = settings.value("preferences/lock_layout_in_showcase", true).toBool();
+    
+    bool inShowcase = false;
+    if (m_activePanel) {
+        int vm = m_activePanel->viewModeIndex();
+        if (vm >= 7 && vm <= 10) {
+            inShowcase = true;
+        }
+    }
+    
+    if (lockLayout && inShowcase) {
+        if (m_isDualPane) {
+            m_wasDualPaneBeforeLock = true;
+            m_actToggleDualPane->setChecked(false);
+            onToggleDualPane(false);
+        }
+        if (m_showPreview) {
+            m_wasPreviewBeforeLock = true;
+            m_actTogglePreview->setChecked(false);
+            onTogglePreview(false);
+        }
+        if (m_actToggleDualPane) m_actToggleDualPane->setEnabled(false);
+        if (m_actTogglePreview) m_actTogglePreview->setEnabled(false);
+    } else {
+        if (m_actToggleDualPane) m_actToggleDualPane->setEnabled(true);
+        if (m_actTogglePreview) m_actTogglePreview->setEnabled(true);
+        
+        if (m_wasDualPaneBeforeLock) {
+            m_wasDualPaneBeforeLock = false;
+            m_actToggleDualPane->setChecked(true);
+            onToggleDualPane(true);
+        }
+        if (m_wasPreviewBeforeLock) {
+            m_wasPreviewBeforeLock = false;
+            m_actTogglePreview->setChecked(true);
+            onTogglePreview(true);
+        }
+    }
+}
+
 #include "dynamicfavoritesdialog.h"
 
 void MainWindow::onConfigureDynamicBookmarks() {
@@ -4522,7 +4568,8 @@ void MainWindow::onPreferencesAction() {
             FilePanel* p = qobject_cast<FilePanel*>(m_rightTabWidget->widget(i));
             if (p) p->refresh();
         }
-        adjustSplitterSizes();
+        queueAdjustSplitterSizes();
+        updateLayoutLockState();
     });
     dlg.exec();
 }
@@ -4563,7 +4610,8 @@ void MainWindow::onMediaPreferences() {
             FilePanel* p = qobject_cast<FilePanel*>(m_rightTabWidget->widget(i));
             if (p) p->refresh();
         }
-        adjustSplitterSizes();
+        queueAdjustSplitterSizes();
+        updateLayoutLockState();
     });
     dlg.exec();
 }
@@ -5632,6 +5680,7 @@ void MainWindow::onPlayQueueFullscreen() {
 
 void MainWindow::onActivePanelViewModeChanged() {
     if (!m_activePanel) return;
+    updateLayoutLockState();
     int vm = m_activePanel->viewModeIndex();
     bool isFullscreenMode = (vm == 8 || vm == 9 || vm == 10);
     bool isAudioMode = (vm != 7 && vm != 8 && vm != 9);

@@ -334,6 +334,8 @@ private:
     void applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel = nullptr);
     QString detectFolderCategory(const QString& path);
     void adjustSplitterSizes();
+    void updateLayoutLockState();
+    void queueAdjustSplitterSizes();
 
     // State Tracking
     FilePanel* m_activePanel = nullptr;
@@ -341,6 +343,8 @@ private:
     bool m_showPreview = true;
     bool m_previewDockAutoShownForPlayback = false;
     bool m_ageColoringEnabled = true;
+    bool m_wasDualPaneBeforeLock = false;
+    bool m_wasPreviewBeforeLock = false;
 
     // Custom Buttons List
     QList<CustomButton> m_customButtons;
