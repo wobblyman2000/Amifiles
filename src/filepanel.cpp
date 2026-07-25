@@ -1494,13 +1494,25 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
     updateFavoritesUI();
     checkFolderArt();
 
-    // If we navigated up, collapse the folder we just exited so it doesn't stay expanded
+    // If we navigated up, collapse and select the folder we just exited so it doesn't stay expanded
     if (!prevPath.isEmpty() && prevPath.length() > m_currentPath.length() && prevPath.startsWith(m_currentPath, Qt::CaseInsensitive)) {
         QModelIndex srcIdx = m_fileModel->index(prevPath);
         if (srcIdx.isValid()) {
             QModelIndex proxyIdx = m_proxyModel ? m_proxyModel->mapFromSource(srcIdx) : srcIdx;
-            if (proxyIdx.isValid() && m_treeView) {
-                m_treeView->setExpanded(proxyIdx, false);
+            if (proxyIdx.isValid()) {
+                if (m_treeView) {
+                    m_treeView->setCurrentIndex(proxyIdx);
+                    if (m_treeView->selectionModel()) {
+                        m_treeView->selectionModel()->select(proxyIdx, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+                    }
+                    m_treeView->setExpanded(proxyIdx, false);
+                }
+                if (m_listView) {
+                    m_listView->setCurrentIndex(proxyIdx);
+                    if (m_listView->selectionModel()) {
+                        m_listView->selectionModel()->select(proxyIdx, QItemSelectionModel::ClearAndSelect);
+                    }
+                }
             }
         }
     }
