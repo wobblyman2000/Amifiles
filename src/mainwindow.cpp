@@ -3442,6 +3442,8 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
         onActivePanelViewModeChanged();
     }
 
+    FolderLayoutRule def = isDefaultProfile ? r : getDefaultRule();
+
     // 1. View Mode
     if (r.viewMode != "No Change" && !r.viewMode.isEmpty()) {
         if (r.viewMode == "List") targetPanel->setViewModeIndex(0);
@@ -3455,6 +3457,18 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
         else if (r.viewMode == "Movies Full Screen" || r.viewMode == "Movie Showcase (v2)") targetPanel->setViewModeIndex(8);
         else if (r.viewMode == "TV Shows Full Screen" || r.viewMode == "TV Show Showcase (v2)") targetPanel->setViewModeIndex(9);
         else if (r.viewMode == "Music Full Screen" || r.viewMode == "Music Showcase (v2)") targetPanel->setViewModeIndex(10);
+    } else if (!isDefaultProfile && def.viewMode != "No Change" && !def.viewMode.isEmpty()) {
+        if (def.viewMode == "List") targetPanel->setViewModeIndex(0);
+        else if (def.viewMode == "Grid") targetPanel->setViewModeIndex(1);
+        else if (def.viewMode == "Card") targetPanel->setViewModeIndex(2);
+        else if (def.viewMode == "Miller") targetPanel->setViewModeIndex(3);
+        else if (def.viewMode == "Timeline") targetPanel->setViewModeIndex(4);
+        else if (def.viewMode == "Filmstrip") targetPanel->setViewModeIndex(5);
+        else if (def.viewMode == "Theater" || def.viewMode == "Music Showcase" || def.viewMode == "Audio Showcase" || def.viewMode == "Audio Showcase (Classic)") targetPanel->setViewModeIndex(6);
+        else if (def.viewMode == "Cinema Showcase" || def.viewMode == "Video Showcase" || def.viewMode == "Video Showcase (Classic)") targetPanel->setViewModeIndex(7);
+        else if (def.viewMode == "Movies Full Screen" || def.viewMode == "Movie Showcase (v2)") targetPanel->setViewModeIndex(8);
+        else if (def.viewMode == "TV Shows Full Screen" || def.viewMode == "TV Show Showcase (v2)") targetPanel->setViewModeIndex(9);
+        else if (def.viewMode == "Music Full Screen" || def.viewMode == "Music Showcase (v2)") targetPanel->setViewModeIndex(10);
     }
 
     // 2. Toolbar filter
@@ -3465,25 +3479,42 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
     if (r.overrideDrivesToolbar || isDefaultProfile) {
         m_actToggleDrivesToolbar->setChecked(r.drivesToolbarVisible);
         if (m_tbDrives) m_tbDrives->setVisible(r.drivesToolbarVisible);
+    } else {
+        m_actToggleDrivesToolbar->setChecked(def.drivesToolbarVisible);
+        if (m_tbDrives) m_tbDrives->setVisible(def.drivesToolbarVisible);
     }
     if (r.overrideCenterOps || isDefaultProfile) {
         m_actToggleCenterOps->setChecked(r.centerOpsVisible);
         if (m_tbCenterOps) m_tbCenterOps->setVisible(r.centerOpsVisible && m_isDualPane);
+    } else {
+        m_actToggleCenterOps->setChecked(def.centerOpsVisible);
+        if (m_tbCenterOps) m_tbCenterOps->setVisible(def.centerOpsVisible && m_isDualPane);
     }
     if (r.overrideConsole || isDefaultProfile) {
         m_actToggleConsole->setChecked(r.consoleVisible);
         if (m_bottomTabWidget) m_bottomTabWidget->setVisible(r.consoleVisible);
+    } else {
+        m_actToggleConsole->setChecked(def.consoleVisible);
+        if (m_bottomTabWidget) m_bottomTabWidget->setVisible(def.consoleVisible);
     }
     if (r.overridePreview || isDefaultProfile) {
         m_actTogglePreview->setChecked(r.previewVisible);
         if (m_previewDock) m_previewDock->setVisible(r.previewVisible);
+    } else {
+        m_actTogglePreview->setChecked(def.previewVisible);
+        if (m_previewDock) m_previewDock->setVisible(def.previewVisible);
     }
     if (r.overrideFavoritesSidebar || isDefaultProfile) {
         m_actToggleFavoritesSidebar->setChecked(r.favoritesSidebarVisible);
         if (m_sidebarTabWidget) m_sidebarTabWidget->setVisible(r.favoritesSidebarVisible);
+    } else {
+        m_actToggleFavoritesSidebar->setChecked(def.favoritesSidebarVisible);
+        if (m_sidebarTabWidget) m_sidebarTabWidget->setVisible(def.favoritesSidebarVisible);
     }
     if (r.overrideZenMode || isDefaultProfile) {
         setZenMode(r.zenModeActive);
+    } else {
+        setZenMode(def.zenModeActive);
     }
 
     // 3b. Custom Toolbars visibility overrides
@@ -3542,6 +3573,10 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
         if (m_previewPanel) {
             m_previewPanel->setSpectrumVisualizerVisible(r.visualizerActive);
         }
+    } else {
+        if (m_previewPanel) {
+            m_previewPanel->setSpectrumVisualizerVisible(def.visualizerActive);
+        }
     }
 
     // 4c. Dual Pane override
@@ -3549,6 +3584,11 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
         if (m_actToggleDualPane) {
             m_actToggleDualPane->setChecked(r.dualPaneActive);
             onToggleDualPane(r.dualPaneActive);
+        }
+    } else {
+        if (m_actToggleDualPane) {
+            m_actToggleDualPane->setChecked(def.dualPaneActive);
+            onToggleDualPane(def.dualPaneActive);
         }
     }
 
@@ -3558,6 +3598,11 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
             m_actToggleHorizontalSplit->setChecked(r.horizontalSplitActive);
             onToggleHorizontalSplit(r.horizontalSplitActive);
         }
+    } else {
+        if (m_actToggleHorizontalSplit) {
+            m_actToggleHorizontalSplit->setChecked(def.horizontalSplitActive);
+            onToggleHorizontalSplit(def.horizontalSplitActive);
+        }
     }
 
     // 4e. CD Casing Overlays override
@@ -3565,6 +3610,11 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
         if (m_actToggleCasingOverlays) {
             m_actToggleCasingOverlays->setChecked(r.casingOverlaysActive);
             onToggleCasingOverlays(r.casingOverlaysActive);
+        }
+    } else {
+        if (m_actToggleCasingOverlays) {
+            m_actToggleCasingOverlays->setChecked(def.casingOverlaysActive);
+            onToggleCasingOverlays(def.casingOverlaysActive);
         }
     }
 
@@ -4348,6 +4398,46 @@ void MainWindow::updateLayoutLockState() {
             onTogglePreview(true);
         }
     }
+}
+
+FolderLayoutRule MainWindow::getDefaultRule() {
+    for (const auto& r : m_folderRules) {
+        if (r.name.toLower() == "default") {
+            return r;
+        }
+    }
+    // Fallback default rule values
+    FolderLayoutRule r;
+    r.name = "Default";
+    r.ruleType = "Path";
+    r.value = "";
+    r.autoApply = true;
+    r.viewMode = "No Change";
+    r.overrideConsole = true;
+    r.consoleVisible = false;
+    r.overrideDrivesToolbar = true;
+    r.drivesToolbarVisible = true;
+    r.overridePreview = true;
+    r.previewVisible = false;
+    r.overrideCenterOps = true;
+    r.centerOpsVisible = true;
+    r.overrideFavoritesSidebar = true;
+    r.favoritesSidebarVisible = true;
+    r.overrideZenMode = true;
+    r.zenModeActive = false;
+    r.overrideBuiltinPlayerDoubleclick = true;
+    r.builtinPlayerDoubleclick = false;
+    r.overrideFullScreenPlayer = true;
+    r.fullScreenPlayerActive = true;
+    r.overrideVisualizer = true;
+    r.visualizerActive = true;
+    r.overrideDualPane = true;
+    r.dualPaneActive = true;
+    r.overrideHorizontalSplit = true;
+    r.horizontalSplitActive = false;
+    r.overrideCasingOverlays = true;
+    r.casingOverlaysActive = true;
+    return r;
 }
 
 #include "dynamicfavoritesdialog.h"

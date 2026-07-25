@@ -591,7 +591,7 @@ void FolderLayoutDialog::setupUI() {
 }
 
 void FolderLayoutDialog::updateModeVisibility(bool advanced) {
-    if (m_visGroup) m_visGroup->setVisible(advanced);
+    if (m_visGroup) m_visGroup->setVisible(true); // Always visible
     if (m_styleGroup) m_styleGroup->setVisible(advanced);
     if (m_tabsGroup) m_tabsGroup->setVisible(advanced);
     if (m_lblCustomButtons) m_lblCustomButtons->setVisible(advanced);

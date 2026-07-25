@@ -336,6 +336,7 @@ private:
     void adjustSplitterSizes();
     void updateLayoutLockState();
     void queueAdjustSplitterSizes();
+    FolderLayoutRule getDefaultRule();
 
     // State Tracking
     FilePanel* m_activePanel = nullptr;
