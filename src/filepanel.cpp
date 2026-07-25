@@ -260,10 +260,10 @@ void FilePanel::setupUI() {
     connect(m_comboViewMode, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &FilePanel::onViewModeChanged);
 
     m_btnToggleSidePane = new QToolButton(this);
-    m_btnToggleSidePane->setText("📋 Side Panel");
+    m_btnToggleSidePane->setText("📋 Playlist");
     m_btnToggleSidePane->setCheckable(true);
     m_btnToggleSidePane->setChecked(true);
-    m_btnToggleSidePane->setToolTip("Toggle Side Info / Track Drawer Panel");
+    m_btnToggleSidePane->setToolTip("Toggle Playlist Drawer");
     m_btnToggleSidePane->setStyleSheet("QToolButton { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 4px; padding: 2px 6px; font-weight: bold; } QToolButton:hover { background-color: #45475a; } QToolButton:checked { background-color: #a6e3a1; color: #11111b; }");
     connect(m_btnToggleSidePane, &QToolButton::toggled, this, &FilePanel::onToggleSidePane);
 
@@ -516,11 +516,12 @@ void FilePanel::setupUI() {
     bottomLayout->addWidget(m_visualizerWidget, 2, Qt::AlignVCenter);
     m_visualizerWidget->setVisible(false);
 
-    // Initialize Playlist Track Drawer on the right
-    m_trackListWidget = new QListWidget(m_bottomInfoPanel);
-    m_trackListWidget->setFixedWidth(240);
-    m_trackListWidget->setStyleSheet("QListWidget { background-color: rgba(24, 24, 37, 150); color: #cdd6f4; border: 1px solid #313244; border-radius: 6px; font-size: 11px; } QListWidget::item { padding: 4px 6px; border-radius: 3px; } QListWidget::item:hover { background-color: #313244; color: #f5c2e7; } QListWidget::item:selected { background-color: #89b4fa; color: #11111b; }");
-    bottomLayout->addWidget(m_trackListWidget, 3);
+    // Initialize Playlist Track Drawer on the right (placed inside theaterSideContainer)
+    m_trackListWidget = new QListWidget(m_theaterSideContainer);
+    m_trackListWidget->setStyleSheet("QListWidget { background-color: rgba(24, 24, 37, 150); color: #cdd6f4; border: none; font-size: 12px; } QListWidget::item { padding: 8px 10px; border-radius: 4px; } QListWidget::item:hover { background-color: #313244; color: #f5c2e7; } QListWidget::item:selected { background-color: #89b4fa; color: #11111b; }");
+    if (m_theaterSideContainer && m_theaterSideContainer->layout()) {
+        m_theaterSideContainer->layout()->addWidget(m_trackListWidget);
+    }
     m_trackListWidget->setVisible(false);
 
     // Playback control connections
@@ -1459,6 +1460,7 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
             if (m_viewStack->currentWidget() == m_theaterContainer) {
                 m_theaterListView->setVisible(false);
                 m_theaterScrollArea->setVisible(true);
+                if (m_trackListWidget) m_trackListWidget->setVisible(false);
                 rebuildTheaterGroups();
             }
         } else {
@@ -1468,6 +1470,16 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
             
             m_theaterListView->setVisible(true);
             m_theaterScrollArea->setVisible(false);
+            if (m_trackListWidget) m_trackListWidget->setVisible(viewModeIndex() == 10);
+        }
+
+        if (m_btnToggleSidePane) {
+            int index = viewModeIndex();
+            bool groupingActive = m_groupProxy && m_groupProxy->isGroupingActive();
+            m_btnToggleSidePane->setVisible(index == 10 || groupingActive);
+            if (m_theaterSideContainer) {
+                m_theaterSideContainer->setVisible(m_btnToggleSidePane->isVisible() && m_btnToggleSidePane->isChecked());
+            }
         }
     }
 
@@ -5023,7 +5035,11 @@ void FilePanel::onViewModeChanged(int index) {
     onSelectionChanged(); // Trigger layout update for bottom info panel
 
     if (m_btnToggleSidePane) {
-        m_btnToggleSidePane->setVisible(index >= 6 && index <= 10);
+        bool groupingActive = m_groupProxy && m_groupProxy->isGroupingActive();
+        m_btnToggleSidePane->setVisible(index == 10 || groupingActive);
+        if (m_theaterSideContainer) {
+            m_theaterSideContainer->setVisible(m_btnToggleSidePane->isVisible() && m_btnToggleSidePane->isChecked());
+        }
     }
     emit viewModeChanged();
     updateThemeMusic();
