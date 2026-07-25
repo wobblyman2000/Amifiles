@@ -521,6 +521,90 @@ void FilePanel::setupUI() {
     m_trackListWidget->setStyleSheet("QListWidget { background-color: rgba(24, 24, 37, 150); color: #cdd6f4; border: none; font-size: 12px; } QListWidget::item { padding: 8px 10px; border-radius: 4px; } QListWidget::item:hover { background-color: #313244; color: #f5c2e7; } QListWidget::item:selected { background-color: #89b4fa; color: #11111b; }");
     if (m_theaterSideContainer && m_theaterSideContainer->layout()) {
         m_theaterSideContainer->layout()->addWidget(m_trackListWidget);
+        
+        m_drawerBtnContainer = new QWidget(m_theaterSideContainer);
+        QHBoxLayout* drawerBtnLayout = new QHBoxLayout(m_drawerBtnContainer);
+        drawerBtnLayout->setContentsMargins(6, 6, 6, 6);
+        drawerBtnLayout->setSpacing(6);
+        
+        QPushButton* btnDrawerPlay = new QPushButton("▶ Play", m_drawerBtnContainer);
+        QPushButton* btnDrawerRemove = new QPushButton("✖ Remove", m_drawerBtnContainer);
+        QPushButton* btnDrawerClear = new QPushButton("🗑 Clear", m_drawerBtnContainer);
+        
+        QString btnStyle = 
+            "QPushButton { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 4px; padding: 6px 8px; font-weight: bold; font-family: 'Outfit'; font-size: 11px; } "
+            "QPushButton:hover { background-color: #45475a; color: #ffffff; } "
+            "QPushButton:pressed { background-color: #585b70; }";
+            
+        btnDrawerPlay->setStyleSheet(btnStyle);
+        btnDrawerRemove->setStyleSheet(btnStyle);
+        btnDrawerClear->setStyleSheet(btnStyle);
+        
+        drawerBtnLayout->addWidget(btnDrawerPlay);
+        drawerBtnLayout->addWidget(btnDrawerRemove);
+        drawerBtnLayout->addWidget(btnDrawerClear);
+        
+        m_theaterSideContainer->layout()->addWidget(m_drawerBtnContainer);
+        m_drawerBtnContainer->setVisible(false);
+
+        connect(btnDrawerPlay, &QPushButton::clicked, this, [this]() {
+            QList<QListWidgetItem*> selected = m_trackListWidget->selectedItems();
+            int idx = -1;
+            if (!selected.isEmpty()) {
+                idx = m_trackListWidget->row(selected.first());
+            } else {
+                idx = m_trackListWidget->currentRow();
+            }
+            if (idx < 0) idx = 0;
+            
+            QWidget* w = parentWidget();
+            MainWindow* mainWin = nullptr;
+            while (w) {
+                MainWindow* mw = qobject_cast<MainWindow*>(w);
+                if (mw) { mainWin = mw; break; }
+                w = w->parentWidget();
+            }
+            if (mainWin && mainWin->previewPanel() && idx >= 0 && idx < mainWin->previewPanel()->playlist().size()) {
+                mainWin->previewPanel()->playPlaylistIndex(idx);
+                int vm = viewModeIndex();
+                if ((vm == 8 || vm == 9) && !mainWin->previewPanel()->isFullscreen()) {
+                    mainWin->previewPanel()->toggleFullscreen();
+                }
+            }
+        });
+        
+        connect(btnDrawerRemove, &QPushButton::clicked, this, [this]() {
+            QList<QListWidgetItem*> selected = m_trackListWidget->selectedItems();
+            int idx = -1;
+            if (!selected.isEmpty()) {
+                idx = m_trackListWidget->row(selected.first());
+            } else {
+                idx = m_trackListWidget->currentRow();
+            }
+            QWidget* w = parentWidget();
+            MainWindow* mainWin = nullptr;
+            while (w) {
+                MainWindow* mw = qobject_cast<MainWindow*>(w);
+                if (mw) { mainWin = mw; break; }
+                w = w->parentWidget();
+            }
+            if (mainWin && mainWin->previewPanel() && idx >= 0 && idx < mainWin->previewPanel()->playlist().size()) {
+                mainWin->previewPanel()->removeFromPlaylist(idx);
+            }
+        });
+        
+        connect(btnDrawerClear, &QPushButton::clicked, this, [this]() {
+            QWidget* w = parentWidget();
+            MainWindow* mainWin = nullptr;
+            while (w) {
+                MainWindow* mw = qobject_cast<MainWindow*>(w);
+                if (mw) { mainWin = mw; break; }
+                w = w->parentWidget();
+            }
+            if (mainWin && mainWin->previewPanel()) {
+                mainWin->previewPanel()->clearPlaylist();
+            }
+        });
     }
     m_trackListWidget->setVisible(false);
 
@@ -1470,6 +1554,7 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
                 m_theaterListView->setVisible(false);
                 m_theaterScrollArea->setVisible(true);
                 if (m_trackListWidget) m_trackListWidget->setVisible(false);
+                if (m_drawerBtnContainer) m_drawerBtnContainer->setVisible(false);
                 rebuildTheaterGroups();
             }
         } else {
@@ -1480,6 +1565,7 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
             m_theaterListView->setVisible(true);
             m_theaterScrollArea->setVisible(false);
             if (m_trackListWidget) m_trackListWidget->setVisible(viewModeIndex() >= 7 && viewModeIndex() <= 10);
+            if (m_drawerBtnContainer) m_drawerBtnContainer->setVisible(viewModeIndex() >= 7 && viewModeIndex() <= 10);
         }
 
         if (m_btnToggleSidePane) {
@@ -1491,6 +1577,9 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
             }
             if (m_trackListWidget) {
                 m_trackListWidget->setVisible(index >= 7 && index <= 10 && !groupingActive);
+            }
+            if (m_drawerBtnContainer) {
+                m_drawerBtnContainer->setVisible(index >= 7 && index <= 10 && !groupingActive);
             }
         }
     }
@@ -1890,6 +1979,7 @@ void FilePanel::onSelectionChanged() {
             if (m_musicControlsWidget) m_musicControlsWidget->setVisible(modeIndex == 10);
             if (m_visualizerWidget) m_visualizerWidget->setVisible(modeIndex == 10);
             if (m_trackListWidget) m_trackListWidget->setVisible(modeIndex >= 7 && modeIndex <= 10);
+            if (m_drawerBtnContainer) m_drawerBtnContainer->setVisible(modeIndex >= 7 && modeIndex <= 10);
             if (m_cinemaButtonsWidget) m_cinemaButtonsWidget->setVisible(modeIndex == 8 || modeIndex == 9);
 
             if (modeIndex == 7 || modeIndex == 8 || modeIndex == 9) {
@@ -5054,6 +5144,9 @@ void FilePanel::onViewModeChanged(int index) {
         }
         if (m_trackListWidget) {
             m_trackListWidget->setVisible(index >= 7 && index <= 10 && !groupingActive);
+        }
+        if (m_drawerBtnContainer) {
+            m_drawerBtnContainer->setVisible(index >= 7 && index <= 10 && !groupingActive);
         }
     }
     emit viewModeChanged();

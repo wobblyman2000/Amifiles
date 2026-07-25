@@ -1053,6 +1053,7 @@ private:
     QSlider* m_musicVolumeSlider = nullptr;
     AudioVisualizerWidget* m_visualizerWidget = nullptr;
     class QListWidget* m_trackListWidget = nullptr;
+    QWidget* m_drawerBtnContainer = nullptr;
 
     QWidget* m_cinemaButtonsWidget = nullptr;
     QPushButton* m_btnWatchTrailer = nullptr;
