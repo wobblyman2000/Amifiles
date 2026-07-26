@@ -29,6 +29,7 @@ public:
 
 public slots:
     void onThumbnailGenerated(const QString& filePath, const QImage& img);
+    void onChecksumGenerated(const QString& filePath, const QString& md5);
 
 private:
     FileMetadata getMetadata(const QString& filePath) const;
@@ -40,6 +41,8 @@ private:
     QList<CustomColumn> m_activeColumns;
     mutable QHash<QString, QIcon> m_thumbnailCache;
     mutable QSet<QString> m_pendingThumbnails;
+    mutable QHash<QString, QString> m_checksumCache;
+    mutable QSet<QString> m_pendingChecksums;
 };
 
 #endif // CUSTOMFILESYSTEMMODEL_H

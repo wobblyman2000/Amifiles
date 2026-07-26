@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(Amifiles VERSION 2.2.0 LANGUAGES CXX)
+project(Amifiles VERSION 2.2.17 LANGUAGES CXX)
 
 configure_file(
     "${PROJECT_SOURCE_DIR}/src/version.h.in"
@@ -59,6 +59,8 @@ add_executable(Amifiles
     src/buttoneditor.cpp
     src/searchworker.h
     src/searchworker.cpp
+    src/searchdialog.h
+    src/searchdialog.cpp
     src/helpdialog.h
     src/helpdialog.cpp
     src/spaceanalyzer.h

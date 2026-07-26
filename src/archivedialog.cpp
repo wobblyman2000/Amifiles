@@ -102,7 +102,12 @@ void ArchiveDialog::setupUI() {
         lblFile->setStyleSheet("color: #a6e3a1; font-weight: bold;");
         mainLayout->addWidget(lblFile);
 
-        QLabel* lblDest = new QLabel(QString("Destination: %1").arg(QDir::toNativeSeparators(m_currentDir)), this);
+        QString archiveBaseName = info.completeBaseName();
+        if (archiveBaseName.endsWith(".tar", Qt::CaseInsensitive)) {
+            archiveBaseName.chop(4);
+        }
+        QString targetExtractPath = QDir(m_currentDir).filePath(archiveBaseName);
+        QLabel* lblDest = new QLabel(QString("Destination: %1").arg(QDir::toNativeSeparators(targetExtractPath)), this);
         mainLayout->addWidget(lblDest);
 
         m_chkPassword = new QCheckBox("Archive is Password Protected", this);
@@ -212,22 +217,30 @@ void ArchiveDialog::startExtraction() {
     m_lblStatus->setText("Extracting files...");
     m_isRunning = true;
 
+    QFileInfo archiveInfo(m_archivePath);
+    QString archiveBaseName = archiveInfo.completeBaseName();
+    if (archiveBaseName.endsWith(".tar", Qt::CaseInsensitive)) {
+        archiveBaseName.chop(4);
+    }
+    QString targetExtractDir = QDir(m_currentDir).filePath(archiveBaseName);
+    QDir().mkpath(targetExtractDir);
+
     m_process = new QProcess(this);
-    m_process->setWorkingDirectory(m_currentDir);
+    m_process->setWorkingDirectory(targetExtractDir);
 
     if (m_archivePath.endsWith(".tar.gz") || m_archivePath.endsWith(".tgz")) {
-        m_process->start("tar", {"-xzvf", m_archivePath, "-C", m_currentDir});
+        m_process->start("tar", {"-xzvf", m_archivePath, "-C", targetExtractDir});
     } else if (m_archivePath.endsWith(".tar.xz")) {
-        m_process->start("tar", {"-xJvf", m_archivePath, "-C", m_currentDir});
+        m_process->start("tar", {"-xJvf", m_archivePath, "-C", targetExtractDir});
     } else if (m_archivePath.endsWith(".tar.bz2")) {
-        m_process->start("tar", {"-xjvf", m_archivePath, "-C", m_currentDir});
+        m_process->start("tar", {"-xjvf", m_archivePath, "-C", targetExtractDir});
     } else if (ext == "tar") {
-        m_process->start("tar", {"-xvf", m_archivePath, "-C", m_currentDir});
+        m_process->start("tar", {"-xvf", m_archivePath, "-C", targetExtractDir});
     } else if (ext == "zip") {
         if (m_chkPassword->isChecked() && !m_txtPassword->text().isEmpty()) {
-            m_process->start("unzip", {"-P", m_txtPassword->text(), "-o", m_archivePath, "-d", m_currentDir});
+            m_process->start("unzip", {"-P", m_txtPassword->text(), "-o", m_archivePath, "-d", targetExtractDir});
         } else {
-            m_process->start("unzip", {"-o", m_archivePath, "-d", m_currentDir});
+            m_process->start("unzip", {"-o", m_archivePath, "-d", targetExtractDir});
         }
     } else if (ext == "7z" || ext == "iso" || ext == "img" || ext == "rar") {
         QStringList args;
@@ -235,21 +248,21 @@ void ArchiveDialog::startExtraction() {
         if (m_chkPassword->isChecked() && !m_txtPassword->text().isEmpty()) {
             args << QString("-p%1").arg(m_txtPassword->text());
         }
-        args << m_archivePath << QString("-o%1").arg(m_currentDir) << "-y" << "-bsp1";
+        args << m_archivePath << QString("-o%1").arg(targetExtractDir) << "-y" << "-bsp1";
         m_process->start("7z", args);
     } else if (ext == "d64") {
-        QString cmd = QString("for f in $(c1541 -attach \"%1\" -list | grep -o '\"[^\"]*\"' | tr -d '\"'); do c1541 -attach \"%1\" -read \"$f\" \"%2/$f\"; done").arg(m_archivePath).arg(m_currentDir);
+        QString cmd = QString("for f in $(c1541 -attach \"%1\" -list | grep -o '\"[^\"]*\"' | tr -d '\"'); do c1541 -attach \"%1\" -read \"$f\" \"%2/$f\"; done").arg(m_archivePath).arg(targetExtractDir);
         m_process->start("bash", {"-c", cmd});
     } else if (ext == "adf") {
-        m_process->start("xdftool", { m_archivePath, "unpack", m_currentDir });
+        m_process->start("xdftool", { m_archivePath, "unpack", targetExtractDir });
     } else {
         // Double fallback: try 7z first for unknown format, then tar
         if (ext == "7z" || ext == "rar") {
             QStringList args;
-            args << "x" << m_archivePath << QString("-o%1").arg(m_currentDir) << "-y" << "-bsp1";
+            args << "x" << m_archivePath << QString("-o%1").arg(targetExtractDir) << "-y" << "-bsp1";
             m_process->start("7z", args);
         } else {
-            m_process->start("tar", {"-xvf", m_archivePath, "-C", m_currentDir});
+            m_process->start("tar", {"-xvf", m_archivePath, "-C", targetExtractDir});
         }
     }
 

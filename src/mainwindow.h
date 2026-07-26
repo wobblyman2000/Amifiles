@@ -172,6 +172,7 @@ public:
     static QJsonObject ruleToJson(const FolderLayoutRule& r);
     static FolderLayoutRule jsonToRule(const QJsonObject& obj);
     ~MainWindow() override;
+    void navigateToPathAndSelect(const QString& filePath);
 
 signals:
     void builtinPlayerDoubleclickChanged(bool active);
@@ -220,6 +221,7 @@ private slots:
     void onShowPropertiesAction();
     void onRefreshAction();
     void onBulkRenameAction();
+    void onQuickRenameAction(const QString& caseType);
     void onCopyToSiblingAction();
     void onMoveToSiblingAction();
 
@@ -231,6 +233,7 @@ private slots:
     void onAddCustomButton();
     void onCustomButtonClicked();
     void onCustomToolBarContextMenu(const QPoint& pos);
+    void onAdvancedSearch();
     
     // Mini status bar player slot
     void updateMiniPlayer();
@@ -471,6 +474,7 @@ private:
     QAction* m_actSpaceAnalyzer = nullptr;
     QAction* m_actKeybindings = nullptr;
     QAction* m_actCalculateChecksum = nullptr;
+    QAction* m_actAdvancedSearch = nullptr;
     QAction* m_actSecureShred = nullptr;
     QAction* m_actRemoteMount = nullptr;
     QAction* m_actCloudMount = nullptr;

@@ -1,4 +1,5 @@
 #include "videoscraperdialog.h"
+#include "theme.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
@@ -19,6 +20,7 @@
 #include <QGroupBox>
 #include <QRegularExpression>
 #include <QEventLoop>
+#include <algorithm>
 
 VideoScraperDialog::VideoScraperDialog(const QStringList& filePaths, QWidget* parent)
     : QDialog(parent), m_filePaths(filePaths) {
@@ -107,9 +109,13 @@ void VideoScraperDialog::setupUI() {
     m_chkRename = new QCheckBox("Rename file/folder to 'Title (Year)'", this);
     m_chkRename->setChecked(true);
 
+    m_chkFanart = new QCheckBox("Download Fanart.tv backdrop, logo & banner", this);
+    m_chkFanart->setChecked(true);
+
     optLay->addWidget(m_chkSaveNfo);
     optLay->addWidget(m_chkSavePoster);
     optLay->addWidget(m_chkRename);
+    optLay->addWidget(m_chkFanart);
     leftLayout->addWidget(optionsGroup);
 
     mainLayout->addLayout(leftLayout, 3);
@@ -389,22 +395,34 @@ void VideoScraperDialog::onApplyClicked() {
         // 1. Save Poster Artwork
         if (m_chkSavePoster->isChecked() && !m_downloadedPosterData.isEmpty()) {
             QDir dir(targetFolder);
-            // Save as both poster.jpg and folder.jpg to support DVD casing and CD casing checks
-            QFile filePoster(dir.filePath("poster.jpg"));
-            if (filePoster.open(QIODevice::WriteOnly)) {
-                filePoster.write(m_downloadedPosterData);
-                filePoster.close();
-            }
-            QFile fileFolder(dir.filePath("folder.jpg"));
-            if (fileFolder.open(QIODevice::WriteOnly)) {
-                fileFolder.write(m_downloadedPosterData);
-                fileFolder.close();
-            }
-            // For DVD style we can copy as dvd.jpg too!
-            QFile fileDvd(dir.filePath("dvd.jpg"));
-            if (fileDvd.open(QIODevice::WriteOnly)) {
-                fileDvd.write(m_downloadedPosterData);
-                fileDvd.close();
+            if (!pathInfo.isDir()) {
+                QString baseName = pathInfo.completeBaseName();
+                if (m_chkRename->isChecked()) {
+                    QString sanitizedTitle = res.title;
+                    sanitizedTitle.remove(QRegularExpression(R"([\\\/\:\*\?\"\<\>\|])"));
+                    baseName = QString("%1 (%2)").arg(sanitizedTitle).arg(res.year);
+                }
+                QFile fileSpec(dir.filePath(baseName + "_cover.jpg"));
+                if (fileSpec.open(QIODevice::WriteOnly)) {
+                    fileSpec.write(m_downloadedPosterData);
+                    fileSpec.close();
+                }
+            } else {
+                QFile filePoster(dir.filePath("poster.jpg"));
+                if (filePoster.open(QIODevice::WriteOnly)) {
+                    filePoster.write(m_downloadedPosterData);
+                    filePoster.close();
+                }
+                QFile fileFolder(dir.filePath("folder.jpg"));
+                if (fileFolder.open(QIODevice::WriteOnly)) {
+                    fileFolder.write(m_downloadedPosterData);
+                    fileFolder.close();
+                }
+                QFile fileDvd(dir.filePath("dvd.jpg"));
+                if (fileDvd.open(QIODevice::WriteOnly)) {
+                    fileDvd.write(m_downloadedPosterData);
+                    fileDvd.close();
+                }
             }
         }
 
@@ -551,6 +569,145 @@ void VideoScraperDialog::onApplyClicked() {
         reply->deleteLater();
     }
 
+    // 4. Download additional artwork from Fanart.tv if checked
+    if (m_chkFanart->isChecked()) {
+        QString fanartApiKey = "c8fb0e4e7c7e5ebf8b63cd944f24efb4";
+        QString idToQuery = res.id;
+        
+        // If it's a TV show, we need the TVDB ID!
+        if (res.type == "TV Show") {
+            QString tvdbId;
+            if (!m_apiKey.isEmpty()) {
+                // Fetch external IDs from TMDB to get the TVDB ID
+                QUrl extUrl(QString("https://api.themoviedb.org/3/tv/%1/external_ids").arg(res.id));
+                QUrlQuery q;
+                q.addQueryItem("api_key", m_apiKey);
+                extUrl.setQuery(q);
+                
+                QNetworkRequest req(extUrl);
+                req.setHeader(QNetworkRequest::UserAgentHeader, "Amifiles Video Scraper");
+                QNetworkReply* reply = m_networkManager->get(req);
+                QEventLoop loop;
+                connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+                loop.exec();
+                
+                if (reply->error() == QNetworkReply::NoError) {
+                    QJsonObject extObj = QJsonDocument::fromJson(reply->readAll()).object();
+                    if (extObj.contains("tvdb_id") && !extObj["tvdb_id"].isNull()) {
+                        tvdbId = QString::number(extObj["tvdb_id"].toInt());
+                    }
+                }
+                reply->deleteLater();
+            } else {
+                // Fetch details from TVMaze to get the TVDB ID
+                QUrl extUrl(QString("https://api.tvmaze.com/shows/%1").arg(res.id));
+                QNetworkRequest req(extUrl);
+                req.setHeader(QNetworkRequest::UserAgentHeader, "Amifiles Video Scraper");
+                QNetworkReply* reply = m_networkManager->get(req);
+                QEventLoop loop;
+                connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+                loop.exec();
+                
+                if (reply->error() == QNetworkReply::NoError) {
+                    QJsonObject detailsObj = QJsonDocument::fromJson(reply->readAll()).object();
+                    QJsonObject externals = detailsObj["externals"].toObject();
+                    if (externals.contains("thetvdb") && !externals["thetvdb"].isNull()) {
+                        tvdbId = QString::number(externals["thetvdb"].toInt());
+                    }
+                }
+                reply->deleteLater();
+            }
+            
+            idToQuery = tvdbId;
+        }
+        
+        if (!idToQuery.isEmpty() && idToQuery != "0") {
+            QUrl fanartUrl;
+            if (res.type == "TV Show") {
+                fanartUrl = QUrl(QString("https://webservice.fanart.tv/v3/tv/%1").arg(idToQuery));
+            } else {
+                fanartUrl = QUrl(QString("https://webservice.fanart.tv/v3/movies/%1").arg(idToQuery));
+            }
+            
+            QUrlQuery q;
+            q.addQueryItem("api_key", fanartApiKey);
+            fanartUrl.setQuery(q);
+            
+            QNetworkRequest req(fanartUrl);
+            req.setHeader(QNetworkRequest::UserAgentHeader, "Amifiles Video Scraper");
+            QNetworkReply* reply = m_networkManager->get(req);
+            QEventLoop loop;
+            connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+            loop.exec();
+            
+            if (reply->error() == QNetworkReply::NoError) {
+                QJsonObject root = QJsonDocument::fromJson(reply->readAll()).object();
+                
+                QString backgroundUrl;
+                QString logoUrl;
+                QString bannerUrl;
+                
+                if (res.type == "TV Show") {
+                    QJsonArray backgrounds = root["showbackground"].toArray();
+                    if (!backgrounds.isEmpty()) backgroundUrl = backgrounds[0].toObject()["url"].toString();
+                    
+                    QJsonArray logos = root["clearlogo"].toArray();
+                    if (logos.isEmpty()) logos = root["hdtvlogo"].toArray();
+                    if (!logos.isEmpty()) logoUrl = logos[0].toObject()["url"].toString();
+                    
+                    QJsonArray banners = root["tvbanner"].toArray();
+                    if (!banners.isEmpty()) bannerUrl = banners[0].toObject()["url"].toString();
+                } else {
+                    QJsonArray backgrounds = root["moviebackground"].toArray();
+                    if (!backgrounds.isEmpty()) backgroundUrl = backgrounds[0].toObject()["url"].toString();
+                    
+                    QJsonArray logos = root["hdmovielogo"].toArray();
+                    if (logos.isEmpty()) logos = root["movielogo"].toArray();
+                    if (!logos.isEmpty()) logoUrl = logos[0].toObject()["url"].toString();
+                    
+                    QJsonArray banners = root["moviebanner"].toArray();
+                    if (!banners.isEmpty()) bannerUrl = banners[0].toObject()["url"].toString();
+                }
+                
+                auto downloadAndSave = [this](const QString& url, const QString& destPath) {
+                    if (url.isEmpty()) return;
+                    QNetworkRequest r((QUrl(url)));
+                    r.setHeader(QNetworkRequest::UserAgentHeader, "Amifiles Video Scraper");
+                    QNetworkReply* rep = m_networkManager->get(r);
+                    QEventLoop l;
+                    connect(rep, &QNetworkReply::finished, &l, &QEventLoop::quit);
+                    l.exec();
+                    if (rep->error() == QNetworkReply::NoError) {
+                        QFile f(destPath);
+                        if (f.open(QIODevice::WriteOnly)) {
+                            f.write(rep->readAll());
+                            f.close();
+                        }
+                    }
+                    rep->deleteLater();
+                };
+                
+                for (const QString& path : resolvedPaths) {
+                    QFileInfo pathInfo(path);
+                    QString targetFolder = pathInfo.isDir() ? path : pathInfo.absolutePath();
+                    QDir dir(targetFolder);
+                    
+                    if (!pathInfo.isDir()) {
+                        QString baseName = pathInfo.completeBaseName();
+                        downloadAndSave(backgroundUrl, dir.filePath(baseName + "_fanart.jpg"));
+                        downloadAndSave(logoUrl, dir.filePath(baseName + "_logo.png"));
+                        downloadAndSave(bannerUrl, dir.filePath(baseName + "_banner.jpg"));
+                    } else {
+                        downloadAndSave(backgroundUrl, dir.filePath("fanart.jpg"));
+                        downloadAndSave(logoUrl, dir.filePath("logo.png"));
+                        downloadAndSave(bannerUrl, dir.filePath("banner.jpg"));
+                    }
+                }
+            }
+            reply->deleteLater();
+        }
+    }
+
     QMessageBox::information(this, "Metadata Saved", QString("Successfully applied video metadata to %1 items.").arg(successCount));
     accept();
 }
@@ -605,9 +762,11 @@ QString VideoScraperDialog::renameTarget(const QString& path, const QString& new
     return path;
 }
 
-VideoScraperDialog::SeasonEpisode VideoScraperDialog::parseSeasonEpisode(const QString& fileName) {
+VideoScraperDialog::SeasonEpisode VideoScraperDialog::parseSeasonEpisode(const QFileInfo& fileInfo) {
     SeasonEpisode se;
-    // Try S01E02 pattern first
+    QString fileName = fileInfo.fileName();
+
+    // 1. Try S01E02 pattern first
     QRegularExpression reSxE(R"([Ss](\d+)\s*[Ee](\d+))");
     QRegularExpressionMatch matchSxE = reSxE.match(fileName);
     if (matchSxE.hasMatch()) {
@@ -616,7 +775,7 @@ VideoScraperDialog::SeasonEpisode VideoScraperDialog::parseSeasonEpisode(const Q
         return se;
     }
     
-    // Try 1x02 pattern
+    // 2. Try 1x02 pattern
     QRegularExpression reCross(R"(\b(\d+)[Xx](\d+)\b)");
     QRegularExpressionMatch matchCross = reCross.match(fileName);
     if (matchCross.hasMatch()) {
@@ -624,7 +783,57 @@ VideoScraperDialog::SeasonEpisode VideoScraperDialog::parseSeasonEpisode(const Q
         se.episode = matchCross.captured(2).toInt();
         return se;
     }
-    
+
+    // 3. Try S01.E02 pattern
+    QRegularExpression reDotSxE(R"(\b[Ss](\d+)\.[Ee](\d+)\b)");
+    QRegularExpressionMatch matchDotSxE = reDotSxE.match(fileName);
+    if (matchDotSxE.hasMatch()) {
+        se.season = matchDotSxE.captured(1).toInt();
+        se.episode = matchDotSxE.captured(2).toInt();
+        return se;
+    }
+
+    // 4. Try Season 1 Episode 2 pattern
+    QRegularExpression reText(R"((?i)\bseason\s*(\d+)\s*episode\s*(\d+)\b)");
+    QRegularExpressionMatch matchText = reText.match(fileName);
+    if (matchText.hasMatch()) {
+        se.season = matchText.captured(1).toInt();
+        se.episode = matchText.captured(2).toInt();
+        return se;
+    }
+
+    // 5. Check if inside a Season folder
+    int folderSeason = -1;
+    QRegularExpression seasonFolderRegex(R"((?i)\bseason\s*(\d+)\b|\bs\s*(\d+)\b)");
+    QRegularExpressionMatch folderMatch = seasonFolderRegex.match(fileInfo.absoluteDir().dirName());
+    if (folderMatch.hasMatch()) {
+        folderSeason = !folderMatch.captured(1).isEmpty() ? folderMatch.captured(1).toInt() : folderMatch.captured(2).toInt();
+    }
+
+    if (folderSeason != -1) {
+        se.season = folderSeason;
+        // Search for episode number
+        QRegularExpression reEp(R"((?i)\b(?:ep|episode|e)?\s*(\d+)\b)");
+        QRegularExpressionMatchIterator it = reEp.globalMatch(fileName);
+        while (it.hasNext()) {
+            QRegularExpressionMatch m = it.next();
+            int val = m.captured(1).toInt();
+            if (val > 0 && val < 100) {
+                se.episode = val;
+                return se;
+            }
+        }
+    }
+
+    // 6. Default to Season 1 if we find a clear episode indicator like "Episode 01"
+    QRegularExpression reEpOnly(R"((?i)\b(?:episode|ep)\s*(\d+)\b)");
+    QRegularExpressionMatch matchEp = reEpOnly.match(fileName);
+    if (matchEp.hasMatch()) {
+        se.season = 1;
+        se.episode = matchEp.captured(1).toInt();
+        return se;
+    }
+
     return se;
 }
 
@@ -729,42 +938,17 @@ QList<EpisodeInfo> VideoScraperDialog::fetchEpisodesList(const QString& showId) 
 }
 
 void VideoScraperDialog::processTVShowEpisodes(const QString& targetFolder, const QString& showTitle, const QList<EpisodeInfo>& episodes) {
-    // 1. Rename existing Season subdirectories to correct format "Season XX"
     QDir dir(targetFolder);
-    QStringList subdirs = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
-    for (const QString& subdir : subdirs) {
-        QRegularExpression re(R"((?i)\bseason\s*(\d+)\b|\bs\s*(\d+)\b)");
-        QRegularExpressionMatch m = re.match(subdir);
-        if (m.hasMatch()) {
-            int sNum = !m.captured(1).isEmpty() ? m.captured(1).toInt() : m.captured(2).toInt();
-            QString correctName = QString("Season %1").arg(sNum, 2, 10, QChar('0'));
-            if (subdir != correctName) {
-                QString oldPath = dir.filePath(subdir);
-                QString newPath = dir.filePath(correctName);
-                if (!QFile::exists(newPath)) {
-                    QDir().rename(oldPath, newPath);
-                }
-            }
-        }
-    }
-
-    // Refresh subdirs after possible renaming
-    subdirs = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
-
-    // 2. Scan recursively for video files to match and rename
+    
+    // Scan recursively for video files to match and prepare tasks
     QDirIterator it(targetFolder, { "*.mp4", "*.mkv", "*.avi", "*.mov", "*.webm", "*.flv", "*.wmv", "*.m4v", "*.mpg", "*.mpeg" }, QDir::Files, QDirIterator::Subdirectories);
-    struct FileRenameTask {
-        QString oldPath;
-        QString newPath;
-        EpisodeInfo ep;
-    };
-    QList<FileRenameTask> renameTasks;
+    QList<FileRenameTask> tasks;
 
     while (it.hasNext()) {
         QString filePath = it.next();
         QFileInfo fileInfo(filePath);
 
-        SeasonEpisode se = parseSeasonEpisode(fileInfo.fileName());
+        SeasonEpisode se = parseSeasonEpisode(fileInfo);
         if (se.season != -1 && se.episode != -1) {
             for (const EpisodeInfo& ep : episodes) {
                 if (ep.season == se.season && ep.episode == se.episode) {
@@ -780,29 +964,231 @@ void VideoScraperDialog::processTVShowEpisodes(const QString& targetFolder, cons
                         .arg(sanitizedEpTitle)
                         .arg(fileInfo.suffix());
 
-                    QString newPath = fileInfo.absoluteDir().filePath(newFileName);
-                    renameTasks.append({filePath, newPath, ep});
+                    FileRenameTask task;
+                    task.oldPath = filePath;
+                    task.fileName = newFileName;
+                    task.showTitle = showTitle;
+                    task.ep = ep;
+                    
+                    // Default proposed path (without season folder)
+                    task.newPath = dir.filePath(newFileName);
+                    tasks.append(task);
                     break;
                 }
             }
         }
     }
 
-    // Apply the renames & create NFO files
-    for (const auto& task : renameTasks) {
+    // Sort tasks chronologically by Season, then Episode
+    std::sort(tasks.begin(), tasks.end(), [](const FileRenameTask& a, const FileRenameTask& b) {
+        if (a.ep.season != b.ep.season) {
+            return a.ep.season < b.ep.season;
+        }
+        return a.ep.episode < b.ep.episode;
+    });
+
+    if (tasks.isEmpty()) {
         if (m_chkRename->isChecked()) {
-            if (task.oldPath != task.newPath) {
-                QFile::rename(task.oldPath, task.newPath);
+            QMessageBox::information(this, "No Matches", "No matching video files containing season/episode patterns (e.g. S01E02) were found.");
+        }
+        return;
+    }
+
+    if (m_chkRename->isChecked()) {
+        // Open Rename Preview Dialog
+        RenamePreviewDialog previewDlg(tasks, targetFolder, this);
+        if (previewDlg.exec() == QDialog::Accepted) {
+            QList<FileRenameTask> confirmed = previewDlg.selectedTasks();
+            bool useSeasonFolders = previewDlg.organizeIntoSeasonFolders();
+
+            // 1. Rename existing Season subdirectories if they match but are named differently
+            if (useSeasonFolders) {
+                QStringList subdirs = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+                for (const QString& subdir : subdirs) {
+                    QRegularExpression re(R"((?i)\bseason\s*(\d+)\b|\bs\s*(\d+)\b)");
+                    QRegularExpressionMatch m = re.match(subdir);
+                    if (m.hasMatch()) {
+                        int sNum = !m.captured(1).isEmpty() ? m.captured(1).toInt() : m.captured(2).toInt();
+                        QString correctName = QString("Season %1").arg(sNum, 2, 10, QChar('0'));
+                        if (subdir != correctName) {
+                            QString oldPath = dir.filePath(subdir);
+                            QString newPath = dir.filePath(correctName);
+                            if (!QFile::exists(newPath)) {
+                                QDir().rename(oldPath, newPath);
+                            }
+                        }
+                    }
+                }
             }
-            if (m_chkSaveNfo->isChecked()) {
-                writeEpisodeNfoFile(task.newPath, task.ep, showTitle);
+
+            int renamedCount = 0;
+            for (const auto& task : confirmed) {
+                QString finalDestPath;
+                if (useSeasonFolders) {
+                    // Ensure Season Folder exists
+                    QString sDirName = QString("Season %1").arg(task.ep.season, 2, 10, QChar('0'));
+                    QString sDirPath = dir.filePath(sDirName);
+                    QDir().mkpath(sDirPath);
+                    finalDestPath = QDir(sDirPath).filePath(task.fileName);
+                } else {
+                    finalDestPath = dir.filePath(task.fileName);
+                }
+
+                if (task.oldPath != finalDestPath) {
+                    if (!QFile::exists(finalDestPath)) {
+                        QFile::rename(task.oldPath, finalDestPath);
+                        renamedCount++;
+                    }
+                }
+
+                if (m_chkSaveNfo->isChecked()) {
+                    writeEpisodeNfoFile(finalDestPath, task.ep, showTitle);
+                }
             }
-        } else {
-            if (m_chkSaveNfo->isChecked()) {
-                writeEpisodeNfoFile(task.oldPath, task.ep, showTitle);
+
+            if (renamedCount > 0) {
+                QMessageBox::information(this, "Renaming Complete", QString("Successfully renamed and organized %1 episodes.").arg(renamedCount));
             }
         }
+    } else {
+        // If rename is unchecked, just write NFO files to existing episode file paths directly!
+        int nfoCount = 0;
+        for (const auto& task : tasks) {
+            if (m_chkSaveNfo->isChecked()) {
+                writeEpisodeNfoFile(task.oldPath, task.ep, showTitle);
+                nfoCount++;
+            }
+        }
+        if (nfoCount > 0) {
+            QMessageBox::information(this, "NFO Export Complete", QString("Successfully created NFO files for %1 episodes.").arg(nfoCount));
+        }
     }
+}
+
+// ==================== RenamePreviewDialog ====================
+
+RenamePreviewDialog::RenamePreviewDialog(const QList<FileRenameTask>& tasks, const QString& targetFolder, QWidget* parent)
+    : QDialog(parent), m_tasks(tasks), m_targetFolder(targetFolder) {
+    setWindowTitle("Rename Preview & Organization");
+    resize(850, 480);
+    setStyleSheet(Theme::getStylesheet());
+    setupUI();
+}
+
+void RenamePreviewDialog::setupUI() {
+    QVBoxLayout* mainLayout = new QVBoxLayout(this);
+    mainLayout->setContentsMargins(12, 12, 12, 12);
+    mainLayout->setSpacing(10);
+
+    QLabel* infoLabel = new QLabel("The following files match identified episodes. Confirm the renames below:", this);
+    infoLabel->setStyleSheet("font-weight: bold; color: #cdd6f4;");
+    mainLayout->addWidget(infoLabel);
+
+    // Option: season folders
+    m_chkSeasonFolders = new QCheckBox("Organize episodes into Season folders (e.g. 'Season 01')", this);
+    m_chkSeasonFolders->setChecked(true);
+    m_chkSeasonFolders->setStyleSheet("color: #cdd6f4;");
+    connect(m_chkSeasonFolders, &QCheckBox::toggled, this, &RenamePreviewDialog::onSeasonFoldersToggled);
+    mainLayout->addWidget(m_chkSeasonFolders);
+
+    // Results table
+    m_table = new QTableWidget(0, 3, this);
+    m_table->setHorizontalHeaderLabels({"Apply?", "Original File Path", "Proposed New Path"});
+    m_table->setAlternatingRowColors(true);
+    m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_table->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_table->setStyleSheet("QTableWidget { background-color: #11111b; border: 1px solid #313244; border-radius: 6px; }");
+    m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    m_table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
+    mainLayout->addWidget(m_table, 1);
+
+    // Bottom controls
+    QHBoxLayout* bottomBar = new QHBoxLayout();
+    QPushButton* btnSelectAll = new QPushButton("Select All", this);
+    QPushButton* btnDeselectAll = new QPushButton("Deselect All", this);
+    bottomBar->addWidget(btnSelectAll);
+    bottomBar->addWidget(btnDeselectAll);
+    bottomBar->addStretch();
+
+    QPushButton* btnConfirm = new QPushButton("Confirm & Rename", this);
+    btnConfirm->setStyleSheet("QPushButton { background-color: #a6e3a1; color: #11111b; font-weight: bold; }");
+    QPushButton* btnCancel = new QPushButton("Cancel", this);
+
+    bottomBar->addWidget(btnConfirm);
+    bottomBar->addWidget(btnCancel);
+    mainLayout->addLayout(bottomBar);
+
+    connect(btnSelectAll, &QPushButton::clicked, this, [this]() {
+        for (int i = 0; i < m_table->rowCount(); ++i) {
+            if (auto* item = m_table->item(i, 0)) {
+                item->setCheckState(Qt::Checked);
+            }
+        }
+    });
+
+    connect(btnDeselectAll, &QPushButton::clicked, this, [this]() {
+        for (int i = 0; i < m_table->rowCount(); ++i) {
+            if (auto* item = m_table->item(i, 0)) {
+                item->setCheckState(Qt::Unchecked);
+            }
+        }
+    });
+
+    connect(btnConfirm, &QPushButton::clicked, this, &QDialog::accept);
+    connect(btnCancel, &QPushButton::clicked, this, &QDialog::reject);
+
+    updateTable();
+}
+
+void RenamePreviewDialog::updateTable() {
+    m_table->setRowCount(0);
+    QDir dir(m_targetFolder);
+
+    for (int i = 0; i < m_tasks.size(); ++i) {
+        const auto& task = m_tasks[i];
+        m_table->insertRow(i);
+
+        // Checkbox item
+        QTableWidgetItem* checkItem = new QTableWidgetItem();
+        checkItem->setCheckState(Qt::Checked);
+        m_table->setItem(i, 0, checkItem);
+
+        // Original Path (relative for readability)
+        QString origRel = dir.relativeFilePath(task.oldPath);
+        QTableWidgetItem* origItem = new QTableWidgetItem(origRel);
+        m_table->setItem(i, 1, origItem);
+
+        // Proposed path
+        QString proposedRel;
+        if (m_chkSeasonFolders->isChecked()) {
+            QString sDir = QString("Season %1").arg(task.ep.season, 2, 10, QChar('0'));
+            proposedRel = sDir + "/" + task.fileName;
+        } else {
+            proposedRel = task.fileName;
+        }
+        QTableWidgetItem* destItem = new QTableWidgetItem(proposedRel);
+        m_table->setItem(i, 2, destItem);
+    }
+}
+
+void RenamePreviewDialog::onSeasonFoldersToggled(bool /*checked*/) {
+    updateTable();
+}
+
+QList<FileRenameTask> RenamePreviewDialog::selectedTasks() const {
+    QList<FileRenameTask> selected;
+    for (int i = 0; i < m_table->rowCount(); ++i) {
+        if (m_table->item(i, 0)->checkState() == Qt::Checked) {
+            selected.append(m_tasks[i]);
+        }
+    }
+    return selected;
+}
+
+bool RenamePreviewDialog::organizeIntoSeasonFolders() const {
+    return m_chkSeasonFolders->isChecked();
 }
 
 void VideoScraperDialog::writeEpisodeNfoFile(const QString& filePath, const EpisodeInfo& ep, const QString& showTitle) {

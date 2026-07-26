@@ -111,11 +111,11 @@ void ColumnsCustomizerDialog::updateKeyField() {
     m_txtKeyInput->hide();
 
     if (type == "Metadata") {
-        m_comboKeySelect->addItems({"Title", "Artist", "Album", "Genre", "Year", "Track", "Duration", "Bitrate", "Resolution", "Codec"});
+        m_comboKeySelect->addItems({"Title", "Artist", "Album", "Genre", "Year", "Track", "Duration", "Bitrate", "Resolution", "Codec", "Permissions", "MD5 Checksum"});
     } else if (type == "Annotation") {
         m_comboKeySelect->addItems({"Tags", "Rating", "Comment"});
     } else if (type == "BuiltIn") {
-        m_comboKeySelect->addItems({"Size", "Type", "Date"});
+        m_comboKeySelect->addItems({"Size", "Type", "Date", "Permissions", "MD5 Checksum"});
     } else if (type == "CustomText") {
         m_comboKeySelect->hide();
         m_txtKeyInput->show();

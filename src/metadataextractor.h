@@ -29,8 +29,13 @@ struct FileMetadata {
     QString genre;
     QString year;
     QString track;
+    QString trackTotal;
     QString albumArtist;
     QString discNumber;
+    QString discTotal;
+    QString composer;
+    QString bpm;
+    QString comment;
     bool compilation = false;
     bool hasEmbeddedArtwork = false;
     QString codec;

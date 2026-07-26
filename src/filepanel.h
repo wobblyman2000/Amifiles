@@ -816,6 +816,7 @@ public:
 
     QStringList selectedPaths() const;
     QString activeFilePath() const; // First selected file, or current directory if none
+    void selectFilePath(const QString& filePath);
     QString folderArtPath() const { return m_folderArtPath; }
 
     void refresh();
@@ -926,6 +927,7 @@ private slots:
     void showAudioShowcaseContextMenu(const QPoint& pos);
     void showMusicShowcaseContextMenu(const QPoint& pos);
     void showVideoShowcaseContextMenu(const QPoint& pos);
+    void showInfoSheet(const QString& path);
     void onFavoriteButtonContextMenu(const QPoint& pos);
     void onToggleViewMode();
     void onZoomChanged(int value);
@@ -946,6 +948,7 @@ private slots:
     void zoomOut();
 
 private:
+    void updateDrawerVisibility();
     void setupUI();
     void updateNavigationButtons();
     void checkFolderArt();

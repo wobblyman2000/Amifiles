@@ -671,9 +671,19 @@ void FilePanel::setupUI() {
         }
         if (mainWin && mainWin->previewPanel()) {
             int idx = m_trackListWidget->row(item);
-            mainWin->previewPanel()->playPlaylistIndex(idx);
+            QStringList plist;
+            for (int i = 0; i < m_trackListWidget->count(); ++i) {
+                QString pathVal = m_trackListWidget->item(i)->data(Qt::UserRole).toString();
+                if (!pathVal.isEmpty()) {
+                    plist.append(pathVal);
+                }
+            }
+            if (!plist.isEmpty()) {
+                mainWin->previewPanel()->playPlaylist(plist);
+                mainWin->previewPanel()->playPlaylistIndex(idx);
+            }
             int vm = viewModeIndex();
-            if ((vm == 8 || vm == 9) && !mainWin->previewPanel()->isFullscreen()) {
+            if ((vm == 8 || vm == 9 || vm == 10) && !mainWin->previewPanel()->isFullscreen()) {
                 mainWin->previewPanel()->toggleFullscreen();
             }
         }
@@ -1173,6 +1183,117 @@ bool FilePanel::eventFilter(QObject* watched, QEvent* event) {
 
         if (event->type() == QEvent::KeyPress) {
             QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
+            
+            QSettings settings("Amifiles", "Amifiles");
+            bool remoteMode = settings.value("preferences/keyboard_remote_mode", false).toBool();
+            
+            if (remoteMode) {
+                QKeySequence pressed(keyEvent->modifiers() | keyEvent->key());
+                
+                QKeySequence shortcutPlayCollection(settings.value("shortcuts/play_collection", "Ctrl+Space").toString());
+                QKeySequence shortcutInfoSheet(settings.value("shortcuts/info_sheet", "I").toString());
+                QKeySequence shortcutScrapeMeta(settings.value("shortcuts/scrape_meta", "M").toString());
+                QKeySequence shortcutApplyCasing(settings.value("shortcuts/apply_casing", "D").toString());
+                QKeySequence shortcutToggleDrawer(settings.value("shortcuts/toggle_drawer", "P").toString());
+                QKeySequence shortcutNavigateUp(settings.value("shortcuts/navigate_up", "Backspace").toString());
+
+                int key = keyEvent->key();
+                
+                if (pressed == QKeySequence(Qt::Key_Return) || pressed == QKeySequence(Qt::Key_Enter)) {
+                    QModelIndex currentIdx = m_theaterListView->currentIndex();
+                    if (currentIdx.isValid()) {
+                        onDoubleClicked(currentIdx);
+                        return true;
+                    }
+                }
+                
+                if (pressed == shortcutPlayCollection) {
+                    QStringList curSelected = selectedPaths();
+                    QString selectedPath = curSelected.isEmpty() ? "" : curSelected.first();
+                    if (!selectedPath.isEmpty()) {
+                        QFileInfo info(selectedPath);
+                        QStringList playlistPaths;
+                        int vm = viewModeIndex();
+                        int filter = 0;
+                        if (vm == 6 || vm == 10) filter = 1;
+                        else if (vm == 7 || vm == 8 || vm == 9) filter = 2;
+                        
+                        if (info.isDir()) {
+                            scanMediaFilesRecursively(selectedPath, playlistPaths, filter);
+                        } else {
+                            playlistPaths.append(selectedPath);
+                        }
+                        if (!playlistPaths.isEmpty()) {
+                            if (vm == 8 || vm == 9 || vm == 10) {
+                                emit playMediaFullscreenRequested(playlistPaths);
+                            } else {
+                                emit playMediaBuiltinRequested(playlistPaths);
+                            }
+                        }
+                        return true;
+                    }
+                }
+                if (pressed == shortcutInfoSheet) {
+                    QStringList curSelected = selectedPaths();
+                    QString selectedPath = curSelected.isEmpty() ? "" : curSelected.first();
+                    if (!selectedPath.isEmpty()) {
+                        showInfoSheet(selectedPath);
+                        return true;
+                    }
+                }
+                if (pressed == shortcutToggleDrawer) {
+                    if (m_btnToggleSidePane) {
+                        m_btnToggleSidePane->toggle();
+                        return true;
+                    }
+                }
+                if (pressed == shortcutNavigateUp || key == Qt::Key_Escape) {
+                    onNavigateUp();
+                    return true;
+                }
+                if (pressed == shortcutScrapeMeta) {
+                    QStringList curSelected = selectedPaths();
+                    QString selectedPath = curSelected.isEmpty() ? "" : curSelected.first();
+                    if (!selectedPath.isEmpty()) {
+                        VideoScraperDialog scraperDlg({selectedPath}, this);
+                        if (scraperDlg.exec() == QDialog::Accepted) {
+                            refresh();
+                            onSelectionChanged();
+                        }
+                        return true;
+                    }
+                }
+                if (pressed == shortcutApplyCasing) {
+                    QStringList curSelected = selectedPaths();
+                    QString selectedPath = curSelected.isEmpty() ? "" : curSelected.first();
+                    if (!selectedPath.isEmpty()) {
+                        QFileInfo info(selectedPath);
+                        if (!info.isDir()) {
+                            QString dirPath = info.absolutePath();
+                            QString baseName = info.completeBaseName();
+                            QStringList genericImages = { "folder.jpg", "folder.jpeg", "folder.png", "poster.jpg", "poster.jpeg", "poster.png", "cover.jpg", "cover.jpeg", "cover.png" };
+                            QString foundGeneric;
+                            for (const QString& name : genericImages) {
+                                QFileInfo fi(QDir(dirPath).filePath(name));
+                                if (fi.exists()) {
+                                    foundGeneric = fi.absoluteFilePath();
+                                    break;
+                                }
+                            }
+                            if (!foundGeneric.isEmpty()) {
+                                QString ext = QFileInfo(foundGeneric).suffix();
+                                QString destPath = QDir(dirPath).filePath(baseName + "_cover." + ext);
+                                if (QFile::rename(foundGeneric, destPath)) {
+                                    m_proxyModel->clearCasingCache();
+                                    refresh();
+                                }
+                            }
+                        }
+                        return true;
+                    }
+                }
+            }
+
             if (keyEvent->key() == Qt::Key_Tab || keyEvent->key() == Qt::Key_Backtab) {
                 emit tabPressed();
                 return true;
@@ -1387,6 +1508,22 @@ QScrollBar* FilePanel::activeVerticalScrollBar() const {
     return view ? view->verticalScrollBar() : nullptr;
 }
 
+void FilePanel::selectFilePath(const QString& filePath) {
+    QFileInfo info(filePath);
+    navigateTo(info.absolutePath(), true);
+
+    QModelIndex srcIndex = m_fileModel->index(filePath);
+    if (srcIndex.isValid()) {
+        QModelIndex proxyIndex = m_proxyModel->mapFromSource(srcIndex);
+        if (proxyIndex.isValid()) {
+            m_treeView->setCurrentIndex(proxyIndex);
+            m_treeView->scrollTo(proxyIndex);
+            m_listView->setCurrentIndex(proxyIndex);
+            m_listView->scrollTo(proxyIndex);
+        }
+    }
+}
+
 void FilePanel::navigateTo(const QString& path, bool addHistory) {
     if (m_isPathLocked && path != m_lockedPath) {
         emit openNewTabRequested(path);
@@ -1573,7 +1710,7 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
             bool groupingActive = m_groupProxy && m_groupProxy->isGroupingActive();
             m_btnToggleSidePane->setVisible((index >= 7 && index <= 10) || groupingActive);
             if (m_theaterSideContainer) {
-                m_theaterSideContainer->setVisible(m_btnToggleSidePane->isVisible() && m_btnToggleSidePane->isChecked());
+                updateDrawerVisibility();
             }
             if (m_trackListWidget) {
                 m_trackListWidget->setVisible(index >= 7 && index <= 10 && !groupingActive);
@@ -2111,6 +2248,7 @@ void FilePanel::onSelectionChanged() {
                     } else if (m_trackListWidget->count() > 0) {
                         m_trackListWidget->setCurrentRow(0);
                     }
+                    updateDrawerVisibility();
                 }
 
                 QString key = (modeIndex == 10) ? "music_showcase/show_info_panel" : "audio_showcase/show_info_panel";
@@ -3678,6 +3816,10 @@ void FilePanel::showMusicShowcaseContextMenu(const QPoint& pos) {
 
     QAction* actPlay = menu.addAction(style->standardIcon(QStyle::SP_MediaPlay), isFolder ? "Play Album" : "Play Track");
     QAction* actQueue = menu.addAction(style->standardIcon(QStyle::SP_MediaVolume), isFolder ? "Queue Album to Playlist" : "Queue Track to Playlist");
+    QAction* actApplyDvdOverlay = nullptr;
+    if (!selectedPath.isEmpty() && !isFolder) {
+        actApplyDvdOverlay = menu.addAction("💿 Apply DVD Case Overlay (Auto-Rename folder.jpg)");
+    }
     menu.addSeparator();
 
     QAction* actFav = nullptr;
@@ -3740,6 +3882,32 @@ void FilePanel::showMusicShowcaseContextMenu(const QPoint& pos) {
             if (!playlistPaths.isEmpty()) {
                 emit queueMediaBuiltinRequested(playlistPaths);
             }
+        }
+    } else if (selected == actApplyDvdOverlay) {
+        QFileInfo info(selectedPath);
+        QString dirPath = info.absolutePath();
+        QString baseName = info.completeBaseName();
+        QStringList genericImages = { "folder.jpg", "folder.jpeg", "folder.png", "poster.jpg", "poster.jpeg", "poster.png", "cover.jpg", "cover.jpeg", "cover.png" };
+        QString foundGeneric;
+        for (const QString& name : genericImages) {
+            QFileInfo fi(QDir(dirPath).filePath(name));
+            if (fi.exists()) {
+                foundGeneric = fi.absoluteFilePath();
+                break;
+            }
+        }
+        if (!foundGeneric.isEmpty()) {
+            QString ext = QFileInfo(foundGeneric).suffix();
+            QString destPath = QDir(dirPath).filePath(baseName + "_cover." + ext);
+            if (QFile::rename(foundGeneric, destPath)) {
+                m_proxyModel->clearCasingCache();
+                refresh();
+                QMessageBox::information(this, "Overlay Applied", QString("Successfully renamed '%1' to '%2' to activate the casing overlay.").arg(QFileInfo(foundGeneric).fileName()).arg(QFileInfo(destPath).fileName()));
+            } else {
+                QMessageBox::warning(this, "Rename Failed", "Could not rename the generic artwork file.");
+            }
+        } else {
+            QMessageBox::warning(this, "No Artwork Found", "No generic artwork (folder.jpg, poster.jpg, or cover.jpg) was found in this folder to rename.");
         }
     } else if (selected == actFav) {
         if (isFolder) {
@@ -3854,12 +4022,16 @@ void FilePanel::showVideoShowcaseContextMenu(const QPoint& pos) {
 
     QAction* actMediaInfoSheet = nullptr;
     QAction* actScrapeVideoMeta = nullptr;
+    QAction* actApplyDvdOverlay = nullptr;
     QAction* actMarkWatched = nullptr;
     QAction* actMarkUnwatched = nullptr;
 
     if (!selectedPath.isEmpty()) {
         actMediaInfoSheet = menu.addAction("🎬 Media Info Sheet... (ℹ)");
         actScrapeVideoMeta = menu.addAction("🔍 Scrape Video Metadata...");
+        if (!isFolder) {
+            actApplyDvdOverlay = menu.addAction("💿 Apply DVD Case Overlay (Auto-Rename folder.jpg)");
+        }
         
         QSettings settings("Amifiles", "Amifiles");
         bool isWatched = settings.value("watched/" + selectedPath, false).toBool();
@@ -3959,20 +4131,38 @@ void FilePanel::showVideoShowcaseContextMenu(const QPoint& pos) {
     } else if (selected == actPlayQueue) {
         emit playQueueFullscreenRequested();
     } else if (selected == actMediaInfoSheet) {
-        ShowcaseInfoDialog infoDlg(selectedPath, this);
-        connect(&infoDlg, &ShowcaseInfoDialog::playRequested, this, [this](const QString& path) {
-            if (viewModeIndex() == 8 || viewModeIndex() == 9 || viewModeIndex() == 10) {
-                emit playMediaFullscreenRequested({path});
-            } else {
-                emit playMediaBuiltinRequested({path});
-            }
-        });
-        infoDlg.exec();
+        showInfoSheet(selectedPath);
     } else if (selected == actScrapeVideoMeta) {
         VideoScraperDialog scraperDlg(curSelected, this);
         if (scraperDlg.exec() == QDialog::Accepted) {
             refresh();
             onSelectionChanged();
+        }
+    } else if (selected == actApplyDvdOverlay) {
+        QFileInfo info(selectedPath);
+        QString dirPath = info.absolutePath();
+        QString baseName = info.completeBaseName();
+        QStringList genericImages = { "folder.jpg", "folder.jpeg", "folder.png", "poster.jpg", "poster.jpeg", "poster.png", "cover.jpg", "cover.jpeg", "cover.png" };
+        QString foundGeneric;
+        for (const QString& name : genericImages) {
+            QFileInfo fi(QDir(dirPath).filePath(name));
+            if (fi.exists()) {
+                foundGeneric = fi.absoluteFilePath();
+                break;
+            }
+        }
+        if (!foundGeneric.isEmpty()) {
+            QString ext = QFileInfo(foundGeneric).suffix();
+            QString destPath = QDir(dirPath).filePath(baseName + "_cover." + ext);
+            if (QFile::rename(foundGeneric, destPath)) {
+                m_proxyModel->clearCasingCache();
+                refresh();
+                QMessageBox::information(this, "Overlay Applied", QString("Successfully renamed '%1' to '%2' to activate the DVD case overlay.").arg(QFileInfo(foundGeneric).fileName()).arg(QFileInfo(destPath).fileName()));
+            } else {
+                QMessageBox::warning(this, "Rename Failed", "Could not rename the generic artwork file.");
+            }
+        } else {
+            QMessageBox::warning(this, "No Artwork Found", "No generic artwork (folder.jpg, poster.jpg, or cover.jpg) was found in this folder to rename.");
         }
     } else if (selected == actMarkWatched) {
         settings.setValue("watched/" + selectedPath, true);
@@ -4015,6 +4205,25 @@ void FilePanel::showVideoShowcaseContextMenu(const QPoint& pos) {
     } else if (selected == actConfigureFolderLayouts) {
         emit configureFolderLayoutsRequested();
     }
+}
+
+void FilePanel::showInfoSheet(const QString& path) {
+    if (path.isEmpty()) return;
+    ShowcaseInfoDialog infoDlg(path, this);
+    connect(&infoDlg, &ShowcaseInfoDialog::playRequested, this, [this](const QString& p) {
+        if (viewModeIndex() == 8 || viewModeIndex() == 9 || viewModeIndex() == 10) {
+            emit playMediaFullscreenRequested({p});
+        } else {
+            emit playMediaBuiltinRequested({p});
+        }
+    });
+    connect(&infoDlg, &ShowcaseInfoDialog::openFolderRequested, this, [this](const QString& p) {
+        navigateTo(p, true);
+    });
+    connect(&infoDlg, &ShowcaseInfoDialog::watchStatusChanged, this, [this]() {
+        if (m_theaterScrollWidget) m_theaterScrollWidget->update();
+    });
+    infoDlg.exec();
 }
 
 
@@ -4627,10 +4836,17 @@ void FilePanel::onSearchUpdateTimeout() {
     m_statusLabel->setText(QString("Found %1 items").arg(currentList.size()));
 }
 
+void FilePanel::updateDrawerVisibility() {
+    if (!m_theaterSideContainer || !m_btnToggleSidePane) return;
+    int index = viewModeIndex();
+    bool isShowcase = (index >= 7 && index <= 10);
+    bool hasTracks = (m_trackListWidget && m_trackListWidget->count() > 0);
+    bool shouldShow = isShowcase && m_btnToggleSidePane->isVisible() && m_btnToggleSidePane->isChecked() && hasTracks;
+    m_theaterSideContainer->setVisible(shouldShow);
+}
+
 void FilePanel::onToggleSidePane() {
-    if (!m_theaterSideContainer) return;
-    bool visible = m_btnToggleSidePane ? m_btnToggleSidePane->isChecked() : !m_theaterSideContainer->isVisible();
-    m_theaterSideContainer->setVisible(visible);
+    updateDrawerVisibility();
 }
 
 void FilePanel::onToggleSearchFilterMode() {
@@ -5140,7 +5356,7 @@ void FilePanel::onViewModeChanged(int index) {
         bool groupingActive = m_groupProxy && m_groupProxy->isGroupingActive();
         m_btnToggleSidePane->setVisible((index >= 7 && index <= 10) || groupingActive);
         if (m_theaterSideContainer) {
-            m_theaterSideContainer->setVisible(m_btnToggleSidePane->isVisible() && m_btnToggleSidePane->isChecked());
+            updateDrawerVisibility();
         }
         if (m_trackListWidget) {
             m_trackListWidget->setVisible(index >= 7 && index <= 10 && !groupingActive);
@@ -5353,6 +5569,69 @@ static QString findFirstCaseInsensitiveFile(const QString& dirPath, const QStrin
     return "";
 }
 
+static QString generateSeasonPlaceholder(const QString& showTitle, int seasonNum) {
+    QString cacheDir = QDir::temp().filePath("amifiles_cache/season_placeholders");
+    QDir().mkpath(cacheDir);
+    
+    QString safeTitle = showTitle;
+    safeTitle.remove(QRegularExpression(R"([\\\/\:\*\?\"\<\>\|])"));
+    QString destPath = QDir(cacheDir).filePath(QString("%1_season_%2.jpg").arg(safeTitle).arg(seasonNum));
+    
+    if (QFile::exists(destPath)) {
+        return destPath;
+    }
+    
+    QImage img(600, 900, QImage::Format_ARGB32);
+    img.fill(Qt::transparent);
+    
+    QPainter painter(&img);
+    painter.setRenderHint(QPainter::Antialiasing);
+    
+    QLinearGradient grad(0, 0, 0, 900);
+    grad.setColorAt(0.0, QColor("#1e1e2e"));
+    grad.setColorAt(0.5, QColor("#181825"));
+    grad.setColorAt(1.0, QColor("#11111b"));
+    painter.fillRect(img.rect(), grad);
+    
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(QBrush(QColor("#89b4fa")));
+    painter.drawRect(0, 0, 600, 15);
+    
+    QRadialGradient ringGrad(300, 450, 200, 300, 450);
+    ringGrad.setColorAt(0.0, QColor(137, 180, 250, 40));
+    ringGrad.setColorAt(0.8, QColor(203, 166, 247, 10));
+    ringGrad.setColorAt(1.0, Qt::transparent);
+    painter.setBrush(QBrush(ringGrad));
+    painter.drawEllipse(100, 250, 400, 400);
+    
+    painter.setPen(QPen(QColor("#cba6f7"), 4));
+    painter.setBrush(Qt::NoBrush);
+    painter.drawEllipse(150, 300, 300, 300);
+    
+    painter.setPen(QPen(QColor("#a6e3a1"), 2));
+    QFont symbolFont("Outfit", 96, QFont::Bold);
+    painter.setFont(symbolFont);
+    painter.drawText(QRect(150, 300, 300, 300), Qt::AlignCenter, "📺");
+    
+    painter.setPen(QPen(QColor("#cdd6f4")));
+    QFont titleFont("Outfit", 36, QFont::Bold);
+    painter.setFont(titleFont);
+    painter.drawText(QRect(40, 60, 520, 150), Qt::AlignCenter | Qt::TextWordWrap, showTitle);
+    
+    painter.setPen(QPen(QColor("#f9e2af")));
+    QFont seasonFont("Outfit", 40, QFont::Bold);
+    painter.setFont(seasonFont);
+    QString seasonText = (seasonNum == 0) ? "SPECIALS" : QString("SEASON %1").arg(seasonNum);
+    painter.drawText(QRect(40, 720, 520, 100), Qt::AlignCenter, seasonText);
+    
+    painter.end();
+    
+    if (img.save(destPath, "JPG", 90)) {
+        return destPath;
+    }
+    return QString();
+}
+
 CasingRunnable::CasingRunnable(QPointer<FileFilterProxyModel> model, const QString& path)
     : m_model(model), m_path(path) {
     setAutoDelete(true);
@@ -5447,6 +5726,116 @@ void CasingRunnable::run() {
         artPath = findFirstCaseInsensitiveFile(dirPath, cdChecks);
         if (!artPath.isEmpty()) {
             casingInt = 0; // CasingCD
+        }
+    }
+
+    // 4.5 Check parent directory for seasonXX.jpg or generate placeholders if this is a Season folder!
+    if (artPath.isEmpty() && isDir) {
+        QString folderName = fileInfo.fileName().toLower().trimmed();
+        QRegularExpression reSeason(R"(^season\s*(\d+))");
+        auto match = reSeason.match(folderName);
+        if (match.hasMatch()) {
+            int seasonNum = match.captured(1).toInt();
+            QString parentPath = fileInfo.absolutePath(); // Parent directory (TV Show root)
+            QStringList seasonChecks = {
+                QString("season%1.jpg").arg(seasonNum, 2, 10, QChar('0')),
+                QString("season%1.png").arg(seasonNum, 2, 10, QChar('0')),
+                QString("season%1.jpeg").arg(seasonNum, 2, 10, QChar('0')),
+                QString("season-%1.jpg").arg(seasonNum, 2, 10, QChar('0')),
+                QString("season-%1.png").arg(seasonNum, 2, 10, QChar('0')),
+                QString("season-%1.jpeg").arg(seasonNum, 2, 10, QChar('0')),
+                QString("season%1.jpg").arg(seasonNum),
+                QString("season%1.png").arg(seasonNum),
+                QString("season%1.jpeg").arg(seasonNum),
+                QString("season-%1.jpg").arg(seasonNum),
+                QString("season-%1.png").arg(seasonNum),
+                QString("season-%1.jpeg").arg(seasonNum)
+            };
+            artPath = findFirstCaseInsensitiveFile(parentPath, seasonChecks);
+            if (!artPath.isEmpty()) {
+                casingInt = 1; // CasingDVD for TV season folders
+            } else {
+                QString showTitle = QDir(parentPath).dirName();
+                artPath = generateSeasonPlaceholder(showTitle, seasonNum);
+                if (!artPath.isEmpty()) {
+                    casingInt = 1;
+                }
+            }
+        } else if (folderName.contains("special") || folderName.contains("specials")) {
+            QString parentPath = fileInfo.absolutePath();
+            QStringList specialsChecks = {
+                "season-specials.jpg", "season-specials.png", "season-specials.jpeg",
+                "season00.jpg", "season00.png", "season00.jpeg",
+                "season0.jpg", "season0.png", "season0.jpeg"
+            };
+            artPath = findFirstCaseInsensitiveFile(parentPath, specialsChecks);
+            if (!artPath.isEmpty()) {
+                casingInt = 1;
+            } else {
+                QString showTitle = QDir(parentPath).dirName();
+                artPath = generateSeasonPlaceholder(showTitle, 0);
+                if (!artPath.isEmpty()) {
+                    casingInt = 1;
+                }
+            }
+        }
+    }
+
+    // 4.6 If it is a file (episode) and we still have no artwork, check parent directories for Season/Show cover fallbacks!
+    if (!isDir && artPath.isEmpty()) {
+        QDir containingDir(dirPath);
+        QString containingFolderName = containingDir.dirName().toLower().trimmed();
+        QRegularExpression reSeason(R"(^season\s*(\d+))");
+        auto match = reSeason.match(containingFolderName);
+        if (match.hasMatch()) {
+            int seasonNum = match.captured(1).toInt();
+            QString parentPath = QFileInfo(dirPath).absolutePath(); // TV Show root directory
+            QStringList seasonChecks = {
+                QString("season%1.jpg").arg(seasonNum, 2, 10, QChar('0')),
+                QString("season%1.png").arg(seasonNum, 2, 10, QChar('0')),
+                QString("season%1.jpeg").arg(seasonNum, 2, 10, QChar('0')),
+                QString("season-%1.jpg").arg(seasonNum, 2, 10, QChar('0')),
+                QString("season-%1.png").arg(seasonNum, 2, 10, QChar('0')),
+                QString("season-%1.jpeg").arg(seasonNum, 2, 10, QChar('0')),
+                QString("season%1.jpg").arg(seasonNum),
+                QString("season%1.png").arg(seasonNum),
+                QString("season%1.jpeg").arg(seasonNum)
+            };
+            artPath = findFirstCaseInsensitiveFile(parentPath, seasonChecks);
+            if (!artPath.isEmpty()) {
+                casingInt = 1; // CasingDVD for episode
+            } else {
+                // Fall back to main show folder.jpg in the parent directory!
+                QStringList mainShowChecks = { "folder.jpg", "folder.png", "poster.jpg", "poster.png", "cover.jpg", "cover.png" };
+                artPath = findFirstCaseInsensitiveFile(parentPath, mainShowChecks);
+                if (!artPath.isEmpty()) {
+                    casingInt = 1;
+                }
+            }
+        } else if (containingFolderName.contains("special") || containingFolderName.contains("specials")) {
+            QString parentPath = QFileInfo(dirPath).absolutePath();
+            QStringList specialsChecks = {
+                "season-specials.jpg", "season-specials.png", "season-specials.jpeg",
+                "season00.jpg", "season00.png", "season00.jpeg"
+            };
+            artPath = findFirstCaseInsensitiveFile(parentPath, specialsChecks);
+            if (!artPath.isEmpty()) {
+                casingInt = 1;
+            } else {
+                QStringList mainShowChecks = { "folder.jpg", "folder.png", "poster.jpg", "poster.png", "cover.jpg", "cover.png" };
+                artPath = findFirstCaseInsensitiveFile(parentPath, mainShowChecks);
+                if (!artPath.isEmpty()) {
+                    casingInt = 1;
+                }
+            }
+        } else {
+            // General video fallback: check if parent directory has folder.jpg
+            QString parentPath = QFileInfo(dirPath).absolutePath();
+            QStringList mainShowChecks = { "folder.jpg", "folder.png", "poster.jpg", "poster.png", "cover.jpg", "cover.png" };
+            artPath = findFirstCaseInsensitiveFile(parentPath, mainShowChecks);
+            if (!artPath.isEmpty()) {
+                casingInt = 1;
+            }
         }
     }
 
@@ -6007,4 +6396,5 @@ void FilePanel::syncPlaylist(const QStringList& playlistPaths, int currentIndex)
         m_trackListWidget->setCurrentRow(currentIndex);
     }
     m_trackListWidget->blockSignals(false);
+    updateDrawerVisibility();
 }

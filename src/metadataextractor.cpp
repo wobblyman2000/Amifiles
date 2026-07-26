@@ -340,8 +340,13 @@ static void parseFlacMetadata(const QString& filePath, FileMetadata& meta) {
                     else if (key == "GENRE") meta.genre = val;
                     else if (key == "DATE") meta.year = val;
                     else if (key == "TRACKNUMBER") meta.track = val;
+                    else if (key == "TRACKTOTAL" || key == "TOTALTRACKS") meta.trackTotal = val;
                     else if (key == "ALBUMARTIST" || key == "ALBUM ARTIST") meta.albumArtist = val;
                     else if (key == "DISCNUMBER") meta.discNumber = val;
+                    else if (key == "DISCTOTAL" || key == "TOTALDISCS") meta.discTotal = val;
+                    else if (key == "COMPOSER") meta.composer = val;
+                    else if (key == "BPM" || key == "TBPM") meta.bpm = val;
+                    else if (key == "COMMENT" || key == "DESCRIPTION") meta.comment = val;
                     else if (key == "COMPILATION") meta.compilation = (val == "1");
                 }
             }
@@ -423,11 +428,51 @@ void MetadataExtractor::extractAudioInfo(const QString& filePath, FileMetadata& 
                 } else if (frameId == "TYER" || frameId == "TDRC") {
                     meta.year = decodeID3v2Text(frameData);
                 } else if (frameId == "TRCK") {
-                    meta.track = decodeID3v2Text(frameData);
+                    QString val = decodeID3v2Text(frameData);
+                    int slashIdx = val.indexOf('/');
+                    if (slashIdx != -1) {
+                        meta.track = val.left(slashIdx).trimmed();
+                        meta.trackTotal = val.mid(slashIdx + 1).trimmed();
+                    } else {
+                        meta.track = val;
+                    }
                 } else if (frameId == "TPE2") {
                     meta.albumArtist = decodeID3v2Text(frameData);
                 } else if (frameId == "TPOS") {
-                    meta.discNumber = decodeID3v2Text(frameData);
+                    QString val = decodeID3v2Text(frameData);
+                    int slashIdx = val.indexOf('/');
+                    if (slashIdx != -1) {
+                        meta.discNumber = val.left(slashIdx).trimmed();
+                        meta.discTotal = val.mid(slashIdx + 1).trimmed();
+                    } else {
+                        meta.discNumber = val;
+                    }
+                } else if (frameId == "TCOM") {
+                    meta.composer = decodeID3v2Text(frameData);
+                } else if (frameId == "TBPM") {
+                    meta.bpm = decodeID3v2Text(frameData);
+                } else if (frameId == "COMM") {
+                    if (frameData.size() > 4) {
+                        char enc = frameData.at(0);
+                        int descStart = 4;
+                        int commentStart = descStart;
+                        if (enc == 0x00 || enc == 0x03) {
+                            int nullIdx = frameData.indexOf('\0', descStart);
+                            if (nullIdx != -1) {
+                                commentStart = nullIdx + 1;
+                            }
+                        } else {
+                            for (int idx = descStart; idx < frameData.size() - 1; idx += 2) {
+                                if (frameData.at(idx) == 0 && frameData.at(idx + 1) == 0) {
+                                    commentStart = idx + 2;
+                                    break;
+                                }
+                            }
+                        }
+                        QByteArray commText = frameData.mid(commentStart);
+                        commText.prepend(enc);
+                        meta.comment = decodeID3v2Text(commText);
+                    }
                 } else if (frameId == "TCMP") {
                     QString val = decodeID3v2Text(frameData);
                     meta.compilation = (val == "1");

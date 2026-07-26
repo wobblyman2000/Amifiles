@@ -13,15 +13,35 @@
 #include <QVideoWidget>
 #include <QTableWidget>
 #include <QPixmap>
+#include <QPainter>
+#include <QToolTip>
+#include <QMouseEvent>
+#include <QPaintEvent>
 #include "metadataextractor.h"
 
 class ScrubSlider : public QSlider {
     Q_OBJECT
 public:
+    struct Chapter {
+        qint64 startMs;
+        QString title;
+    };
+
     explicit ScrubSlider(Qt::Orientation orientation, QWidget* parent = nullptr)
         : QSlider(orientation, parent) {
         setFocusPolicy(Qt::StrongFocus);
+        setMouseTracking(true);
     }
+
+    void setChapters(const QList<Chapter>& chapters) {
+        m_chapters = chapters;
+        update();
+    }
+
+    QList<Chapter> chapters() const { return m_chapters; }
+
+protected:
+    QList<Chapter> m_chapters;
 protected:
     void mousePressEvent(class QMouseEvent* event) override {
         if (event->button() == Qt::LeftButton) {
@@ -52,6 +72,48 @@ protected:
             QSlider::keyPressEvent(event);
         }
     }
+
+    void paintEvent(QPaintEvent* event) override {
+        QSlider::paintEvent(event);
+        if (m_chapters.isEmpty() || maximum() <= minimum()) return;
+
+        QPainter painter(this);
+        painter.setPen(QPen(QColor("#f38ba8"), 2));
+
+        qint64 range = maximum() - minimum();
+        for (const auto& ch : m_chapters) {
+            double fraction = double(ch.startMs - minimum()) / double(range);
+            if (fraction > 0.0 && fraction < 1.0) {
+                int x = fraction * width();
+                painter.drawLine(x, 0, x, height());
+            }
+        }
+    }
+
+    void mouseMoveEvent(QMouseEvent* event) override {
+        QSlider::mouseMoveEvent(event);
+        if (m_chapters.isEmpty() || maximum() <= minimum()) return;
+
+        double fraction = double(event->pos().x()) / double(width());
+        qint64 hoverTime = minimum() + fraction * (maximum() - minimum());
+
+        QString chTitle = "Seeking";
+        for (int i = 0; i < m_chapters.size(); ++i) {
+            if (hoverTime >= m_chapters[i].startMs) {
+                if (i == m_chapters.size() - 1 || hoverTime < m_chapters[i+1].startMs) {
+                    chTitle = m_chapters[i].title;
+                    break;
+                }
+            }
+        }
+
+        qint64 secs = hoverTime / 1000;
+        qint64 mins = secs / 60;
+        secs = secs % 60;
+        QString timeStr = QString("%1:%2").arg(mins, 2, 10, QChar('0')).arg(secs, 2, 10, QChar('0'));
+
+        QToolTip::showText(event->globalPosition().toPoint(), QString("%1 (%2)").arg(chTitle).arg(timeStr), this);
+    }
 };
 
 class AudioPlaceholderWidget : public QWidget {
@@ -81,7 +143,7 @@ public:
 
     void setMediaState(bool isVideo, class QMediaPlayer* player, class QAudioOutput* audioOutput);
     void updateProgress(qint64 position, qint64 duration);
-    void setTrackNames(const QString& current, const QString& next);
+    void setTrackNames(const QString& currentPath, const QString& nextPath);
     class QWidget* hudWidget() const { return (class QWidget*)m_hudWidget; }
 
 signals:
@@ -113,6 +175,7 @@ private slots:
     void onHudSubtitles();
     void onHudShuffle();
     void onHudRepeat();
+    void onHudChapters();
 
 private:
     void showHud();
@@ -123,6 +186,7 @@ private:
     class QPushButton* m_btnSubtitles = nullptr;
     class QPushButton* m_btnShuffle = nullptr;
     class QPushButton* m_btnRepeat = nullptr;
+    class QPushButton* m_btnChapters = nullptr;
     class ScrubSlider* m_sliderProgress = nullptr;
     class QLabel* m_lblTime = nullptr;
     class QSlider* m_sliderVolume = nullptr;
@@ -131,8 +195,12 @@ private:
     class QTimer* m_mousePollTimer = nullptr;
     QPoint m_lastMousePos;
     class QMediaPlayer* m_player = nullptr;
+    class QAudioOutput* m_audioOutput = nullptr;
+    QString m_currentTrackPath;
     class QLabel* m_lblCurrentPlaying = nullptr;
     class QLabel* m_lblNextPlaying = nullptr;
+    class QLabel* m_lblCurrentArtwork = nullptr;
+    class QLabel* m_lblNextArtwork = nullptr;
 public:
     QPushButton* hudShuffleButton() const { return m_btnShuffle; }
     QPushButton* hudRepeatButton() const { return m_btnRepeat; }

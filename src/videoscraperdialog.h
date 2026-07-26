@@ -2,6 +2,7 @@
 #define VIDEOSCRAPERDIALOG_H
 
 #include <QDialog>
+#include <QFileInfo>
 #include <QStringList>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
@@ -34,6 +35,36 @@ struct EpisodeInfo {
     QString overview;
 };
 
+struct FileRenameTask {
+    QString oldPath;
+    QString newPath;
+    QString fileName;
+    QString showTitle;
+    EpisodeInfo ep;
+};
+
+class RenamePreviewDialog : public QDialog {
+    Q_OBJECT
+public:
+    RenamePreviewDialog(const QList<FileRenameTask>& tasks, const QString& targetFolder, QWidget* parent = nullptr);
+    ~RenamePreviewDialog() override = default;
+
+    QList<FileRenameTask> selectedTasks() const;
+    bool organizeIntoSeasonFolders() const;
+
+private slots:
+    void onSeasonFoldersToggled(bool checked);
+
+private:
+    void setupUI();
+    void updateTable();
+
+    QList<FileRenameTask> m_tasks;
+    QString m_targetFolder;
+    QTableWidget* m_table = nullptr;
+    QCheckBox* m_chkSeasonFolders = nullptr;
+};
+
 class VideoScraperDialog : public QDialog {
     Q_OBJECT
 public:
@@ -59,7 +90,7 @@ private:
         int season = -1;
         int episode = -1;
     };
-    SeasonEpisode parseSeasonEpisode(const QString& fileName);
+    SeasonEpisode parseSeasonEpisode(const QFileInfo& fileInfo);
     QList<EpisodeInfo> fetchEpisodesList(const QString& showId);
     void processTVShowEpisodes(const QString& targetFolder, const QString& showTitle, const QList<EpisodeInfo>& episodes);
     void writeEpisodeNfoFile(const QString& filePath, const EpisodeInfo& ep, const QString& showTitle);
@@ -87,6 +118,7 @@ private:
     QCheckBox* m_chkSaveNfo = nullptr;
     QCheckBox* m_chkSavePoster = nullptr;
     QCheckBox* m_chkRename = nullptr;
+    QCheckBox* m_chkFanart = nullptr;
 
     QPushButton* m_btnApply = nullptr;
     QPushButton* m_btnCancel = nullptr;

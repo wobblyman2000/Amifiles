@@ -14,6 +14,7 @@
 #include "keybindingseditor.h"
 #include "checksumdialog.h"
 #include "shreddialog.h"
+#include "searchdialog.h"
 #include "remotemountdialog.h"
 #include "cloudmountdialog.h"
 #include "imageconverterdialog.h"
@@ -1039,6 +1040,13 @@ void MainWindow::setupActions() {
     connect(m_actCalculateChecksum, &QAction::triggered, this, &MainWindow::onCalculateChecksum);
     addAction(m_actCalculateChecksum);
 
+    m_actAdvancedSearch = new QAction("Advanced Search & Filtering...", this);
+    m_actAdvancedSearch->setToolTip("Asynchronously search files with wildcards, regex, size, and date filters");
+    m_actAdvancedSearch->setStatusTip("Asynchronously search files with wildcards, regex, size, and date filters");
+    m_actAdvancedSearch->setShortcut(QKeySequence("Ctrl+Shift+F"));
+    connect(m_actAdvancedSearch, &QAction::triggered, this, &MainWindow::onAdvancedSearch);
+    addAction(m_actAdvancedSearch);
+
     m_actSecureShred = new QAction("Secure Shred files...", this);
     m_actSecureShred->setToolTip("Securely shred and delete files permanently");
     m_actSecureShred->setStatusTip("Securely shred and delete files permanently");
@@ -1240,6 +1248,8 @@ void MainWindow::setupMenus() {
 
 
     m_menuSearch = menuBar()->addMenu("Search");
+    m_menuSearch->addAction(m_actAdvancedSearch);
+    m_menuSearch->addSeparator();
     m_menuSearch->addAction("Save Current Search as Preset...", this, &MainWindow::onSaveSearchPreset);
     m_menuSearchPresets = m_menuSearch->addMenu("Saved Presets");
     connect(m_menuSearchPresets, &QMenu::aboutToShow, this, &MainWindow::updateSearchPresetsMenu);
@@ -1603,6 +1613,62 @@ void MainWindow::onBulkRenameAction() {
         if (leftPanel()) leftPanel()->refresh();
         if (rightPanel()) rightPanel()->refresh();
     }
+}
+
+void MainWindow::onQuickRenameAction(const QString& caseType) {
+    if (!m_activePanel) return;
+    QStringList selected = m_activePanel->selectedPaths();
+    if (selected.isEmpty()) {
+        statusBar()->showMessage("No files selected for quick renaming.", 3000);
+        return;
+    }
+    
+    int renamedCount = 0;
+    int failureCount = 0;
+    for (const QString& oldPath : selected) {
+        QFileInfo info(oldPath);
+        if (info.isDir()) continue;
+        
+        QString name = info.completeBaseName();
+        QString ext = info.suffix();
+        if (!ext.isEmpty()) ext = "." + ext;
+        
+        if (caseType == "UPPERCASE") {
+            name = name.toUpper();
+        } else if (caseType == "lowercase") {
+            name = name.toLower();
+        } else if (caseType == "TitleCase") {
+            QStringList words = name.split(' ', Qt::SkipEmptyParts);
+            for (int i = 0; i < words.size(); ++i) {
+                QString w = words[i];
+                if (!w.isEmpty()) {
+                    words[i] = w.at(0).toUpper() + w.mid(1).toLower();
+                }
+            }
+            name = words.join(' ');
+        } else if (caseType == "SentenceCase") {
+            if (!name.isEmpty()) {
+                name = name.at(0).toUpper() + name.mid(1).toLower();
+            }
+        }
+        
+        QString newName = name + ext;
+        QString newPath = info.dir().filePath(newName);
+        if (oldPath != newPath) {
+            if (QFile::exists(newPath)) {
+                failureCount++;
+                continue;
+            }
+            if (QFile::rename(oldPath, newPath)) {
+                renamedCount++;
+            } else {
+                failureCount++;
+            }
+        }
+    }
+    
+    m_activePanel->refresh();
+    statusBar()->showMessage(QString("Quick renamed %1 files (%2 failures).").arg(renamedCount).arg(failureCount), 3000);
 }
 
 void MainWindow::onCopyToSiblingAction() {
@@ -2259,12 +2325,24 @@ void MainWindow::onCustomButtonClicked() {
             m_actTogglePreview->trigger();
         } else if (cmd == "ToggleFlatView") {
             m_actToggleFlatView->trigger();
-        } else if (cmd == "CompareSync") {
+        } else if (cmd == "CompareSync" || cmd == "FolderDiff") {
             onCompareSyncAction();
         } else if (cmd == "DuplicateFinder") {
             onDuplicateFinderAction();
         } else if (cmd == "SpaceAnalyzer") {
             onSpaceAnalyzerAction();
+        } else if (cmd == "BulkRename") {
+            onBulkRenameAction();
+        } else if (cmd == "SyncScheduler") {
+            onConfigureBackupSchedule();
+        } else if (cmd == "ChecksumTool") {
+            onCalculateChecksum();
+        } else if (cmd == "CloudMount") {
+            onCloudMount();
+        } else if (cmd == "Shred") {
+            onSecureShred();
+        } else if (cmd.startsWith("QuickRename_")) {
+            onQuickRenameAction(cmd.mid(12));
         } else if (cmd.startsWith("Go ") || cmd == "Go") {
             QString path = cmd.mid(3).trimmed();
             QString activeDir = m_activePanel ? m_activePanel->currentPath() : "";
@@ -2896,6 +2974,21 @@ void MainWindow::onCalculateChecksum() {
     }
     ChecksumDialog dlg(activePath, this);
     dlg.exec();
+}
+
+void MainWindow::onAdvancedSearch() {
+    QString startPath = QDir::homePath();
+    if (m_activePanel) {
+        startPath = m_activePanel->currentPath();
+    }
+    SearchDialog dlg(startPath, this);
+    dlg.exec();
+}
+
+void MainWindow::navigateToPathAndSelect(const QString& filePath) {
+    if (m_activePanel) {
+        m_activePanel->selectFilePath(filePath);
+    }
 }
 
 void MainWindow::onSecureShred() {
@@ -5042,12 +5135,24 @@ void MainWindow::executeCustomCommand(const QString& commandOrPath) {
             if (m_actTogglePreview) m_actTogglePreview->trigger();
         } else if (cmd == "ToggleFlatView") {
             if (m_actToggleFlatView) m_actToggleFlatView->trigger();
-        } else if (cmd == "CompareSync") {
+        } else if (cmd == "CompareSync" || cmd == "FolderDiff") {
             onCompareSyncAction();
         } else if (cmd == "DuplicateFinder") {
             onDuplicateFinderAction();
         } else if (cmd == "SpaceAnalyzer") {
             onSpaceAnalyzerAction();
+        } else if (cmd == "BulkRename") {
+            onBulkRenameAction();
+        } else if (cmd == "SyncScheduler") {
+            onConfigureBackupSchedule();
+        } else if (cmd == "ChecksumTool") {
+            onCalculateChecksum();
+        } else if (cmd == "CloudMount") {
+            onCloudMount();
+        } else if (cmd == "Shred") {
+            onSecureShred();
+        } else if (cmd.startsWith("QuickRename_")) {
+            onQuickRenameAction(cmd.mid(12));
         } else if (cmd.startsWith("Go ") || cmd == "Go") {
             QString path = cmd.mid(3).trimmed();
             QString activeDir = m_activePanel ? m_activePanel->currentPath() : "";

@@ -10,6 +10,8 @@
 #include <QLabel>
 #include <QFrame>
 #include <QLineEdit>
+#include <QKeySequenceEdit>
+#include <QScrollArea>
 #include <QMessageBox>
 
 PreferencesDialog::PreferencesDialog(QWidget* parent) : QDialog(parent) {
@@ -50,7 +52,8 @@ void PreferencesDialog::setupUI() {
         "View & Colors",
         "Archives & VFS",
         "Media Preview",
-        "Services"
+        "Services",
+        "Keyboard Shortcuts"
     });
     mainLayout->addWidget(m_listCategory);
 
@@ -203,6 +206,10 @@ void PreferencesDialog::setupUI() {
     m_chkRememberVideoProgress->setToolTip("Saves progress periodically and prompts to resume when reopening TV shows or movie files.");
     layMedia->addWidget(m_chkRememberVideoProgress);
 
+    m_chkKeyboardRemoteMode = new QCheckBox("Enable Remote Control Navigation Mode (Flirc USB / Keyboard)", this);
+    m_chkKeyboardRemoteMode->setToolTip("Allows navigating the main UI, Showcase, and full screen players using remote controls/keyboards.");
+    layMedia->addWidget(m_chkKeyboardRemoteMode);
+
     QFrame* lineMedia = new QFrame(this);
     lineMedia->setFrameShape(QFrame::HLine);
     lineMedia->setFrameShadow(QFrame::Sunken);
@@ -254,6 +261,104 @@ void PreferencesDialog::setupUI() {
 
     layServ->addStretch(1);
     m_stackPages->addWidget(pageServices);
+
+    // ----------------------------------------------------
+    // Page 6: Keyboard & Remote Shortcuts Mapping
+    // ----------------------------------------------------
+    QWidget* pageShortcuts = new QWidget(this);
+    QVBoxLayout* layShortcuts = new QVBoxLayout(pageShortcuts);
+    layShortcuts->setContentsMargins(10, 10, 10, 10);
+    layShortcuts->setSpacing(12);
+
+    QLabel* lblShortcutsTitle = new QLabel("Keyboard & Remote Control Shortcuts", this);
+    lblShortcutsTitle->setStyleSheet("font-size: 16px; font-weight: bold; color: #89b4fa;");
+    layShortcuts->addWidget(lblShortcutsTitle);
+
+    QScrollArea* scrollArea = new QScrollArea(this);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setFrameShape(QScrollArea::NoFrame);
+    scrollArea->setStyleSheet("background-color: transparent;");
+    
+    QWidget* scrollContent = new QWidget(this);
+    QVBoxLayout* scrollLayout = new QVBoxLayout(scrollContent);
+    scrollLayout->setContentsMargins(0, 0, 0, 0);
+    scrollLayout->setSpacing(15);
+
+    // Section 1: Showcase / Theater View Shortcuts
+    QLabel* lblSec1 = new QLabel("Showcase / Theater View Navigation", this);
+    lblSec1->setStyleSheet("font-weight: bold; color: #f5c2e7; font-size: 14px;");
+    scrollLayout->addWidget(lblSec1);
+
+    QFormLayout* formSec1 = new QFormLayout();
+    formSec1->setSpacing(8);
+
+    m_keyPlayCollection = new QKeySequenceEdit(this);
+    m_keyPlayCollection->setToolTip("Shortcut to play the entire TV show / album / folder recursively.");
+    formSec1->addRow("Play Collection:", m_keyPlayCollection);
+
+    m_keyInfoSheet = new QKeySequenceEdit(this);
+    m_keyInfoSheet->setToolTip("Shortcut to open the media info sheet.");
+    formSec1->addRow("Open Info Sheet:", m_keyInfoSheet);
+
+    m_keyScrapeMeta = new QKeySequenceEdit(this);
+    m_keyScrapeMeta->setToolTip("Shortcut to scrape video metadata online.");
+    formSec1->addRow("Scrape Video Metadata:", m_keyScrapeMeta);
+
+    m_keyApplyCasing = new QKeySequenceEdit(this);
+    m_keyApplyCasing->setToolTip("Shortcut to automatically rename folder.jpg and apply DVD overlay.");
+    formSec1->addRow("Apply DVD Case Overlay:", m_keyApplyCasing);
+
+    m_keyToggleDrawer = new QKeySequenceEdit(this);
+    m_keyToggleDrawer->setToolTip("Shortcut to toggle the playlist track drawer.");
+    formSec1->addRow("Toggle Playlist Drawer:", m_keyToggleDrawer);
+
+    m_keyNavigateUp = new QKeySequenceEdit(this);
+    m_keyNavigateUp->setToolTip("Shortcut to navigate to the parent folder / exit directory.");
+    formSec1->addRow("Navigate Up / Back:", m_keyNavigateUp);
+
+    scrollLayout->addLayout(formSec1);
+
+    // Separator line
+    QFrame* lineShortcuts = new QFrame(this);
+    lineShortcuts->setFrameShape(QFrame::HLine);
+    lineShortcuts->setFrameShadow(QFrame::Sunken);
+    lineShortcuts->setStyleSheet("border: 1px solid #313244;");
+    scrollLayout->addWidget(lineShortcuts);
+
+    // Section 2: Fullscreen Media Player Control Shortcuts
+    QLabel* lblSec2 = new QLabel("Fullscreen Media Player Controls", this);
+    lblSec2->setStyleSheet("font-weight: bold; color: #a6e3a1; font-size: 14px;");
+    scrollLayout->addWidget(lblSec2);
+
+    QFormLayout* formSec2 = new QFormLayout();
+    formSec2->setSpacing(8);
+
+    m_keyPlayerPlayPause = new QKeySequenceEdit(this);
+    m_keyPlayerPlayPause->setToolTip("Shortcut to toggle play/pause.");
+    formSec2->addRow("Play / Pause:", m_keyPlayerPlayPause);
+
+    m_keyPlayerPrev = new QKeySequenceEdit(this);
+    m_keyPlayerPrev->setToolTip("Shortcut to play the previous track/episode.");
+    formSec2->addRow("Previous Track:", m_keyPlayerPrev);
+
+    m_keyPlayerNext = new QKeySequenceEdit(this);
+    m_keyPlayerNext->setToolTip("Shortcut to play the next track/episode.");
+    formSec2->addRow("Next Track:", m_keyPlayerNext);
+
+    m_keyPlayerMute = new QKeySequenceEdit(this);
+    m_keyPlayerMute->setToolTip("Shortcut to toggle mute state.");
+    formSec2->addRow("Mute / Unmute:", m_keyPlayerMute);
+
+    m_keyPlayerMenu = new QKeySequenceEdit(this);
+    m_keyPlayerMenu->setToolTip("Shortcut to display the player context menu (chapters list, exit, controls).");
+    formSec2->addRow("Open Player Menu:", m_keyPlayerMenu);
+
+    scrollLayout->addLayout(formSec2);
+    scrollLayout->addStretch(1);
+
+    scrollArea->setWidget(scrollContent);
+    layShortcuts->addWidget(scrollArea);
+    m_stackPages->addWidget(pageShortcuts);
 
     // Right Layout
     QVBoxLayout* rightLayout = new QVBoxLayout();
@@ -334,11 +439,25 @@ void PreferencesDialog::loadPreferences() {
     m_chkAutoFullscreen->setChecked(settings.value("preview/auto_fullscreen", true).toBool());
     m_chkAutoPlayThemeMusic->setChecked(settings.value("theater/auto_play_theme_music", true).toBool());
     m_chkRememberVideoProgress->setChecked(settings.value("preview/resume_progress", false).toBool());
+    m_chkKeyboardRemoteMode->setChecked(settings.value("preferences/keyboard_remote_mode", false).toBool());
 
     QString defaultHide = "folder.jpg, folder.jpeg, folder.png, cover.jpg, cover.jpeg, cover.png, fanart.jpg, fanart.jpeg, fanart.png, backdrop.jpg, backdrop.jpeg, backdrop.png, poster.jpg, poster.jpeg, poster.png, *.nfo, *.xml, *.txt, *.srt, *.sub, *.vtt, *.ini, *.db";
     m_editHidePatterns->setText(settings.value("theater/hide_patterns", defaultHide).toString());
 
     m_editTmdbApiKey->setText(settings.value("services/tmdb_api_key", "").toString());
+
+    m_keyPlayCollection->setKeySequence(QKeySequence(settings.value("shortcuts/play_collection", "Ctrl+Space").toString()));
+    m_keyInfoSheet->setKeySequence(QKeySequence(settings.value("shortcuts/info_sheet", "I").toString()));
+    m_keyScrapeMeta->setKeySequence(QKeySequence(settings.value("shortcuts/scrape_meta", "M").toString()));
+    m_keyApplyCasing->setKeySequence(QKeySequence(settings.value("shortcuts/apply_casing", "D").toString()));
+    m_keyToggleDrawer->setKeySequence(QKeySequence(settings.value("shortcuts/toggle_drawer", "P").toString()));
+    m_keyNavigateUp->setKeySequence(QKeySequence(settings.value("shortcuts/navigate_up", "Backspace").toString()));
+
+    m_keyPlayerPlayPause->setKeySequence(QKeySequence(settings.value("shortcuts/player_play_pause", "Space").toString()));
+    m_keyPlayerPrev->setKeySequence(QKeySequence(settings.value("shortcuts/player_prev", "P").toString()));
+    m_keyPlayerNext->setKeySequence(QKeySequence(settings.value("shortcuts/player_next", "N").toString()));
+    m_keyPlayerMute->setKeySequence(QKeySequence(settings.value("shortcuts/player_mute", "M").toString()));
+    m_keyPlayerMenu->setKeySequence(QKeySequence(settings.value("shortcuts/player_menu", "C").toString()));
 }
 
 void PreferencesDialog::savePreferences() {
@@ -366,9 +485,23 @@ void PreferencesDialog::savePreferences() {
     settings.setValue("preview/auto_fullscreen", m_chkAutoFullscreen->isChecked());
     settings.setValue("theater/auto_play_theme_music", m_chkAutoPlayThemeMusic->isChecked());
     settings.setValue("preview/resume_progress", m_chkRememberVideoProgress->isChecked());
+    settings.setValue("preferences/keyboard_remote_mode", m_chkKeyboardRemoteMode->isChecked());
     settings.setValue("theater/hide_patterns", m_editHidePatterns->text().trimmed());
 
     settings.setValue("services/tmdb_api_key", m_editTmdbApiKey->text().trimmed());
+
+    settings.setValue("shortcuts/play_collection", m_keyPlayCollection->keySequence().toString());
+    settings.setValue("shortcuts/info_sheet", m_keyInfoSheet->keySequence().toString());
+    settings.setValue("shortcuts/scrape_meta", m_keyScrapeMeta->keySequence().toString());
+    settings.setValue("shortcuts/apply_casing", m_keyApplyCasing->keySequence().toString());
+    settings.setValue("shortcuts/toggle_drawer", m_keyToggleDrawer->keySequence().toString());
+    settings.setValue("shortcuts/navigate_up", m_keyNavigateUp->keySequence().toString());
+
+    settings.setValue("shortcuts/player_play_pause", m_keyPlayerPlayPause->keySequence().toString());
+    settings.setValue("shortcuts/player_prev", m_keyPlayerPrev->keySequence().toString());
+    settings.setValue("shortcuts/player_next", m_keyPlayerNext->keySequence().toString());
+    settings.setValue("shortcuts/player_mute", m_keyPlayerMute->keySequence().toString());
+    settings.setValue("shortcuts/player_menu", m_keyPlayerMenu->keySequence().toString());
 
     emit preferencesChanged();
 }

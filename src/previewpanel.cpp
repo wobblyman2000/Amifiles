@@ -46,6 +46,9 @@
 #include <QContextMenuEvent>
 #include <QAction>
 #include <QProcess>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
 #include <QTimer>
 #include <QLinearGradient>
 #include <QPolygon>
@@ -433,6 +436,15 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
     m_btnRepeat->setIconSize(defaultIconSize);
     connect(m_btnRepeat, &QPushButton::clicked, this, &FullscreenWidget::onHudRepeat);
 
+    m_btnChapters = new QPushButton(m_hudWidget);
+    m_btnChapters->setText("📖");
+    m_btnChapters->setToolTip("Chapters List");
+    m_btnChapters->setFocusPolicy(Qt::NoFocus);
+    m_btnChapters->setFixedSize(btnSize, btnSize);
+    m_btnChapters->setStyleSheet("QPushButton { color: #cdd6f4; font-size: 16px; background-color: transparent; border: none; } QPushButton:hover { color: #a6e3a1; }");
+    connect(m_btnChapters, &QPushButton::clicked, this, &FullscreenWidget::onHudChapters);
+    m_btnChapters->setVisible(false);
+
     QPushButton* btnExit = new QPushButton(m_hudWidget);
     btnExit->setIcon(style->standardIcon(QStyle::SP_TitleBarNormalButton));
     btnExit->setToolTip("Exit Fullscreen");
@@ -450,14 +462,39 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
     m_lblCurrentPlaying->setStyleSheet("QLabel { color: #89b4fa; font-size: 14px; font-weight: bold; font-family: 'Outfit'; background: transparent; border: none; }");
     m_lblCurrentPlaying->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
 
+    m_lblCurrentArtwork = new QLabel(m_hudWidget);
+    m_lblCurrentArtwork->setFixedSize(36, 36);
+    m_lblCurrentArtwork->setStyleSheet("border: 1px solid #45475a; border-radius: 4px; background-color: #11111b;");
+    m_lblCurrentArtwork->setScaledContents(true);
+    m_lblCurrentArtwork->hide();
+
     m_lblNextPlaying = new QLabel("", m_hudWidget);
     m_lblNextPlaying->setStyleSheet("QLabel { color: #a6adc8; font-size: 12px; font-family: 'Outfit'; font-style: italic; background: transparent; border: none; }");
     m_lblNextPlaying->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
 
+    m_lblNextArtwork = new QLabel(m_hudWidget);
+    m_lblNextArtwork->setFixedSize(24, 24);
+    m_lblNextArtwork->setStyleSheet("border: 1px solid #45475a; border-radius: 3px; background-color: #11111b;");
+    m_lblNextArtwork->setScaledContents(true);
+    m_lblNextArtwork->hide();
+
     QHBoxLayout* titleLayout = new QHBoxLayout();
     titleLayout->setContentsMargins(0, 0, 0, 0);
-    titleLayout->addWidget(m_lblCurrentPlaying, 1);
-    titleLayout->addWidget(m_lblNextPlaying, 1);
+
+    QHBoxLayout* currentLayout = new QHBoxLayout();
+    currentLayout->setContentsMargins(0, 0, 0, 0);
+    currentLayout->setSpacing(8);
+    currentLayout->addWidget(m_lblCurrentArtwork);
+    currentLayout->addWidget(m_lblCurrentPlaying, 1);
+    titleLayout->addLayout(currentLayout, 1);
+
+    QHBoxLayout* nextLayout = new QHBoxLayout();
+    nextLayout->setContentsMargins(0, 0, 0, 0);
+    nextLayout->setSpacing(8);
+    nextLayout->addWidget(m_lblNextPlaying, 1);
+    nextLayout->addWidget(m_lblNextArtwork);
+    titleLayout->addLayout(nextLayout, 1);
+
     hudMainLayout->addLayout(titleLayout);
 
     QHBoxLayout* row1Layout = new QHBoxLayout();
@@ -477,6 +514,7 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
     row2Layout->addWidget(m_btnShuffle);
     row2Layout->addWidget(m_btnRepeat);
     row2Layout->addWidget(m_btnSubtitles);
+    row2Layout->addWidget(m_btnChapters);
     
     row2Layout->addStretch(1);
 
@@ -540,6 +578,7 @@ void FullscreenWidget::updateHudGeometry() {
 
 void FullscreenWidget::setMediaState(bool isVideo, QMediaPlayer* player, QAudioOutput* audioOutput) {
     m_player = player;
+    m_audioOutput = audioOutput;
     if (m_player) {
         if (m_player->playbackState() == QMediaPlayer::PlayingState) {
             m_btnPlayPause->setIcon(QApplication::style()->standardIcon(QStyle::SP_MediaPause));
@@ -567,14 +606,171 @@ void FullscreenWidget::updateProgress(qint64 position, qint64 duration) {
     }
 }
 
-void FullscreenWidget::setTrackNames(const QString& current, const QString& next) {
-    if (m_lblCurrentPlaying) {
-        m_lblCurrentPlaying->setText(current.isEmpty() ? "Now Playing: -" : "Now Playing: " + current);
-        m_lblCurrentPlaying->setToolTip(current);
+static QPixmap getMediaArtwork(const QString& filePath) {
+    if (filePath.isEmpty()) return QPixmap();
+
+    // 1. Try exiftool to extract embedded artwork
+    QProcess proc;
+    proc.start("exiftool", {"-Picture", "-b", filePath});
+    if (proc.waitForFinished(1500)) {
+        QByteArray imgData = proc.readAllStandardOutput();
+        if (!imgData.isEmpty()) {
+            QPixmap pix;
+            if (pix.loadFromData(imgData)) {
+                return pix;
+            }
+        }
     }
+
+    // 2. Try looking in the folder
+    QString dirPath = QFileInfo(filePath).absolutePath();
+    QDir dir(dirPath);
+    QStringList artNames = { "folder", "cover", "album", "poster" };
+    QStringList artExts = { "jpg", "jpeg", "png", "webp" };
+    for (const QString& name : artNames) {
+        for (const QString& ext : artExts) {
+            QString potential = dir.filePath(name + "." + ext);
+            if (QFile::exists(potential)) {
+                QPixmap pix(potential);
+                if (!pix.isNull()) {
+                    return pix;
+                }
+            }
+            potential = dir.filePath(name.toUpper() + "." + ext);
+            if (QFile::exists(potential)) {
+                QPixmap pix(potential);
+                if (!pix.isNull()) {
+                    return pix;
+                }
+            }
+        }
+    }
+    return QPixmap();
+}
+
+static QString getMediaDisplayTitle(const QString& filePath) {
+    QFileInfo info(filePath);
+    if (filePath.isEmpty()) return "";
+
+    // Parse TV Show structures (e.g. Grandparent/Parent/File.mp4 where Parent is "Season X")
+    QString parentDirName = info.dir().dirName();
+    QString grandParentDirName = QDir(info.absolutePath() + "/..").dirName();
+
+    QRegularExpression seasonRegex("^(Season\\s*\\d+|S\\d+)", QRegularExpression::CaseInsensitiveOption);
+    if (seasonRegex.match(parentDirName).hasMatch() && !grandParentDirName.isEmpty() && grandParentDirName != "." && grandParentDirName != "..") {
+        return QString("%1 - %2 - %3").arg(grandParentDirName).arg(parentDirName).arg(info.completeBaseName());
+    }
+
+    // Try filename patterns like "Show Name - S01E02"
+    QRegularExpression epRegex("^(.*)\\s+-\\s+(S\\d+E\\d+|\\d+x\\d+)\\s+-\\s+(.*)$", QRegularExpression::CaseInsensitiveOption);
+    auto epMatch = epRegex.match(info.completeBaseName());
+    if (epMatch.hasMatch()) {
+        return QString("%1 (%2) - %3").arg(epMatch.captured(1)).arg(epMatch.captured(2)).arg(epMatch.captured(3));
+    }
+
+    // Default to metadata title
+    FileMetadata meta = MetadataExtractor::extract(filePath);
+    if (!meta.title.isEmpty()) {
+        if (!meta.artist.isEmpty()) {
+            return QString("%1 - %2").arg(meta.artist).arg(meta.title);
+        }
+        return meta.title;
+    }
+
+    return info.completeBaseName();
+}
+
+void FullscreenWidget::setTrackNames(const QString& currentPath, const QString& nextPath) {
+    m_currentTrackPath = currentPath;
+    if (m_lblCurrentPlaying) {
+        if (currentPath.isEmpty()) {
+            m_lblCurrentPlaying->setText("Now Playing: -");
+            m_lblCurrentPlaying->setToolTip("");
+            m_lblCurrentArtwork->clear();
+            m_lblCurrentArtwork->hide();
+        } else {
+            QString dispTitle = getMediaDisplayTitle(currentPath);
+            m_lblCurrentPlaying->setText("Now Playing: " + dispTitle);
+            m_lblCurrentPlaying->setToolTip(dispTitle);
+
+            QPixmap art = getMediaArtwork(currentPath);
+            if (!art.isNull()) {
+                m_lblCurrentArtwork->setPixmap(art);
+                m_lblCurrentArtwork->show();
+            } else {
+                m_lblCurrentArtwork->clear();
+                m_lblCurrentArtwork->hide();
+            }
+        }
+    }
+
     if (m_lblNextPlaying) {
-        m_lblNextPlaying->setText(next.isEmpty() ? "" : "Next: " + next);
-        m_lblNextPlaying->setToolTip(next);
+        if (nextPath.isEmpty()) {
+            m_lblNextPlaying->setText("");
+            m_lblNextPlaying->setToolTip("");
+            m_lblNextArtwork->clear();
+            m_lblNextArtwork->hide();
+        } else {
+            QString dispTitle = getMediaDisplayTitle(nextPath);
+            m_lblNextPlaying->setText("Up Next: " + dispTitle);
+            m_lblNextPlaying->setToolTip(dispTitle);
+
+            QPixmap art = getMediaArtwork(nextPath);
+            if (!art.isNull()) {
+                m_lblNextArtwork->setPixmap(art);
+                m_lblNextArtwork->show();
+            } else {
+                m_lblNextArtwork->clear();
+                m_lblNextArtwork->hide();
+            }
+        }
+    }
+
+    // Query chapters asynchronously
+    if (m_sliderProgress) {
+        m_sliderProgress->setChapters({});
+    }
+    if (m_btnChapters) {
+        m_btnChapters->setVisible(false);
+    }
+
+    if (!currentPath.isEmpty()) {
+        QProcess* proc = new QProcess(this);
+        connect(proc, &QProcess::finished, this, [this, proc](int exitCode) {
+            if (exitCode == 0) {
+                QByteArray data = proc->readAllStandardOutput();
+                QJsonDocument doc = QJsonDocument::fromJson(data);
+                if (!doc.isNull() && doc.isObject()) {
+                    QJsonObject root = doc.object();
+                    QJsonArray chaptersArr = root["chapters"].toArray();
+                    QList<ScrubSlider::Chapter> list;
+                    for (const QJsonValue& val : chaptersArr) {
+                        QJsonObject cObj = val.toObject();
+                        ScrubSlider::Chapter ch;
+                        double startTimeSecs = cObj["start_time"].toString().toDouble();
+                        ch.startMs = static_cast<qint64>(startTimeSecs * 1000.0);
+                        
+                        QJsonObject tags = cObj["tags"].toObject();
+                        ch.title = tags["title"].toString();
+                        if (ch.title.isEmpty()) {
+                            ch.title = QString("Chapter %1").arg(cObj["id"].toInt() + 1);
+                        }
+                        list.append(ch);
+                    }
+
+                    if (!list.isEmpty()) {
+                        if (m_sliderProgress) {
+                            m_sliderProgress->setChapters(list);
+                        }
+                        if (m_btnChapters) {
+                            m_btnChapters->setVisible(true);
+                        }
+                    }
+                }
+            }
+            proc->deleteLater();
+        });
+        proc->start("ffprobe", {"-print_format", "json", "-show_chapters", currentPath});
     }
 }
 
@@ -659,6 +855,38 @@ void FullscreenWidget::onHudRepeat() {
     emit repeatRequested();
 }
 
+void FullscreenWidget::onHudChapters() {
+    if (!m_sliderProgress || !m_player) return;
+    
+    QList<ScrubSlider::Chapter> chapters = m_sliderProgress->chapters();
+    if (chapters.isEmpty()) return;
+
+    QMenu menu(this);
+    menu.setStyleSheet(
+        "QMenu { background-color: #1e1e2e; color: #cdd6f4; border: 1px solid #45475a; border-radius: 6px; padding: 4px; }"
+        "QMenu::item { padding: 6px 20px 6px 20px; border-radius: 4px; }"
+        "QMenu::item:selected { background-color: #a6e3a1; color: #11111b; }"
+    );
+
+    for (const auto& ch : chapters) {
+        qint64 secs = ch.startMs / 1000;
+        qint64 mins = secs / 60;
+        secs = secs % 60;
+        QString timeStr = QString("%1:%2").arg(mins, 2, 10, QChar('0')).arg(secs, 2, 10, QChar('0'));
+        
+        QAction* act = menu.addAction(QString("%1 (%2)").arg(ch.title).arg(timeStr));
+        connect(act, &QAction::triggered, this, [this, startMs = ch.startMs]() {
+            m_player->setPosition(startMs);
+        });
+    }
+
+    if (m_btnChapters) {
+        QPoint pos = m_btnChapters->mapToGlobal(QPoint(0, 0));
+        pos.setY(pos.y() - menu.sizeHint().height());
+        menu.exec(pos);
+    }
+}
+
 void FullscreenWidget::setBuiltinPlayerDoubleclickActive(bool active) {
     if (m_btnToggleAutoFS) {
         m_btnToggleAutoFS->blockSignals(true);
@@ -678,10 +906,22 @@ bool FullscreenWidget::eventFilter(QObject* watched, QEvent* event) {
 
 void FullscreenWidget::keyPressEvent(QKeyEvent* event) {
     showHud();
+    
+    QSettings settings("Amifiles", "Amifiles");
+    bool remoteMode = settings.value("preferences/keyboard_remote_mode", false).toBool();
+    
+    QKeySequence pressed(event->modifiers() | event->key());
+    QKeySequence shortcutPlayPause(settings.value("shortcuts/player_play_pause", "Space").toString());
+    QKeySequence shortcutPrev(settings.value("shortcuts/player_prev", "P").toString());
+    QKeySequence shortcutNext(settings.value("shortcuts/player_next", "N").toString());
+    QKeySequence shortcutMute(settings.value("shortcuts/player_mute", "M").toString());
+    QKeySequence shortcutMenu(settings.value("shortcuts/player_menu", "C").toString());
+
     if (event->key() == Qt::Key_Escape || event->key() == Qt::Key_F) {
         emit exitRequested();
-    } else if (event->key() == Qt::Key_Space) {
+    } else if (pressed == shortcutPlayPause) {
         emit playPauseRequested();
+        event->accept();
     } else if (event->key() == Qt::Key_Left) {
         if (m_sliderProgress) {
             int step = (event->modifiers() & Qt::ShiftModifier) ? 1000 : 5000;
@@ -698,6 +938,32 @@ void FullscreenWidget::keyPressEvent(QKeyEvent* event) {
             emit m_sliderProgress->sliderMoved(val);
             event->accept();
         }
+    } else if (remoteMode && (event->key() == Qt::Key_Up || event->key() == Qt::Key_Down)) {
+        if (m_audioOutput) {
+            float vol = m_audioOutput->volume();
+            float nextVol = (event->key() == Qt::Key_Up) ? qMin(1.0f, vol + 0.05f) : qMax(0.0f, vol - 0.05f);
+            m_audioOutput->setVolume(nextVol);
+            if (m_sliderVolume) {
+                m_sliderVolume->setValue(qRound(nextVol * 100.0f));
+            }
+            event->accept();
+        }
+    } else if (pressed == shortcutMute) {
+        if (m_audioOutput) {
+            m_audioOutput->setMuted(!m_audioOutput->isMuted());
+            event->accept();
+        }
+    } else if (pressed == shortcutNext) {
+        emit nextRequested();
+        event->accept();
+    } else if (pressed == shortcutPrev || event->key() == Qt::Key_B) {
+        emit prevRequested();
+        event->accept();
+    } else if (pressed == shortcutMenu || event->key() == Qt::Key_Menu) {
+        QPoint center = rect().center();
+        QContextMenuEvent contextEvent(QContextMenuEvent::Keyboard, center, mapToGlobal(center));
+        contextMenuEvent(&contextEvent);
+        event->accept();
     } else {
         QWidget::keyPressEvent(event);
     }
@@ -718,14 +984,64 @@ void FullscreenWidget::contextMenuEvent(QContextMenuEvent* event) {
     
     QAction* actExit = menu.addAction("Exit Fullscreen (Esc)");
     menu.addSeparator();
+    
+    QAction* actResume = nullptr;
+    QAction* actRestart = nullptr;
+    qint64 savedPos = 0;
+    if (!m_currentTrackPath.isEmpty()) {
+        QSettings settings("Amifiles", "Amifiles");
+        savedPos = settings.value(QString("watched_progress/%1").arg(m_currentTrackPath), 0).toLongLong();
+        if (savedPos > 5000) {
+            qint64 secs = savedPos / 1000;
+            qint64 mins = secs / 60;
+            secs = secs % 60;
+            QString timeStr = QString("%1:%2").arg(mins, 2, 10, QChar('0')).arg(secs, 2, 10, QChar('0'));
+            
+            actResume = menu.addAction(QString("⏯ Resume Playback from %1").arg(timeStr));
+            actRestart = menu.addAction("🔄 Restart Episode (Play from Beginning)");
+            menu.addSeparator();
+        }
+    }
+
     QAction* actPlayPause = menu.addAction("Play / Pause (Space)");
     QAction* actStop = menu.addAction("Stop");
-    QAction* actPrev = menu.addAction("Previous Track");
-    QAction* actNext = menu.addAction("Next Track");
+    QAction* actPrev = menu.addAction("Previous Track (P/B)");
+    QAction* actNext = menu.addAction("Next Track (N)");
+    
+    QMenu* submenuChapters = nullptr;
+    if (m_sliderProgress) {
+        QList<ScrubSlider::Chapter> chapters = m_sliderProgress->chapters();
+        if (!chapters.isEmpty()) {
+            menu.addSeparator();
+            submenuChapters = menu.addMenu("📖 Chapters");
+            submenuChapters->setStyleSheet(menu.styleSheet());
+            for (const auto& ch : chapters) {
+                qint64 secs = ch.startMs / 1000;
+                qint64 mins = secs / 60;
+                secs = secs % 60;
+                QString timeStr = QString("%1:%2").arg(mins, 2, 10, QChar('0')).arg(secs, 2, 10, QChar('0'));
+                
+                QAction* chAct = submenuChapters->addAction(QString("%1 (%2)").arg(ch.title).arg(timeStr));
+                connect(chAct, &QAction::triggered, this, [this, start = ch.startMs]() {
+                    if (m_player) m_player->setPosition(start);
+                });
+            }
+        }
+    }
     
     QAction* selected = menu.exec(event->globalPos());
     if (selected == actExit) {
         emit exitRequested();
+    } else if (selected == actResume) {
+        if (m_player) {
+            m_player->setPosition(savedPos);
+            m_player->play();
+        }
+    } else if (selected == actRestart) {
+        if (m_player) {
+            m_player->setPosition(0);
+            m_player->play();
+        }
     } else if (selected == actPlayPause) {
         emit playPauseRequested();
     } else if (selected == actStop) {
@@ -2517,16 +2833,16 @@ void PreviewPanel::toggleFullscreen() {
     m_fullscreenWidget->setMediaState(isVideo, m_player, m_audioOutput);
     m_fullscreenWidget->updateProgress(m_player->position(), m_player->duration());
 
-    QString currentName = QFileInfo(activePath).fileName();
-    QString nextName;
+    QString currentPath = activePath;
+    QString nextPath;
     if (!m_playlist.isEmpty() && m_playlistIndex >= 0 && m_playlistIndex < m_playlist.size()) {
         if (m_playlistIndex < m_playlist.size() - 1) {
-            nextName = QFileInfo(m_playlist[m_playlistIndex + 1]).fileName();
+            nextPath = m_playlist[m_playlistIndex + 1];
         } else if (m_repeatMode == 2) {
-            nextName = QFileInfo(m_playlist[0]).fileName();
+            nextPath = m_playlist[0];
         }
     }
-    m_fullscreenWidget->setTrackNames(currentName, nextName);
+    m_fullscreenWidget->setTrackNames(currentPath, nextPath);
 
     m_fullscreenWidget->showFullScreen();
     m_fullscreenWidget->setFocus();
@@ -2564,14 +2880,22 @@ void PreviewPanel::exitFullscreen() {
     emit fullscreenExited();
 }
 
-static void clearLayoutOfFullscreen(QLayout* layout) {
+static void clearLayoutOfFullscreen(QLayout* layout, QWidget* hudWidget) {
     if (!layout) return;
     QLayoutItem* item;
+    QList<QLayoutItem*> itemsToKeep;
     while ((item = layout->takeAt(0))) {
         if (item->widget()) {
+            if (item->widget() == hudWidget) {
+                itemsToKeep.append(item);
+                continue;
+            }
             item->widget()->deleteLater();
         }
         delete item;
+    }
+    for (QLayoutItem* kept : itemsToKeep) {
+        delete kept;
     }
 }
 
@@ -2591,7 +2915,7 @@ void PreviewPanel::updateFullscreenTrack() {
 
     QVBoxLayout* layout = qobject_cast<QVBoxLayout*>(m_fullscreenWidget->layout());
     if (layout) {
-        clearLayoutOfFullscreen(layout);
+        clearLayoutOfFullscreen(layout, m_fullscreenWidget->hudWidget());
         layout->setSpacing(0);
     } else {
         layout = new QVBoxLayout(m_fullscreenWidget);
@@ -2681,16 +3005,16 @@ void PreviewPanel::updateFullscreenTrack() {
     m_fullscreenWidget->setMediaState(isVideo, m_player, m_audioOutput);
     m_fullscreenWidget->updateProgress(m_player->position(), m_player->duration());
 
-    QString currentName = QFileInfo(activePath).fileName();
-    QString nextName;
+    QString currentPath = activePath;
+    QString nextPath;
     if (!m_playlist.isEmpty() && m_playlistIndex >= 0 && m_playlistIndex < m_playlist.size()) {
         if (m_playlistIndex < m_playlist.size() - 1) {
-            nextName = QFileInfo(m_playlist[m_playlistIndex + 1]).fileName();
+            nextPath = m_playlist[m_playlistIndex + 1];
         } else if (m_repeatMode == 2) {
-            nextName = QFileInfo(m_playlist[0]).fileName();
+            nextPath = m_playlist[0];
         }
     }
-    m_fullscreenWidget->setTrackNames(currentName, nextName);
+    m_fullscreenWidget->setTrackNames(currentPath, nextPath);
 }
 
 #include <QRandomGenerator>

@@ -19,6 +19,42 @@
 #define M_PI 3.14159265358979323846
 #endif
 
+class ChecksumRunnable : public QRunnable {
+public:
+    ChecksumRunnable(const QString& filePath, CustomFileSystemModel* model)
+        : m_filePath(filePath), m_model(model) {
+        setAutoDelete(true);
+    }
+    
+    void run() override {
+        QFile file(m_filePath);
+        if (!file.open(QIODevice::ReadOnly)) {
+            QMetaObject::invokeMethod(m_model, "onChecksumGenerated",
+                                      Qt::QueuedConnection,
+                                      Q_ARG(QString, m_filePath),
+                                      Q_ARG(QString, "Error"));
+            return;
+        }
+        
+        QCryptographicHash hash(QCryptographicHash::Md5);
+        if (hash.addData(&file)) {
+            QString result = hash.result().toHex().toUpper();
+            QMetaObject::invokeMethod(m_model, "onChecksumGenerated",
+                                      Qt::QueuedConnection,
+                                      Q_ARG(QString, m_filePath),
+                                      Q_ARG(QString, result));
+        } else {
+            QMetaObject::invokeMethod(m_model, "onChecksumGenerated",
+                                      Qt::QueuedConnection,
+                                      Q_ARG(QString, m_filePath),
+                                      Q_ARG(QString, "Error"));
+        }
+    }
+private:
+    QString m_filePath;
+    CustomFileSystemModel* m_model;
+};
+
 CustomFileSystemModel::CustomFileSystemModel(QObject* parent)
     : QFileSystemModel(parent) {
     loadColumnLayout();
@@ -166,6 +202,19 @@ QVariant CustomFileSystemModel::data(const QModelIndex& index, int role) const {
                     if (!meta.imageFormat.isEmpty()) return meta.imageFormat;
                     return QVariant();
                 }
+                if (k == "permissions" || k == "perms") return meta.permissions;
+                if (k == "checksum" || k == "md5" || k == "md5 checksum") {
+                    if (fileInfo(index).isDir()) return QVariant();
+                    if (m_checksumCache.contains(filePath)) {
+                        return m_checksumCache[filePath];
+                    }
+                    if (!m_pendingChecksums.contains(filePath)) {
+                        m_pendingChecksums.insert(filePath);
+                        ChecksumRunnable* runnable = new ChecksumRunnable(filePath, const_cast<CustomFileSystemModel*>(this));
+                        QThreadPool::globalInstance()->start(runnable);
+                    }
+                    return "Calculating...";
+                }
                 return QVariant();
             } else if (colDef.type == "Annotation") {
                 QString k = colDef.key.toLower();
@@ -188,6 +237,22 @@ QVariant CustomFileSystemModel::data(const QModelIndex& index, int role) const {
                 if (colDef.key == "Size") return QFileSystemModel::data(index, role);
                 if (colDef.key == "Type") return QFileSystemModel::data(index, role);
                 if (colDef.key == "Date") return QFileSystemModel::data(index, role);
+                if (colDef.key == "Permissions") {
+                    FileMetadata meta = getMetadata(filePath);
+                    return meta.permissions;
+                }
+                if (colDef.key == "Checksum" || colDef.key == "MD5" || colDef.key == "MD5 Checksum") {
+                    if (fileInfo(index).isDir()) return QVariant();
+                    if (m_checksumCache.contains(filePath)) {
+                        return m_checksumCache[filePath];
+                    }
+                    if (!m_pendingChecksums.contains(filePath)) {
+                        m_pendingChecksums.insert(filePath);
+                        ChecksumRunnable* runnable = new ChecksumRunnable(filePath, const_cast<CustomFileSystemModel*>(this));
+                        QThreadPool::globalInstance()->start(runnable);
+                    }
+                    return "Calculating...";
+                }
             }
         } else if (role == Qt::DecorationRole) {
             if (colDef.type == "EmbeddedArtwork") {
@@ -556,6 +621,18 @@ void CustomFileSystemModel::onThumbnailGenerated(const QString& filePath, const 
     QModelIndex idx = index(filePath);
     if (idx.isValid()) {
         emit dataChanged(idx, idx, {Qt::DecorationRole});
+    }
+}
+
+void CustomFileSystemModel::onChecksumGenerated(const QString& filePath, const QString& md5) {
+    m_pendingChecksums.remove(filePath);
+    m_checksumCache[filePath] = md5;
+
+    QModelIndex idx = index(filePath);
+    if (idx.isValid()) {
+        QModelIndex leftIdx = index(idx.row(), 0, idx.parent());
+        QModelIndex rightIdx = index(idx.row(), columnCount() - 1, idx.parent());
+        emit dataChanged(leftIdx, rightIdx, {Qt::DisplayRole});
     }
 }
 

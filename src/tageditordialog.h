@@ -32,10 +32,14 @@ private:
     bool writeMp3Tags(const QString& filePath, const QString& title, const QString& artist, const QString& album, const QString& genre, const QString& year,
                       const QString& albumArtist, const QString& discNumber, bool compilation,
                       bool stripArtwork = false, const QByteArray& newArtworkData = QByteArray(), const QString& mimeType = "image/jpeg",
-                      const QString& trackNumber = QString());
+                      const QString& trackNumber = QString(), const QString& trackTotal = QString(),
+                      const QString& discTotal = QString(), const QString& composer = QString(),
+                      const QString& bpm = QString(), const QString& comment = QString());
     bool writeFlacTags(const QString& filePath, const QString& title, const QString& artist, const QString& album, const QString& genre, const QString& year,
                        const QString& albumArtist, const QString& discNumber, bool compilation,
-                       const QString& trackNumber = QString(), const QString& trackTotal = QString());
+                       const QString& trackNumber = QString(), const QString& trackTotal = QString(),
+                       const QString& discTotal = QString(), const QString& composer = QString(),
+                       const QString& bpm = QString(), const QString& comment = QString());
     bool stripFlacArtwork(const QString& filePath);
     bool writeFlacArtwork(const QString& filePath, const QByteArray& imgData, const QString& mimeType = "image/jpeg");
     bool writeExifTags(const QString& filePath, const QString& camera, const QString& dateTaken);
@@ -49,6 +53,12 @@ private:
     QLineEdit* m_editYear = nullptr;
     QLineEdit* m_editAlbumArtist = nullptr;
     QLineEdit* m_editDiscNumber = nullptr;
+    QLineEdit* m_editDiscTotal = nullptr;
+    QLineEdit* m_editTrackNumber = nullptr;
+    QLineEdit* m_editTrackTotal = nullptr;
+    QLineEdit* m_editComposer = nullptr;
+    QLineEdit* m_editBpm = nullptr;
+    QLineEdit* m_editComment = nullptr;
     class QCheckBox* m_chkCompilation = nullptr;
 
     // Artwork controls

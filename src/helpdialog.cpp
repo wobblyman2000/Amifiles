@@ -640,6 +640,12 @@ void HelpDialog::onSectionChanged(int index) {
                     "<tr><td><b>Sync Scroll Toggle</b></td><td><code>Ctrl+Shift+S</code></td><td>Link vertical scrollbars of active panels</td></tr>"
                     "<tr><td><b>Theme Studio</b></td><td><code>Ctrl+Shift+T</code></td><td>Open Catppuccin Theme Studio &amp; Customizer</td></tr>"
                     "<tr><td><b>Show Properties</b></td><td><code>Alt+Enter</code></td><td>Show properties for selected item</td></tr>"
+                    "<tr><td><b>Play Collection</b></td><td><code>Ctrl+Space</code></td><td>Play selected season/album recursively (Customizable)</td></tr>"
+                    "<tr><td><b>Open Info Sheet</b></td><td><code>I</code></td><td>Show rich media details sheet (Customizable)</td></tr>"
+                    "<tr><td><b>Scrape Metadata</b></td><td><code>M</code></td><td>Scrape online movie/TV info (Customizable)</td></tr>"
+                    "<tr><td><b>Apply DVD Overlay</b></td><td><code>D</code></td><td>Auto-rename folder.jpg for case overlay (Customizable)</td></tr>"
+                    "<tr><td><b>Toggle Playlist Drawer</b></td><td><code>P</code></td><td>Toggle tracks playlist drawer (Customizable)</td></tr>"
+                    "<tr><td><b>Navigate Up/Back</b></td><td><code>Backspace</code></td><td>Exit directory / go up (Customizable)</td></tr>"
                     "</table>";
             break;
 
@@ -647,7 +653,8 @@ void HelpDialog::onSectionChanged(int index) {
             html += "<h2>9. Settings &amp; Preferences</h2>"
                     "<p>All customization option panels are centralized inside the <b>Edit -&gt; Settings</b> menu, divided into logical workspaces:</p>"
                     "<ul>"
-                    "<li><b>Preferences:</b> Configure general panel layouts, startup paths, default system text editor, and detailed tooltips options.</li>"
+                    "<li><b>Preferences:</b> Configure general panel layouts, startup paths, default system text editor, remote control navigation mode (Flirc USB/keyboard toggle), and detailed tooltips options.</li>"
+                    "<li><b>Keyboard &amp; Remote Shortcuts:</b> Complete control over hotkey assignments. Configure custom keys and combinations (using native key recorders) for theater views navigation and media player commands. Supports remote controls (like Flirc USB) with convenient fallbacks (such as <code>B</code> for back/previous, and <code>Menu</code> for contextual controls).</li>"
                     "<li><b>Layouts &amp; Rules:</b> Load/save workspace window geometry arrangements, customize folder-specific rule triggers, or trigger layout resets.</li>"
                     "<li><b>Themes &amp; Styling:</b> Launch Catppuccin Theme Studio or configure custom file age-coloring rules and emoji markers.</li>"
                     "<li><b>Toolbars &amp; Hotkeys:</b> Rebuild menu layouts, customize toolbar button arrays, and map custom keyboard shortcuts.</li>"

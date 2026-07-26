@@ -62,6 +62,21 @@ private:
     QCheckBox* m_chkAutoFullscreen = nullptr;
     QCheckBox* m_chkAutoPlayThemeMusic = nullptr;
     QCheckBox* m_chkRememberVideoProgress = nullptr;
+    QCheckBox* m_chkKeyboardRemoteMode = nullptr;
+    
+    // Shortcuts Mapping
+    class QKeySequenceEdit* m_keyPlayCollection = nullptr;
+    class QKeySequenceEdit* m_keyInfoSheet = nullptr;
+    class QKeySequenceEdit* m_keyScrapeMeta = nullptr;
+    class QKeySequenceEdit* m_keyApplyCasing = nullptr;
+    class QKeySequenceEdit* m_keyToggleDrawer = nullptr;
+    class QKeySequenceEdit* m_keyNavigateUp = nullptr;
+
+    class QKeySequenceEdit* m_keyPlayerPlayPause = nullptr;
+    class QKeySequenceEdit* m_keyPlayerPrev = nullptr;
+    class QKeySequenceEdit* m_keyPlayerNext = nullptr;
+    class QKeySequenceEdit* m_keyPlayerMute = nullptr;
+    class QKeySequenceEdit* m_keyPlayerMenu = nullptr;
 
     // Services & API keys
     QLineEdit* m_editTmdbApiKey = nullptr;
