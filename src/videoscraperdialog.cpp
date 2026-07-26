@@ -433,11 +433,13 @@ void VideoScraperDialog::onApplyClicked() {
 
         // 3. Rename File/Folder
         if (m_chkRename->isChecked()) {
-            QString sanitizedTitle = res.title;
-            // Remove invalid filename characters
-            sanitizedTitle.remove(QRegularExpression(R"([\\\/\:\*\?\"\<\>\|])"));
-            QString newBaseName = QString("%1 (%2)").arg(sanitizedTitle).arg(res.year);
-            currentPath = renameTarget(currentPath, newBaseName);
+            if (res.type != "TV Show" || pathInfo.isDir()) {
+                QString sanitizedTitle = res.title;
+                // Remove invalid filename characters
+                sanitizedTitle.remove(QRegularExpression(R"([\\\/\:\*\?\"\<\>\|])"));
+                QString newBaseName = QString("%1 (%2)").arg(sanitizedTitle).arg(res.year);
+                currentPath = renameTarget(currentPath, newBaseName);
+            }
         }
 
         resolvedPaths.append(currentPath);
@@ -940,6 +942,9 @@ QList<EpisodeInfo> VideoScraperDialog::fetchEpisodesList(const QString& showId) 
 void VideoScraperDialog::processTVShowEpisodes(const QString& targetFolder, const QString& showTitle, const QList<EpisodeInfo>& episodes) {
     QDir dir(targetFolder);
     
+    QString sanitizedShowTitle = showTitle;
+    sanitizedShowTitle.remove(QRegularExpression(R"([\\\/\:\*\?\"\<\>\|])"));
+    
     // Scan recursively for video files to match and prepare tasks
     QDirIterator it(targetFolder, { "*.mp4", "*.mkv", "*.avi", "*.mov", "*.webm", "*.flv", "*.wmv", "*.m4v", "*.mpg", "*.mpeg" }, QDir::Files, QDirIterator::Subdirectories);
     QList<FileRenameTask> tasks;
@@ -958,7 +963,7 @@ void VideoScraperDialog::processTVShowEpisodes(const QString& targetFolder, cons
                     sanitizedEpTitle.remove(QRegularExpression(R"([\\\/\:\*\?\"\<\>\|])"));
 
                     QString newFileName = QString("%1 - %2%3 - %4.%5")
-                        .arg(showTitle)
+                        .arg(sanitizedShowTitle)
                         .arg(sStr)
                         .arg(eStr)
                         .arg(sanitizedEpTitle)
@@ -1022,6 +1027,7 @@ void VideoScraperDialog::processTVShowEpisodes(const QString& targetFolder, cons
             }
 
             int renamedCount = 0;
+            QStringList failedRenames;
             for (const auto& task : confirmed) {
                 QString finalDestPath;
                 if (useSeasonFolders) {
@@ -1036,8 +1042,18 @@ void VideoScraperDialog::processTVShowEpisodes(const QString& targetFolder, cons
 
                 if (task.oldPath != finalDestPath) {
                     if (!QFile::exists(finalDestPath)) {
-                        QFile::rename(task.oldPath, finalDestPath);
-                        renamedCount++;
+                        if (QFile::rename(task.oldPath, finalDestPath)) {
+                            renamedCount++;
+                        } else {
+                            failedRenames.append(QString("%1 -> %2 (Error: %3)")
+                                .arg(QFileInfo(task.oldPath).fileName())
+                                .arg(QFileInfo(finalDestPath).fileName())
+                                .arg(QFile(task.oldPath).errorString()));
+                        }
+                    } else {
+                        failedRenames.append(QString("%1 -> %2 (Error: Destination file already exists)")
+                            .arg(QFileInfo(task.oldPath).fileName())
+                            .arg(QFileInfo(finalDestPath).fileName()));
                     }
                 }
 
@@ -1048,6 +1064,10 @@ void VideoScraperDialog::processTVShowEpisodes(const QString& targetFolder, cons
 
             if (renamedCount > 0) {
                 QMessageBox::information(this, "Renaming Complete", QString("Successfully renamed and organized %1 episodes.").arg(renamedCount));
+            }
+            if (!failedRenames.isEmpty()) {
+                QMessageBox::warning(this, "Rename Failures",
+                    "The following files could not be renamed:\n\n" + failedRenames.join("\n"));
             }
         }
     } else {
@@ -1152,6 +1172,7 @@ void RenamePreviewDialog::updateTable() {
 
         // Checkbox item
         QTableWidgetItem* checkItem = new QTableWidgetItem();
+        checkItem->setFlags(checkItem->flags() | Qt::ItemIsUserCheckable);
         checkItem->setCheckState(Qt::Checked);
         m_table->setItem(i, 0, checkItem);
 
