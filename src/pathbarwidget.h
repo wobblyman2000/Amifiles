@@ -3,10 +3,7 @@
 
 #include <QWidget>
 #include <QLineEdit>
-#include <QHBoxLayout>
-#include <QPushButton>
-#include <QScrollArea>
-#include <QStackedWidget>
+#include <QListWidget>
 
 class PathBarWidget : public QWidget {
     Q_OBJECT
@@ -23,25 +20,21 @@ signals:
     void pathEntered(const QString& path);
 
 protected:
-    void mousePressEvent(QMouseEvent* event) override;
+    bool eventFilter(QObject* watched, QEvent* event) override;
+    void focusOutEvent(QFocusEvent* event) override;
+    void hideEvent(QHideEvent* event) override;
 
 private slots:
-    void onEditReturnPressed();
-    void onSegmentClicked(const QString& targetPath);
-    void onDropdownClicked(const QString& parentPath, QWidget* anchorWidget);
+    void onTextChanged(const QString& text);
+    void onPopupItemClicked(QListWidgetItem* item);
 
 private:
-    void rebuildBreadcrumbs();
-    void showEditMode();
-    void showBreadcrumbMode();
+    void updatePopupList();
 
     QString m_currentPath;
-    QStackedWidget* m_stack = nullptr;
-    QScrollArea* m_scrollArea = nullptr;
-    QWidget* m_breadcrumbPage = nullptr;
-    QHBoxLayout* m_breadcrumbLayout = nullptr;
     QLineEdit* m_editPath = nullptr;
-    bool m_isEditing = false;
+    QListWidget* m_popupList = nullptr;
+    bool m_blockPopup = false;
 };
 
 #endif // PATHBARWIDGET_H
