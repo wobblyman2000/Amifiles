@@ -283,7 +283,7 @@ void FilePanel::setupUI() {
     // Central Tree View
     m_treeView = new QTreeView(this);
     m_treeView->setMinimumHeight(50);
-    m_treeView->setEditTriggers(QAbstractItemView::EditKeyPressed);
+    m_treeView->setEditTriggers(QAbstractItemView::EditKeyPressed | QAbstractItemView::SelectedClicked);
     m_treeView->setItemDelegate(new RenameItemDelegate(m_treeView));
     m_treeView->setAlternatingRowColors(true);
     m_treeView->setSortingEnabled(true);
@@ -300,7 +300,7 @@ void FilePanel::setupUI() {
     // Icon Grid List View
     m_listView = new QListView(this);
     m_listView->setMinimumHeight(50);
-    m_listView->setEditTriggers(QAbstractItemView::EditKeyPressed);
+    m_listView->setEditTriggers(QAbstractItemView::EditKeyPressed | QAbstractItemView::SelectedClicked);
     m_defaultDelegate = new RenameItemDelegate(m_listView);
     m_listView->setItemDelegate(m_defaultDelegate);
     m_cardDelegate = new CardViewDelegate(m_listView);
@@ -381,7 +381,7 @@ void FilePanel::setupUI() {
     m_dashboardWidget = new DiskDashboardWidget(this);
     m_theaterListView = new TheaterListView(this);
     m_theaterListView->setMinimumHeight(50);
-    m_theaterListView->setEditTriggers(QAbstractItemView::EditKeyPressed);
+    m_theaterListView->setEditTriggers(QAbstractItemView::EditKeyPressed | QAbstractItemView::SelectedClicked);
     m_theaterListView->setContextMenuPolicy(Qt::CustomContextMenu);
     m_theaterDelegate = new TheaterViewDelegate(m_theaterListView);
     m_theaterListView->setItemDelegate(m_theaterDelegate);
@@ -2037,49 +2037,7 @@ void FilePanel::onDoubleClicked(const QModelIndex& index) {
         path = m_fileModel->filePath(srcIndex);
     }
 
-    bool isDir = QFileInfo(path).isDir();
-    if (isDir) {
-        onDoubleClickedPath(path);
-    } else {
-        QAbstractItemView* activeView = nullptr;
-        int mode = viewModeIndex();
-        if (mode == 0) activeView = m_treeView;
-        else if (mode == 1) activeView = m_listView;
-        else if (mode == 4) activeView = m_theaterListView;
-
-        bool clickedOnText = true;
-        if (activeView) {
-            QPoint pos = activeView->viewport()->mapFromGlobal(QCursor::pos());
-            QRect rect = activeView->visualRect(index);
-            
-            // Differentiate click location (icon vs text) based on view mode
-            if (mode == 0) { // Tree View (Details)
-                if (pos.x() < rect.x() + 32) {
-                    clickedOnText = false;
-                }
-            } else if (mode == 1) { // List View (Grid/Cards)
-                if (rect.height() == 68) { // Card View
-                    if (pos.x() < rect.x() + 60) {
-                        clickedOnText = false;
-                    }
-                } else { // Standard list/grid item
-                    if (pos.x() < rect.x() + 24) {
-                        clickedOnText = false;
-                    }
-                }
-            } else if (mode == 4) { // Theater List View
-                if (pos.x() < rect.x() + 80) {
-                    clickedOnText = false;
-                }
-            }
-        }
-
-        if (activeView && clickedOnText) {
-            activeView->edit(index);
-        } else {
-            onDoubleClickedPath(path);
-        }
-    }
+    onDoubleClickedPath(path);
 }
 
 struct CinemaMetadata {
