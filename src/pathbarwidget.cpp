@@ -9,6 +9,8 @@
 #include <QMouseEvent>
 #include <QStyle>
 #include <QApplication>
+#include <QScrollBar>
+#include <QTimer>
 
 PathBarWidget::PathBarWidget(QWidget* parent) : QWidget(parent) {
     setStyleSheet(
@@ -22,14 +24,22 @@ PathBarWidget::PathBarWidget(QWidget* parent) : QWidget(parent) {
 
     m_stack = new QStackedWidget(this);
 
-    // Page 0: Breadcrumb Buttons Container
-    m_breadcrumbPage = new QWidget(this);
+    // Page 0: Breadcrumb Buttons Container wrapped in a QScrollArea
+    m_scrollArea = new QScrollArea(this);
+    m_scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_scrollArea->setWidgetResizable(true);
+    m_scrollArea->setFrameShape(QFrame::NoFrame);
+    m_scrollArea->setStyleSheet("background: transparent;");
+
+    m_breadcrumbPage = new QWidget(m_scrollArea);
     m_breadcrumbPage->setStyleSheet("background: transparent;");
     m_breadcrumbLayout = new QHBoxLayout(m_breadcrumbPage);
     m_breadcrumbLayout->setContentsMargins(4, 0, 4, 0);
     m_breadcrumbLayout->setSpacing(2);
 
-    m_stack->addWidget(m_breadcrumbPage);
+    m_scrollArea->setWidget(m_breadcrumbPage);
+    m_stack->addWidget(m_scrollArea);
 
     // Page 1: Manual Path Entry LineEdit
     m_editPath = new QLineEdit(this);
@@ -138,6 +148,14 @@ void PathBarWidget::rebuildBreadcrumbs() {
     }
 
     m_breadcrumbLayout->addStretch(1);
+
+    if (m_scrollArea) {
+        QTimer::singleShot(20, this, [this]() {
+            if (m_scrollArea && m_scrollArea->horizontalScrollBar()) {
+                m_scrollArea->horizontalScrollBar()->setValue(m_scrollArea->horizontalScrollBar()->maximum());
+            }
+        });
+    }
 }
 
 void PathBarWidget::onSegmentClicked(const QString& targetPath) {

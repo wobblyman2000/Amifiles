@@ -37,6 +37,7 @@ private:
 
     QString m_currentPath;
     QStackedWidget* m_stack = nullptr;
+    QScrollArea* m_scrollArea = nullptr;
     QWidget* m_breadcrumbPage = nullptr;
     QHBoxLayout* m_breadcrumbLayout = nullptr;
     QLineEdit* m_editPath = nullptr;
