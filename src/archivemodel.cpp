@@ -2,6 +2,7 @@
 #include <QProcess>
 #include <QFileInfo>
 #include <QUrl>
+#include <QAbstractProxyModel>
 #include <QRegularExpression>
 #include <QDir>
 #include <QFile>
@@ -412,18 +413,51 @@ Qt::ItemFlags ArchiveModel::flags(const QModelIndex& index) const {
 }
 
 bool ArchiveModel::isDir(const QModelIndex& index) const {
-    if (!index.isValid() || index.row() >= m_activeEntries.size()) return false;
-    return m_activeEntries[index.row()].isDir;
+    if (!index.isValid()) return false;
+    QModelIndex srcIdx = index;
+    const QAbstractItemModel* m = index.model();
+    while (m && m != this) {
+        if (const QAbstractProxyModel* proxy = qobject_cast<const QAbstractProxyModel*>(m)) {
+            srcIdx = proxy->mapToSource(srcIdx);
+            m = proxy->sourceModel();
+        } else {
+            break;
+        }
+    }
+    if (m != this || srcIdx.row() >= m_activeEntries.size()) return false;
+    return m_activeEntries[srcIdx.row()].isDir;
 }
 
 QString ArchiveModel::entryPath(const QModelIndex& index) const {
-    if (!index.isValid() || index.row() >= m_activeEntries.size()) return "";
-    return m_activeEntries[index.row()].fullVirtualPath;
+    if (!index.isValid()) return "";
+    QModelIndex srcIdx = index;
+    const QAbstractItemModel* m = index.model();
+    while (m && m != this) {
+        if (const QAbstractProxyModel* proxy = qobject_cast<const QAbstractProxyModel*>(m)) {
+            srcIdx = proxy->mapToSource(srcIdx);
+            m = proxy->sourceModel();
+        } else {
+            break;
+        }
+    }
+    if (m != this || srcIdx.row() >= m_activeEntries.size()) return "";
+    return m_activeEntries[srcIdx.row()].fullVirtualPath;
 }
 
 QString ArchiveModel::entryName(const QModelIndex& index) const {
-    if (!index.isValid() || index.row() >= m_activeEntries.size()) return "";
-    return m_activeEntries[index.row()].name;
+    if (!index.isValid()) return "";
+    QModelIndex srcIdx = index;
+    const QAbstractItemModel* m = index.model();
+    while (m && m != this) {
+        if (const QAbstractProxyModel* proxy = qobject_cast<const QAbstractProxyModel*>(m)) {
+            srcIdx = proxy->mapToSource(srcIdx);
+            m = proxy->sourceModel();
+        } else {
+            break;
+        }
+    }
+    if (m != this || srcIdx.row() >= m_activeEntries.size()) return "";
+    return m_activeEntries[srcIdx.row()].name;
 }
 
 bool ArchiveModel::extractFileToPath(const QString& virtualFilePath, const QString& localDestPath) {
@@ -1009,10 +1043,20 @@ QString ArchiveModel::extractDirRecursively(const QString& virtualDirPath) {
 QMimeData* ArchiveModel::mimeData(const QModelIndexList& indexes) const {
     QMimeData* mime = new QMimeData();
     QList<QUrl> urls;
-    for (const QModelIndex& idx : indexes) {
-        if (idx.column() == 0 && idx.isValid()) {
-            QString vPath = entryPath(idx);
-            if (!isDir(idx)) {
+    for (const QModelIndex& index : indexes) {
+        QModelIndex srcIdx = index;
+        const QAbstractItemModel* m = index.model();
+        while (m && m != this) {
+            if (const QAbstractProxyModel* proxy = qobject_cast<const QAbstractProxyModel*>(m)) {
+                srcIdx = proxy->mapToSource(srcIdx);
+                m = proxy->sourceModel();
+            } else {
+                break;
+            }
+        }
+        if (m == this && srcIdx.column() == 0 && srcIdx.isValid()) {
+            QString vPath = entryPath(srcIdx);
+            if (!isDir(srcIdx)) {
                 QString tempPath = const_cast<ArchiveModel*>(this)->extractFile(vPath);
                 if (!tempPath.isEmpty()) {
                     urls.append(QUrl::fromLocalFile(tempPath));
@@ -1038,5 +1082,5 @@ QStringList ArchiveModel::mimeTypes() const {
 }
 
 Qt::DropActions ArchiveModel::supportedDragActions() const {
-    return Qt::CopyAction | Qt::MoveAction;
+    return Qt::CopyAction;
 }
