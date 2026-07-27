@@ -7,6 +7,28 @@
 #include <QTimer>
 #include <QFont>
 #include <QCursor>
+#include <QFocusEvent>
+
+class RenameLineEdit : public QLineEdit {
+    Q_OBJECT
+public:
+    explicit RenameLineEdit(QWidget* parent = nullptr) : QLineEdit(parent) {}
+protected:
+    void focusInEvent(QFocusEvent* event) override {
+        QLineEdit::focusInEvent(event);
+        // Pre-select only the base name (up to the last dot), keeping extension unselected.
+        // We use a small delay (50ms) to ensure it runs after the view's default selectAll() call.
+        QTimer::singleShot(50, this, [this]() {
+            QString txt = this->text();
+            int dotIdx = txt.lastIndexOf('.');
+            if (dotIdx > 0) {
+                this->setSelection(0, dotIdx);
+            } else {
+                this->selectAll();
+            }
+        });
+    }
+};
 
 class RenameItemDelegate : public QStyledItemDelegate {
     Q_OBJECT
@@ -39,42 +61,24 @@ public:
             }
         }
 
-        QWidget* editor = QStyledItemDelegate::createEditor(parent, option, index);
-        QLineEdit* lineEdit = qobject_cast<QLineEdit*>(editor);
-        if (lineEdit) {
-            // Apply premium styling to the inline editor to remove the ugly large grey box
-            lineEdit->setStyleSheet(
-                "QLineEdit {"
-                "  background-color: #313244;"
-                "  color: #cdd6f4;"
-                "  border: 1px solid #89b4fa;"
-                "  border-radius: 4px;"
-                "  padding: 1px 2px;"
-                "}"
-            );
-            
-            // Match the font size of the parent list/tree view
-            QVariant fontVar = index.data(Qt::FontRole);
-            if (fontVar.isValid()) {
-                lineEdit->setFont(fontVar.value<QFont>());
-            } else {
-                lineEdit->setFont(parent->font());
-            }
+        // Create our custom RenameLineEdit instead of the default QLineEdit
+        RenameLineEdit* lineEdit = new RenameLineEdit(parent);
+        
+        // Apply option font (exact rendering font size of the item)
+        lineEdit->setFont(option.font);
 
-            // Pre-select only the base name, keeping extension unselected
-            QString text = lineEdit->text();
-            QFileInfo info(text);
-            QString ext = info.suffix();
-            if (!ext.isEmpty()) {
-                int baseLength = text.length() - ext.length() - 1; // -1 for dot
-                if (baseLength > 0) {
-                    QTimer::singleShot(0, lineEdit, [lineEdit, baseLength]() {
-                        lineEdit->setSelection(0, baseLength);
-                    });
-                }
-            }
-        }
-        return editor;
+        // Apply premium styling to the inline editor to remove the ugly large grey box
+        lineEdit->setStyleSheet(
+            "QLineEdit {"
+            "  background-color: #313244;"
+            "  color: #cdd6f4;"
+            "  border: 1px solid #89b4fa;"
+            "  border-radius: 4px;"
+            "  padding: 1px 2px;"
+            "}"
+        );
+        
+        return lineEdit;
     }
 
     void setModelData(QWidget* editor, QAbstractItemModel* model, const QModelIndex& index) const override {
