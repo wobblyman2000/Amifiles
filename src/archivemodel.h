@@ -6,6 +6,7 @@
 #include <QStringList>
 #include <QList>
 #include <QIcon>
+#include <QMimeData>
 
 struct ArchiveFileEntry {
     QString name;
@@ -43,6 +44,12 @@ public:
     QString entryName(const QModelIndex& index) const;
 
     QString extractFile(const QString& virtualFilePath);
+    bool extractFileToPath(const QString& virtualFilePath, const QString& localDestPath);
+    QString extractDirRecursively(const QString& virtualDirPath);
+
+    QMimeData* mimeData(const QModelIndexList& indexes) const override;
+    QStringList mimeTypes() const override;
+    Qt::DropActions supportedDragActions() const override;
 
 private:
     void rebuildActiveEntries();

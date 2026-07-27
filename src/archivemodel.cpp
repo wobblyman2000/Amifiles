@@ -1,6 +1,7 @@
 #include "archivemodel.h"
 #include <QProcess>
 #include <QFileInfo>
+#include <QUrl>
 #include <QRegularExpression>
 #include <QDir>
 #include <QFile>
@@ -417,19 +418,16 @@ QString ArchiveModel::entryName(const QModelIndex& index) const {
     return m_activeEntries[index.row()].name;
 }
 
-QString ArchiveModel::extractFile(const QString& virtualFilePath) {
+bool ArchiveModel::extractFileToPath(const QString& virtualFilePath, const QString& localDestPath) {
     QProcess proc;
-    QString scratchDir = "/home/dave/.gemini/antigravity/scratch/extracted";
-    QDir().mkpath(scratchDir);
-
-    QString destPath = QDir(scratchDir).filePath(QFileInfo(virtualFilePath).fileName());
+    QDir().mkpath(QFileInfo(localDestPath).absolutePath());
 
     if (m_archivePath.endsWith(".d64", Qt::CaseInsensitive)) {
-        proc.start("c1541", { "-attach", m_archivePath, "-read", virtualFilePath, destPath });
+        proc.start("c1541", { "-attach", m_archivePath, "-read", virtualFilePath, localDestPath });
     } else if (m_archivePath.endsWith(".adf", Qt::CaseInsensitive)) {
-        proc.start("xdftool", { m_archivePath, "read", virtualFilePath, destPath });
+        proc.start("xdftool", { m_archivePath, "read", virtualFilePath, localDestPath });
     } else {
-        proc.setStandardOutputFile(destPath);
+        proc.setStandardOutputFile(localDestPath);
         if (m_archivePath.endsWith(".zip", Qt::CaseInsensitive)) {
             proc.start("unzip", { "-p", m_archivePath, virtualFilePath });
         } else if (m_archivePath.endsWith(".rar", Qt::CaseInsensitive)) {
@@ -441,7 +439,16 @@ QString ArchiveModel::extractFile(const QString& virtualFilePath) {
         }
     }
 
-    if (proc.waitForFinished() && proc.exitCode() == 0) {
+    return proc.waitForFinished() && proc.exitCode() == 0;
+}
+
+QString ArchiveModel::extractFile(const QString& virtualFilePath) {
+    QString scratchDir = "/home/dave/.gemini/antigravity/scratch/extracted";
+    QDir().mkpath(scratchDir);
+
+    QString destPath = QDir(scratchDir).filePath(QFileInfo(virtualFilePath).fileName());
+
+    if (extractFileToPath(virtualFilePath, destPath)) {
         return destPath;
     }
     return "";
@@ -956,4 +963,72 @@ bool ArchiveModel::createDirectory(const QString& name) {
     }
 
     return false;
+}
+
+QString ArchiveModel::extractDirRecursively(const QString& virtualDirPath) {
+    QString scratchDir = "/home/dave/.gemini/antigravity/scratch/extracted";
+    QFileInfo dirInfo(virtualDirPath);
+    QString dirName = dirInfo.fileName();
+    
+    QString prefix = virtualDirPath + "/";
+    QString parentVirtualPath;
+    int lastSlash = virtualDirPath.lastIndexOf('/');
+    if (lastSlash != -1) {
+        parentVirtualPath = virtualDirPath.left(lastSlash);
+    }
+    
+    QString localRootDir = QDir(scratchDir).filePath(dirName);
+    QDir().mkpath(localRootDir);
+    
+    for (const ArchiveFileEntry& entry : m_allEntries) {
+        if (entry.fullVirtualPath == virtualDirPath || entry.fullVirtualPath.startsWith(prefix)) {
+            QString relativePath = entry.fullVirtualPath;
+            if (!parentVirtualPath.isEmpty()) {
+                relativePath = entry.fullVirtualPath.mid(parentVirtualPath.length() + 1);
+            }
+            QString localDest = QDir(scratchDir).filePath(relativePath);
+            
+            if (entry.isDir) {
+                QDir().mkpath(localDest);
+            } else {
+                extractFileToPath(entry.fullVirtualPath, localDest);
+            }
+        }
+    }
+    return localRootDir;
+}
+
+QMimeData* ArchiveModel::mimeData(const QModelIndexList& indexes) const {
+    QMimeData* mime = new QMimeData();
+    QList<QUrl> urls;
+    for (const QModelIndex& idx : indexes) {
+        if (idx.column() == 0 && idx.isValid()) {
+            QString vPath = entryPath(idx);
+            if (!isDir(idx)) {
+                QString tempPath = const_cast<ArchiveModel*>(this)->extractFile(vPath);
+                if (!tempPath.isEmpty()) {
+                    urls.append(QUrl::fromLocalFile(tempPath));
+                }
+            } else {
+                QString tempDirPath = const_cast<ArchiveModel*>(this)->extractDirRecursively(vPath);
+                if (!tempDirPath.isEmpty()) {
+                    urls.append(QUrl::fromLocalFile(tempDirPath));
+                }
+            }
+        }
+    }
+    if (!urls.isEmpty()) {
+        mime->setUrls(urls);
+    }
+    return mime;
+}
+
+QStringList ArchiveModel::mimeTypes() const {
+    QStringList types;
+    types << "text/uri-list";
+    return types;
+}
+
+Qt::DropActions ArchiveModel::supportedDragActions() const {
+    return Qt::CopyAction | Qt::MoveAction;
 }
