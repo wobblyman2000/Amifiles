@@ -56,7 +56,7 @@ void PathBarWidget::setPath(const QString& path) {
 
 void PathBarWidget::onTextChanged(const QString& text) {
     Q_UNUSED(text);
-    if (m_blockPopup) return;
+    if (m_blockPopup || !m_editPath || !m_editPath->hasFocus()) return;
     m_debounceTimer->start(250); // 250ms debounce
 }
 
