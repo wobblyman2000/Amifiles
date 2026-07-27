@@ -24,6 +24,7 @@ struct VideoSearchResult {
     QString genres;
     QString overview;
     QString posterUrl;
+    QString backdropUrl;
     QString type; // "Movie" or "TV Show"
     QString studio;
 };

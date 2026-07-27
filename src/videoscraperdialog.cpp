@@ -279,6 +279,10 @@ void VideoScraperDialog::onSearchFinished() {
             if (!posterPath.isEmpty()) {
                 res.posterUrl = "https://image.tmdb.org/t/p/w500" + posterPath;
             }
+            QString backdropPath = obj["backdrop_path"].toString();
+            if (!backdropPath.isEmpty()) {
+                res.backdropUrl = "https://image.tmdb.org/t/p/original" + backdropPath;
+            }
             res.genres = ""; 
             m_results.append(res);
         }
@@ -431,6 +435,41 @@ void VideoScraperDialog::onApplyClicked() {
                     fileDvd.close();
                 }
             }
+        }
+
+        // 1b. Save TMDb Backdrop/Background
+        if (m_chkFanart->isChecked() && !res.backdropUrl.isEmpty()) {
+            QDir dir(targetFolder);
+            QUrl bdUrl(res.backdropUrl);
+            QNetworkRequest bdReq(bdUrl);
+            QNetworkReply* bdReply = m_networkManager->get(bdReq);
+            QEventLoop bdLoop;
+            connect(bdReply, &QNetworkReply::finished, &bdLoop, &QEventLoop::quit);
+            bdLoop.exec();
+            
+            if (bdReply->error() == QNetworkReply::NoError) {
+                QByteArray bdData = bdReply->readAll();
+                if (!pathInfo.isDir()) {
+                    QString baseName = pathInfo.completeBaseName();
+                    if (m_chkRename->isChecked()) {
+                        QString sanitizedTitle = res.title;
+                        sanitizedTitle.remove(QRegularExpression(R"([\\\/\:\*\?\"\<\>\|])"));
+                        baseName = QString("%1 (%2)").arg(sanitizedTitle).arg(res.year);
+                    }
+                    QFile fileBd(dir.filePath(baseName + "_fanart.jpg"));
+                    if (fileBd.open(QIODevice::WriteOnly)) {
+                        fileBd.write(bdData);
+                        fileBd.close();
+                    }
+                } else {
+                    QFile fileBd(dir.filePath("fanart.jpg"));
+                    if (fileBd.open(QIODevice::WriteOnly)) {
+                        fileBd.write(bdData);
+                        fileBd.close();
+                    }
+                }
+            }
+            bdReply->deleteLater();
         }
 
         // 2. Save .nfo File
