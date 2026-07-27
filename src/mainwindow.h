@@ -337,6 +337,7 @@ private:
     void applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel = nullptr);
     QString detectFolderCategory(const QString& path);
     void adjustSplitterSizes();
+    void apply5050Layouts();
     void updateLayoutLockState();
     void queueAdjustSplitterSizes();
     FolderLayoutRule getDefaultRule();

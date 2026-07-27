@@ -403,6 +403,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
         if (m_activePanel) {
             applyFolderRules(m_activePanel->currentPath());
             onActivePanelViewModeChanged();
+            apply5050Layouts();
         }
     });
 
@@ -1439,6 +1440,9 @@ void MainWindow::onToggleDualPane(bool checked) {
     }
 
     queueAdjustSplitterSizes();
+    if (checked) {
+        QTimer::singleShot(50, this, &MainWindow::apply5050Layouts);
+    }
 }
 
 void MainWindow::onTogglePreview(bool checked) {
@@ -1447,6 +1451,9 @@ void MainWindow::onTogglePreview(bool checked) {
         m_previewDock->setVisible(checked);
     }
     queueAdjustSplitterSizes();
+    if (checked) {
+        QTimer::singleShot(50, this, &MainWindow::apply5050Layouts);
+    }
 }
 
 void MainWindow::updateMiniPlayer() {
@@ -4449,7 +4456,9 @@ void MainWindow::adjustSplitterSizes() {
     int mainWidth = qMax(100, totalWidth - sidebarWidth);
 
     m_splitter->setSizes({sidebarWidth, mainWidth});
+}
 
+void MainWindow::apply5050Layouts() {
     if (m_dualSplitter && m_isDualPane) {
         QSettings settings("Amifiles", "Amifiles");
         bool alwaysCenter = settings.value("preferences/always_center_splitter", true).toBool();
@@ -4780,6 +4789,7 @@ void MainWindow::onPreferencesAction() {
             if (p) p->refresh();
         }
         queueAdjustSplitterSizes();
+        apply5050Layouts();
         updateLayoutLockState();
     });
     dlg.exec();
@@ -4822,6 +4832,7 @@ void MainWindow::onMediaPreferences() {
             if (p) p->refresh();
         }
         queueAdjustSplitterSizes();
+        apply5050Layouts();
         updateLayoutLockState();
     });
     dlg.exec();

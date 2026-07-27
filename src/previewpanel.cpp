@@ -336,7 +336,7 @@ FullscreenWidget::~FullscreenWidget() {
     }
 }
 
-FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window | Qt::FramelessWindowHint) {
+FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(nullptr, Qt::Window | Qt::FramelessWindowHint) {
     setStyleSheet("background-color: #000000;");
     setMouseTracking(true);
     installEventFilter(this);
@@ -529,9 +529,12 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(parent, Qt::Window
     });
 
     // Query active state to set initial color/icon
-    QWidget* pTemp = parentWidget();
-    while (pTemp && !pTemp->inherits("MainWindow")) {
-        pTemp = pTemp->parentWidget();
+    QWidget* pTemp = nullptr;
+    for (QWidget* w : QApplication::topLevelWidgets()) {
+        if (w->inherits("MainWindow")) {
+            pTemp = w;
+            break;
+        }
     }
     bool autoFS = false;
     if (pTemp) {
