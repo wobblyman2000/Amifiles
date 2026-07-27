@@ -22,7 +22,8 @@ PathBarWidget::PathBarWidget(QWidget* parent) : QWidget(parent) {
     mainLayout->addWidget(m_editPath);
 
     m_popupList = new QListWidget(this);
-    m_popupList->setWindowFlags(Qt::Popup | Qt::FramelessWindowHint);
+    m_popupList->setWindowFlags(Qt::ToolTip | Qt::FramelessWindowHint);
+    m_popupList->setAttribute(Qt::WA_ShowWithoutActivating, true);
     m_popupList->setFocusPolicy(Qt::NoFocus);
     m_popupList->setStyleSheet(
         "QListWidget { background-color: #181825; color: #cdd6f4; border: 1px solid #45475a; border-radius: 4px; }"
@@ -135,45 +136,51 @@ void PathBarWidget::updatePopupList() {
 }
 
 bool PathBarWidget::eventFilter(QObject* watched, QEvent* event) {
-    if (watched == m_editPath && event->type() == QEvent::KeyPress) {
-        QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
-        if (m_popupList->isVisible()) {
-            if (keyEvent->key() == Qt::Key_Down) {
-                int row = m_popupList->currentRow();
-                if (row < 0) {
-                    m_popupList->setCurrentRow(0);
-                } else if (row < m_popupList->count() - 1) {
-                    m_popupList->setCurrentRow(row + 1);
-                }
-                return true;
-            } else if (keyEvent->key() == Qt::Key_Up) {
-                int row = m_popupList->currentRow();
-                if (row > 0) {
-                    m_popupList->setCurrentRow(row - 1);
-                } else {
-                    m_popupList->setCurrentRow(-1);
-                    m_popupList->clearSelection();
-                }
-                return true;
-            } else if (keyEvent->key() == Qt::Key_Escape) {
-                m_popupList->hide();
-                return true;
-            } else if (keyEvent->key() == Qt::Key_Enter || keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Tab) {
-                QListWidgetItem* item = nullptr;
-                if (m_popupList->selectedItems().count() > 0) {
-                    item = m_popupList->currentItem();
-                }
-                if (item) {
-                    onPopupItemClicked(item);
-                } else {
+    if (watched == m_editPath) {
+        if (event->type() == QEvent::KeyPress) {
+            QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
+            if (m_popupList->isVisible()) {
+                if (keyEvent->key() == Qt::Key_Down) {
+                    int row = m_popupList->currentRow();
+                    if (row < 0) {
+                        m_popupList->setCurrentRow(0);
+                    } else if (row < m_popupList->count() - 1) {
+                        m_popupList->setCurrentRow(row + 1);
+                    }
+                    return true;
+                } else if (keyEvent->key() == Qt::Key_Up) {
+                    int row = m_popupList->currentRow();
+                    if (row > 0) {
+                        m_popupList->setCurrentRow(row - 1);
+                    } else {
+                        m_popupList->setCurrentRow(-1);
+                        m_popupList->clearSelection();
+                    }
+                    return true;
+                } else if (keyEvent->key() == Qt::Key_Escape) {
                     m_popupList->hide();
-                    emit pathEntered(m_editPath->text());
+                    return true;
+                } else if (keyEvent->key() == Qt::Key_Enter || keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Tab) {
+                    QListWidgetItem* item = nullptr;
+                    if (m_popupList->selectedItems().count() > 0) {
+                        item = m_popupList->currentItem();
+                    }
+                    if (item) {
+                        onPopupItemClicked(item);
+                    } else {
+                        m_popupList->hide();
+                        emit pathEntered(m_editPath->text());
+                    }
+                    return true;
                 }
-                return true;
             }
+        } else if (event->type() == QEvent::FocusOut) {
+            QTimer::singleShot(100, this, [this]() {
+                if (m_popupList && !m_popupList->hasFocus() && m_editPath && !m_editPath->hasFocus()) {
+                    m_popupList->hide();
+                }
+            });
         }
-    } else if (watched == m_popupList && event->type() == QEvent::FocusOut) {
-        m_popupList->hide();
     }
     return QWidget::eventFilter(watched, event);
 }
