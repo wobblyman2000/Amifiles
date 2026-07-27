@@ -42,6 +42,7 @@ private:
     QCheckBox* m_chkDrivesMenu = nullptr;
     QCheckBox* m_chkStickyFilters = nullptr;
     QCheckBox* m_chkAlwaysCenterSplitter = nullptr;
+    QCheckBox* m_chkAlwaysCenterPreview = nullptr;
     QCheckBox* m_chkLockLayoutInShowcase = nullptr;
 
     // View & Style Colors

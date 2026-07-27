@@ -249,6 +249,7 @@ public:
     void previewFolderArt(const QString& artPath, const QString& folderPath);
     void clearPreview();
     void playPlaylist(const QStringList& filePaths);
+    void prepareForFullscreenPlayback(const QStringList& filePaths);
     void addToPlaylist(const QStringList& filePaths);
     void setPlaylistMode(bool audio);
     QMediaPlayer* player() const { return m_player; }
@@ -337,6 +338,14 @@ private:
     int m_audioPlaylistIndex = -1;
     QStringList m_videoPlaylist;
     int m_videoPlaylistIndex = -1;
+
+    // Independent playlists
+    QStringList m_previewPlaylist;
+    int m_previewPlaylistIndex = -1;
+    QStringList m_fullscreenAudioPlaylist;
+    int m_fullscreenAudioPlaylistIndex = -1;
+    QStringList m_fullscreenVideoPlaylist;
+    int m_fullscreenVideoPlaylistIndex = -1;
     bool m_shuffleEnabled = false;
     int m_repeatMode = 0; // 0 = Off, 1 = Repeat One, 2 = Repeat All
     qint64 m_lastProgressSaveTime = 0;

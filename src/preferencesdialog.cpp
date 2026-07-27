@@ -96,6 +96,10 @@ void PreferencesDialog::setupUI() {
     m_chkAlwaysCenterSplitter->setToolTip("Locks dual file pane layout to always occupy exactly 50% width/height each when resizing or toggling side panels.");
     layGen->addWidget(m_chkAlwaysCenterSplitter);
 
+    m_chkAlwaysCenterPreview = new QCheckBox("Always keep preview panel at 50/50 split", this);
+    m_chkAlwaysCenterPreview->setToolTip("Forces the file preview panel dock to occupy exactly 50% width/height of the window area.");
+    layGen->addWidget(m_chkAlwaysCenterPreview);
+
     m_chkLockLayoutInShowcase = new QCheckBox("Lock layout in fullscreen showcase views", this);
     m_chkLockLayoutInShowcase->setToolTip("Disables and hides the standard dual pane and preview dock when viewing directories in Showcase modes (Movie, TV, Music, etc.).");
     layGen->addWidget(m_chkLockLayoutInShowcase);
@@ -423,6 +427,7 @@ void PreferencesDialog::loadPreferences() {
     m_chkDrivesMenu->setChecked(settings.value("layout/drives_menu_visible", true).toBool());
     m_chkStickyFilters->setChecked(settings.value("preferences/sticky_filters", false).toBool());
     m_chkAlwaysCenterSplitter->setChecked(settings.value("preferences/always_center_splitter", true).toBool());
+    m_chkAlwaysCenterPreview->setChecked(settings.value("preferences/always_center_preview", true).toBool());
     m_chkLockLayoutInShowcase->setChecked(settings.value("preferences/lock_layout_in_showcase", true).toBool());
 
     m_chkAgeColoring->setChecked(settings.value("preferences/age_coloring_enabled", true).toBool());
@@ -469,6 +474,7 @@ void PreferencesDialog::savePreferences() {
     settings.setValue("layout/drives_menu_visible", m_chkDrivesMenu->isChecked());
     settings.setValue("preferences/sticky_filters", m_chkStickyFilters->isChecked());
     settings.setValue("preferences/always_center_splitter", m_chkAlwaysCenterSplitter->isChecked());
+    settings.setValue("preferences/always_center_preview", m_chkAlwaysCenterPreview->isChecked());
     settings.setValue("preferences/lock_layout_in_showcase", m_chkLockLayoutInShowcase->isChecked());
 
     settings.setValue("preferences/age_coloring_enabled", m_chkAgeColoring->isChecked());

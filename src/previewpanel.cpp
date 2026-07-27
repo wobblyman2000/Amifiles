@@ -1630,31 +1630,64 @@ void PreviewPanel::previewFile(const QString& filePath, const QStringList& sibli
         m_previewedFilePaths.append(filePath);
     }
 
-    if (!m_playlist.isEmpty()) {
+    if (!this->isFullscreen() && !filePath.isEmpty()) {
+        // Embedded preview panel folder cycling logic
+        QFileInfo fileInfo(filePath);
+        QString ext = fileInfo.suffix().toLower();
+        QString parentDir = fileInfo.absolutePath();
+        
+        QStringList txtExts = { "txt", "log", "ini", "cfg", "conf", "json", "xml", "html", "css", "js", 
+                                "py", "cpp", "h", "sh", "md", "csv", "yml", "yaml", "properties" };
+        QStringList imgExts = { "png", "jpg", "jpeg", "gif", "bmp", "webp", "svg" };
+        QStringList audioExts = { "mp3", "wav", "flac", "ogg", "m4a" };
+        QStringList videoExts = { "mp4", "avi", "mkv", "mov", "webm", "flv", "wmv", "m4v", "mpg", "mpeg" };
+        
+        QStringList filterExtensions;
+        if (txtExts.contains(ext)) filterExtensions = txtExts;
+        else if (imgExts.contains(ext)) filterExtensions = imgExts;
+        else if (audioExts.contains(ext)) filterExtensions = audioExts;
+        else if (videoExts.contains(ext)) filterExtensions = videoExts;
+        
+        // Only reconstruct playlist if current file is not already in the active playlist
+        int existingIdx = m_playlist.indexOf(filePath);
+        if (existingIdx != -1) {
+            m_playlistIndex = existingIdx;
+            if (m_playlistList) {
+                m_playlistList->setCurrentRow(m_playlistIndex);
+            }
+        } else if (!filterExtensions.isEmpty()) {
+            QDir dir(parentDir);
+            QStringList filters;
+            for (const QString& fExt : filterExtensions) {
+                filters << "*." + fExt;
+            }
+            QStringList folderFiles = dir.entryList(filters, QDir::Files, QDir::Name | QDir::IgnoreCase);
+            
+            QStringList fullPaths;
+            for (const QString& name : folderFiles) {
+                fullPaths.append(dir.filePath(name));
+            }
+            
+            int idx = fullPaths.indexOf(filePath);
+            if (idx != -1) {
+                m_playlist = fullPaths;
+                m_playlistIndex = idx;
+                
+                if (m_playlistList) {
+                    m_playlistList->clear();
+                    for (const QString& path : m_playlist) {
+                        m_playlistList->addItem(QFileInfo(path).fileName());
+                    }
+                    m_playlistList->setCurrentRow(m_playlistIndex);
+                }
+            }
+        }
+    } else if (!m_playlist.isEmpty()) {
         int idx = m_playlist.indexOf(filePath);
         if (idx != -1) {
             m_playlistIndex = idx;
             if (m_playlistList) {
                 m_playlistList->setCurrentRow(m_playlistIndex);
-            }
-        } else {
-            QFileInfo fileInfo(filePath);
-            QString ext = fileInfo.suffix().toLower();
-            QStringList audioExts = { "mp3", "wav", "flac", "ogg", "m4a" };
-            QStringList videoExts = { "mp4", "avi", "mkv", "mov", "webm" };
-            if (audioExts.contains(ext) || videoExts.contains(ext)) {
-                m_playlist.clear();
-                m_playlistIndex = -1;
-                if (m_playlistList) {
-                    m_playlistList->clear();
-                }
-                for (int r = 0; r < m_metadataTable->rowCount(); ++r) {
-                    QTableWidgetItem* keyItem = m_metadataTable->item(r, 0);
-                    if (keyItem && keyItem->text() == "Playlist Status") {
-                        m_metadataTable->removeRow(r);
-                        break;
-                    }
-                }
             }
         }
     }
@@ -2257,6 +2290,45 @@ void PreviewPanel::playPlaylist(const QStringList& filePaths) {
     emit playlistChanged();
 }
 
+void PreviewPanel::prepareForFullscreenPlayback(const QStringList& filePaths) {
+    // 1. Save current preview playlist state if we are not currently in fullscreen
+    if (!this->isFullscreen()) {
+        m_previewPlaylist = m_playlist;
+        m_previewPlaylistIndex = m_playlistIndex;
+    }
+    
+    // 2. Clear preview to stop current playing media
+    clearPreview();
+    
+    // 3. Determine if the first file is video
+    bool isVideo = false;
+    if (!filePaths.isEmpty()) {
+        QFileInfo info(filePaths.first());
+        QString ext = info.suffix().toLower();
+        static const QStringList videoExts = { "mp4", "avi", "mkv", "mov", "webm", "flv", "wmv", "m4v", "mpg", "mpeg" };
+        isVideo = videoExts.contains(ext);
+    }
+    m_isVideo = isVideo;
+    
+    // 4. Load the correct fullscreen playlist
+    m_playlist = filePaths;
+    m_playlistIndex = 0;
+    
+    if (m_playlistList) {
+        m_playlistList->clear();
+        for (const QString& path : m_playlist) {
+            m_playlistList->addItem(QFileInfo(path).fileName());
+        }
+        m_playlistList->setCurrentRow(m_playlistIndex);
+    }
+    
+    // 5. Start playing the first track
+    if (!m_playlist.isEmpty()) {
+        m_forcePlayNext = true;
+        previewFile(m_playlist[0], QStringList(), true);
+    }
+}
+
 void PreviewPanel::addToPlaylist(const QStringList& filePaths) {
     if (filePaths.isEmpty()) return;
 
@@ -2714,6 +2786,29 @@ void PreviewPanel::toggleFullscreen() {
     QString ext = fileInfo.suffix().toLower();
     static const QStringList videoExts = { "mp4", "avi", "mkv", "mov", "webm", "flv", "wmv", "m4v", "mpg", "mpeg" };
     bool isVideo = videoExts.contains(ext);
+    m_isVideo = isVideo;
+
+    // Save embedded preview playlist state and load the correct fullscreen one
+    m_previewPlaylist = m_playlist;
+    m_previewPlaylistIndex = m_playlistIndex;
+
+    if (m_isVideo) {
+        m_playlist = m_fullscreenVideoPlaylist.isEmpty() ? m_previewPlaylist : m_fullscreenVideoPlaylist;
+        m_playlistIndex = m_fullscreenVideoPlaylist.isEmpty() ? m_previewPlaylistIndex : m_fullscreenVideoPlaylistIndex;
+    } else {
+        m_playlist = m_fullscreenAudioPlaylist.isEmpty() ? m_previewPlaylist : m_fullscreenAudioPlaylist;
+        m_playlistIndex = m_fullscreenAudioPlaylist.isEmpty() ? m_previewPlaylistIndex : m_fullscreenAudioPlaylistIndex;
+    }
+
+    if (m_playlistList) {
+        m_playlistList->clear();
+        for (const QString& path : m_playlist) {
+            m_playlistList->addItem(QFileInfo(path).fileName());
+        }
+        if (m_playlistIndex >= 0 && m_playlistIndex < m_playlist.size()) {
+            m_playlistList->setCurrentRow(m_playlistIndex);
+        }
+    }
 
     // Create the borderless fullscreen widget
     m_fullscreenWidget = new FullscreenWidget(this);
@@ -2851,6 +2946,15 @@ void PreviewPanel::toggleFullscreen() {
 void PreviewPanel::exitFullscreen() {
     if (!m_fullscreenWidget) return;
 
+    // Save current fullscreen playlist state
+    if (m_isVideo) {
+        m_fullscreenVideoPlaylist = m_playlist;
+        m_fullscreenVideoPlaylistIndex = m_playlistIndex;
+    } else {
+        m_fullscreenAudioPlaylist = m_playlist;
+        m_fullscreenAudioPlaylistIndex = m_playlistIndex;
+    }
+
     if (m_player) {
         bool previewDockVisible = false;
         QWidget* pTemp = parentWidget();
@@ -2876,6 +2980,19 @@ void PreviewPanel::exitFullscreen() {
     m_fullscreenVideoWidget = nullptr;
     m_fullscreenAudioLabel = nullptr;
     m_fullscreenTextLabel = nullptr;
+
+    // Restore embedded/preview playlist state
+    m_playlist = m_previewPlaylist;
+    m_playlistIndex = m_previewPlaylistIndex;
+    if (m_playlistList) {
+        m_playlistList->clear();
+        for (const QString& path : m_playlist) {
+            m_playlistList->addItem(QFileInfo(path).fileName());
+        }
+        if (m_playlistIndex >= 0 && m_playlistIndex < m_playlist.size()) {
+            m_playlistList->setCurrentRow(m_playlistIndex);
+        }
+    }
 
     emit fullscreenExited();
 }

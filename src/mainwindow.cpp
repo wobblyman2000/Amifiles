@@ -56,6 +56,7 @@
 #include <QDialog>
 #include <QLineEdit>
 #include <QPlainTextEdit>
+#include <QTextEdit>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -1559,14 +1560,32 @@ void MainWindow::onConfigureAgeStyling() {
 
 // Router Slots
 void MainWindow::onCopyAction() {
+    QWidget* focusWidget = QApplication::focusWidget();
+    if (focusWidget && (qobject_cast<QLineEdit*>(focusWidget) || qobject_cast<QTextEdit*>(focusWidget) || qobject_cast<QPlainTextEdit*>(focusWidget))) {
+        QKeyEvent* event = new QKeyEvent(QEvent::KeyPress, Qt::Key_C, Qt::ControlModifier, "c");
+        QCoreApplication::postEvent(focusWidget, event);
+        return;
+    }
     if (m_activePanel) m_activePanel->onCopy();
 }
 
 void MainWindow::onCutAction() {
+    QWidget* focusWidget = QApplication::focusWidget();
+    if (focusWidget && (qobject_cast<QLineEdit*>(focusWidget) || qobject_cast<QTextEdit*>(focusWidget) || qobject_cast<QPlainTextEdit*>(focusWidget))) {
+        QKeyEvent* event = new QKeyEvent(QEvent::KeyPress, Qt::Key_X, Qt::ControlModifier, "x");
+        QCoreApplication::postEvent(focusWidget, event);
+        return;
+    }
     if (m_activePanel) m_activePanel->onCut();
 }
 
 void MainWindow::onPasteAction() {
+    QWidget* focusWidget = QApplication::focusWidget();
+    if (focusWidget && (qobject_cast<QLineEdit*>(focusWidget) || qobject_cast<QTextEdit*>(focusWidget) || qobject_cast<QPlainTextEdit*>(focusWidget))) {
+        QKeyEvent* event = new QKeyEvent(QEvent::KeyPress, Qt::Key_V, Qt::ControlModifier, "v");
+        QCoreApplication::postEvent(focusWidget, event);
+        return;
+    }
     if (m_activePanel) m_activePanel->onPaste();
 }
 
@@ -4445,6 +4464,15 @@ void MainWindow::adjustSplitterSizes() {
             m_dualSplitter->setSizes({sideSize, centerSize, sideSize});
         }
     }
+
+    QSettings settings("Amifiles", "Amifiles");
+    bool alwaysCenterPreview = settings.value("preferences/always_center_preview", true).toBool();
+    if (alwaysCenterPreview && m_previewDock && m_previewDock->isVisible() && !m_previewDock->isFloating()) {
+        Qt::DockWidgetArea area = dockWidgetArea(m_previewDock);
+        Qt::Orientation orient = (area == Qt::LeftDockWidgetArea || area == Qt::RightDockWidgetArea) ? Qt::Horizontal : Qt::Vertical;
+        int total = (orient == Qt::Horizontal) ? this->width() : this->height();
+        resizeDocks({m_previewDock}, {total / 2}, orient);
+    }
 }
 
 void MainWindow::queueAdjustSplitterSizes() {
@@ -5851,25 +5879,19 @@ void MainWindow::onPlayMediaBuiltin(const QStringList& filePaths) {
 
 void MainWindow::onPlayMediaFullscreen(const QStringList& filePaths) {
     if (!m_previewPanel || filePaths.isEmpty()) return;
-    m_previewPanel->clearPreview();
-    m_previewPanel->playPlaylist(filePaths);
-    if (m_previewPanel->player()) {
-        m_previewPanel->player()->play();
-    }
+    m_previewPanel->prepareForFullscreenPlayback(filePaths);
     if (!m_previewPanel->isFullscreen()) {
         m_previewPanel->toggleFullscreen();
     }
 }
 
 void MainWindow::onPlayQueueFullscreen() {
-    if (!m_previewPanel || m_previewPanel->playlist().isEmpty()) return;
-    int idx = m_previewPanel->playlistIndex();
-    if (idx < 0 || idx >= m_previewPanel->playlist().size()) {
-        idx = 0;
-    }
-    m_previewPanel->playPlaylistIndex(idx);
+    if (!m_previewPanel) return;
     if (!m_previewPanel->isFullscreen()) {
         m_previewPanel->toggleFullscreen();
+    }
+    if (m_previewPanel->player()) {
+        m_previewPanel->player()->play();
     }
 }
 

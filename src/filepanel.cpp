@@ -282,6 +282,7 @@ void FilePanel::setupUI() {
     // Central Tree View
     m_treeView = new QTreeView(this);
     m_treeView->setMinimumHeight(50);
+    m_treeView->setEditTriggers(QAbstractItemView::EditKeyPressed);
     m_treeView->setAlternatingRowColors(true);
     m_treeView->setSortingEnabled(true);
     m_treeView->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -297,6 +298,7 @@ void FilePanel::setupUI() {
     // Icon Grid List View
     m_listView = new QListView(this);
     m_listView->setMinimumHeight(50);
+    m_listView->setEditTriggers(QAbstractItemView::EditKeyPressed);
     m_defaultDelegate = m_listView->itemDelegate();
     m_cardDelegate = new CardViewDelegate(m_listView);
     m_listView->setViewMode(QListView::IconMode);
@@ -349,6 +351,12 @@ void FilePanel::setupUI() {
     m_fileModel = new CustomFileSystemModel(this);
     m_fileModel->setReadOnly(false);
     m_fileModel->setRootPath("");
+    connect(m_fileModel, &QFileSystemModel::fileRenamed, this, [](const QString& path, const QString& oldName, const QString& newName) {
+        Q_UNUSED(oldName);
+        QString parentDir = QFileInfo(path).absolutePath();
+        QString newFilePath = QDir(parentDir).filePath(newName);
+        QFile(newFilePath).setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
+    });
 
     m_proxyModel = new FileFilterProxyModel(this);
     m_proxyModel->setSourceModel(m_fileModel);
@@ -370,6 +378,7 @@ void FilePanel::setupUI() {
     m_dashboardWidget = new DiskDashboardWidget(this);
     m_theaterListView = new TheaterListView(this);
     m_theaterListView->setMinimumHeight(50);
+    m_theaterListView->setEditTriggers(QAbstractItemView::EditKeyPressed);
     m_theaterListView->setContextMenuPolicy(Qt::CustomContextMenu);
     m_theaterDelegate = new TheaterViewDelegate(m_theaterListView);
     m_theaterListView->setItemDelegate(m_theaterDelegate);
@@ -2025,7 +2034,23 @@ void FilePanel::onDoubleClicked(const QModelIndex& index) {
         path = m_fileModel->filePath(srcIndex);
     }
 
-    onDoubleClickedPath(path);
+    bool isDir = QFileInfo(path).isDir();
+    if (isDir) {
+        onDoubleClickedPath(path);
+    } else {
+        // Trigger inline edit for files!
+        QAbstractItemView* activeView = nullptr;
+        int mode = viewModeIndex();
+        if (mode == 0) activeView = m_treeView;
+        else if (mode == 1) activeView = m_listView;
+        else if (mode == 4) activeView = m_theaterListView;
+        
+        if (activeView) {
+            activeView->edit(index);
+        } else {
+            onDoubleClickedPath(path);
+        }
+    }
 }
 
 struct CinemaMetadata {
