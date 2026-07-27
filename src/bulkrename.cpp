@@ -69,7 +69,7 @@ void BulkRenameDialog::setupUI() {
     connect(m_chkUsePattern, &QCheckBox::toggled, this, &BulkRenameDialog::onUpdatePreview);
     m_txtPattern = new QLineEdit(grpPattern);
     m_txtPattern->setPlaceholderText("[Artist] - [Title]");
-    m_txtPattern->setToolTip("Placeholders: [Title], [Artist], [Album], [Year], [Track], [Seq:01], [Camera], [DateTaken]");
+    m_txtPattern->setToolTip("Placeholders: [Title], [Artist], [Album], [Year], [Track], [Seq:01], [Show], [Season], [Season2], [Episode], [Episode2]");
     connect(m_txtPattern, &QLineEdit::textChanged, this, &BulkRenameDialog::onUpdatePreview);
     layoutPattern->addWidget(m_chkUsePattern);
     layoutPattern->addWidget(m_txtPattern);
@@ -116,7 +116,7 @@ void BulkRenameDialog::setupUI() {
     QVBoxLayout* layoutCheatsheet = new QVBoxLayout(grpCheatsheet);
     layoutCheatsheet->setContentsMargins(4, 4, 4, 4);
     QListWidget* listCheatsheet = new QListWidget(grpCheatsheet);
-    listCheatsheet->setFixedHeight(100);
+    listCheatsheet->setFixedHeight(140);
     listCheatsheet->addItems({
         "Remove Spaces (replace with _)",
         "Remove Digits",
@@ -124,7 +124,9 @@ void BulkRenameDialog::setupUI() {
         "Add Prefix 'prefix_'",
         "Add Suffix '_suffix'",
         "Strip Non-ASCII characters",
-        "Convert Space to Hyphen"
+        "Convert Space to Hyphen",
+        "TV: [Show] - S01E01 (using parent folders)",
+        "TV: s1x01 (Revert to Season/Ep digits)"
     });
     connect(listCheatsheet, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem* item) {
         QString text = item->text();
@@ -156,6 +158,20 @@ void BulkRenameDialog::setupUI() {
         } else if (text.startsWith("Convert Space to Hyphen")) {
             m_txtFind->setText(" ");
             m_txtReplace->setText("-");
+            m_chkRegex->setChecked(false);
+        } else if (text.startsWith("TV: [Show] - S01E01")) {
+            m_chkUsePattern->setChecked(true);
+            m_txtPattern->setText("[Show] - S[Season2]E[Episode2]");
+            m_comboCase->setCurrentIndex(0);
+            m_txtFind->setText("");
+            m_txtReplace->setText("");
+            m_chkRegex->setChecked(false);
+        } else if (text.startsWith("TV: s1x01")) {
+            m_chkUsePattern->setChecked(true);
+            m_txtPattern->setText("s[Season]x[Episode2]");
+            m_comboCase->setCurrentIndex(0);
+            m_txtFind->setText("");
+            m_txtReplace->setText("");
             m_chkRegex->setChecked(false);
         }
         onUpdatePreview();
@@ -328,6 +344,83 @@ QString BulkRenameDialog::computeNewName(const QString& filePath, int index) con
             }
             if (pattern.contains("[time]", Qt::CaseInsensitive)) {
                 pattern.replace("[time]", QDateTime::currentDateTime().toString("hh-mm-ss"), Qt::CaseInsensitive);
+            }
+
+            // TV Show specific placeholders
+            bool hasTvPlaceholders = pattern.contains("[Season]", Qt::CaseInsensitive) || 
+                                     pattern.contains("[Season2]", Qt::CaseInsensitive) ||
+                                     pattern.contains("[Episode]", Qt::CaseInsensitive) ||
+                                     pattern.contains("[Episode2]", Qt::CaseInsensitive) ||
+                                     pattern.contains("[Show]", Qt::CaseInsensitive);
+            if (hasTvPlaceholders) {
+                int seasonVal = -1;
+                int epVal = -1;
+                QString fileName = info.fileName();
+                
+                QRegularExpression reSxE(R"([Ss](\d+)\s*[Ee](\d+))");
+                QRegularExpressionMatch matchSxE = reSxE.match(fileName);
+                if (matchSxE.hasMatch()) {
+                    seasonVal = matchSxE.captured(1).toInt();
+                    epVal = matchSxE.captured(2).toInt();
+                } else {
+                    QRegularExpression reCross(R"(\b(\d+)[Xx](\d+)\b)");
+                    QRegularExpressionMatch matchCross = reCross.match(fileName);
+                    if (matchCross.hasMatch()) {
+                        seasonVal = matchCross.captured(1).toInt();
+                        epVal = matchCross.captured(2).toInt();
+                    } else {
+                        QRegularExpression reDotSxE(R"(\b[Ss](\d+)\.[Ee](\d+)\b)");
+                        QRegularExpressionMatch matchDotSxE = reDotSxE.match(fileName);
+                        if (matchDotSxE.hasMatch()) {
+                            seasonVal = matchDotSxE.captured(1).toInt();
+                            epVal = matchDotSxE.captured(2).toInt();
+                        } else {
+                            QRegularExpression reText(R"((?i)\bseason\s*(\d+)\s*episode\s*(\d+)\b)");
+                            QRegularExpressionMatch matchText = reText.match(fileName);
+                            if (matchText.hasMatch()) {
+                                seasonVal = matchText.captured(1).toInt();
+                                epVal = matchText.captured(2).toInt();
+                            }
+                        }
+                    }
+                }
+                
+                if (seasonVal == -1) {
+                    QRegularExpression seasonFolderRegex(R"((?i)\bseason\s*(\d+)\b|\bs\s*(\d+)\b)");
+                    QRegularExpressionMatch folderMatch = seasonFolderRegex.match(info.absoluteDir().dirName());
+                    if (folderMatch.hasMatch()) {
+                        seasonVal = !folderMatch.captured(1).isEmpty() ? folderMatch.captured(1).toInt() : folderMatch.captured(2).toInt();
+                    }
+                    if (seasonVal != -1) {
+                        QRegularExpression reEp(R"((?i)\b(?:ep|episode|e)?\s*(\d+)\b)");
+                        QRegularExpressionMatchIterator epIt = reEp.globalMatch(fileName);
+                        while (epIt.hasNext()) {
+                            QRegularExpressionMatch m = epIt.next();
+                            int val = m.captured(1).toInt();
+                            if (val > 0 && val < 100) {
+                                epVal = val;
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                if (seasonVal == -1) seasonVal = 1;
+                if (epVal == -1) epVal = index + 1;
+                
+                QString showName = info.dir().dirName();
+                if (showName.toLower().startsWith("season ") || showName.toLower().startsWith("season") || showName.toLower().trimmed().startsWith("s0") || showName.toLower().trimmed().startsWith("s1")) {
+                    QDir parentDir = info.dir();
+                    parentDir.cdUp();
+                    showName = parentDir.dirName();
+                }
+                showName.remove(QRegularExpression(R"([\\\/\:\*\?\"\<\>\|])"));
+                
+                pattern.replace("[Show]", showName, Qt::CaseInsensitive);
+                pattern.replace("[Season]", QString::number(seasonVal), Qt::CaseInsensitive);
+                pattern.replace("[Season2]", QString::number(seasonVal).rightJustified(2, '0'), Qt::CaseInsensitive);
+                pattern.replace("[Episode]", QString::number(epVal), Qt::CaseInsensitive);
+                pattern.replace("[Episode2]", QString::number(epVal).rightJustified(2, '0'), Qt::CaseInsensitive);
             }
 
             // Support [counter:N] and [counter:00N] style patterns
