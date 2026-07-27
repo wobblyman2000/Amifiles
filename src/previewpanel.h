@@ -316,6 +316,7 @@ private slots:
     void showPlaylistContextMenu(const QPoint& pos);
     void onTextTabCloseRequested(int index);
     void showTextTabsContextMenu(const QPoint& pos);
+    void onTextSearchChanged(const QString& text);
 
 private:
     void setupUI();
@@ -423,6 +424,9 @@ private:
     class QListWidget* m_playlistList = nullptr;
     class QCheckBox* m_chkAutoQueue = nullptr;
     class HexEditorWidget* m_hexViewer = nullptr;
+    class QWidget* m_textContainer = nullptr;
+    class QLineEdit* m_textSearchEdit = nullptr;
+    class QLabel* m_lblTextSearchMatches = nullptr;
 
     // Fullscreen support
     FullscreenWidget* m_fullscreenWidget = nullptr;

@@ -16,6 +16,7 @@
 #include <QHBoxLayout>
 #include <QComboBox>
 #include <QCheckBox>
+#include <QToolButton>
 #include <QFile>
 #include <QTextStream>
 #include <QImageReader>
@@ -1647,7 +1648,60 @@ void PreviewPanel::setupUI() {
     m_bottomTab->addTab(m_hexViewer, "Hex Viewer");
     m_bottomTab->setTabToolTip(m_bottomTab->indexOf(m_hexViewer), "Hex Viewer");
 
-    m_textTabs = new QTabWidget(this);
+    m_textContainer = new QWidget(this);
+    QVBoxLayout* textContainerLayout = new QVBoxLayout(m_textContainer);
+    textContainerLayout->setContentsMargins(4, 4, 4, 4);
+    textContainerLayout->setSpacing(4);
+
+    QHBoxLayout* searchLayout = new QHBoxLayout();
+    searchLayout->setContentsMargins(0, 0, 0, 0);
+    searchLayout->setSpacing(6);
+
+    QLabel* searchIcon = new QLabel("🔍", m_textContainer);
+    searchIcon->setStyleSheet("QLabel { font-size: 12px; color: #a6adc8; }");
+    searchLayout->addWidget(searchIcon);
+
+    m_textSearchEdit = new QLineEdit(m_textContainer);
+    m_textSearchEdit->setPlaceholderText("Search inside text document...");
+    m_textSearchEdit->setStyleSheet(
+        "QLineEdit {"
+        "  background-color: #313244;"
+        "  color: #cdd6f4;"
+        "  border: 1px solid #45475a;"
+        "  border-radius: 4px;"
+        "  padding: 2px 6px;"
+        "  font-size: 11px;"
+        "}"
+        "QLineEdit:focus {"
+        "  border-color: #89b4fa;"
+        "}"
+    );
+    searchLayout->addWidget(m_textSearchEdit, 1);
+
+    m_lblTextSearchMatches = new QLabel(m_textContainer);
+    m_lblTextSearchMatches->setStyleSheet("QLabel { font-size: 11px; color: #a6adc8; }");
+    searchLayout->addWidget(m_lblTextSearchMatches);
+
+    QToolButton* btnClear = new QToolButton(m_textContainer);
+    btnClear->setText("✕");
+    btnClear->setToolTip("Clear search");
+    btnClear->setStyleSheet(
+        "QToolButton {"
+        "  background: transparent;"
+        "  color: #a6adc8;"
+        "  border: none;"
+        "  font-weight: bold;"
+        "  font-size: 11px;"
+        "  padding: 2px;"
+        "}"
+        "QToolButton:hover {"
+        "  color: #f38ba8;"
+        "}"
+    );
+    connect(btnClear, &QToolButton::clicked, m_textSearchEdit, &QLineEdit::clear);
+    searchLayout->addWidget(btnClear);
+
+    m_textTabs = new QTabWidget(m_textContainer);
     m_textTabs->setTabsClosable(true);
     m_textTabs->setMovable(true);
     m_textTabs->setStyleSheet(
@@ -1658,9 +1712,17 @@ void PreviewPanel::setupUI() {
     m_textTabs->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(m_textTabs, &QTabWidget::tabCloseRequested, this, &PreviewPanel::onTextTabCloseRequested);
     connect(m_textTabs, &QTabWidget::customContextMenuRequested, this, &PreviewPanel::showTextTabsContextMenu);
+    connect(m_textTabs, &QTabWidget::currentChanged, this, [this]() {
+        onTextSearchChanged(m_textSearchEdit->text());
+    });
 
-    m_bottomTab->addTab(m_textTabs, "Document Text");
-    m_bottomTab->setTabToolTip(m_bottomTab->indexOf(m_textTabs), "Document Text Viewer");
+    connect(m_textSearchEdit, &QLineEdit::textChanged, this, &PreviewPanel::onTextSearchChanged);
+
+    textContainerLayout->addLayout(searchLayout);
+    textContainerLayout->addWidget(m_textTabs, 1);
+
+    m_bottomTab->addTab(m_textContainer, "Document Text");
+    m_bottomTab->setTabToolTip(m_bottomTab->indexOf(m_textContainer), "Document Text Viewer");
 
     QSplitter* splitter = new QSplitter(Qt::Vertical, this);
     splitter->setStyleSheet(
@@ -3658,7 +3720,7 @@ void PreviewPanel::addOrActivateTextTab(const QString& title, const QString& con
             if (textEdit) {
                 textEdit->setPlainText(content);
             }
-            m_bottomTab->setCurrentWidget(m_textTabs);
+            m_bottomTab->setCurrentWidget(m_textContainer);
             return;
         }
     }
@@ -3672,7 +3734,7 @@ void PreviewPanel::addOrActivateTextTab(const QString& title, const QString& con
     int newIdx = m_textTabs->addTab(textEdit, title);
     m_textTabs->setCurrentIndex(newIdx);
     
-    m_bottomTab->setCurrentWidget(m_textTabs);
+    m_bottomTab->setCurrentWidget(m_textContainer);
 }
 
 void PreviewPanel::onTextTabCloseRequested(int index) {
@@ -3696,6 +3758,61 @@ void PreviewPanel::showTextTabsContextMenu(const QPoint& pos) {
     if (selected == actClear) {
         while (m_textTabs->count() > 0) {
             onTextTabCloseRequested(0);
+        }
+    }
+}
+
+void PreviewPanel::onTextSearchChanged(const QString& text) {
+    if (!m_textTabs) return;
+    QWidget* curr = m_textTabs->currentWidget();
+    QTextEdit* textEdit = qobject_cast<QTextEdit*>(curr);
+    if (!textEdit) {
+        if (m_lblTextSearchMatches) m_lblTextSearchMatches->setText("");
+        return;
+    }
+
+    QList<QTextEdit::ExtraSelection> extraSelections;
+
+    if (text.isEmpty()) {
+        textEdit->setExtraSelections(extraSelections);
+        if (m_lblTextSearchMatches) m_lblTextSearchMatches->setText("");
+        return;
+    }
+
+    QTextDocument* doc = textEdit->document();
+    QTextCursor cursor(doc);
+    int matchCount = 0;
+
+    QTextCharFormat highlightFormat;
+    highlightFormat.setBackground(QColor("#f9e2af")); // Catppuccin yellow
+    highlightFormat.setForeground(QColor("#11111b")); // Dark text
+
+    while (!cursor.isNull() && !cursor.atEnd()) {
+        cursor = doc->find(text, cursor);
+        if (!cursor.isNull()) {
+            matchCount++;
+            QTextEdit::ExtraSelection selection;
+            selection.format = highlightFormat;
+            selection.cursor = cursor;
+            extraSelections.append(selection);
+        }
+    }
+
+    textEdit->setExtraSelections(extraSelections);
+
+    if (matchCount > 0) {
+        if (m_lblTextSearchMatches) {
+            m_lblTextSearchMatches->setText(QString("%1 matches").arg(matchCount));
+        }
+        // Scroll to the first match
+        QTextCursor firstCursor(doc);
+        firstCursor = doc->find(text, firstCursor);
+        if (!firstCursor.isNull()) {
+            textEdit->setTextCursor(firstCursor);
+        }
+    } else {
+        if (m_lblTextSearchMatches) {
+            m_lblTextSearchMatches->setText("No matches");
         }
     }
 }
