@@ -5,6 +5,8 @@
 #include <QDateTime>
 #include <QIcon>
 #include "tagmanager.h"
+#include <QFileSystemModel>
+#include <QAbstractProxyModel>
 
 CardViewDelegate::CardViewDelegate(QObject* parent) : RenameItemDelegate(parent) {}
 
@@ -31,11 +33,28 @@ void CardViewDelegate::paint(QPainter* painter, const QStyleOptionViewItem& opti
     painter->drawRoundedRect(rect.adjusted(2, 2, -2, -2), 6, 6);
 
     // Get metadata from filesystem model
-    // Column 0 index path
+    QString path;
     QModelIndex col0 = index.siblingAtColumn(0);
-    QString path = col0.data(Qt::UserRole).toString();
+    const QAbstractItemModel* m = index.model();
+    QModelIndex mappedIndex = col0;
+    while (m) {
+        if (const QAbstractProxyModel* proxy = qobject_cast<const QAbstractProxyModel*>(m)) {
+            mappedIndex = proxy->mapToSource(mappedIndex);
+            m = proxy->sourceModel();
+        } else {
+            break;
+        }
+    }
+    if (m) {
+        if (const QFileSystemModel* fsm = qobject_cast<const QFileSystemModel*>(m)) {
+            path = fsm->filePath(mappedIndex);
+        }
+    }
     if (path.isEmpty()) {
-        path = col0.data(Qt::DisplayRole).toString(); // fallback
+        path = col0.data(Qt::UserRole).toString();
+        if (path.isEmpty()) {
+            path = col0.data(Qt::DisplayRole).toString();
+        }
     }
     QFileInfo info(path);
 
