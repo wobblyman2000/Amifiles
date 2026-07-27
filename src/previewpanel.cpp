@@ -1789,7 +1789,7 @@ void PreviewPanel::clearPreview() {
     m_metadataTable->setRowCount(0);
 }
 
-void PreviewPanel::previewFile(const QString& filePath, const QStringList& siblingSelections, bool startPlaying) {
+void PreviewPanel::previewFile(const QString& filePath, const QStringList& siblingSelections, bool startPlaying, bool keepCurrentPlaylist) {
     if (m_forcePlayNext) {
         m_prePreviewPlaybackState = QMediaPlayer::PlayingState;
         m_forcePlayNext = false;
@@ -1820,47 +1820,49 @@ void PreviewPanel::previewFile(const QString& filePath, const QStringList& sibli
         else if (videoExts.contains(ext)) filterExtensions = videoExts;
         
         bool autoQueue = m_chkAutoQueue && m_chkAutoQueue->isChecked();
-        if (!autoQueue) {
-            m_playlist.clear();
-            m_playlist.append(filePath);
-            m_playlistIndex = 0;
-            if (m_playlistList) {
-                m_playlistList->clear();
-                m_playlistList->addItem(QFileInfo(filePath).fileName());
-                m_playlistList->setCurrentRow(0);
-            }
-        } else {
-            // Only reconstruct playlist if current file is not already in the active playlist
-            int existingIdx = m_playlist.indexOf(filePath);
-            if (existingIdx != -1) {
-                m_playlistIndex = existingIdx;
+        if (!keepCurrentPlaylist) {
+            if (!autoQueue) {
+                m_playlist.clear();
+                m_playlist.append(filePath);
+                m_playlistIndex = 0;
                 if (m_playlistList) {
-                    m_playlistList->setCurrentRow(m_playlistIndex);
+                    m_playlistList->clear();
+                    m_playlistList->addItem(QFileInfo(filePath).fileName());
+                    m_playlistList->setCurrentRow(0);
                 }
-            } else if (!filterExtensions.isEmpty()) {
-                QDir dir(parentDir);
-                QStringList filters;
-                for (const QString& fExt : filterExtensions) {
-                    filters << "*." + fExt;
-                }
-                QStringList folderFiles = dir.entryList(filters, QDir::Files, QDir::Name | QDir::IgnoreCase);
-                
-                QStringList fullPaths;
-                for (const QString& name : folderFiles) {
-                    fullPaths.append(dir.filePath(name));
-                }
-                
-                int idx = fullPaths.indexOf(filePath);
-                if (idx != -1) {
-                    m_playlist = fullPaths;
-                    m_playlistIndex = idx;
-                    
+            } else {
+                // Only reconstruct playlist if current file is not already in the active playlist
+                int existingIdx = m_playlist.indexOf(filePath);
+                if (existingIdx != -1) {
+                    m_playlistIndex = existingIdx;
                     if (m_playlistList) {
-                        m_playlistList->clear();
-                        for (const QString& path : m_playlist) {
-                            m_playlistList->addItem(QFileInfo(path).fileName());
-                        }
                         m_playlistList->setCurrentRow(m_playlistIndex);
+                    }
+                } else if (!filterExtensions.isEmpty()) {
+                    QDir dir(parentDir);
+                    QStringList filters;
+                    for (const QString& fExt : filterExtensions) {
+                        filters << "*." + fExt;
+                    }
+                    QStringList folderFiles = dir.entryList(filters, QDir::Files, QDir::Name | QDir::IgnoreCase);
+                    
+                    QStringList fullPaths;
+                    for (const QString& name : folderFiles) {
+                        fullPaths.append(dir.filePath(name));
+                    }
+                    
+                    int idx = fullPaths.indexOf(filePath);
+                    if (idx != -1) {
+                        m_playlist = fullPaths;
+                        m_playlistIndex = idx;
+                        
+                        if (m_playlistList) {
+                            m_playlistList->clear();
+                            for (const QString& path : m_playlist) {
+                                m_playlistList->addItem(QFileInfo(path).fileName());
+                            }
+                            m_playlistList->setCurrentRow(m_playlistIndex);
+                        }
                     }
                 }
             }
@@ -2505,7 +2507,7 @@ void PreviewPanel::playPlaylist(const QStringList& filePaths) {
     }
 
     m_forcePlayNext = true;
-    previewFile(m_playlist[0]);
+    previewFile(m_playlist[0], {}, true, true);
     m_playlistList->setCurrentRow(0);
     m_bottomTab->setCurrentIndex(1); // Switch to Playlist Queue tab
 
@@ -2551,7 +2553,7 @@ void PreviewPanel::prepareForFullscreenPlayback(const QStringList& filePaths) {
     // 5. Start playing the first track
     if (!m_playlist.isEmpty()) {
         m_forcePlayNext = true;
-        previewFile(m_playlist[0], QStringList(), true);
+        previewFile(m_playlist[0], QStringList(), true, true);
     }
 }
 
@@ -2573,7 +2575,7 @@ void PreviewPanel::addToPlaylist(const QStringList& filePaths) {
 
     if (wasEmpty) {
         m_playlistIndex = 0;
-        previewFile(m_playlist[0], QStringList(), false);
+        previewFile(m_playlist[0], QStringList(), false, true);
         m_playlistList->setCurrentRow(0);
     } else {
         int statusRow = -1;
@@ -2629,7 +2631,7 @@ void PreviewPanel::onPrevTrack() {
     }
 
     m_forcePlayNext = true;
-    previewFile(m_playlist[m_playlistIndex]);
+    previewFile(m_playlist[m_playlistIndex], {}, true, true);
     m_playlistList->setCurrentRow(m_playlistIndex);
 
     int row = m_metadataTable->rowCount();
@@ -2663,7 +2665,7 @@ void PreviewPanel::onNextTrack() {
     }
 
     m_forcePlayNext = true;
-    previewFile(m_playlist[m_playlistIndex]);
+    previewFile(m_playlist[m_playlistIndex], {}, true, true);
     m_playlistList->setCurrentRow(m_playlistIndex);
 
     int row = m_metadataTable->rowCount();
@@ -2744,7 +2746,7 @@ void PreviewPanel::onPlaylistItemDoubleClicked(QListWidgetItem* item) {
     if (row >= 0 && row < m_playlist.size()) {
         m_playlistIndex = row;
         m_forcePlayNext = true;
-        previewFile(m_playlist[m_playlistIndex]);
+        previewFile(m_playlist[m_playlistIndex], {}, true, true);
         m_playlistList->setCurrentRow(m_playlistIndex);
 
         int r = m_metadataTable->rowCount();
@@ -2795,7 +2797,7 @@ void PreviewPanel::showPlaylistContextMenu(const QPoint& pos) {
                     if (m_playlistIndex >= m_playlist.size()) {
                         m_playlistIndex = m_playlist.size() - 1;
                     }
-                    previewFile(m_playlist[m_playlistIndex]);
+                    previewFile(m_playlist[m_playlistIndex], {}, true, true);
                     m_playlistList->setCurrentRow(m_playlistIndex);
                 }
             } else if (row < m_playlistIndex) {
@@ -3617,7 +3619,7 @@ void PreviewPanel::playPlaylistIndex(int index) {
     if (index < 0 || index >= m_playlist.size()) return;
     m_playlistIndex = index;
     m_forcePlayNext = true;
-    previewFile(m_playlist[m_playlistIndex]);
+    previewFile(m_playlist[m_playlistIndex], {}, true, true);
     if (m_playlistList) {
         m_playlistList->setCurrentRow(m_playlistIndex);
     }

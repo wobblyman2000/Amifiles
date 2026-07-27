@@ -245,7 +245,7 @@ public:
     explicit PreviewPanel(QWidget* parent = nullptr);
     ~PreviewPanel() override;
 
-    void previewFile(const QString& filePath, const QStringList& siblingSelections = QStringList(), bool startPlaying = true);
+    void previewFile(const QString& filePath, const QStringList& siblingSelections = QStringList(), bool startPlaying = true, bool keepCurrentPlaylist = false);
     void previewFolderArt(const QString& artPath, const QString& folderPath);
     void clearPreview();
     void playPlaylist(const QStringList& filePaths);
