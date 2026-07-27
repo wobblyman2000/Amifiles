@@ -1,0 +1,1 @@
+#include "renameitemdelegate.h"

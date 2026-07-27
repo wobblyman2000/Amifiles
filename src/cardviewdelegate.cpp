@@ -6,7 +6,7 @@
 #include <QIcon>
 #include "tagmanager.h"
 
-CardViewDelegate::CardViewDelegate(QObject* parent) : QStyledItemDelegate(parent) {}
+CardViewDelegate::CardViewDelegate(QObject* parent) : RenameItemDelegate(parent) {}
 
 void CardViewDelegate::paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const {
     painter->save();

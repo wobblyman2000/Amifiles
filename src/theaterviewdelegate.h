@@ -1,8 +1,8 @@
 #pragma once
 
-#include <QStyledItemDelegate>
+#include "renameitemdelegate.h"
 
-class TheaterViewDelegate : public QStyledItemDelegate {
+class TheaterViewDelegate : public RenameItemDelegate {
     Q_OBJECT
 public:
     explicit TheaterViewDelegate(QObject* parent = nullptr);

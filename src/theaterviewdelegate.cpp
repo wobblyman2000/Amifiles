@@ -11,7 +11,7 @@
 #include <QTimer>
 #include <QSettings>
 
-TheaterViewDelegate::TheaterViewDelegate(QObject* parent) : QStyledItemDelegate(parent) {}
+TheaterViewDelegate::TheaterViewDelegate(QObject* parent) : RenameItemDelegate(parent) {}
 
 void TheaterViewDelegate::paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const {
     painter->save();

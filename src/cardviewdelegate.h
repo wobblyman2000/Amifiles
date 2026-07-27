@@ -1,8 +1,8 @@
 #pragma once
 
-#include <QStyledItemDelegate>
+#include "renameitemdelegate.h"
 
-class CardViewDelegate : public QStyledItemDelegate {
+class CardViewDelegate : public RenameItemDelegate {
     Q_OBJECT
 public:
     explicit CardViewDelegate(QObject* parent = nullptr);

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(Amifiles VERSION 2.2.35 LANGUAGES CXX)
+project(Amifiles VERSION 2.2.36 LANGUAGES CXX)
 
 configure_file(
     "${PROJECT_SOURCE_DIR}/src/version.h.in"
@@ -127,6 +127,8 @@ add_executable(Amifiles
     src/autotagdialog.cpp
     src/cardviewdelegate.h
     src/cardviewdelegate.cpp
+    src/renameitemdelegate.h
+    src/renameitemdelegate.cpp
     src/theaterviewdelegate.h
     src/theaterviewdelegate.cpp
     src/theaterlistview.h

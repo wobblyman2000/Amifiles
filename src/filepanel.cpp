@@ -21,6 +21,7 @@
 #include "filetagsdialog.h"
 #include "iconpickerdialog.h"
 #include "theaterviewdelegate.h"
+#include "renameitemdelegate.h"
 #include "theaterlistview.h"
 #include "videoscraperdialog.h"
 #include "advancednewfolderdialog.h"
@@ -283,6 +284,7 @@ void FilePanel::setupUI() {
     m_treeView = new QTreeView(this);
     m_treeView->setMinimumHeight(50);
     m_treeView->setEditTriggers(QAbstractItemView::EditKeyPressed);
+    m_treeView->setItemDelegate(new RenameItemDelegate(m_treeView));
     m_treeView->setAlternatingRowColors(true);
     m_treeView->setSortingEnabled(true);
     m_treeView->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -299,7 +301,8 @@ void FilePanel::setupUI() {
     m_listView = new QListView(this);
     m_listView->setMinimumHeight(50);
     m_listView->setEditTriggers(QAbstractItemView::EditKeyPressed);
-    m_defaultDelegate = m_listView->itemDelegate();
+    m_defaultDelegate = new RenameItemDelegate(m_listView);
+    m_listView->setItemDelegate(m_defaultDelegate);
     m_cardDelegate = new CardViewDelegate(m_listView);
     m_listView->setViewMode(QListView::IconMode);
     m_listView->setResizeMode(QListView::Adjust);
@@ -2653,12 +2656,21 @@ void FilePanel::onRename() {
     QString oldPath = paths.first();
     QFileInfo info(oldPath);
     QString oldName = info.fileName();
+    QString oldExt = info.suffix();
 
     bool ok;
     QString newName = QInputDialog::getText(this, "Rename File", 
                                             "Enter new name:", QLineEdit::Normal,
                                             oldName, &ok);
     if (ok && !newName.isEmpty() && newName != oldName) {
+        QSettings settings("Amifiles", "Amifiles");
+        bool keepExt = settings.value("behavior/keep_extension_on_rename", true).toBool();
+        if (keepExt && !oldExt.isEmpty() && !info.isDir()) {
+            QString dotExt = "." + oldExt;
+            if (!newName.endsWith(dotExt, Qt::CaseInsensitive)) {
+                newName += dotExt;
+            }
+        }
         QString newPath = info.dir().filePath(newName);
         if (QFile::rename(oldPath, newPath)) {
             QFile(newPath).setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
@@ -5086,8 +5098,17 @@ void FilePanel::onSearchContextMenu(const QPoint& pos) {
     } else if (selected == actRename) {
         bool ok;
         QString oldName = info.fileName();
+        QString oldExt = info.suffix();
         QString newName = QInputDialog::getText(this, "Rename File", "New name:", QLineEdit::Normal, oldName, &ok);
         if (ok && !newName.isEmpty() && newName != oldName) {
+            QSettings settings("Amifiles", "Amifiles");
+            bool keepExt = settings.value("behavior/keep_extension_on_rename", true).toBool();
+            if (keepExt && !oldExt.isEmpty() && !info.isDir()) {
+                QString dotExt = "." + oldExt;
+                if (!newName.endsWith(dotExt, Qt::CaseInsensitive)) {
+                    newName += dotExt;
+                }
+            }
             QString newPath = info.absoluteDir().filePath(newName);
             if (QFile::rename(firstFile, newPath)) {
                 QFile(newPath).setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
