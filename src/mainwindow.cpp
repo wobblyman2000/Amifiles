@@ -570,9 +570,14 @@ void MainWindow::setupCentralWidget() {
     m_dualSplitter->addWidget(m_tbCenterOps);
     m_tbCenterOps->setVisible(m_actToggleCenterOps->isChecked() && m_isDualPane);
     m_dualSplitter->addWidget(m_rightTabWidget);
+    m_dualSplitter->setStretchFactor(0, 1);
+    m_dualSplitter->setStretchFactor(1, 0);
+    m_dualSplitter->setStretchFactor(2, 1);
 
     m_splitter->addWidget(m_sidebarTabWidget);
     m_splitter->addWidget(m_dualSplitter);
+    m_splitter->setStretchFactor(0, 0);
+    m_splitter->setStretchFactor(1, 1);
 
     m_splitter->setSizes({160, 1040});
 
@@ -593,6 +598,8 @@ void MainWindow::setupCentralWidget() {
 
     mainVSplitter->addWidget(m_splitter);
     mainVSplitter->addWidget(m_bottomTabWidget);
+    mainVSplitter->setStretchFactor(0, 1);
+    mainVSplitter->setStretchFactor(1, 0);
     mainVSplitter->setSizes({600, 150});
 
     setCentralWidget(mainVSplitter);
@@ -3776,6 +3783,7 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
     emit builtinPlayerDoubleclickChanged(isDoubleclickActive);
     targetPanel->updateThemeMusic();
     m_isApplyingFolderProfile = false;
+    QTimer::singleShot(100, this, &MainWindow::apply5050Layouts);
 }
 
 void MainWindow::applyFolderRules(const QString& path) {
@@ -4467,20 +4475,27 @@ void MainWindow::apply5050Layouts() {
             int h = m_dualSplitter->height();
             bool isHorizontal = (m_dualSplitter->orientation() == Qt::Horizontal);
             int total = isHorizontal ? w : h;
-            int centerSize = (m_tbCenterOps && m_tbCenterOps->isVisible()) ? (isHorizontal ? m_tbCenterOps->width() : m_tbCenterOps->height()) : 0;
-            if (centerSize <= 0 && m_tbCenterOps && m_tbCenterOps->isVisible()) centerSize = 38;
-            int sideSize = qMax(50, (total - centerSize) / 2);
-            m_dualSplitter->setSizes({sideSize, centerSize, sideSize});
+            if (total > 100) {
+                int centerSize = (m_tbCenterOps && m_tbCenterOps->isVisible()) ? (isHorizontal ? m_tbCenterOps->width() : m_tbCenterOps->height()) : 0;
+                if (centerSize <= 0 && m_tbCenterOps && m_tbCenterOps->isVisible()) centerSize = 38;
+                int sideSize = (total - centerSize) / 2;
+                m_dualSplitter->setSizes({sideSize, centerSize, sideSize});
+            }
         }
     }
 
     QSettings settings("Amifiles", "Amifiles");
     bool alwaysCenterPreview = settings.value("preferences/always_center_preview", true).toBool();
-    if (alwaysCenterPreview && m_previewDock && m_previewDock->isVisible() && !m_previewDock->isFloating()) {
+    if (alwaysCenterPreview && m_previewDock && m_previewDock->isVisible() && !m_previewDock->isFloating() && centralWidget()) {
         Qt::DockWidgetArea area = dockWidgetArea(m_previewDock);
         Qt::Orientation orient = (area == Qt::LeftDockWidgetArea || area == Qt::RightDockWidgetArea) ? Qt::Horizontal : Qt::Vertical;
-        int total = (orient == Qt::Horizontal) ? this->width() : this->height();
-        resizeDocks({m_previewDock}, {total / 2}, orient);
+        
+        int centralSize = (orient == Qt::Horizontal) ? centralWidget()->width() : centralWidget()->height();
+        int dockSize = (orient == Qt::Horizontal) ? m_previewDock->width() : m_previewDock->height();
+        int total = centralSize + dockSize;
+        if (total > 150) {
+            resizeDocks({m_previewDock}, {total / 2}, orient);
+        }
     }
 }
 
