@@ -2671,11 +2671,19 @@ void FilePanel::onNewFolder() {
                                                "Enter folder name:", QLineEdit::Normal,
                                                "New Folder", &ok);
     if (ok && !folderName.isEmpty()) {
-        QDir dir(m_currentPath);
-        if (dir.mkdir(folderName)) {
-            refresh();
+        if (m_archiveViewActive) {
+            if (m_archiveModel->createDirectory(folderName)) {
+                refresh();
+            } else {
+                QMessageBox::warning(this, "Error", "Could not create folder in archive. Note: D64 archives do not support directories.");
+            }
         } else {
-            QMessageBox::warning(this, "Error", "Could not create folder.");
+            QDir dir(m_currentPath);
+            if (dir.mkdir(folderName)) {
+                refresh();
+            } else {
+                QMessageBox::warning(this, "Error", "Could not create folder.");
+            }
         }
     }
 }
@@ -2908,6 +2916,9 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         
         actNewFolder = menu.addAction(style->standardIcon(QStyle::SP_FileDialogNewFolder), "New Folder");
         actAdvancedNewFolder = menu.addAction("Advanced New Folder...");
+        if (m_archiveViewActive && actAdvancedNewFolder) {
+            actAdvancedNewFolder->setEnabled(false);
+        }
         menu.addSeparator();
     }
     menu.addSeparator();
