@@ -585,6 +585,10 @@ bool ArchiveModel::addFiles(const QStringList& localPaths) {
         for (const QString& lp : localPaths) {
             QFileInfo lInfo(lp);
             QString destVirtualPath = m_currentVirtualPath.isEmpty() ? lInfo.fileName() : m_currentVirtualPath + "/" + lInfo.fileName();
+            // Delete first to overwrite if it already exists, preventing FSError: Name already exists
+            proc.start("xdftool", { m_archivePath, "delete", destVirtualPath });
+            proc.waitForFinished();
+
             proc.start("xdftool", { m_archivePath, "write", lp, destVirtualPath });
             if (!proc.waitForFinished() || proc.exitCode() != 0) {
                 ok = false;
