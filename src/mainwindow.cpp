@@ -519,8 +519,8 @@ void MainWindow::setupCentralWidget() {
     });
 
     // Add first tabs
-    createTab(m_leftTabWidget, QDir::homePath());
-    createTab(m_rightTabWidget, QDir::homePath());
+    createTab(m_leftTabWidget, "smart://home");
+    createTab(m_rightTabWidget, "smart://home");
 
     m_tbCenterOps = new QFrame(this);
     m_tbCenterOps->setObjectName("centerOpsBarWidget");

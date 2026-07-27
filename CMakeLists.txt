@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(Amifiles VERSION 2.3.13 LANGUAGES CXX)
+project(Amifiles VERSION 2.3.14 LANGUAGES CXX)
 
 configure_file(
     "${PROJECT_SOURCE_DIR}/src/version.h.in"
@@ -150,6 +150,8 @@ add_executable(Amifiles
 
     src/diskdashboardwidget.h
     src/diskdashboardwidget.cpp
+    src/homedashboardwidget.h
+    src/homedashboardwidget.cpp
     src/autoorganizerdialog.h
     src/autoorganizerdialog.cpp
     src/remotemountmanager.h

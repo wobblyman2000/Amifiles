@@ -6,6 +6,7 @@
 #include "archivemodel.h"
 #include "smartfoldermodel.h"
 #include "diskdashboardwidget.h"
+#include "homedashboardwidget.h"
 #include "millercolumnsview.h"
 #include "timelineview.h"
 #include "filmstripview.h"
@@ -379,6 +380,14 @@ void FilePanel::setupUI() {
     m_smartModel = new SmartFolderModel(this);
     m_archiveModel = new ArchiveModel(this);
     m_dashboardWidget = new DiskDashboardWidget(this);
+    m_homeDashboardWidget = new HomeDashboardWidget(this);
+    connect(m_homeDashboardWidget, &HomeDashboardWidget::navigateRequested, this, [this](const QString& path) {
+        navigateTo(path);
+    });
+    connect(m_homeDashboardWidget, &HomeDashboardWidget::navigateWithLayoutRequested, this, [this](const QString& path, int layoutIdx) {
+        navigateTo(path);
+        setViewModeIndex(layoutIdx);
+    });
     m_theaterListView = new TheaterListView(this);
     m_theaterListView->setMinimumHeight(50);
     m_theaterListView->setEditTriggers(QAbstractItemView::EditKeyPressed | QAbstractItemView::SelectedClicked);
@@ -810,6 +819,7 @@ void FilePanel::setupUI() {
     m_viewStack->addWidget(m_timelineView);
     m_viewStack->addWidget(m_filmstripView);
     m_viewStack->addWidget(m_dashboardWidget);
+    m_viewStack->addWidget(m_homeDashboardWidget);
 
     connect(m_millerView, &MillerColumnsView::fileSelected, this, &FilePanel::fileSelected);
     connect(m_millerView, &MillerColumnsView::fileDoubleClicked, this, &FilePanel::onDoubleClickedPath);
@@ -1570,6 +1580,34 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
         onToggleSearchFilterMode();
     }
 
+    if (path == "smart://home") {
+        if (m_treeView->selectionModel()) {
+            disconnect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
+        }
+        m_homeDashboardActive = true;
+        m_dashboardActive = false;
+        m_smartViewActive = false;
+        m_archiveViewActive = false;
+
+        m_viewStack->setCurrentWidget(m_homeDashboardWidget);
+        m_homeDashboardWidget->refreshDashboard();
+
+        m_currentPath = path;
+        m_pathEdit->setText(path);
+        emit pathChanged(m_currentPath);
+        updateStatusText();
+
+        if (addHistory) {
+            if (m_historyIndex >= 0 && m_historyIndex < m_history.size() - 1) {
+                m_history = m_history.mid(0, m_historyIndex + 1);
+            }
+            m_history.append(m_currentPath);
+            m_historyIndex = m_history.size() - 1;
+        }
+        updateNavigationButtons();
+        return;
+    }
+
     if (path == "smart://disk_dashboard") {
         QString scanDir = (m_currentPath.isEmpty() || m_currentPath.startsWith("smart://")) ? QDir::homePath() : m_currentPath;
         if (m_treeView->selectionModel()) {
@@ -1654,10 +1692,11 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
             updateStatusText();
             return;
         }
-    } else if (m_archiveViewActive || m_smartViewActive || m_dashboardActive) {
+    } else if (m_archiveViewActive || m_smartViewActive || m_dashboardActive || m_homeDashboardActive) {
         m_archiveViewActive = false;
         m_smartViewActive = false;
         m_dashboardActive = false;
+        m_homeDashboardActive = false;
 
         // Restore active view stack widget
         onViewModeChanged(viewModeIndex());
@@ -1872,7 +1911,7 @@ void FilePanel::onFavoriteClicked() {
 
 void FilePanel::onHomeClicked() {
     QSettings settings("Amifiles", "Amifiles");
-    QString homePath = settings.value("preferences/home_path", QDir::homePath()).toString();
+    QString homePath = settings.value("preferences/home_path", "smart://home").toString();
     navigateTo(homePath);
 }
 
@@ -3043,12 +3082,28 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     }
 
     QAction* actFav = nullptr;
+    QAction* actPinHome = nullptr;
     if (!isTheater) {
         if (isFolder) {
             if (isFavorite) {
                 actFav = menu.addAction(style->standardIcon(QStyle::SP_DialogCancelButton), "Remove from Favorites");
             } else {
                 actFav = menu.addAction(style->standardIcon(QStyle::SP_DialogYesButton), "Add to Favorites");
+            }
+            
+            QSettings settings("Amifiles", "Amifiles");
+            QStringList pinned = settings.value("dashboard/pinned_folders").toStringList();
+            bool isPinned = false;
+            for (const QString& item : pinned) {
+                if (item.startsWith(selectedPath + ";")) {
+                    isPinned = true;
+                    break;
+                }
+            }
+            if (isPinned) {
+                actPinHome = menu.addAction("📌 Unpin from Home Screen");
+            } else {
+                actPinHome = menu.addAction("📌 Pin to Home Screen");
             }
         } else {
             bool isCurrentFavorite = FavoritesManager::instance().isFavorite(m_currentPath);
@@ -3479,6 +3534,31 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
             updateFavoritesUI();
         } else {
             onFavoriteClicked();
+        }
+    } else if (selected == actPinHome) {
+        if (!selectedPath.isEmpty()) {
+            QSettings settings("Amifiles", "Amifiles");
+            QStringList pinned = settings.value("dashboard/pinned_folders").toStringList();
+            int existingIdx = -1;
+            for (int i = 0; i < pinned.size(); ++i) {
+                if (pinned[i].startsWith(selectedPath + ";")) {
+                    existingIdx = i;
+                    break;
+                }
+            }
+            if (existingIdx != -1) {
+                pinned.removeAt(existingIdx);
+                settings.setValue("dashboard/pinned_folders", pinned);
+                QMessageBox::information(this, "Unpinned Folder", "Folder successfully unpinned from Home Screen.");
+            } else {
+                QString entry = QString("%1;%2;%3").arg(selectedPath).arg(QFileInfo(selectedPath).fileName()).arg(viewModeIndex());
+                pinned.append(entry);
+                settings.setValue("dashboard/pinned_folders", pinned);
+                QMessageBox::information(this, "Pinned Folder", "Folder successfully pinned to Home Screen with layout memory!");
+            }
+            if (m_homeDashboardWidget) {
+                m_homeDashboardWidget->refreshDashboard();
+            }
         }
     } else if (selected == actCompareSelected) {
         VisualDiffDialog dlg(curSelected[0], curSelected[1], this);

@@ -1048,6 +1048,8 @@ private:
 
     class DiskDashboardWidget* m_dashboardWidget = nullptr;
     bool m_dashboardActive = false;
+    class HomeDashboardWidget* m_homeDashboardWidget = nullptr;
+    bool m_homeDashboardActive = false;
 
     ArchiveModel* m_archiveModel = nullptr;
     bool m_archiveViewActive = false;
