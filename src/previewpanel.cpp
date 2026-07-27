@@ -1279,15 +1279,28 @@ void PreviewPanel::setupUI() {
 
     m_btnAutoPreview = new QPushButton(this);
     m_btnAutoPreview->setCheckable(true);
-    m_btnAutoPreview->setMaximumWidth(32);
-    m_btnAutoPreview->setStyleSheet("QPushButton { background-color: transparent; border: none; }");
+    m_btnAutoPreview->setMaximumSize(32, 28);
     m_btnAutoPreview->setIcon(style->standardIcon(QStyle::SP_BrowserReload));
+    m_btnAutoPreview->setStyleSheet(
+        "QPushButton {"
+        "  background-color: transparent;"
+        "  border: 1px solid #45475a;"
+        "  border-radius: 4px;"
+        "  padding: 2px;"
+        "}"
+        "QPushButton:hover {"
+        "  background-color: #313244;"
+        "}"
+        "QPushButton:checked {"
+        "  background-color: #a6e3a1;"
+        "  border-color: #a6e3a1;"
+        "}"
+    );
     m_btnAutoPreview->setToolTip("Auto-Preview: OFF");
 
     bool autoPreviewVal = settings.value("preview/auto_preview_enabled", false).toBool();
     m_btnAutoPreview->setChecked(autoPreviewVal);
     if (autoPreviewVal) {
-        m_btnAutoPreview->setStyleSheet("QPushButton { color: #a6e3a1; font-weight: bold; background-color: transparent; }");
         m_btnAutoPreview->setToolTip("Auto-Preview: ON");
     }
 
@@ -1295,11 +1308,6 @@ void PreviewPanel::setupUI() {
         QSettings settings("Amifiles", "Amifiles");
         settings.setValue("preview/auto_preview_enabled", checked);
         m_btnAutoPreview->setToolTip(checked ? "Auto-Preview: ON" : "Auto-Preview: OFF");
-        if (checked) {
-            m_btnAutoPreview->setStyleSheet("QPushButton { color: #a6e3a1; font-weight: bold; background-color: transparent; }");
-        } else {
-            m_btnAutoPreview->setStyleSheet("QPushButton { background-color: transparent; }");
-        }
     });
 
     m_autoFsTimer = new QTimer(this);
@@ -1493,10 +1501,6 @@ void PreviewPanel::setupUI() {
     playlistToolbar->setContentsMargins(0, 0, 0, 0);
     playlistToolbar->setSpacing(4);
 
-    QPushButton* btnPlayQueue = new QPushButton("Play Queue", this);
-    btnPlayQueue->setIcon(style->standardIcon(QStyle::SP_MediaPlay));
-    btnPlayQueue->setStyleSheet("QPushButton { padding: 4px 8px; font-size: 11px; }");
-    
     QPushButton* btnPlaySelected = new QPushButton("Play", this);
     btnPlaySelected->setIcon(style->standardIcon(QStyle::SP_MediaPlay));
     btnPlaySelected->setStyleSheet("QPushButton { padding: 4px 8px; font-size: 11px; }");
@@ -1509,10 +1513,18 @@ void PreviewPanel::setupUI() {
     btnClearQueue->setIcon(style->standardIcon(QStyle::SP_TrashIcon));
     btnClearQueue->setStyleSheet("QPushButton { padding: 4px 8px; font-size: 11px; }");
 
-    playlistToolbar->addWidget(btnPlayQueue);
+    m_chkAutoQueue = new QCheckBox("Auto-Queue Sibling Files", this);
+    m_chkAutoQueue->setStyleSheet("QCheckBox { font-size: 11px; color: #a6adc8; padding-left: 6px; }");
+    m_chkAutoQueue->setChecked(settings.value("preview/auto_queue_sibling_files", true).toBool());
+    connect(m_chkAutoQueue, &QCheckBox::toggled, this, [](bool checked) {
+        QSettings settings("Amifiles", "Amifiles");
+        settings.setValue("preview/auto_queue_sibling_files", checked);
+    });
+
     playlistToolbar->addWidget(btnPlaySelected);
     playlistToolbar->addWidget(btnRemoveSelected);
     playlistToolbar->addWidget(btnClearQueue);
+    playlistToolbar->addWidget(m_chkAutoQueue);
     playlistToolbar->addStretch(1);
 
     m_playlistList = new QListWidget(this);
@@ -1528,18 +1540,16 @@ void PreviewPanel::setupUI() {
     playlistLayout->addLayout(playlistToolbar);
     playlistLayout->addWidget(m_playlistList);
 
-    connect(btnPlayQueue, &QPushButton::clicked, this, [this]() {
-        if (!m_playlist.isEmpty()) {
-            playPlaylistIndex(0);
-        }
-    });
-
     connect(btnPlaySelected, &QPushButton::clicked, this, [this]() {
         if (m_playlistList) {
             int row = m_playlistList->currentRow();
             if (row >= 0 && row < m_playlist.size()) {
                 playPlaylistIndex(row);
+                return;
             }
+        }
+        if (m_player) {
+            m_player->play();
         }
     });
 
@@ -1738,37 +1748,49 @@ void PreviewPanel::previewFile(const QString& filePath, const QStringList& sibli
         else if (audioExts.contains(ext)) filterExtensions = audioExts;
         else if (videoExts.contains(ext)) filterExtensions = videoExts;
         
-        // Only reconstruct playlist if current file is not already in the active playlist
-        int existingIdx = m_playlist.indexOf(filePath);
-        if (existingIdx != -1) {
-            m_playlistIndex = existingIdx;
+        bool autoQueue = m_chkAutoQueue && m_chkAutoQueue->isChecked();
+        if (!autoQueue) {
+            m_playlist.clear();
+            m_playlist.append(filePath);
+            m_playlistIndex = 0;
             if (m_playlistList) {
-                m_playlistList->setCurrentRow(m_playlistIndex);
+                m_playlistList->clear();
+                m_playlistList->addItem(QFileInfo(filePath).fileName());
+                m_playlistList->setCurrentRow(0);
             }
-        } else if (!filterExtensions.isEmpty()) {
-            QDir dir(parentDir);
-            QStringList filters;
-            for (const QString& fExt : filterExtensions) {
-                filters << "*." + fExt;
-            }
-            QStringList folderFiles = dir.entryList(filters, QDir::Files, QDir::Name | QDir::IgnoreCase);
-            
-            QStringList fullPaths;
-            for (const QString& name : folderFiles) {
-                fullPaths.append(dir.filePath(name));
-            }
-            
-            int idx = fullPaths.indexOf(filePath);
-            if (idx != -1) {
-                m_playlist = fullPaths;
-                m_playlistIndex = idx;
-                
+        } else {
+            // Only reconstruct playlist if current file is not already in the active playlist
+            int existingIdx = m_playlist.indexOf(filePath);
+            if (existingIdx != -1) {
+                m_playlistIndex = existingIdx;
                 if (m_playlistList) {
-                    m_playlistList->clear();
-                    for (const QString& path : m_playlist) {
-                        m_playlistList->addItem(QFileInfo(path).fileName());
-                    }
                     m_playlistList->setCurrentRow(m_playlistIndex);
+                }
+            } else if (!filterExtensions.isEmpty()) {
+                QDir dir(parentDir);
+                QStringList filters;
+                for (const QString& fExt : filterExtensions) {
+                    filters << "*." + fExt;
+                }
+                QStringList folderFiles = dir.entryList(filters, QDir::Files, QDir::Name | QDir::IgnoreCase);
+                
+                QStringList fullPaths;
+                for (const QString& name : folderFiles) {
+                    fullPaths.append(dir.filePath(name));
+                }
+                
+                int idx = fullPaths.indexOf(filePath);
+                if (idx != -1) {
+                    m_playlist = fullPaths;
+                    m_playlistIndex = idx;
+                    
+                    if (m_playlistList) {
+                        m_playlistList->clear();
+                        for (const QString& path : m_playlist) {
+                            m_playlistList->addItem(QFileInfo(path).fileName());
+                        }
+                        m_playlistList->setCurrentRow(m_playlistIndex);
+                    }
                 }
             }
         }
@@ -3567,11 +3589,7 @@ bool PreviewPanel::isAutoPreviewEnabled() const {
 void PreviewPanel::onAutoPreviewToggled() {
     if (!m_btnAutoPreview) return;
     bool active = m_btnAutoPreview->isChecked();
-    if (active) {
-        m_btnAutoPreview->setStyleSheet("QPushButton { color: #a6e3a1; font-weight: bold; background-color: transparent; }");
-    } else {
-        m_btnAutoPreview->setStyleSheet("QPushButton { background-color: transparent; }");
-    }
+    m_btnAutoPreview->setToolTip(active ? "Auto-Preview: ON" : "Auto-Preview: OFF");
     // Save setting
     QSettings settings("Amifiles", "Amifiles");
     settings.setValue("preview/auto_preview_enabled", active);

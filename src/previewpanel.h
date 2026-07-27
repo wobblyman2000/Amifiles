@@ -418,6 +418,7 @@ private:
     class QPushButton* m_btnApplyTagsColors = nullptr;
     class QCompleter* m_tagCompleter = nullptr;
     class QListWidget* m_playlistList = nullptr;
+    class QCheckBox* m_chkAutoQueue = nullptr;
     class HexEditorWidget* m_hexViewer = nullptr;
 
     // Fullscreen support

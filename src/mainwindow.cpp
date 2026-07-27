@@ -1384,9 +1384,11 @@ void MainWindow::onFileSelected(const QString& filePath) {
         }
     }
 
-    // Do not interrupt active media playback (playing or paused)
+    // Do not interrupt active media playback (playing or paused) unless Auto-Preview is enabled
     if (m_previewPanel->player() && m_previewPanel->player()->playbackState() != QMediaPlayer::StoppedState) {
-        return;
+        if (!m_previewPanel->isAutoPreviewEnabled()) {
+            return;
+        }
     }
 
     if (filePath.isEmpty()) {
