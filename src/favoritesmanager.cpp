@@ -64,43 +64,67 @@ void FavoritesManager::setDynamicRules(const QList<DynamicFavoriteRule>& rules) 
     emit favoritesChanged();
 }
 
-QStringList FavoritesManager::getEvaluatedDynamicPaths() const {
-    QStringList paths;
-    QString home = QDir::homePath();
-    QDirIterator it(home, QDir::Dirs | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
-    int count = 0;
-    while (it.hasNext() && count < 1000) {
-        QString dirPath = it.next();
+static void scanDirRecursively(const QString& path, const QList<DynamicFavoriteRule>& rules, QStringList& matches, int& count) {
+    if (count >= 2000) return;
+    QDir dir(path);
+    QStringList entryList = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QString& entry : entryList) {
+        if (entry.startsWith('.')) continue; // Skip hidden directories completely
+        
+        QString fullPath = dir.filePath(entry);
         count++;
-
-        if (dirPath.contains("/.") || dirPath.contains("\\.")) {
-            continue;
-        }
-
-        QFileInfo dirInfo(dirPath);
-        for (const auto& r : m_dynamicRules) {
-            bool matches = false;
+        
+        QFileInfo dirInfo(fullPath);
+        for (const auto& r : rules) {
+            bool matchesRule = false;
             if (r.ruleType == "Wildcard") {
-                QRegularExpression re(QRegularExpression::wildcardToRegularExpression(r.value));
-                matches = re.match(dirPath).hasMatch();
-            } else if (r.ruleType == "Tag") {
-                QStringList tags = TagManager::instance().getFileTags(dirPath);
-                if (tags.contains(r.value)) {
-                    matches = true;
-                }
+                QRegularExpression re(QRegularExpression::wildcardToRegularExpression(r.value), QRegularExpression::CaseInsensitiveOption);
+                matchesRule = re.match(fullPath).hasMatch();
             } else if (r.ruleType == "Recent") {
                 int hours = r.value.toInt();
                 if (hours <= 0) hours = 24;
                 if (dirInfo.lastModified().secsTo(QDateTime::currentDateTime()) <= hours * 3600) {
-                    matches = true;
+                    matchesRule = true;
                 }
             }
+            if (matchesRule && !matches.contains(fullPath)) {
+                matches.append(fullPath);
+            }
+        }
+        
+        scanDirRecursively(fullPath, rules, matches, count);
+    }
+}
 
-            if (matches && !paths.contains(dirPath)) {
-                paths.append(dirPath);
+QStringList FavoritesManager::getEvaluatedDynamicPaths() const {
+    QStringList paths;
+
+    // 1. Direct Tag Lookups (O(1) database queries, bypassing filesystem scans)
+    for (const auto& r : m_dynamicRules) {
+        if (r.ruleType == "Tag") {
+            QStringList taggedFiles = TagManager::instance().getFilesWithTag(r.value);
+            for (const QString& path : taggedFiles) {
+                QFileInfo info(path);
+                if (info.exists() && info.isDir() && !paths.contains(path)) {
+                    paths.append(path);
+                }
             }
         }
     }
+
+    // 2. Scan visible home directories for Wildcard and Recent rules
+    bool hasScanRules = false;
+    for (const auto& r : m_dynamicRules) {
+        if (r.ruleType == "Wildcard" || r.ruleType == "Recent") {
+            hasScanRules = true;
+            break;
+        }
+    }
+    if (hasScanRules) {
+        int count = 0;
+        scanDirRecursively(QDir::homePath(), m_dynamicRules, paths, count);
+    }
+
     return paths;
 }
 
