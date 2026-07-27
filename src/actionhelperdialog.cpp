@@ -23,6 +23,7 @@ ActionHelperDialog::ActionHelperDialog(QWidget* parent) : QDialog(parent) {
         {"@internal:CompareSync", "Compare & Sync Folders", "Launches the Folder Comparison and Synchronization utility between left and right directory panes."},
         {"@internal:DuplicateFinder", "Find Duplicate Files", "Opens the Duplicate Files Finder panel to locate identical file hashes in selected paths."},
         {"@internal:SpaceAnalyzer", "Visual Disk Space sunburst Analyzer", "Launches the sunburst disk usage visualization dashboard for the active folder."},
+        {"@internal:SmartHome", "Go to Landing Page Home Screen", "Navigates the active panel immediately to the dashboard Home Screen landing page."},
         {"@internal:Go <path>", "Navigate to specific folder path", "Navigates the panel to a custom directory. Supports macro variables: ~ (home), {dir} (active directory), {dest} (sibling directory)."}
     };
 

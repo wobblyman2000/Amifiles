@@ -2385,6 +2385,8 @@ void MainWindow::onCustomButtonClicked() {
             onSecureShred();
         } else if (cmd.startsWith("QuickRename_")) {
             onQuickRenameAction(cmd.mid(12));
+        } else if (cmd == "SmartHome" || cmd == "Home" || cmd == "GoHome") {
+            if (m_activePanel) m_activePanel->setPath("smart://home");
         } else if (cmd.startsWith("Go ") || cmd == "Go") {
             QString path = cmd.mid(3).trimmed();
             QString activeDir = m_activePanel ? m_activePanel->currentPath() : "";
@@ -5216,6 +5218,8 @@ void MainWindow::executeCustomCommand(const QString& commandOrPath) {
             onSecureShred();
         } else if (cmd.startsWith("QuickRename_")) {
             onQuickRenameAction(cmd.mid(12));
+        } else if (cmd == "SmartHome" || cmd == "Home" || cmd == "GoHome") {
+            if (m_activePanel) m_activePanel->setPath("smart://home");
         } else if (cmd.startsWith("Go ") || cmd == "Go") {
             QString path = cmd.mid(3).trimmed();
             QString activeDir = m_activePanel ? m_activePanel->currentPath() : "";
