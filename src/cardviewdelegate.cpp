@@ -98,3 +98,9 @@ QSize CardViewDelegate::sizeHint(const QStyleOptionViewItem& option, const QMode
     Q_UNUSED(index);
     return QSize(190, 68);
 }
+
+void CardViewDelegate::updateEditorGeometry(QWidget* editor, const QStyleOptionViewItem& option, const QModelIndex& index) const {
+    Q_UNUSED(index);
+    QRect r = option.rect;
+    editor->setGeometry(r.x() + 62, r.y() + 10, r.width() - 70, 22);
+}

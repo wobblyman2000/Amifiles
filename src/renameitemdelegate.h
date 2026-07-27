@@ -53,14 +53,12 @@ public:
                 "}"
             );
             
-            // Match the font size of the parent list/tree item
+            // Match the font size of the parent list/tree view
             QVariant fontVar = index.data(Qt::FontRole);
             if (fontVar.isValid()) {
                 lineEdit->setFont(fontVar.value<QFont>());
             } else {
-                QFont defaultFont;
-                defaultFont.setPointSize(10);
-                lineEdit->setFont(defaultFont);
+                lineEdit->setFont(parent->font());
             }
 
             // Pre-select only the base name, keeping extension unselected
@@ -107,19 +105,6 @@ public:
     }
 
     void updateEditorGeometry(QWidget* editor, const QStyleOptionViewItem& option, const QModelIndex& index) const override {
-        Q_UNUSED(index);
-        QRect r = option.rect;
-        if (r.height() > 28) {
-            int h = 24;
-            int y = r.y() + (r.height() - h) / 2;
-            if (r.height() == 68) {
-                // Card View custom overlay: fits exactly over the title text area (leaves space for icon/subtitles)
-                editor->setGeometry(r.x() + 62, r.y() + 10, r.width() - 70, 24);
-                return;
-            }
-            editor->setGeometry(r.x(), y, r.width(), h);
-        } else {
-            editor->setGeometry(option.rect);
-        }
+        QStyledItemDelegate::updateEditorGeometry(editor, option, index);
     }
 };

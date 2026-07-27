@@ -246,6 +246,15 @@ QSize TheaterViewDelegate::sizeHint(const QStyleOptionViewItem& option, const QM
     return m_isCinemaMode ? QSize(140, 210) : QSize(135, 185);
 }
 
+void TheaterViewDelegate::updateEditorGeometry(QWidget* editor, const QStyleOptionViewItem& option, const QModelIndex& index) const {
+    Q_UNUSED(index);
+    QRect r = option.rect;
+    int imageH = qMax(40, r.height() - 40);
+    int textY = r.y() + imageH + 10;
+    int textW = r.width() - 16;
+    editor->setGeometry(r.x() + 8, textY, textW, 20);
+}
+
 void TheaterViewDelegate::startHoverAnimation(const QString& path, QWidget* view) const {
     if (m_activeHoverPath == path) return;
     
