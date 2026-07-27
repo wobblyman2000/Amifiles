@@ -1389,7 +1389,6 @@ void PreviewPanel::setupUI() {
     // 5. Bottom Tabbed Area
     m_bottomTab = new QTabWidget(this);
     m_bottomTab->tabBar()->setUsesScrollButtons(true);
-    m_bottomTab->tabBar()->setElideMode(Qt::ElideRight);
     m_bottomTab->setStyleSheet(
         "QTabWidget::pane { border: 1px solid #313244; background-color: transparent; border-radius: 4px; }"
         "QTabBar::tab { background-color: #11111b; color: #a6adc8; padding: 4px 8px; font-size: 11px; border-top-left-radius: 4px; border-top-right-radius: 4px; }"
@@ -1489,7 +1488,7 @@ void PreviewPanel::setupUI() {
 
     metaLayout->addLayout(tagForm);
 
-    m_bottomTab->addTab(m_metadataContainer, "Info");
+    m_bottomTab->addTab(m_metadataContainer, "Properties");
     m_bottomTab->setTabToolTip(m_bottomTab->indexOf(m_metadataContainer), "File Properties");
 
     // Tab 2: Playlist Queue
@@ -1565,7 +1564,7 @@ void PreviewPanel::setupUI() {
 
     connect(btnClearQueue, &QPushButton::clicked, this, &PreviewPanel::clearPlaylist);
 
-    m_bottomTab->addTab(playlistTab, "Queue");
+    m_bottomTab->addTab(playlistTab, "Playlist Queue");
     m_bottomTab->setTabToolTip(m_bottomTab->indexOf(playlistTab), "Playlist Queue");
 
     // Tab 3: Equalizer Container
@@ -1641,11 +1640,11 @@ void PreviewPanel::setupUI() {
     slidersRow->addLayout(createEqSlider("Treble", m_sliderTreble));
     eqLayout->addLayout(slidersRow);
 
-    m_bottomTab->addTab(eqContainer, "EQ");
+    m_bottomTab->addTab(eqContainer, "Equalizer");
     m_bottomTab->setTabToolTip(m_bottomTab->indexOf(eqContainer), "Audio Equalizer");
 
     m_hexViewer = new HexEditorWidget(this);
-    m_bottomTab->addTab(m_hexViewer, "Hex");
+    m_bottomTab->addTab(m_hexViewer, "Hex Viewer");
     m_bottomTab->setTabToolTip(m_bottomTab->indexOf(m_hexViewer), "Hex Viewer");
 
     m_textTabs = new QTabWidget(this);
@@ -1660,7 +1659,7 @@ void PreviewPanel::setupUI() {
     connect(m_textTabs, &QTabWidget::tabCloseRequested, this, &PreviewPanel::onTextTabCloseRequested);
     connect(m_textTabs, &QTabWidget::customContextMenuRequested, this, &PreviewPanel::showTextTabsContextMenu);
 
-    m_bottomTab->addTab(m_textTabs, "Text");
+    m_bottomTab->addTab(m_textTabs, "Document Text");
     m_bottomTab->setTabToolTip(m_bottomTab->indexOf(m_textTabs), "Document Text Viewer");
 
     QSplitter* splitter = new QSplitter(Qt::Vertical, this);
@@ -1858,6 +1857,40 @@ void PreviewPanel::previewFile(const QString& filePath, const QStringList& sibli
                 extractProc->deleteLater();
             });
             extractProc->start("pdftotext", {filePath, "-"});
+        }
+    } else if (ext == "docx" || ext == "odt" || ext == "rtf") {
+        if (m_textTabs) {
+            QString fileName = info.fileName() + " (Text)";
+            addOrActivateTextTab(fileName, "Extracting text contents from document...");
+            QProcess* extractProc = new QProcess(this);
+            connect(extractProc, &QProcess::finished, this, [this, extractProc, fileName](int exitCode) {
+                QString content;
+                if (exitCode == 0) {
+                    content = QString::fromLocal8Bit(extractProc->readAllStandardOutput());
+                } else {
+                    content = "Failed to extract text from document.";
+                }
+                addOrActivateTextTab(fileName, content);
+                extractProc->deleteLater();
+            });
+            extractProc->start("python3", QStringList() << "scripts/extract_doc_text.py" << filePath);
+        }
+    } else if (ext == "doc") {
+        if (m_textTabs) {
+            QString fileName = info.fileName() + " (Text)";
+            addOrActivateTextTab(fileName, "Extracting text contents using catdoc...");
+            QProcess* extractProc = new QProcess(this);
+            connect(extractProc, &QProcess::finished, this, [this, extractProc, fileName](int exitCode) {
+                QString content;
+                if (exitCode == 0) {
+                    content = QString::fromLocal8Bit(extractProc->readAllStandardOutput());
+                } else {
+                    content = "Failed to extract text from Word document. Please convert it to .docx.";
+                }
+                addOrActivateTextTab(fileName, content);
+                extractProc->deleteLater();
+            });
+            extractProc->start("catdoc", QStringList() << filePath);
         }
     } else {
         // Unknown binary/other file - just show metadata
