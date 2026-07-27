@@ -48,6 +48,9 @@ VideoScraperDialog::VideoScraperDialog(const QStringList& filePaths, QWidget* pa
         QString first = m_filePaths.first();
         QFileInfo info(first);
         QString name = info.completeBaseName();
+        // Remove year in brackets like (1984) or [1984]
+        name.remove(QRegularExpression(R"(\(\d{4}\))"));
+        name.remove(QRegularExpression(R"(\[\d{4}\])"));
         // Clean common media tags like S01E01, 1080p, x264, web-dl, etc.
         name.remove(QRegularExpression(R"((?i)\b(s\d+e\d+|1080p|720p|2160p|4k|x264|x265|h264|h265|bluray|brrip|web-dl|webrip|dvdrip|aac|dd5\.1|dts)\b)"));
         // Replace dots, underscores, dashes with spaces
@@ -169,8 +172,12 @@ void VideoScraperDialog::loadApiKey() {
 
 void VideoScraperDialog::onSearchClicked() {
     QString query = m_editSearch->text().trimmed();
+    // Clean year in brackets like (1984) or [1984] from the query
+    query.remove(QRegularExpression(R"(\(\d{4}\))"));
+    query.remove(QRegularExpression(R"(\[\d{4}\])"));
+    query = query.simplified();
     if (query.isEmpty()) return;
-
+    
     QString type = m_comboType->currentText();
     triggerSearch(query, type);
 }
