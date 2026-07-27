@@ -2355,7 +2355,13 @@ QStringList FilePanel::selectedPaths() const {
                     paths.append(vPath);
                 }
             } else {
-                paths.append(m_archiveModel->entryPath(mappedIndex));
+                QString vPath = m_archiveModel->entryPath(mappedIndex);
+                QString tempDirPath = const_cast<ArchiveModel*>(m_archiveModel)->extractDirRecursively(vPath);
+                if (!tempDirPath.isEmpty()) {
+                    paths.append(tempDirPath);
+                } else {
+                    paths.append(vPath);
+                }
             }
         } else if (m_flatViewEnabled) {
             QModelIndex srcIndex = m_flatProxyModel->mapToSource(mappedIndex);

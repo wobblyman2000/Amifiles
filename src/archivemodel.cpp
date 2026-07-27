@@ -403,6 +403,14 @@ QVariant ArchiveModel::headerData(int section, Qt::Orientation orientation, int 
     return QVariant();
 }
 
+Qt::ItemFlags ArchiveModel::flags(const QModelIndex& index) const {
+    Qt::ItemFlags defaultFlags = QAbstractTableModel::flags(index);
+    if (index.isValid()) {
+        return defaultFlags | Qt::ItemIsDragEnabled;
+    }
+    return defaultFlags;
+}
+
 bool ArchiveModel::isDir(const QModelIndex& index) const {
     if (!index.isValid() || index.row() >= m_activeEntries.size()) return false;
     return m_activeEntries[index.row()].isDir;
