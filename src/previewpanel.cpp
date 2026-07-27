@@ -1292,8 +1292,8 @@ void PreviewPanel::setupUI() {
         "  background-color: #313244;"
         "}"
         "QPushButton:checked {"
-        "  background-color: #a6e3a1;"
-        "  border-color: #a6e3a1;"
+        "  background-color: #89b4fa;"
+        "  border-color: #89b4fa;"
         "}"
     );
     m_btnAutoPreview->setToolTip("Auto-Preview: OFF");
@@ -1489,7 +1489,8 @@ void PreviewPanel::setupUI() {
 
     metaLayout->addLayout(tagForm);
 
-    m_bottomTab->addTab(m_metadataContainer, "Properties");
+    m_bottomTab->addTab(m_metadataContainer, "Info");
+    m_bottomTab->setTabToolTip(m_bottomTab->indexOf(m_metadataContainer), "File Properties");
 
     // Tab 2: Playlist Queue
     QWidget* playlistTab = new QWidget(this);
@@ -1564,7 +1565,8 @@ void PreviewPanel::setupUI() {
 
     connect(btnClearQueue, &QPushButton::clicked, this, &PreviewPanel::clearPlaylist);
 
-    m_bottomTab->addTab(playlistTab, "Playlist Queue");
+    m_bottomTab->addTab(playlistTab, "Queue");
+    m_bottomTab->setTabToolTip(m_bottomTab->indexOf(playlistTab), "Playlist Queue");
 
     // Tab 3: Equalizer Container
     QWidget* eqContainer = new QWidget(this);
@@ -1639,16 +1641,27 @@ void PreviewPanel::setupUI() {
     slidersRow->addLayout(createEqSlider("Treble", m_sliderTreble));
     eqLayout->addLayout(slidersRow);
 
-    m_bottomTab->addTab(eqContainer, "Equalizer");
+    m_bottomTab->addTab(eqContainer, "EQ");
+    m_bottomTab->setTabToolTip(m_bottomTab->indexOf(eqContainer), "Audio Equalizer");
 
     m_hexViewer = new HexEditorWidget(this);
-    m_bottomTab->addTab(m_hexViewer, "Hex Viewer");
+    m_bottomTab->addTab(m_hexViewer, "Hex");
+    m_bottomTab->setTabToolTip(m_bottomTab->indexOf(m_hexViewer), "Hex Viewer");
 
-    m_pdfTextEdit = new QTextEdit(this);
-    m_pdfTextEdit->setReadOnly(true);
-    m_pdfTextEdit->setPlaceholderText("Select a PDF to extract text contents...");
-    m_pdfTextEdit->setStyleSheet("QTextEdit { background-color: transparent; border: none; color: #cdd6f4; font-family: monospace; font-size: 11px; }");
-    m_bottomTab->addTab(m_pdfTextEdit, "Document Text");
+    m_textTabs = new QTabWidget(this);
+    m_textTabs->setTabsClosable(true);
+    m_textTabs->setMovable(true);
+    m_textTabs->setStyleSheet(
+        "QTabWidget::pane { border: 1px solid #313244; background-color: #11111b; }"
+        "QTabBar::tab { background-color: #181825; color: #a6adc8; border: 1px solid #313244; padding: 4px 8px; font-size: 11px; }"
+        "QTabBar::tab:selected { background-color: #11111b; color: #cdd6f4; }"
+    );
+    m_textTabs->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_textTabs, &QTabWidget::tabCloseRequested, this, &PreviewPanel::onTextTabCloseRequested);
+    connect(m_textTabs, &QTabWidget::customContextMenuRequested, this, &PreviewPanel::showTextTabsContextMenu);
+
+    m_bottomTab->addTab(m_textTabs, "Text");
+    m_bottomTab->setTabToolTip(m_bottomTab->indexOf(m_textTabs), "Document Text Viewer");
 
     QSplitter* splitter = new QSplitter(Qt::Vertical, this);
     splitter->setStyleSheet(
@@ -1705,9 +1718,6 @@ void PreviewPanel::clearPreview() {
     }
     if (m_pdfViewer) {
         m_pdfViewer->clear();
-    }
-    if (m_pdfTextEdit) {
-        m_pdfTextEdit->clear();
     }
     if (m_audioPlaceholder) {
         m_audioPlaceholder->setFilePath("");
@@ -1833,15 +1843,18 @@ void PreviewPanel::previewFile(const QString& filePath, const QStringList& sibli
             m_pdfViewer->loadPdf(filePath);
             m_stack->setCurrentWidget(m_pdfViewer);
         }
-        if (m_pdfTextEdit) {
-            m_pdfTextEdit->setPlainText("Extracting text contents from PDF...");
+        if (m_textTabs) {
+            QString fileName = info.fileName() + " (Text)";
+            addOrActivateTextTab(fileName, "Extracting text contents from PDF...");
             QProcess* extractProc = new QProcess(this);
-            connect(extractProc, &QProcess::finished, this, [this, extractProc](int exitCode) {
+            connect(extractProc, &QProcess::finished, this, [this, extractProc, fileName](int exitCode) {
+                QString content;
                 if (exitCode == 0) {
-                    m_pdfTextEdit->setPlainText(QString::fromLocal8Bit(extractProc->readAllStandardOutput()));
+                    content = QString::fromLocal8Bit(extractProc->readAllStandardOutput());
                 } else {
-                    m_pdfTextEdit->setPlainText("Failed to extract text from PDF.");
+                    content = "Failed to extract text from PDF.";
                 }
+                addOrActivateTextTab(fileName, content);
                 extractProc->deleteLater();
             });
             extractProc->start("pdftotext", {filePath, "-"});
@@ -1892,16 +1905,22 @@ void PreviewPanel::previewFolderArt(const QString& artPath, const QString& folde
 void PreviewPanel::showTextPreview(const QString& filePath) {
     QFile file(filePath);
     if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QString content;
         // Safeguard against loading massive files
         if (file.size() > 5 * 1024 * 1024) {
-            m_textEdit->setPlainText("[File is too large to preview (>5MB)]");
+            content = "[File is too large to preview (>5MB)]";
+            m_textEdit->setPlainText(content);
             m_textEdit->setReadOnly(true);
         } else {
             QTextStream in(&file);
-            m_textEdit->setPlainText(in.readAll());
+            content = in.readAll();
+            m_textEdit->setPlainText(content);
             m_textEdit->setReadOnly(false);
         }
         file.close();
+        
+        QString fileName = QFileInfo(filePath).fileName();
+        addOrActivateTextTab(fileName, content);
     }
     m_textChanged = false;
     m_textControls->hide();
@@ -3593,4 +3612,57 @@ void PreviewPanel::onAutoPreviewToggled() {
     // Save setting
     QSettings settings("Amifiles", "Amifiles");
     settings.setValue("preview/auto_preview_enabled", active);
+}
+
+void PreviewPanel::addOrActivateTextTab(const QString& title, const QString& content) {
+    if (!m_textTabs) return;
+    
+    // Check if a tab with this title is already open
+    for (int i = 0; i < m_textTabs->count(); ++i) {
+        if (m_textTabs->tabText(i) == title) {
+            m_textTabs->setCurrentIndex(i);
+            QTextEdit* textEdit = qobject_cast<QTextEdit*>(m_textTabs->widget(i));
+            if (textEdit) {
+                textEdit->setPlainText(content);
+            }
+            m_bottomTab->setCurrentWidget(m_textTabs);
+            return;
+        }
+    }
+    
+    // Create new tab
+    QTextEdit* textEdit = new QTextEdit(m_textTabs);
+    textEdit->setReadOnly(true);
+    textEdit->setPlainText(content);
+    textEdit->setStyleSheet("QTextEdit { background-color: transparent; border: none; color: #cdd6f4; font-family: monospace; font-size: 11px; }");
+    
+    int newIdx = m_textTabs->addTab(textEdit, title);
+    m_textTabs->setCurrentIndex(newIdx);
+    
+    m_bottomTab->setCurrentWidget(m_textTabs);
+}
+
+void PreviewPanel::onTextTabCloseRequested(int index) {
+    if (m_textTabs) {
+        QWidget* w = m_textTabs->widget(index);
+        m_textTabs->removeTab(index);
+        if (w) w->deleteLater();
+    }
+}
+
+void PreviewPanel::showTextTabsContextMenu(const QPoint& pos) {
+    if (!m_textTabs) return;
+    QMenu menu(this);
+    menu.setStyleSheet(
+        "QMenu { background-color: #1e1e2e; color: #cdd6f4; border: 1px solid #45475a; border-radius: 6px; padding: 6px; }"
+        "QMenu::item { padding: 4px 16px; border-radius: 4px; }"
+        "QMenu::item:selected { background-color: #313244; color: #89b4fa; }"
+    );
+    QAction* actClear = menu.addAction("Clear All Tabs");
+    QAction* selected = menu.exec(m_textTabs->mapToGlobal(pos));
+    if (selected == actClear) {
+        while (m_textTabs->count() > 0) {
+            onTextTabCloseRequested(0);
+        }
+    }
 }

@@ -314,10 +314,13 @@ private slots:
     void onEqPresetChanged(int index);
     void onEqSlidersChanged();
     void showPlaylistContextMenu(const QPoint& pos);
+    void onTextTabCloseRequested(int index);
+    void showTextTabsContextMenu(const QPoint& pos);
 
 private:
     void setupUI();
     void showTextPreview(const QString& filePath);
+    void addOrActivateTextTab(const QString& title, const QString& content);
     void showImagePreview(const QString& filePath);
     void showMediaPreview(const QString& filePath, bool isVideo, bool startPlaying = true);
     void updateMetadataDisplay(const FileMetadata& meta);
@@ -376,7 +379,7 @@ private:
     QLabel* m_imageLabel = nullptr;
     QScrollArea* m_imageScrollArea = nullptr;
     class PdfViewerWidget* m_pdfViewer = nullptr;
-    class QTextEdit* m_pdfTextEdit = nullptr;
+    class QTabWidget* m_textTabs = nullptr;
 
     // Media View
     QWidget* m_mediaView = nullptr;
