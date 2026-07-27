@@ -386,6 +386,23 @@ void FilePanel::setupUI() {
     });
     connect(m_homeDashboardWidget, &HomeDashboardWidget::navigateWithLayoutRequested, this, [this](const QString& path, int layoutIdx) {
         navigateTo(path);
+        
+        // Traverse parents to find MainWindow and check if a custom folder profile rule was applied
+        QWidget* parentW = parentWidget();
+        while (parentW && !parentW->inherits("MainWindow")) {
+            parentW = parentW->parentWidget();
+        }
+        MainWindow* mw = qobject_cast<MainWindow*>(parentW);
+        if (mw) {
+            if (mw->hasActiveFolderRule()) {
+                QString ruleName = mw->activeFolderRule().name.toLower();
+                if (ruleName != "default" && !ruleName.isEmpty()) {
+                    // Custom folder profile matched and was applied, so obey it instead of pinned layout memory
+                    return;
+                }
+            }
+        }
+        
         setViewModeIndex(layoutIdx);
     });
     m_theaterListView = new TheaterListView(this);
