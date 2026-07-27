@@ -1789,6 +1789,29 @@ void PreviewPanel::clearPreview() {
     m_metadataTable->setRowCount(0);
 }
 
+static bool isLikelyTextFile(const QString& filePath) {
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly)) return false;
+    
+    QByteArray buffer = file.read(1024);
+    file.close();
+    
+    if (buffer.isEmpty()) return true; // empty file can be treated as text
+    
+    // Check for null bytes which indicate binary files
+    if (buffer.contains('\0')) return false;
+    
+    // Check for a high ratio of printable characters
+    int printable = 0;
+    for (char c : buffer) {
+        // Tab, carriage return, line feed, or printable ASCII (32-126)
+        if (c == '\t' || c == '\n' || c == '\r' || (c >= 32 && c <= 126) || (unsigned char)c >= 128) {
+            printable++;
+        }
+    }
+    return (double)printable / buffer.size() > 0.9;
+}
+
 void PreviewPanel::previewFile(const QString& filePath, const QStringList& siblingSelections, bool startPlaying, bool keepCurrentPlaylist) {
     if (m_forcePlayNext) {
         m_prePreviewPlaybackState = QMediaPlayer::PlayingState;
@@ -1901,6 +1924,8 @@ void PreviewPanel::previewFile(const QString& filePath, const QStringList& sibli
         showMediaPreview(filePath, false, startPlaying);
     } else if (videoExts.contains(ext)) {
         showMediaPreview(filePath, true, startPlaying);
+    } else if (isLikelyTextFile(filePath)) {
+        showTextPreview(filePath);
     } else if (ext == "pdf") {
         if (m_pdfViewer) {
             m_pdfViewer->loadPdf(filePath);
@@ -2182,6 +2207,18 @@ void PreviewPanel::dragMoveEvent(QDragMoveEvent* event) {
 
 void PreviewPanel::dropEvent(QDropEvent* event) {
     if (!event->mimeData()->hasUrls()) return;
+
+    if (event->mimeData()->urls().size() == 1) {
+        QString path = event->mimeData()->urls().first().toLocalFile();
+        if (!path.isEmpty()) {
+            QFileInfo info(path);
+            if (info.isFile()) {
+                event->acceptProposedAction();
+                previewFile(path, {}, true);
+                return;
+            }
+        }
+    }
 
     QStringList playableFiles;
     QStringList audioExts = { "mp3", "wav", "flac", "ogg", "m4a" };
