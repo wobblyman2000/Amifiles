@@ -119,7 +119,8 @@ void PathBarWidget::updatePopupList() {
             for (const QString& match : matches) {
                 m_popupList->addItem(match);
             }
-            m_popupList->setCurrentRow(0);
+            m_popupList->setCurrentItem(nullptr);
+            m_popupList->clearSelection();
 
             // Position and show popup
             QPoint pos = m_editPath->mapToGlobal(QPoint(0, m_editPath->height()));
@@ -139,7 +140,9 @@ bool PathBarWidget::eventFilter(QObject* watched, QEvent* event) {
         if (m_popupList->isVisible()) {
             if (keyEvent->key() == Qt::Key_Down) {
                 int row = m_popupList->currentRow();
-                if (row < m_popupList->count() - 1) {
+                if (row < 0) {
+                    m_popupList->setCurrentRow(0);
+                } else if (row < m_popupList->count() - 1) {
                     m_popupList->setCurrentRow(row + 1);
                 }
                 return true;
@@ -147,13 +150,19 @@ bool PathBarWidget::eventFilter(QObject* watched, QEvent* event) {
                 int row = m_popupList->currentRow();
                 if (row > 0) {
                     m_popupList->setCurrentRow(row - 1);
+                } else {
+                    m_popupList->setCurrentRow(-1);
+                    m_popupList->clearSelection();
                 }
                 return true;
             } else if (keyEvent->key() == Qt::Key_Escape) {
                 m_popupList->hide();
                 return true;
             } else if (keyEvent->key() == Qt::Key_Enter || keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Tab) {
-                QListWidgetItem* item = m_popupList->currentItem();
+                QListWidgetItem* item = nullptr;
+                if (m_popupList->selectedItems().count() > 0) {
+                    item = m_popupList->currentItem();
+                }
                 if (item) {
                     onPopupItemClicked(item);
                 } else {
