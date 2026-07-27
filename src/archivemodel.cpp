@@ -822,7 +822,7 @@ bool ArchiveModel::createDirectory(const QString& name) {
     if (ext == "adf") {
         QProcess proc;
         QString destVirtualPath = m_currentVirtualPath.isEmpty() ? name : m_currentVirtualPath + "/" + name;
-        proc.start("xdftool", { m_archivePath, "mkdir", destVirtualPath });
+        proc.start("xdftool", { m_archivePath, "makedir", destVirtualPath });
         if (proc.waitForFinished() && proc.exitCode() == 0) {
             loadArchive(m_archivePath);
             return true;
