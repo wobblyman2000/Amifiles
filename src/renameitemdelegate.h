@@ -67,15 +67,39 @@ public:
         // Apply option font (exact rendering font size of the item)
         lineEdit->setFont(option.font);
 
+        int fontPx = option.font.pixelSize();
+        int fontPt = option.font.pointSize();
+        QString fontSizeStr;
+        if (fontPx > 0) {
+            fontSizeStr = QString("%1px").arg(fontPx);
+        } else if (fontPt > 0) {
+            fontSizeStr = QString("%1pt").arg(fontPt);
+        } else {
+            if (option.widget) {
+                int wPx = option.widget->font().pixelSize();
+                int wPt = option.widget->font().pointSize();
+                if (wPx > 0) fontSizeStr = QString("%1px").arg(wPx);
+                else if (wPt > 0) fontSizeStr = QString("%1pt").arg(wPt);
+            }
+            if (fontSizeStr.isEmpty()) {
+                fontSizeStr = "13px"; // default fallback
+            }
+        }
+        QString fontWeight = option.font.bold() ? "bold" : "normal";
+
         // Apply premium styling to the inline editor to remove the ugly large grey box
         lineEdit->setStyleSheet(
-            "QLineEdit {"
-            "  background-color: #313244;"
-            "  color: #cdd6f4;"
-            "  border: 1px solid #89b4fa;"
-            "  border-radius: 4px;"
-            "  padding: 1px 2px;"
-            "}"
+            QString(
+                "QLineEdit {"
+                "  background-color: #313244;"
+                "  color: #cdd6f4;"
+                "  border: 1px solid #89b4fa;"
+                "  border-radius: 4px;"
+                "  padding: 1px 2px;"
+                "  font-size: %1;"
+                "  font-weight: %2;"
+                "}"
+            ).arg(fontSizeStr).arg(fontWeight)
         );
         
         return lineEdit;
