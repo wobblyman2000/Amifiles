@@ -4,6 +4,7 @@
 #include <QWidget>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QTimer>
 
 class PathBarWidget : public QWidget {
     Q_OBJECT
@@ -34,6 +35,7 @@ private:
     QString m_currentPath;
     QLineEdit* m_editPath = nullptr;
     QListWidget* m_popupList = nullptr;
+    QTimer* m_debounceTimer = nullptr;
     bool m_blockPopup = false;
 };
 

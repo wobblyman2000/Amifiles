@@ -33,8 +33,13 @@ PathBarWidget::PathBarWidget(QWidget* parent) : QWidget(parent) {
     m_popupList->installEventFilter(this);
     connect(m_popupList, &QListWidget::itemClicked, this, &PathBarWidget::onPopupItemClicked);
 
+    m_debounceTimer = new QTimer(this);
+    m_debounceTimer->setSingleShot(true);
+    connect(m_debounceTimer, &QTimer::timeout, this, &PathBarWidget::updatePopupList);
+
     connect(m_editPath, &QLineEdit::textChanged, this, &PathBarWidget::onTextChanged);
     connect(m_editPath, &QLineEdit::returnPressed, this, [this]() {
+        m_debounceTimer->stop();
         m_popupList->hide();
         emit pathEntered(m_editPath->text());
     });
@@ -45,13 +50,14 @@ void PathBarWidget::setPath(const QString& path) {
     m_blockPopup = true;
     m_editPath->setText(QDir::toNativeSeparators(m_currentPath));
     m_blockPopup = false;
+    m_debounceTimer->stop();
     m_popupList->hide();
 }
 
 void PathBarWidget::onTextChanged(const QString& text) {
     Q_UNUSED(text);
     if (m_blockPopup) return;
-    updatePopupList();
+    m_debounceTimer->start(250); // 250ms debounce
 }
 
 void PathBarWidget::onPopupItemClicked(QListWidgetItem* item) {
@@ -70,6 +76,7 @@ void PathBarWidget::onPopupItemClicked(QListWidgetItem* item) {
     m_editPath->setText(QDir::toNativeSeparators(completed));
     m_blockPopup = false;
     
+    m_debounceTimer->stop();
     m_popupList->hide();
     m_editPath->setFocus();
     
