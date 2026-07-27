@@ -1274,6 +1274,31 @@ void PreviewPanel::setupUI() {
         }
     });
 
+    m_btnAutoPreview = new QPushButton(this);
+    m_btnAutoPreview->setCheckable(true);
+    m_btnAutoPreview->setMaximumWidth(32);
+    m_btnAutoPreview->setStyleSheet("QPushButton { background-color: transparent; border: none; }");
+    m_btnAutoPreview->setIcon(style->standardIcon(QStyle::SP_BrowserReload));
+    m_btnAutoPreview->setToolTip("Auto-Preview: OFF");
+
+    bool autoPreviewVal = settings.value("preview/auto_preview_enabled", false).toBool();
+    m_btnAutoPreview->setChecked(autoPreviewVal);
+    if (autoPreviewVal) {
+        m_btnAutoPreview->setStyleSheet("QPushButton { color: #a6e3a1; font-weight: bold; background-color: transparent; }");
+        m_btnAutoPreview->setToolTip("Auto-Preview: ON");
+    }
+
+    connect(m_btnAutoPreview, &QPushButton::toggled, this, [this](bool checked) {
+        QSettings settings("Amifiles", "Amifiles");
+        settings.setValue("preview/auto_preview_enabled", checked);
+        m_btnAutoPreview->setToolTip(checked ? "Auto-Preview: ON" : "Auto-Preview: OFF");
+        if (checked) {
+            m_btnAutoPreview->setStyleSheet("QPushButton { color: #a6e3a1; font-weight: bold; background-color: transparent; }");
+        } else {
+            m_btnAutoPreview->setStyleSheet("QPushButton { background-color: transparent; }");
+        }
+    });
+
     m_autoFsTimer = new QTimer(this);
     m_autoFsTimer->setSingleShot(true);
     connect(m_autoFsTimer, &QTimer::timeout, this, [this]() {
@@ -1327,6 +1352,7 @@ void PreviewPanel::setupUI() {
     controlsRow2->addWidget(m_btnToggleVisualizer);
     controlsRow2->addWidget(m_btnSubtitles);
     controlsRow2->addWidget(m_btnAutoFS20s);
+    controlsRow2->addWidget(m_btnAutoPreview);
     controlsRow2->addStretch(1);
 
     QVBoxLayout* controlsLayout = new QVBoxLayout();
@@ -1455,6 +1481,37 @@ void PreviewPanel::setupUI() {
     m_bottomTab->addTab(m_metadataContainer, "Properties");
 
     // Tab 2: Playlist Queue
+    QWidget* playlistTab = new QWidget(this);
+    QVBoxLayout* playlistLayout = new QVBoxLayout(playlistTab);
+    playlistLayout->setContentsMargins(4, 4, 4, 4);
+    playlistLayout->setSpacing(4);
+
+    QHBoxLayout* playlistToolbar = new QHBoxLayout();
+    playlistToolbar->setContentsMargins(0, 0, 0, 0);
+    playlistToolbar->setSpacing(4);
+
+    QPushButton* btnPlayQueue = new QPushButton("Play Queue", this);
+    btnPlayQueue->setIcon(style->standardIcon(QStyle::SP_MediaPlay));
+    btnPlayQueue->setStyleSheet("QPushButton { padding: 4px 8px; font-size: 11px; }");
+    
+    QPushButton* btnPlaySelected = new QPushButton("Play", this);
+    btnPlaySelected->setIcon(style->standardIcon(QStyle::SP_MediaPlay));
+    btnPlaySelected->setStyleSheet("QPushButton { padding: 4px 8px; font-size: 11px; }");
+
+    QPushButton* btnRemoveSelected = new QPushButton("Remove", this);
+    btnRemoveSelected->setIcon(style->standardIcon(QStyle::SP_DialogCloseButton));
+    btnRemoveSelected->setStyleSheet("QPushButton { padding: 4px 8px; font-size: 11px; }");
+
+    QPushButton* btnClearQueue = new QPushButton("Clear", this);
+    btnClearQueue->setIcon(style->standardIcon(QStyle::SP_TrashIcon));
+    btnClearQueue->setStyleSheet("QPushButton { padding: 4px 8px; font-size: 11px; }");
+
+    playlistToolbar->addWidget(btnPlayQueue);
+    playlistToolbar->addWidget(btnPlaySelected);
+    playlistToolbar->addWidget(btnRemoveSelected);
+    playlistToolbar->addWidget(btnClearQueue);
+    playlistToolbar->addStretch(1);
+
     m_playlistList = new QListWidget(this);
     m_playlistList->setStyleSheet(
         "QListWidget { background-color: transparent; border: none; color: #cdd6f4; }"
@@ -1464,7 +1521,37 @@ void PreviewPanel::setupUI() {
     m_playlistList->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(m_playlistList, &QListWidget::itemDoubleClicked, this, &PreviewPanel::onPlaylistItemDoubleClicked);
     connect(m_playlistList, &QListWidget::customContextMenuRequested, this, &PreviewPanel::showPlaylistContextMenu);
-    m_bottomTab->addTab(m_playlistList, "Playlist Queue");
+
+    playlistLayout->addLayout(playlistToolbar);
+    playlistLayout->addWidget(m_playlistList);
+
+    connect(btnPlayQueue, &QPushButton::clicked, this, [this]() {
+        if (!m_playlist.isEmpty()) {
+            playPlaylistIndex(0);
+        }
+    });
+
+    connect(btnPlaySelected, &QPushButton::clicked, this, [this]() {
+        if (m_playlistList) {
+            int row = m_playlistList->currentRow();
+            if (row >= 0 && row < m_playlist.size()) {
+                playPlaylistIndex(row);
+            }
+        }
+    });
+
+    connect(btnRemoveSelected, &QPushButton::clicked, this, [this]() {
+        if (m_playlistList) {
+            int row = m_playlistList->currentRow();
+            if (row >= 0 && row < m_playlist.size()) {
+                removeFromPlaylist(row);
+            }
+        }
+    });
+
+    connect(btnClearQueue, &QPushButton::clicked, this, &PreviewPanel::clearPlaylist);
+
+    m_bottomTab->addTab(playlistTab, "Playlist Queue");
 
     // Tab 3: Equalizer Container
     QWidget* eqContainer = new QWidget(this);
@@ -3468,4 +3555,21 @@ void PreviewPanel::setPlaylistMode(bool audio) {
     }
 
     emit playlistChanged();
+}
+
+bool PreviewPanel::isAutoPreviewEnabled() const {
+    return m_btnAutoPreview && m_btnAutoPreview->isChecked();
+}
+
+void PreviewPanel::onAutoPreviewToggled() {
+    if (!m_btnAutoPreview) return;
+    bool active = m_btnAutoPreview->isChecked();
+    if (active) {
+        m_btnAutoPreview->setStyleSheet("QPushButton { color: #a6e3a1; font-weight: bold; background-color: transparent; }");
+    } else {
+        m_btnAutoPreview->setStyleSheet("QPushButton { background-color: transparent; }");
+    }
+    // Save setting
+    QSettings settings("Amifiles", "Amifiles");
+    settings.setValue("preview/auto_preview_enabled", active);
 }

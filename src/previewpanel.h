@@ -261,6 +261,7 @@ public:
     void setSpectrumVisualizerVisible(bool visible);
     bool isSpectrumVisualizerEnabled() const { return m_spectrumVisualizerEnabled; }
     void setZenMode(bool enabled);
+    bool isAutoPreviewEnabled() const;
     
     QStringList playlist() const { return m_playlist; }
     int playlistIndex() const { return m_playlistIndex; }
@@ -394,6 +395,7 @@ private:
     QPushButton* m_btnRepeat = nullptr;
     QPushButton* m_btnToggleVisualizer = nullptr;
     QPushButton* m_btnAutoFS20s = nullptr;
+    QPushButton* m_btnAutoPreview = nullptr;
     QTimer* m_autoFsTimer = nullptr;
 
     // EQ and Visualizer Elements
@@ -431,6 +433,7 @@ private slots:
     void onChooseOverlayIcon();
     void onClearOverlayIcon();
     void onApplyTagsColors();
+    void onAutoPreviewToggled();
 };
 
 #endif // PREVIEWPANEL_H
