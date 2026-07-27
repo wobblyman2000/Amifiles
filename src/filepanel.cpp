@@ -1392,24 +1392,17 @@ bool FilePanel::eventFilter(QObject* watched, QEvent* event) {
                     if (view) {
                         QModelIndex index = view->indexAt(dropEvent->position().toPoint());
                         if (index.isValid()) {
-                            QModelIndex srcIndex = index;
-                            if (view == m_treeView) {
-                                srcIndex = m_proxyModel->mapToSource(index);
-                            } else if (view == m_listView && m_flatViewEnabled) {
-                                srcIndex = m_flatProxyModel->mapToSource(index);
-                            } else if (view == m_listView) {
-                                srcIndex = m_proxyModel->mapToSource(index);
-                            } else if (view->model() == m_fileModel) {
-                                srcIndex = index;
-                            }
-                            
-                            if (m_fileModel && m_fileModel->isDir(srcIndex)) {
-                                destDir = m_fileModel->filePath(srcIndex);
+                            QString path = filePathFromIndex(index);
+                            if (!path.isEmpty() && QFileInfo(path).isDir()) {
+                                destDir = path;
                             }
                         } else {
                             QModelIndex rootIdx = view->rootIndex();
                             if (rootIdx.isValid()) {
-                                destDir = m_fileModel->filePath(rootIdx);
+                                QString path = filePathFromIndex(rootIdx);
+                                if (!path.isEmpty() && QFileInfo(path).isDir()) {
+                                    destDir = path;
+                                }
                             }
                         }
                     } else if (watched == m_timelineView || (m_timelineView && watched == m_timelineView->viewport())) {
@@ -2299,6 +2292,32 @@ void FilePanel::onSelectionChanged() {
     } else {
         emit fileSelected(paths.first());
     }
+}
+
+QString FilePanel::filePathFromIndex(const QModelIndex& index) const {
+    if (!index.isValid()) return "";
+    
+    QModelIndex srcIdx = index;
+    const QAbstractItemModel* m = index.model();
+    while (m) {
+        if (const QAbstractProxyModel* proxy = qobject_cast<const QAbstractProxyModel*>(m)) {
+            srcIdx = proxy->mapToSource(srcIdx);
+            m = proxy->sourceModel();
+        } else {
+            break;
+        }
+    }
+    
+    if (m == m_fileModel) {
+        return m_fileModel->filePath(srcIdx);
+    } else if (m == m_flatModel) {
+        return m_flatModel->filePath(srcIdx);
+    } else if (m == m_smartModel) {
+        return m_smartModel->filePath(srcIdx);
+    } else if (m == m_archiveModel) {
+        return m_archiveModel->entryPath(srcIdx);
+    }
+    return "";
 }
 
 QStringList FilePanel::selectedPaths() const {

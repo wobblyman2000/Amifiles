@@ -815,6 +815,7 @@ public:
     bool isActive() const { return m_isActive; }
 
     QStringList selectedPaths() const;
+    QString filePathFromIndex(const QModelIndex& index) const;
     QString activeFilePath() const; // First selected file, or current directory if none
     void selectFilePath(const QString& filePath);
     QString folderArtPath() const { return m_folderArtPath; }
