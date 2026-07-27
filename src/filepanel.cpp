@@ -2041,14 +2041,40 @@ void FilePanel::onDoubleClicked(const QModelIndex& index) {
     if (isDir) {
         onDoubleClickedPath(path);
     } else {
-        // Trigger inline edit for files!
         QAbstractItemView* activeView = nullptr;
         int mode = viewModeIndex();
         if (mode == 0) activeView = m_treeView;
         else if (mode == 1) activeView = m_listView;
         else if (mode == 4) activeView = m_theaterListView;
-        
+
+        bool clickedOnText = true;
         if (activeView) {
+            QPoint pos = activeView->viewport()->mapFromGlobal(QCursor::pos());
+            QRect rect = activeView->visualRect(index);
+            
+            // Differentiate click location (icon vs text) based on view mode
+            if (mode == 0) { // Tree View (Details)
+                if (pos.x() < rect.x() + 32) {
+                    clickedOnText = false;
+                }
+            } else if (mode == 1) { // List View (Grid/Cards)
+                if (rect.height() == 68) { // Card View
+                    if (pos.x() < rect.x() + 60) {
+                        clickedOnText = false;
+                    }
+                } else { // Standard list/grid item
+                    if (pos.x() < rect.x() + 24) {
+                        clickedOnText = false;
+                    }
+                }
+            } else if (mode == 4) { // Theater List View
+                if (pos.x() < rect.x() + 80) {
+                    clickedOnText = false;
+                }
+            }
+        }
+
+        if (activeView && clickedOnText) {
             activeView->edit(index);
         } else {
             onDoubleClickedPath(path);
