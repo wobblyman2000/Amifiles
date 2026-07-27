@@ -765,7 +765,10 @@ QString VideoScraperDialog::renameTarget(const QString& path, const QString& new
 
     if (path != newPath) {
         if (QFile::rename(path, newPath)) {
+            QFile(newPath).setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
             return newPath;
+        } else {
+            qWarning() << "Failed to rename folder/file:" << path << "to" << newPath << "Error:" << QFile(path).errorString();
         }
     }
     return path;
@@ -1050,6 +1053,7 @@ void VideoScraperDialog::processTVShowEpisodes(const QString& targetFolder, cons
                 if (task.oldPath != finalDestPath) {
                     if (!QFile::exists(finalDestPath)) {
                         if (QFile::rename(task.oldPath, finalDestPath)) {
+                            QFile(finalDestPath).setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
                             renamedCount++;
                         } else {
                             failedRenames.append(QString("%1 -> %2 (Error: %3)")

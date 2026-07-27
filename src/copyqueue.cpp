@@ -239,6 +239,7 @@ bool CopyQueueWorker::processJob(const CopyJob& job) {
         QFileInfo destInfo(job.destPath);
         if (!destInfo.exists()) {
             if (QFile::rename(job.srcPath, job.destPath)) {
+                QFile(job.destPath).setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
                 return true;
             }
         } else {
@@ -252,6 +253,7 @@ bool CopyQueueWorker::processJob(const CopyJob& job) {
             if (res == ResolveOverwrite) {
                 QFile::remove(job.destPath);
                 if (QFile::rename(job.srcPath, job.destPath)) {
+                    QFile(job.destPath).setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
                     return true;
                 }
             }
@@ -266,6 +268,7 @@ bool CopyQueueWorker::processJob(const CopyJob& job) {
                     newDest = QDir(dir).filePath(QString("%1 (%2).%3").arg(base).arg(counter++).arg(suffix));
                 }
                 if (QFile::rename(job.srcPath, newDest)) {
+                    QFile(newDest).setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
                     return true;
                 }
             }
@@ -446,6 +449,9 @@ static bool copyPrioritized(const QString& src, const QString& dest, bool isMove
         bool success = false;
         if (isMove) {
             success = QFile::rename(src, dest);
+            if (success) {
+                QFile(dest).setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
+            }
         } else {
             success = QFile::copy(src, dest);
         }

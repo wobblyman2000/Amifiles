@@ -2636,6 +2636,7 @@ void FilePanel::onRename() {
     if (ok && !newName.isEmpty() && newName != oldName) {
         QString newPath = info.dir().filePath(newName);
         if (QFile::rename(oldPath, newPath)) {
+            QFile(newPath).setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
             refresh();
         } else {
             QMessageBox::warning(this, "Rename Failed", "Could not rename the selected item.");
@@ -5034,7 +5035,9 @@ void FilePanel::onSearchContextMenu(const QPoint& pos) {
                 for (const QString& f : selectedFiles) {
                     QFileInfo fi(f);
                     QString destPath = QDir(siblingPath).filePath(fi.fileName());
-                    QFile::rename(f, destPath);
+                    if (QFile::rename(f, destPath)) {
+                        QFile(destPath).setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
+                    }
                 }
                 refresh();
                 m_siblingPanel->refresh();
@@ -5062,6 +5065,7 @@ void FilePanel::onSearchContextMenu(const QPoint& pos) {
         if (ok && !newName.isEmpty() && newName != oldName) {
             QString newPath = info.absoluteDir().filePath(newName);
             if (QFile::rename(firstFile, newPath)) {
+                QFile(newPath).setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
                 QStringList currentList = m_searchResultModel->stringList();
                 int idx = currentList.indexOf(firstFile);
                 if (idx != -1) {
