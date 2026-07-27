@@ -936,6 +936,13 @@ void FilePanel::setupUI() {
     m_btnFilterFolders->setToolTip("Show only directories, hiding files");
     m_btnFilterFolders->setStyleSheet("QToolButton { padding: 4px 8px; }");
 
+    m_btnFilterRecent = new QToolButton(this);
+    m_btnFilterRecent->setText("🔥 Recent (24h)");
+    m_btnFilterRecent->setCheckable(true);
+    m_btnFilterRecent->setToolTip("Show only files modified in the last 24 hours");
+    m_btnFilterRecent->setStyleSheet("QToolButton { padding: 4px 8px; }");
+    connect(m_btnFilterRecent, &QToolButton::toggled, this, &FilePanel::onRecentFilterToggled);
+
     m_btnStickyFilters = new QToolButton(this);
     m_btnStickyFilters->setText("📌 Sticky");
     m_btnStickyFilters->setCheckable(true);
@@ -987,6 +994,7 @@ void FilePanel::setupUI() {
     categoryLayout->addWidget(m_btnFilterThreeD);
     categoryLayout->addWidget(m_btnFilterFiles);
     categoryLayout->addWidget(m_btnFilterFolders);
+    categoryLayout->addWidget(m_btnFilterRecent);
     categoryLayout->addWidget(m_btnStickyFilters);
 
     m_btnToggleSearchMode = new QToolButton(this);
@@ -1686,9 +1694,16 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
             m_btnFilterThreeD->setChecked(false);
             m_btnFilterFiles->setChecked(false);
             m_btnFilterFolders->setChecked(false);
+            if (m_btnFilterRecent) {
+                m_btnFilterRecent->setChecked(false);
+            }
         }
         QSet<FileFilterProxyModel::FilterType> allFilter = { FileFilterProxyModel::FilterAll };
         m_proxyModel->setFilterTypes(allFilter);
+        m_proxyModel->setShowRecentOnly(false);
+        if (m_flatProxyModel) {
+            m_flatProxyModel->setShowRecentOnly(false);
+        }
     }
 
     // Update tree view root
@@ -1964,6 +1979,16 @@ void FilePanel::onFilterTypeChanged() {
     if (targetPanel != this) {
         targetPanel->syncFilterTypes(activeTypes);
     }
+}
+
+void FilePanel::onRecentFilterToggled(bool checked) {
+    if (m_proxyModel) {
+        m_proxyModel->setShowRecentOnly(checked);
+    }
+    if (m_flatProxyModel) {
+        m_flatProxyModel->setShowRecentOnly(checked);
+    }
+    updateStatusText();
 }
 
 static bool containsMediaFilesDirectly(const QString& folderPath) {

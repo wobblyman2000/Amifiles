@@ -271,12 +271,21 @@ public:
         invalidate();
     }
 
+    void setShowRecentOnly(bool enabled) {
+        if (m_showRecentOnly != enabled) {
+            m_showRecentOnly = enabled;
+            invalidate();
+        }
+    }
+    bool showRecentOnly() const { return m_showRecentOnly; }
+
     void clearAdvancedFilters() {
         m_minSize = -1;
         m_maxSize = -1;
         m_minDate = QDateTime();
         m_maxDate = QDateTime();
         m_filterTag = QString();
+        m_showRecentOnly = false;
         invalidate();
     }
 
@@ -686,6 +695,17 @@ protected:
             }
         }
 
+        // 2.6. Apply Show Recent Only (Modified in last 24 hours) Filter
+        if (m_showRecentOnly) {
+            if (isDir) {
+                // Keep directories navigable
+            } else {
+                if (!modDate.isValid() || modDate.secsTo(QDateTime::currentDateTime()) > 24 * 3600) {
+                    return false;
+                }
+            }
+        }
+
         // 2.5. Apply Tag Filter
         if (!m_filterTag.isEmpty()) {
             if (isDir) {
@@ -776,6 +796,7 @@ private:
     QDateTime m_minDate;
     QDateTime m_maxDate;
     QString m_filterTag;
+    bool m_showRecentOnly = false;
     mutable QHash<QString, QPair<QString, int>> m_casingCache;
     mutable QHash<QString, QIcon> m_iconCache;
     mutable QList<AgeColorRule> m_ageRules;
@@ -920,6 +941,7 @@ private slots:
     void onClonePathClicked();
     void onFilterChanged(const QString& filterText);
     void onFilterTypeChanged();
+    void onRecentFilterToggled(bool checked);
     void onSelectionChanged();
     void onDoubleClicked(const QModelIndex& index);
     void onDoubleClickedPath(const QString& path);
@@ -1084,6 +1106,7 @@ private:
     QToolButton* m_btnFilterFiles = nullptr;
     QToolButton* m_btnFilterFolders = nullptr;
     QToolButton* m_btnStickyFilters = nullptr;
+    QToolButton* m_btnFilterRecent = nullptr;
     QLabel* m_statusLabel = nullptr;
 
     QWidget* m_categoryWidget = nullptr;
