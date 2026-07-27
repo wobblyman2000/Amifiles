@@ -1364,6 +1364,22 @@ bool FilePanel::eventFilter(QObject* watched, QEvent* event) {
                 }
                 
                 if (!srcPaths.isEmpty()) {
+                    if (m_archiveViewActive) {
+                        QSettings settings("Amifiles", "Amifiles");
+                        bool archiveWriteEnabled = settings.value("preferences/archive_write", false).toBool();
+                        if (!archiveWriteEnabled) {
+                            QMessageBox::warning(this, "Write Mode Disabled", "Archive Write Mode is currently disabled. You can enable read-write permissions for archives and disk images in the View menu.");
+                            return true;
+                        }
+                        dropEvent->acceptProposedAction();
+                        if (m_archiveModel->addFiles(srcPaths)) {
+                            refresh();
+                        } else {
+                            QMessageBox::warning(this, "Archive Add Failed", "Could not add selected files to the archive.");
+                        }
+                        return true;
+                    }
+
                     QString destDir = m_currentPath;
                     
                     QAbstractItemView* view = qobject_cast<QAbstractItemView*>(watched);
