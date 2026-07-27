@@ -79,10 +79,7 @@ void PathBarWidget::onPopupItemClicked(QListWidgetItem* item) {
     
     m_debounceTimer->stop();
     m_popupList->hide();
-    m_editPath->setFocus();
-    
-    // Automatically trigger updating the popup for the new directory path!
-    updatePopupList();
+    emit pathEntered(completed);
 }
 
 void PathBarWidget::updatePopupList() {
