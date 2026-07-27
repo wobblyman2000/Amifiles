@@ -276,6 +276,7 @@ public slots:
     void setBuiltinPlayerDoubleclickActive(bool active);
 
 signals:
+    void fileSaved(const QString& filePath);
     void tagsChanged(const QString& filePath);
     void spectrumVisualizerToggled(bool checked);
     void builtinPlayerDoubleclickToggled(bool active);

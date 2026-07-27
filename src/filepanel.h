@@ -820,6 +820,7 @@ public:
     QString folderArtPath() const { return m_folderArtPath; }
 
     void refresh();
+    void writeTempFileToArchive(const QString& tempPath);
     void updateStyles();
     void autoSizeAllColumns();
     void setNavigationAndFilterVisible(bool visible);

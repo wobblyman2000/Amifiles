@@ -187,6 +187,7 @@ private slots:
     // Event Routing Slots
     void onPanelActivated(FilePanel* panel);
     void onFileSelected(const QString& filePath);
+    void onPreviewFileSaved(const QString& tempPath);
     void onFolderArtDetected(const QString& artPath);
     void onPathChanged(const QString& path);
 

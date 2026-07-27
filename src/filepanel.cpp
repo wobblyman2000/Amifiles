@@ -2456,6 +2456,24 @@ void FilePanel::refresh() {
     updateStatusText();
 }
 
+void FilePanel::writeTempFileToArchive(const QString& tempPath) {
+    if (!m_archiveViewActive || !m_archiveModel) return;
+
+    QSettings settings("Amifiles", "Amifiles");
+    bool archiveWriteEnabled = settings.value("preferences/archive_write", false).toBool();
+    if (!archiveWriteEnabled) {
+        QMessageBox::warning(this, "Write Mode Disabled", 
+                             "Archive Write Mode is currently disabled. You can enable read-write permissions for archives and disk images in the View menu to save your edits back to the disk image.");
+        return;
+    }
+
+    if (m_archiveModel->addFiles({ tempPath })) {
+        refresh();
+    } else {
+        QMessageBox::warning(this, "Save Failed", "Could not write modified file back to the archive.");
+    }
+}
+
 // ================= Clipboard & File Operations =================
 
 void FilePanel::onCopy() {

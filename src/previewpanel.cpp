@@ -2229,6 +2229,7 @@ void PreviewPanel::onSaveText() {
         
         m_textChanged = false;
         m_textControls->hide();
+        emit fileSaved(m_previewedFilePath);
     }
 }
 

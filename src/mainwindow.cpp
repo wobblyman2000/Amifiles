@@ -481,6 +481,7 @@ void MainWindow::setupCentralWidget() {
         // Refresh active panel to show modified tags
         if (m_activePanel) m_activePanel->refresh();
     });
+    connect(m_previewPanel, &PreviewPanel::fileSaved, this, &MainWindow::onPreviewFileSaved);
     connect(m_previewPanel, &PreviewPanel::builtinPlayerDoubleclickToggled, this, &MainWindow::setBuiltinPlayerDoubleclickActive);
     connect(this, &MainWindow::builtinPlayerDoubleclickChanged, m_previewPanel, &PreviewPanel::setBuiltinPlayerDoubleclickActive);
     connect(m_previewPanel, &PreviewPanel::fullscreenExited, this, [this]() {
@@ -1397,6 +1398,12 @@ void MainWindow::onFileSelected(const QString& filePath) {
         m_previewPanel->previewFile(filePath, m_activePanel->selectedPaths());
     }
     updateMiniPlayer();
+}
+
+void MainWindow::onPreviewFileSaved(const QString& tempPath) {
+    if (m_activePanel) {
+        m_activePanel->writeTempFileToArchive(tempPath);
+    }
 }
 
 void MainWindow::onFolderArtDetected(const QString& artPath) {
