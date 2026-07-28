@@ -86,8 +86,8 @@ class FolderGraphicWidget : public QWidget {
 public:
     FolderGraphicWidget(const QString& path, int layoutIndex, const QColor& accentColor, QWidget* parent = nullptr)
         : QWidget(parent), m_path(path), m_layoutIndex(layoutIndex), m_accent(accentColor) {
-        setFixedSize(56, 56);
-        m_artwork = getFolderArtwork(path, 112, 112);
+        setFixedSize(48, 48);
+        m_artwork = getFolderArtwork(path, 96, 96);
     }
 protected:
     void paintEvent(QPaintEvent*) override {
@@ -98,7 +98,7 @@ protected:
         
         if (!m_artwork.isNull()) {
             QPainterPath path;
-            path.addRoundedRect(rect, 10, 10);
+            path.addRoundedRect(rect, 8, 8);
             p.setClipPath(path);
             p.drawPixmap(rect.toRect(), m_artwork);
             return;
@@ -106,7 +106,7 @@ protected:
         
         // Fallback custom vector drawing
         QPainterPath path;
-        path.addRoundedRect(rect, 10, 10);
+        path.addRoundedRect(rect, 8, 8);
         
         QColor bg = m_accent;
         bg.setAlpha(25);
@@ -118,19 +118,19 @@ protected:
         
         p.setPen(m_accent);
         if (m_layoutIndex == 1) { // Grid (4x4 Grid layout design)
-            int margin = 14;
-            int size = (width() - margin * 2 - 6) / 2;
+            int margin = 12;
+            int size = (width() - margin * 2 - 4) / 2;
             for (int r = 0; r < 2; ++r) {
                 for (int c = 0; c < 2; ++c) {
-                    QRectF rRect(margin + c * (size + 6), margin + r * (size + 6), size, size);
+                    QRectF rRect(margin + c * (size + 4), margin + r * (size + 4), size, size);
                     p.drawRoundedRect(rRect, 2, 2);
                 }
             }
         } else if (m_layoutIndex == 0) { // List (List lines layout design)
-            int margin = 14;
+            int margin = 12;
             int w = width() - margin * 2;
-            int h = 4;
-            int spacing = 8;
+            int h = 3;
+            int spacing = 6;
             for (int i = 0; i < 3; ++i) {
                 p.drawRoundedRect(QRectF(margin, margin + i * (h + spacing), w, h), 1, 1);
             }
@@ -138,27 +138,27 @@ protected:
             p.save();
             p.translate(width()/2, height()/2);
             p.rotate(-12);
-            p.drawRoundedRect(QRectF(-16, -20, 22, 28), 2, 2);
+            p.drawRoundedRect(QRectF(-12, -15, 17, 22), 2, 2);
             p.restore();
             
             p.save();
             p.translate(width()/2, height()/2);
             p.rotate(10);
-            p.drawRoundedRect(QRectF(-6, -16, 22, 28), 2, 2);
+            p.drawRoundedRect(QRectF(-4, -12, 17, 22), 2, 2);
             p.restore();
         } else if (m_layoutIndex == 6 || m_layoutIndex == 10) { // Music note
             QFont font = p.font();
-            font.setPointSize(18);
+            font.setPointSize(15);
             p.setFont(font);
             p.drawText(rect, Qt::AlignCenter, "🎵");
         } else if (m_layoutIndex == 7 || m_layoutIndex == 8 || m_layoutIndex == 9) { // Video/Cinema
             QFont font = p.font();
-            font.setPointSize(18);
+            font.setPointSize(15);
             p.setFont(font);
             p.drawText(rect, Qt::AlignCenter, "🎬");
         } else { // Standard folder
             QFont font = p.font();
-            font.setPointSize(18);
+            font.setPointSize(15);
             p.setFont(font);
             p.drawText(rect, Qt::AlignCenter, "📁");
         }
@@ -572,20 +572,20 @@ void HomeDashboardWidget::populateQuickAccess() {
         connect(card, &ClickableCardFrame::doubleClicked, this, &HomeDashboardWidget::onQuickAccessClicked);
 
         QHBoxLayout* layout = new QHBoxLayout(card);
-        layout->setContentsMargins(12, 12, 12, 12);
-        layout->setSpacing(10);
+        layout->setContentsMargins(16, 16, 16, 16);
+        layout->setSpacing(14);
 
         QLabel* iconLabel = new QLabel(card);
         iconLabel->setText(entry.icon);
         iconLabel->setAlignment(Qt::AlignCenter);
-        iconLabel->setStyleSheet("background-color: rgba(137, 180, 250, 0.1); border-radius: 8px; font-size: 18px; min-width: 32px; min-height: 32px;");
+        iconLabel->setStyleSheet("background-color: rgba(137, 180, 250, 0.1); border-radius: 10px; font-size: 22px; min-width: 44px; min-height: 44px;");
         layout->addWidget(iconLabel);
 
         QVBoxLayout* details = new QVBoxLayout();
         details->setSpacing(2);
 
         QLabel* nameLabel = new QLabel(entry.name, card);
-        nameLabel->setStyleSheet("font-weight: bold; font-size: 12px; color: #cdd6f4;");
+        nameLabel->setStyleSheet("font-weight: bold; font-size: 13px; color: #cdd6f4;");
         details->addWidget(nameLabel);
 
         // Get dynamic item count
@@ -597,7 +597,7 @@ void HomeDashboardWidget::populateQuickAccess() {
             countText = QString("%1 items").arg(itemCount);
         }
         QLabel* pathLabel = new QLabel(countText, card);
-        pathLabel->setStyleSheet("font-size: 10px; color: #a6adc8;");
+        pathLabel->setStyleSheet("font-size: 11px; color: #a6adc8;");
         details->addWidget(pathLabel);
 
         layout->addLayout(details, 1);
@@ -645,14 +645,14 @@ void HomeDashboardWidget::populatePinnedFolders() {
             layoutIndex = parts[2].toInt();
         }
 
-        CardTheme theme = getCardTheme(col + row * 3, layoutIndex);
+        CardTheme theme = getCardTheme(col + row * 4, layoutIndex);
         ClickableCardFrame* card = new ClickableCardFrame(path, layoutIndex, this);
         card->setStyleSheet(QString("QFrame#cardFrame { %1 border-radius: 12px; } QFrame#cardFrame:hover { background-color: rgba(255, 255, 255, 0.05); }").arg(theme.bgStyle));
         connect(card, &ClickableCardFrame::doubleClickedWithLayout, this, &HomeDashboardWidget::onPinnedFolderClicked);
 
         QHBoxLayout* layout = new QHBoxLayout(card);
-        layout->setContentsMargins(15, 12, 15, 12);
-        layout->setSpacing(10);
+        layout->setContentsMargins(12, 10, 12, 10);
+        layout->setSpacing(8);
 
         QVBoxLayout* details = new QVBoxLayout();
         details->setSpacing(4);
@@ -704,7 +704,7 @@ void HomeDashboardWidget::populatePinnedFolders() {
         m_pinnedLayout->addWidget(card, row, col);
 
         col++;
-        if (col >= 3) {
+        if (col >= 4) {
             col = 0;
             row++;
         }
