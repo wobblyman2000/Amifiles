@@ -17,15 +17,68 @@
 #include <QApplication>
 #include <QFileInfo>
 #include <QFileDialog>
+#include <QInputDialog>
 #include <QMessageBox>
 #include <QDesktopServices>
 #include <QUrl>
 #include <QMouseEvent>
+#include <QPainter>
+#include <QPainterPath>
 
 #include "archivedialog.h"
 #include "videoscraperdialog.h"
 #include "bulkrename.h"
 #include "favoritesmanager.h"
+#include "theme.h"
+
+// Custom circular progress bar widget
+class CircularProgressBar : public QWidget {
+    Q_OBJECT
+public:
+    explicit CircularProgressBar(QWidget* parent = nullptr) : QWidget(parent) {
+        setFixedSize(54, 54);
+    }
+    void setValue(int value) {
+        m_value = qBound(0, value, 100);
+        update();
+    }
+    void setRingColor(const QColor& color) {
+        m_color = color;
+        update();
+    }
+protected:
+    void paintEvent(QPaintEvent*) override {
+        QPainter p(this);
+        p.setRenderHint(QPainter::Antialiasing);
+        
+        int size = qMin(width(), height()) - 8;
+        QRectF rect((width() - size)/2.0, (height() - size)/2.0, size, size);
+        
+        // Draw background track ring
+        QPen trackPen(QColor("#242437"), 4);
+        trackPen.setCapStyle(Qt::RoundCap);
+        p.setPen(trackPen);
+        p.drawEllipse(rect);
+        
+        // Draw active progress arc (starts at top, i.e., 90 degrees)
+        QPen progressPen(m_color, 4);
+        progressPen.setCapStyle(Qt::RoundCap);
+        p.setPen(progressPen);
+        int spanAngle = - (m_value * 360 * 16) / 100;
+        p.drawArc(rect, 90 * 16, spanAngle);
+        
+        // Draw percentage text inside the circle
+        p.setPen(QColor("#cdd6f4"));
+        QFont font = p.font();
+        font.setBold(true);
+        font.setPointSize(9);
+        p.setFont(font);
+        p.drawText(rect, Qt::AlignCenter, QString("%1%").arg(m_value));
+    }
+private:
+    int m_value = 0;
+    QColor m_color = QColor("#89b4fa");
+};
 
 // Custom double-clickable card widget
 class ClickableCardFrame : public QFrame {
@@ -68,30 +121,108 @@ static void clearLayout(QLayout* layout) {
     }
 }
 
+struct CardTheme {
+    QString bgStyle;
+    QString borderStyle;
+    QString textStyle;
+    QString badgeStyle;
+    QString badgeBgStyle;
+    QString symbol;
+};
+
+static CardTheme getCardTheme(int index, int layoutIndex) {
+    CardTheme theme;
+    int choice = index % 8;
+    
+    // Choose symbol based on layoutIndex
+    QString symbol = "📁";
+    if (layoutIndex == 0) symbol = "📊"; // Details View
+    else if (layoutIndex == 1) symbol = "⣿"; // Grid View
+    else if (layoutIndex == 2) symbol = "🎴"; // Card View
+    else if (layoutIndex == 3) symbol = "⚿"; // Miller
+    else if (layoutIndex == 6 || layoutIndex == 10) symbol = "🎵"; // Audio
+    else if (layoutIndex == 7 || layoutIndex == 8 || layoutIndex == 9) symbol = "🎬"; // Video/Cinema
+    
+    if (choice == 0) { // Purple / UI Designs
+        theme.bgStyle = "background-color: #241c30; border: 1px solid #cba6f7;";
+        theme.textStyle = "color: #f5c2e7; font-weight: bold;";
+        theme.badgeStyle = "color: #f5c2e7;";
+        theme.badgeBgStyle = "background-color: #3b2552; border-radius: 4px; padding: 2px 6px;";
+        theme.symbol = "⣿";
+    } else if (choice == 1) { // Blue / Development
+        theme.bgStyle = "background-color: #162035; border: 1px solid #89b4fa;";
+        theme.textStyle = "color: #89b4fa; font-weight: bold;";
+        theme.badgeStyle = "color: #89b4fa;";
+        theme.badgeBgStyle = "background-color: #223456; border-radius: 4px; padding: 2px 6px;";
+        theme.symbol = "☷";
+    } else if (choice == 2) { // Teal / Photos
+        theme.bgStyle = "background-color: #16272b; border: 1px solid #94e2d5;";
+        theme.textStyle = "color: #94e2d5; font-weight: bold;";
+        theme.badgeStyle = "color: #94e2d5;";
+        theme.badgeBgStyle = "background-color: #1e3f42; border-radius: 4px; padding: 2px 6px;";
+        theme.symbol = "🖼️";
+    } else if (choice == 3) { // Orange / Server Backups
+        theme.bgStyle = "background-color: #302016; border: 1px solid #fab387;";
+        theme.textStyle = "color: #fab387; font-weight: bold;";
+        theme.badgeStyle = "color: #fab387;";
+        theme.badgeBgStyle = "background-color: #4a2e1d; border-radius: 4px; padding: 2px 6px;";
+        theme.symbol = "🗎";
+    } else if (choice == 4) { // Red / Videos
+        theme.bgStyle = "background-color: #30161b; border: 1px solid #f38ba8;";
+        theme.textStyle = "color: #f38ba8; font-weight: bold;";
+        theme.badgeStyle = "color: #f38ba8;";
+        theme.badgeBgStyle = "background-color: #4a1d23; border-radius: 4px; padding: 2px 6px;";
+        theme.symbol = "🎬";
+    } else if (choice == 5) { // Yellow / Assets
+        theme.bgStyle = "background-color: #2d2d16; border: 1px solid #f9e2af;";
+        theme.textStyle = "color: #f9e2af; font-weight: bold;";
+        theme.badgeStyle = "color: #f9e2af;";
+        theme.badgeBgStyle = "background-color: #45451c; border-radius: 4px; padding: 2px 6px;";
+        theme.symbol = "📁";
+    } else if (choice == 6) { // Pink / Personal
+        theme.bgStyle = "background-color: #2e1624; border: 1px solid #f5c2e7;";
+        theme.textStyle = "color: #f5c2e7; font-weight: bold;";
+        theme.badgeStyle = "color: #f5c2e7;";
+        theme.badgeBgStyle = "background-color: #471c35; border-radius: 4px; padding: 2px 6px;";
+        theme.symbol = "👤";
+    } else { // Slate / Archive
+        theme.bgStyle = "background-color: #222530; border: 1px solid #bac2de;";
+        theme.textStyle = "color: #bac2de; font-weight: bold;";
+        theme.badgeStyle = "color: #secText;";
+        theme.badgeBgStyle = "background-color: #343946; border-radius: 4px; padding: 2px 6px;";
+        theme.symbol = "📦";
+    }
+    
+    if (symbol != "📁") {
+        theme.symbol = symbol;
+    }
+    return theme;
+}
+
 HomeDashboardWidget::HomeDashboardWidget(QWidget* parent) : QWidget(parent) {
     setupUi();
     refreshDashboard();
 }
 
 void HomeDashboardWidget::setupUi() {
-    // Style the overall widget with a dark Catppuccin theme
-    setStyleSheet(
-        "QWidget { background-color: #1e1e2e; color: #cdd6f4; font-family: 'Segoe UI', 'Inter', 'sans-serif'; }"
-        "QLabel#sectionTitle { color: #89b4fa; font-size: 14px; font-weight: bold; padding-top: 15px; padding-bottom: 5px; }"
-        "QFrame#cardFrame { background-color: #181825; border: 1px solid #313244; border-radius: 8px; }"
-        "QFrame#cardFrame:hover { border: 1px solid #89b4fa; background-color: #252538; }"
-        "QProgressBar { border: 1px solid #45475a; border-radius: 4px; background: #11111b; text-align: center; color: #cdd6f4; font-size: 10px; font-weight: bold; }"
-        "QProgressBar::chunk { background-color: #a6e3a1; border-radius: 3px; }"
-        "QToolButton.dashboardButton { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 6px; padding: 10px; font-size: 11px; font-weight: bold; text-align: left; }"
-        "QToolButton.dashboardButton:hover { background-color: #45475a; border-color: #89b4fa; color: #89b4fa; }"
-        "QScrollArea { border: none; background: transparent; }"
-        "QScrollBar:vertical { border: none; background: #181825; width: 8px; margin: 0px; border-radius: 4px; }"
-        "QScrollBar::handle:vertical { background: #45475a; min-height: 20px; border-radius: 4px; }"
-        "QScrollBar::handle:vertical:hover { background: #585b70; }"
-        "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; }"
-        "QPushButton.unpinButton { background: transparent; border: none; color: #f38ba8; font-size: 14px; font-weight: bold; }"
-        "QPushButton.unpinButton:hover { color: #f2cdcd; background: #313244; border-radius: 4px; }"
-    );
+    Theme::ThemeColors c = Theme::getThemeColors();
+    
+    // Style the overall widget with Catppuccin glassmorphism
+    setStyleSheet(QString(R"(
+        QWidget { background-color: %1; color: %2; font-family: 'Segoe UI', 'Inter', 'sans-serif'; }
+        QLabel#sectionTitle { color: %3; font-size: 13px; font-weight: bold; padding-top: 15px; padding-bottom: 5px; text-transform: uppercase; letter-spacing: 1px; }
+        QFrame#cardFrame { background-color: rgba(30, 30, 46, 0.4); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 12px; }
+        QFrame#cardFrame:hover { border: 1px solid %3; background-color: rgba(45, 45, 68, 0.6); }
+        QProgressBar { border: 1px solid %4; border-radius: 4px; background: #11111b; text-align: center; color: %2; font-size: 10px; font-weight: bold; }
+        QProgressBar::chunk { background-color: %5; border-radius: 3px; }
+        QScrollArea { border: none; background: transparent; }
+        QScrollBar:vertical { border: none; background: %6; width: 8px; margin: 0px; border-radius: 4px; }
+        QScrollBar::handle:vertical { background: %4; min-height: 20px; border-radius: 4px; }
+        QScrollBar::handle:vertical:hover { background: %7; }
+        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; }
+        QPushButton.unpinButton { background: transparent; border: none; color: #f38ba8; font-size: 13px; font-weight: bold; }
+        QPushButton.unpinButton:hover { color: #f2cdcd; background: %8; border-radius: 4px; }
+    )").arg(c.bg, c.text, c.accent, c.border, c.green, c.sidebar, c.hover, c.hover));
 
     QHBoxLayout* mainLayout = new QHBoxLayout(this);
     mainLayout->setContentsMargins(0, 0, 0, 0);
@@ -104,18 +235,18 @@ void HomeDashboardWidget::setupUi() {
     scrollArea->setWidget(scrollContent);
 
     QVBoxLayout* contentLayout = new QVBoxLayout(scrollContent);
-    contentLayout->setContentsMargins(20, 20, 20, 20);
-    contentLayout->setSpacing(10);
+    contentLayout->setContentsMargins(25, 20, 25, 20);
+    contentLayout->setSpacing(8);
 
     // Welcome Banner Header
     QFrame* bannerFrame = new QFrame(scrollContent);
-    bannerFrame->setStyleSheet("background-color: #11111b; border: 1px solid #313244; border-radius: 10px; padding: 15px;");
+    bannerFrame->setStyleSheet("background-color: rgba(17, 17, 27, 0.5); border: 1px solid rgba(255, 255, 255, 0.04); border-radius: 12px; padding: 12px;");
     QVBoxLayout* bannerLayout = new QVBoxLayout(bannerFrame);
-    bannerLayout->setContentsMargins(15, 10, 15, 10);
-    bannerLayout->setSpacing(4);
+    bannerLayout->setContentsMargins(15, 8, 15, 8);
+    bannerLayout->setSpacing(3);
 
     QLabel* titleLabel = new QLabel("Welcome to Amifiles", bannerFrame);
-    titleLabel->setStyleSheet("font-size: 20px; font-weight: bold; color: #cba6f7;");
+    titleLabel->setStyleSheet("font-size: 18px; font-weight: bold; color: #cba6f7;");
     bannerLayout->addWidget(titleLabel);
 
     QLabel* subLabel = new QLabel("Your ultimate dual-pane Amiga & Linux file manager. Double-click storage cards or folders to jump straight in.", bannerFrame);
@@ -125,107 +256,109 @@ void HomeDashboardWidget::setupUi() {
     contentLayout->addWidget(bannerFrame);
 
     // 1. Storage Drives Section
-    QLabel* drivesTitle = new QLabel("💾 Storage Drives", scrollContent);
+    QLabel* drivesTitle = new QLabel("Storage Drive", scrollContent);
     drivesTitle->setObjectName("sectionTitle");
     contentLayout->addWidget(drivesTitle);
 
     QFrame* drivesContainer = new QFrame(scrollContent);
     m_drivesLayout = new QGridLayout(drivesContainer);
-    m_drivesLayout->setContentsMargins(0, 5, 0, 5);
-    m_drivesLayout->setSpacing(10);
+    m_drivesLayout->setContentsMargins(0, 0, 0, 0);
+    m_drivesLayout->setSpacing(12);
     contentLayout->addWidget(drivesContainer);
 
     // 2. Quick Access Section
-    QLabel* quickTitle = new QLabel("📁 Quick Access Folders", scrollContent);
+    QLabel* quickTitle = new QLabel("Quick Access", scrollContent);
     quickTitle->setObjectName("sectionTitle");
     contentLayout->addWidget(quickTitle);
 
     QFrame* quickContainer = new QFrame(scrollContent);
     m_quickAccessLayout = new QGridLayout(quickContainer);
-    m_quickAccessLayout->setContentsMargins(0, 5, 0, 5);
-    m_quickAccessLayout->setSpacing(10);
+    m_quickAccessLayout->setContentsMargins(0, 0, 0, 0);
+    m_quickAccessLayout->setSpacing(12);
     contentLayout->addWidget(quickContainer);
 
     // 3. Pinned Folders Section
-    QLabel* pinnedTitle = new QLabel("📌 Pinned Folders with Layout Memory", scrollContent);
+    QLabel* pinnedTitle = new QLabel("Pinned Folders", scrollContent);
     pinnedTitle->setObjectName("sectionTitle");
     contentLayout->addWidget(pinnedTitle);
 
     QFrame* pinnedContainer = new QFrame(scrollContent);
     m_pinnedLayout = new QGridLayout(pinnedContainer);
-    m_pinnedLayout->setContentsMargins(0, 5, 0, 5);
-    m_pinnedLayout->setSpacing(10);
+    m_pinnedLayout->setContentsMargins(0, 0, 0, 0);
+    m_pinnedLayout->setSpacing(12);
     contentLayout->addWidget(pinnedContainer);
 
     contentLayout->addStretch(1);
     mainLayout->addWidget(scrollArea, 1);
 
-    // Right Sidebar Toolbox (Width: 230px)
+    // Right Sidebar Toolbar (Width: 230px)
     QFrame* sidebar = new QFrame(this);
     sidebar->setObjectName("sidebarFrame");
-    sidebar->setStyleSheet("background-color: #11111b; border-left: 1px solid #313244;");
+    sidebar->setStyleSheet(QString("background-color: %1; border-left: 1px solid %2;").arg(c.sidebar, c.border));
     sidebar->setFixedWidth(230);
 
     QVBoxLayout* sidebarLayout = new QVBoxLayout(sidebar);
     sidebarLayout->setContentsMargins(15, 20, 15, 20);
     sidebarLayout->setSpacing(12);
 
-    QLabel* toolboxTitle = new QLabel("🔧 Power Toolbox", sidebar);
-    toolboxTitle->setStyleSheet("font-size: 14px; font-weight: bold; color: #fab387; padding-bottom: 5px;");
+    QLabel* toolboxTitle = new QLabel("Toolbar", sidebar);
+    toolboxTitle->setStyleSheet("font-size: 14px; font-weight: bold; color: #cdd6f4; padding-bottom: 5px; text-transform: uppercase; letter-spacing: 1px;");
     sidebarLayout->addWidget(toolboxTitle);
 
     QToolButton* btnRename = new QToolButton(sidebar);
-    btnRename->setText("📝  Bulk Rename Tool...");
+    btnRename->setText("⚡  Bulk Rename");
     btnRename->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     btnRename->setToolButtonStyle(Qt::ToolButtonTextOnly);
-    btnRename->setProperty("class", "dashboardButton");
+    btnRename->setStyleSheet("QToolButton { background-color: #cba6f7; color: #11111b; border-radius: 18px; padding: 10px 15px; font-size: 12px; font-weight: bold; } QToolButton:hover { background-color: #f5c2e7; }");
     connect(btnRename, &QToolButton::clicked, this, [this]() { onToolButtonClicked("bulk_rename"); });
     sidebarLayout->addWidget(btnRename);
 
     QToolButton* btnScraper = new QToolButton(sidebar);
-    btnScraper->setText("🎬  Video Scraper...");
+    btnScraper->setText("🎬  Video Scraper");
     btnScraper->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     btnScraper->setToolButtonStyle(Qt::ToolButtonTextOnly);
-    btnScraper->setProperty("class", "dashboardButton");
+    btnScraper->setStyleSheet("QToolButton { background-color: #89b4fa; color: #11111b; border-radius: 18px; padding: 10px 15px; font-size: 12px; font-weight: bold; } QToolButton:hover { background-color: #b4befe; }");
     connect(btnScraper, &QToolButton::clicked, this, [this]() { onToolButtonClicked("video_scraper"); });
     sidebarLayout->addWidget(btnScraper);
 
     QToolButton* btnArchive = new QToolButton(sidebar);
-    btnArchive->setText("📦  Archive Creator...");
+    btnArchive->setText("📦  Archive Manager");
     btnArchive->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     btnArchive->setToolButtonStyle(Qt::ToolButtonTextOnly);
-    btnArchive->setProperty("class", "dashboardButton");
+    btnArchive->setStyleSheet("QToolButton { background-color: #f5c2e7; color: #11111b; border-radius: 18px; padding: 10px 15px; font-size: 12px; font-weight: bold; } QToolButton:hover { background-color: #f2cdcd; }");
     connect(btnArchive, &QToolButton::clicked, this, [this]() { onToolButtonClicked("archive_creator"); });
     sidebarLayout->addWidget(btnArchive);
 
-    QToolButton* btnDiff = new QToolButton(sidebar);
-    btnDiff->setText("⚖️  Visual Diff Tool...");
-    btnDiff->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-    btnDiff->setToolButtonStyle(Qt::ToolButtonTextOnly);
-    btnDiff->setProperty("class", "dashboardButton");
-    connect(btnDiff, &QToolButton::clicked, this, [this]() { onToolButtonClicked("visual_diff"); });
-    sidebarLayout->addWidget(btnDiff);
-
-    QToolButton* btnDup = new QToolButton(sidebar);
-    btnDup->setText("🔍  Duplicate Finder...");
-    btnDup->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-    btnDup->setToolButtonStyle(Qt::ToolButtonTextOnly);
-    btnDup->setProperty("class", "dashboardButton");
-    connect(btnDup, &QToolButton::clicked, this, [this]() { onToolButtonClicked("dup_finder"); });
-    sidebarLayout->addWidget(btnDup);
+    QToolButton* btnNewFolder = new QToolButton(sidebar);
+    btnNewFolder->setText("📁  New Folder");
+    btnNewFolder->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    btnNewFolder->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    btnNewFolder->setStyleSheet("QToolButton { background-color: rgba(30, 30, 46, 0.4); color: #cdd6f4; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 18px; padding: 10px 15px; font-size: 12px; font-weight: bold; } QToolButton:hover { background-color: rgba(45, 45, 68, 0.6); }");
+    connect(btnNewFolder, &QToolButton::clicked, this, [this]() {
+        bool ok;
+        QString path = QFileDialog::getExistingDirectory(this, "Select Location to Create New Folder", QDir::homePath());
+        if (!path.isEmpty()) {
+            QString name = QInputDialog::getText(this, "Create New Folder", "Folder Name:", QLineEdit::Normal, "", &ok);
+            if (ok && !name.isEmpty()) {
+                QDir(path).mkdir(name);
+                refreshDashboard();
+            }
+        }
+    });
+    sidebarLayout->addWidget(btnNewFolder);
 
     sidebarLayout->addStretch(1);
 
     QFrame* separator = new QFrame(sidebar);
     separator->setFrameShape(QFrame::HLine);
-    separator->setStyleSheet("background-color: #313244; max-height: 1px;");
+    separator->setStyleSheet(QString("background-color: %1; max-height: 1px;").arg(c.border));
     sidebarLayout->addWidget(separator);
 
     QToolButton* btnSettings = new QToolButton(sidebar);
-    btnSettings->setText("⚙️  System Preferences...");
+    btnSettings->setText("⚙️  Settings");
     btnSettings->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     btnSettings->setToolButtonStyle(Qt::ToolButtonTextOnly);
-    btnSettings->setProperty("class", "dashboardButton");
+    btnSettings->setStyleSheet("QToolButton { background-color: rgba(30, 30, 46, 0.4); color: #cdd6f4; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 18px; padding: 10px 15px; font-size: 12px; font-weight: bold; } QToolButton:hover { background-color: rgba(45, 45, 68, 0.6); }");
     connect(btnSettings, &QToolButton::clicked, this, [this]() { onToolButtonClicked("preferences"); });
     sidebarLayout->addWidget(btnSettings);
 
@@ -255,46 +388,42 @@ void HomeDashboardWidget::populateDrives() {
         connect(card, &ClickableCardFrame::doubleClicked, this, &HomeDashboardWidget::onDriveDoubleClicked);
 
         QHBoxLayout* layout = new QHBoxLayout(card);
-        layout->setContentsMargins(12, 12, 12, 12);
-        layout->setSpacing(10);
-
-        QLabel* iconLabel = new QLabel(card);
-        iconLabel->setText(storage.isReadOnly() ? "🔒" : "🖴");
-        iconLabel->setStyleSheet("font-size: 24px; color: #89b4fa;");
-        layout->addWidget(iconLabel);
-
-        QVBoxLayout* details = new QVBoxLayout();
-        details->setSpacing(2);
-
-        QString name = storage.displayName();
-        if (name.isEmpty() || name == "/") {
-            name = QString("OS Root (/)");
-        }
-        QLabel* nameLabel = new QLabel(name, card);
-        nameLabel->setStyleSheet("font-weight: bold; font-size: 12px; color: #cdd6f4;");
-        details->addWidget(nameLabel);
-
-        QLabel* pathLabel = new QLabel(storage.rootPath(), card);
-        pathLabel->setStyleSheet("font-size: 9px; color: #a6adc8;");
-        details->addWidget(pathLabel);
+        layout->setContentsMargins(15, 12, 15, 12);
+        layout->setSpacing(12);
 
         qint64 total = storage.bytesTotal();
         qint64 free = storage.bytesAvailable();
         qint64 used = total - free;
         double pct = (double)used / (double)total * 100.0;
 
+        CircularProgressBar* circular = new CircularProgressBar(card);
+        circular->setValue((int)pct);
+        
+        QColor ringColor;
+        if (col == 0) ringColor = QColor("#cba6f7"); // Purple
+        else if (col == 1) ringColor = QColor("#89b4fa"); // Blue
+        else ringColor = QColor("#89dceb"); // Cyan
+        circular->setRingColor(ringColor);
+        layout->addWidget(circular);
+
+        QVBoxLayout* details = new QVBoxLayout();
+        details->setSpacing(2);
+
+        QString name = storage.displayName();
+        if (name.isEmpty() || name == "/") {
+            name = QString("System SSD");
+        }
+        QLabel* nameLabel = new QLabel(name, card);
+        nameLabel->setStyleSheet("font-weight: bold; font-size: 13px; color: #cdd6f4;");
+        details->addWidget(nameLabel);
+
         QString usageText = QString("%1 GB free of %2 GB")
-            .arg(QString::number((double)free / (1024.0 * 1024.0 * 1024.0), 'f', 1))
-            .arg(QString::number((double)total / (1024.0 * 1024.0 * 1024.0), 'f', 1));
+            .arg(QString::number((double)free / (1024.0 * 1024.0 * 1024.0), 'f', 0))
+            .arg(QString::number((double)total / (1024.0 * 1024.0 * 1024.0), 'f', 0));
 
         QLabel* usageLabel = new QLabel(usageText, card);
-        usageLabel->setStyleSheet("font-size: 10px; color: #bac2de; margin-top: 3px;");
+        usageLabel->setStyleSheet("font-size: 11px; color: #a6adc8;");
         details->addWidget(usageLabel);
-
-        QProgressBar* progress = new QProgressBar(card);
-        progress->setValue((int)pct);
-        progress->setFixedHeight(12);
-        details->addWidget(progress);
 
         layout->addLayout(details, 1);
 
@@ -318,13 +447,13 @@ void HomeDashboardWidget::populateQuickAccess() {
     };
 
     QList<QAEntry> entries = {
-        {"Home Directory", QDir::homePath(), "🏠"},
-        {"Downloads", QStandardPaths::writableLocation(QStandardPaths::DownloadLocation), "📥"},
         {"Documents", QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation), "📄"},
+        {"Downloads", QStandardPaths::writableLocation(QStandardPaths::DownloadLocation), "📥"},
         {"Music", QStandardPaths::writableLocation(QStandardPaths::MusicLocation), "🎵"},
+        {"Desktop", QStandardPaths::writableLocation(QStandardPaths::DesktopLocation), "🖥️"},
         {"Videos", QStandardPaths::writableLocation(QStandardPaths::MoviesLocation), "🎬"},
         {"Pictures", QStandardPaths::writableLocation(QStandardPaths::PicturesLocation), "🖼️"},
-        {"Desktop", QStandardPaths::writableLocation(QStandardPaths::DesktopLocation), "🖥️"}
+        {"Home Directory", QDir::homePath(), "🏠"}
     };
 
     int row = 0;
@@ -337,23 +466,32 @@ void HomeDashboardWidget::populateQuickAccess() {
         connect(card, &ClickableCardFrame::doubleClicked, this, &HomeDashboardWidget::onQuickAccessClicked);
 
         QHBoxLayout* layout = new QHBoxLayout(card);
-        layout->setContentsMargins(10, 10, 10, 10);
-        layout->setSpacing(8);
+        layout->setContentsMargins(12, 12, 12, 12);
+        layout->setSpacing(10);
 
         QLabel* iconLabel = new QLabel(card);
         iconLabel->setText(entry.icon);
-        iconLabel->setStyleSheet("font-size: 20px; color: #fab387;");
+        iconLabel->setAlignment(Qt::AlignCenter);
+        iconLabel->setStyleSheet("background-color: rgba(137, 180, 250, 0.1); border-radius: 8px; font-size: 18px; min-width: 32px; min-height: 32px;");
         layout->addWidget(iconLabel);
 
         QVBoxLayout* details = new QVBoxLayout();
-        details->setSpacing(1);
+        details->setSpacing(2);
 
         QLabel* nameLabel = new QLabel(entry.name, card);
-        nameLabel->setStyleSheet("font-weight: bold; font-size: 11px; color: #cdd6f4;");
+        nameLabel->setStyleSheet("font-weight: bold; font-size: 12px; color: #cdd6f4;");
         details->addWidget(nameLabel);
 
-        QLabel* pathLabel = new QLabel(QDir::toNativeSeparators(entry.path), card);
-        pathLabel->setStyleSheet("font-size: 9px; color: #a6adc8;");
+        // Get dynamic item count
+        int itemCount = QDir(entry.path).entryList(QDir::NoDotAndDotDot | QDir::AllEntries).count();
+        QString countText;
+        if (itemCount >= 1000) {
+            countText = QString("%1k items").arg(QString::number((double)itemCount / 1000.0, 'f', 1));
+        } else {
+            countText = QString("%1 items").arg(itemCount);
+        }
+        QLabel* pathLabel = new QLabel(countText, card);
+        pathLabel->setStyleSheet("font-size: 10px; color: #a6adc8;");
         details->addWidget(pathLabel);
 
         layout->addLayout(details, 1);
@@ -401,44 +539,55 @@ void HomeDashboardWidget::populatePinnedFolders() {
             layoutIndex = parts[2].toInt();
         }
 
+        CardTheme theme = getCardTheme(col + row * 3, layoutIndex);
         ClickableCardFrame* card = new ClickableCardFrame(path, layoutIndex, this);
+        card->setStyleSheet(QString("QFrame#cardFrame { %1 border-radius: 12px; } QFrame#cardFrame:hover { background-color: rgba(255, 255, 255, 0.05); }").arg(theme.bgStyle));
         connect(card, &ClickableCardFrame::doubleClickedWithLayout, this, &HomeDashboardWidget::onPinnedFolderClicked);
 
         QHBoxLayout* layout = new QHBoxLayout(card);
-        layout->setContentsMargins(10, 8, 10, 8);
-        layout->setSpacing(8);
-
-        QLabel* iconLabel = new QLabel("📌", card);
-        iconLabel->setStyleSheet("font-size: 18px;");
-        layout->addWidget(iconLabel);
+        layout->setContentsMargins(15, 12, 15, 12);
+        layout->setSpacing(10);
 
         QVBoxLayout* details = new QVBoxLayout();
-        details->setSpacing(1);
+        details->setSpacing(4);
 
         QLabel* nameLabel = new QLabel(name, card);
-        nameLabel->setStyleSheet("font-weight: bold; font-size: 11px; color: #a6e3a1;");
+        nameLabel->setStyleSheet(theme.textStyle + " font-size: 13px;");
         details->addWidget(nameLabel);
+
+        int itemCount = QDir(path).entryList(QDir::NoDotAndDotDot | QDir::AllEntries).count();
+        QString countText = QString("%1 items").arg(itemCount);
+        QLabel* countLabel = new QLabel(countText, card);
+        countLabel->setStyleSheet("font-size: 10px; color: #a6adc8;");
+        details->addWidget(countLabel);
 
         QString layoutName = "Details View";
         if (layoutIndex >= 0 && layoutIndex < viewModeNames.size()) {
             layoutName = viewModeNames[layoutIndex];
         }
-        QLabel* layoutBadge = new QLabel(QString("Layout: %1").arg(layoutName), card);
-        layoutBadge->setStyleSheet("font-size: 9px; color: #89dceb; font-weight: bold;");
-        details->addWidget(layoutBadge);
+        if (layoutIndex == 1) layoutName = "4x4 Grid";
+        else if (layoutIndex == 2) layoutName = "Tiles";
+        else if (layoutIndex == 11) layoutName = "Cover Flow";
 
-        QLabel* pathLabel = new QLabel(QDir::toNativeSeparators(path), card);
-        pathLabel->setStyleSheet("font-size: 9px; color: #a6adc8;");
-        details->addWidget(pathLabel);
+        QHBoxLayout* badgeLayout = new QHBoxLayout();
+        badgeLayout->setContentsMargins(0, 0, 0, 0);
+        QLabel* layoutBadge = new QLabel(layoutName, card);
+        layoutBadge->setStyleSheet(theme.badgeStyle + " font-size: 9px; font-weight: bold; " + theme.badgeBgStyle);
+        badgeLayout->addWidget(layoutBadge);
+        badgeLayout->addStretch(1);
+        details->addLayout(badgeLayout);
 
         layout->addLayout(details, 1);
 
-        // Delete/Unpin button
+        QLabel* symLabel = new QLabel(theme.symbol, card);
+        symLabel->setStyleSheet(QString("font-size: 28px; color: %1; opacity: 0.8;").arg(theme.textStyle.split(';').first().split(' ').last()));
+        layout->addWidget(symLabel);
+
         QPushButton* btnUnpin = new QPushButton("✖", card);
         btnUnpin->setProperty("class", "unpinButton");
         btnUnpin->setCursor(Qt::PointingHandCursor);
         btnUnpin->setToolTip("Unpin Folder");
-        btnUnpin->setFixedSize(18, 18);
+        btnUnpin->setFixedSize(16, 16);
         connect(btnUnpin, &QPushButton::clicked, this, [this, path]() { onUnpinFolderClicked(path); });
         layout->addWidget(btnUnpin);
 
@@ -478,7 +627,6 @@ void HomeDashboardWidget::onUnpinFolderClicked(const QString& path) {
 }
 
 void HomeDashboardWidget::onToolButtonClicked(const QString& action) {
-    // Traverse parent widgets to retrieve MainWindow
     QWidget* parentW = parentWidget();
     while (parentW && !parentW->inherits("MainWindow")) {
         parentW = parentW->parentWidget();
@@ -505,15 +653,7 @@ void HomeDashboardWidget::onToolButtonClicked(const QString& action) {
             dlg.exec();
         }
     } else if (action == "visual_diff") {
-        QString file1 = QFileDialog::getOpenFileName(this, "Select First File for Comparison", QDir::homePath(), "All Files (*)");
-        if (!file1.isEmpty()) {
-            QString file2 = QFileDialog::getOpenFileName(this, "Select Second File for Comparison", QFileInfo(file1).absolutePath(), "All Files (*)");
-            if (!file2.isEmpty()) {
-                // VisualDiffDialog is a widget or dialog?
-                // Let's invoke the visual diff through the MainWindow slot or QMetaObject
-                QMetaObject::invokeMethod(mw, "onCompareSyncAction");
-            }
-        }
+        QMetaObject::invokeMethod(mw, "onCompareSyncAction");
     } else if (action == "dup_finder") {
         QMetaObject::invokeMethod(mw, "onDuplicateFinderAction");
     } else if (action == "preferences") {
