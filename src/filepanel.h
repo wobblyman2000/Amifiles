@@ -935,6 +935,7 @@ protected:
     void resizeEvent(QResizeEvent* event) override;
 
 public slots:
+    void updatePlaybackProgress(qint64 position, qint64 duration);
     void onNavigateUp();
     void onNavigateBack();
     void onNavigateForward();
@@ -981,6 +982,7 @@ private slots:
 
 private:
     void updateDrawerVisibility();
+    QString formatDuration(qint64 ms) const;
     void setupUI();
     void updateNavigationButtons();
     void checkFolderArt();
@@ -1089,6 +1091,7 @@ private:
     QToolButton* m_btnNext = nullptr;
     QToolButton* m_btnRepeat = nullptr;
     QSlider* m_musicVolumeSlider = nullptr;
+    QLabel* m_musicProgressLabel = nullptr;
     AudioVisualizerWidget* m_visualizerWidget = nullptr;
     class QListWidget* m_trackListWidget = nullptr;
     QWidget* m_drawerBtnContainer = nullptr;

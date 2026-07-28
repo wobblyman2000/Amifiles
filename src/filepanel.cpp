@@ -525,6 +525,9 @@ void FilePanel::setupUI() {
     m_musicVolumeSlider->setFixedWidth(60);
     m_musicVolumeSlider->setToolTip("Volume");
 
+    m_musicProgressLabel = new QLabel("00:00 / 00:00", m_musicControlsWidget);
+    m_musicProgressLabel->setStyleSheet("color: #bac2de; font-size: 11px; margin-left: 6px; font-weight: bold;");
+
     musicCtrlLayout->addWidget(m_btnShuffle);
     musicCtrlLayout->addWidget(m_btnPrev);
     musicCtrlLayout->addWidget(m_btnPlayPause);
@@ -532,6 +535,7 @@ void FilePanel::setupUI() {
     musicCtrlLayout->addWidget(m_btnRepeat);
     musicCtrlLayout->addSpacing(4);
     musicCtrlLayout->addWidget(m_musicVolumeSlider);
+    musicCtrlLayout->addWidget(m_musicProgressLabel);
     musicCtrlLayout->addStretch(1);
 
     QString toolBtnStyle = "QToolButton { background-color: #313244; color: #cdd6f4; border: none; padding: 4px; border-radius: 4px; } QToolButton:hover { background-color: #45475a; } QToolButton:checked { background-color: #fab387; color: #11111b; }";
@@ -561,6 +565,7 @@ void FilePanel::setupUI() {
     // Initialize Playlist Track Drawer on the right (placed inside theaterSideContainer)
     m_trackListWidget = new QListWidget(m_theaterSideContainer);
     m_trackListWidget->setStyleSheet("QListWidget { background-color: rgba(24, 24, 37, 150); color: #cdd6f4; border: none; font-size: 12px; } QListWidget::item { padding: 8px 10px; border-radius: 4px; } QListWidget::item:hover { background-color: #313244; color: #f5c2e7; } QListWidget::item:selected { background-color: #89b4fa; color: #11111b; }");
+    m_trackListWidget->installEventFilter(this);
     if (m_theaterSideContainer && m_theaterSideContainer->layout()) {
         m_theaterSideContainer->layout()->addWidget(m_trackListWidget);
         
@@ -821,7 +826,7 @@ void FilePanel::setupUI() {
         }
 
         if (!playlistPaths.isEmpty()) {
-            if (viewModeIndex() == 8 || viewModeIndex() == 9 || viewModeIndex() == 10) {
+            if (viewModeIndex() == 8 || viewModeIndex() == 9) {
                 emit playMediaFullscreenRequested(playlistPaths);
             } else {
                 emit playMediaBuiltinRequested(playlistPaths);
@@ -1128,6 +1133,15 @@ void FilePanel::setupUI() {
 }
 
 bool FilePanel::eventFilter(QObject* watched, QEvent* event) {
+    if (watched == m_trackListWidget || (m_trackListWidget && watched == m_trackListWidget->viewport())) {
+        if (event->type() == QEvent::KeyPress) {
+            QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
+            if (keyEvent->key() == Qt::Key_Space) {
+                emit playPauseRequested();
+                return true;
+            }
+        }
+    }
     if (watched == m_globalSearchEdit) {
         if (event->type() == QEvent::FocusIn || event->type() == QEvent::MouseButtonPress) {
             setActive(true);
@@ -5803,9 +5817,9 @@ void FilePanel::onDoubleClickedPath(const QString& path) {
                 if (doubleclickAddsToQueue) {
                     emit queueMediaBuiltinRequested(playlistPaths);
                 } else {
-                    if (viewModeIndex() == 8 || viewModeIndex() == 9 || viewModeIndex() == 10) {
+                    if (viewModeIndex() == 8 || viewModeIndex() == 9) {
                         emit playMediaFullscreenRequested(playlistPaths);
-                    } else if (shouldPlayOnDoubleclick) {
+                    } else if (shouldPlayOnDoubleclick || viewModeIndex() == 10) {
                         emit playMediaBuiltinRequested(playlistPaths);
                     }
                 }
@@ -5829,7 +5843,7 @@ void FilePanel::onDoubleClickedPath(const QString& path) {
             } else if (shouldPlayOnDoubleclick || isTheater) {
                 bool isVideo = (ext == "mp4" || ext == "mkv" || ext == "avi" || ext == "mov" || ext == "webm" || ext == "wmv" || ext == "m4v" || ext == "mpg" || ext == "mpeg");
                 bool isShowcaseVideo = (viewModeIndex() == 7 || viewModeIndex() == 8 || viewModeIndex() == 9);
-                if (viewModeIndex() == 8 || viewModeIndex() == 9 || viewModeIndex() == 10 || isShowcaseVideo || (isVideo && shouldPlayOnDoubleclick)) {
+                if ((viewModeIndex() == 8 || viewModeIndex() == 9) || isShowcaseVideo || (isVideo && shouldPlayOnDoubleclick)) {
                     emit playMediaFullscreenRequested({path});
                 } else {
                     emit playMediaBuiltinRequested({path});
@@ -6797,7 +6811,27 @@ void FilePanel::syncPlaylist(const QStringList& playlistPaths, int currentIndex)
     }
     if (currentIndex >= 0 && currentIndex < m_trackListWidget->count()) {
         m_trackListWidget->setCurrentRow(currentIndex);
+        if (viewModeIndex() == 10 && m_bottomTitle) {
+            m_bottomTitle->setText(m_trackListWidget->item(currentIndex)->text());
+        }
     }
     m_trackListWidget->blockSignals(false);
     updateDrawerVisibility();
+}
+
+void FilePanel::updatePlaybackProgress(qint64 position, qint64 duration) {
+    if (m_musicProgressLabel) {
+        m_musicProgressLabel->setText(QString("%1 / %2")
+            .arg(formatDuration(position))
+            .arg(formatDuration(duration)));
+    }
+}
+
+QString FilePanel::formatDuration(qint64 ms) const {
+    qint64 totalSec = ms / 1000;
+    qint64 min = totalSec / 60;
+    qint64 sec = totalSec % 60;
+    return QString("%1:%2")
+        .arg(min, 2, 10, QChar('0'))
+        .arg(sec, 2, 10, QChar('0'));
 }

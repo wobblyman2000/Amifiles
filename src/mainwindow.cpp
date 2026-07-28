@@ -2828,6 +2828,23 @@ FilePanel* MainWindow::createTab(QTabWidget* tabWidget, const QString& path) {
 
     if (m_previewPanel && m_previewPanel->player()) {
         panel->onPlaybackStateChanged(static_cast<int>(m_previewPanel->player()->playbackState()));
+        
+        connect(m_previewPanel->player(), &QMediaPlayer::positionChanged, panel, [panel](qint64 pos) {
+            QWidget* mw = panel->parentWidget();
+            while (mw && !mw->inherits("MainWindow")) mw = mw->parentWidget();
+            MainWindow* mainWin = qobject_cast<MainWindow*>(mw);
+            if (mainWin && mainWin->previewPanel() && mainWin->previewPanel()->player()) {
+                panel->updatePlaybackProgress(pos, mainWin->previewPanel()->player()->duration());
+            }
+        });
+        connect(m_previewPanel->player(), &QMediaPlayer::durationChanged, panel, [panel](qint64 dur) {
+            QWidget* mw = panel->parentWidget();
+            while (mw && !mw->inherits("MainWindow")) mw = mw->parentWidget();
+            MainWindow* mainWin = qobject_cast<MainWindow*>(mw);
+            if (mainWin && mainWin->previewPanel() && mainWin->previewPanel()->player()) {
+                panel->updatePlaybackProgress(mainWin->previewPanel()->player()->position(), dur);
+            }
+        });
     }
 
     panel->proxyModel()->setAgeColoringEnabled(m_ageColoringEnabled);
