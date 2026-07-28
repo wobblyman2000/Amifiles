@@ -3033,6 +3033,15 @@ static bool hasAudioFilesRecursively(const QString& folderPath, int depth) {
 }
 
 void FilePanel::onCustomContextMenu(const QPoint& pos) {
+    QAbstractItemView* grid = qobject_cast<QAbstractItemView*>(sender());
+    if (grid) {
+        QModelIndex index = grid->indexAt(pos);
+        if (index.isValid()) {
+            grid->selectionModel()->select(index, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+            grid->setCurrentIndex(index);
+        }
+    }
+
     int vMode = viewModeIndex();
     if (vMode == 6) {
         showAudioShowcaseContextMenu(pos);
@@ -3949,6 +3958,10 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
             navigateTo(path, true);
         });
         connect(&infoDlg, &ShowcaseInfoDialog::watchStatusChanged, this, [this]() {
+            for (QListView* grid : m_theaterGrids) {
+                grid->viewport()->update();
+                grid->update();
+            }
             if (m_theaterScrollWidget) m_theaterScrollWidget->update();
         });
         infoDlg.exec();
@@ -3956,16 +3969,22 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         QSettings settings("Amifiles", "Amifiles");
         bool isWatched = settings.value("theater/watch_status/" + selectedPath, false).toBool();
         settings.setValue("theater/watch_status/" + selectedPath, !isWatched);
+        for (QListView* grid : m_theaterGrids) {
+            grid->viewport()->update();
+            grid->update();
+        }
         if (m_theaterScrollWidget) m_theaterScrollWidget->update();
     }
 }
 
 void FilePanel::showAudioShowcaseContextMenu(const QPoint& pos) {
-    QModelIndex index = m_theaterListView->indexAt(pos);
-    if (index.isValid()) {
-        if (!m_theaterListView->selectionModel()->isSelected(index)) {
-            m_theaterListView->selectionModel()->select(index, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
-            m_theaterListView->setCurrentIndex(index);
+    if (m_viewStack->currentWidget() == m_theaterListView) {
+        QModelIndex index = m_theaterListView->indexAt(pos);
+        if (index.isValid()) {
+            if (!m_theaterListView->selectionModel()->isSelected(index)) {
+                m_theaterListView->selectionModel()->select(index, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+                m_theaterListView->setCurrentIndex(index);
+            }
         }
     }
 
@@ -4114,7 +4133,7 @@ void FilePanel::showMusicShowcaseContextMenu(const QPoint& pos) {
         if (index.isValid()) {
             m_coverFlowView->setSelectedIndex(index.row());
         }
-    } else {
+    } else if (m_viewStack->currentWidget() == m_theaterListView) {
         index = m_theaterListView->indexAt(pos);
         if (index.isValid()) {
             if (!m_theaterListView->selectionModel()->isSelected(index)) {
@@ -4297,11 +4316,13 @@ void FilePanel::showMusicShowcaseContextMenu(const QPoint& pos) {
 }
 
 void FilePanel::showVideoShowcaseContextMenu(const QPoint& pos) {
-    QModelIndex index = m_theaterListView->indexAt(pos);
-    if (index.isValid()) {
-        if (!m_theaterListView->selectionModel()->isSelected(index)) {
-            m_theaterListView->selectionModel()->select(index, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
-            m_theaterListView->setCurrentIndex(index);
+    if (m_viewStack->currentWidget() == m_theaterListView) {
+        QModelIndex index = m_theaterListView->indexAt(pos);
+        if (index.isValid()) {
+            if (!m_theaterListView->selectionModel()->isSelected(index)) {
+                m_theaterListView->selectionModel()->select(index, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+                m_theaterListView->setCurrentIndex(index);
+            }
         }
     }
 
@@ -4575,6 +4596,10 @@ void FilePanel::showInfoSheet(const QString& path) {
         navigateTo(p, true);
     });
     connect(&infoDlg, &ShowcaseInfoDialog::watchStatusChanged, this, [this]() {
+        for (QListView* grid : m_theaterGrids) {
+            grid->viewport()->update();
+            grid->update();
+        }
         if (m_theaterScrollWidget) m_theaterScrollWidget->update();
     });
     infoDlg.exec();

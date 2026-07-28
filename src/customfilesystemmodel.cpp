@@ -1,6 +1,7 @@
 #include "customfilesystemmodel.h"
 #include "tagmanager.h"
 #include "comicthumbnailrunnable.h"
+#include "imagethumbnailrunnable.h"
 #include <QPainter>
 #include <QPainterPath>
 #include <QFontMetricsF>
@@ -606,6 +607,31 @@ QIcon CustomFileSystemModel::getRetroOrComicIcon(const QString& filePath) const 
             placeholder.addPixmap(pix);
         }
         return placeholder;
+    }
+    
+    static const QStringList imageExts = { "jpg", "jpeg", "png", "gif", "bmp", "webp", "tga", "tiff", "ico" };
+    if (imageExts.contains(ext)) {
+        QString appDir = "/home/dave/.gemini/antigravity";
+        QByteArray hash = QCryptographicHash::hash(filePath.toUtf8(), QCryptographicHash::Md5);
+        QString cachedName = hash.toHex() + ".png";
+        QString cachedPath = QDir(appDir).filePath("thumbnails/" + cachedName);
+
+        if (QFile::exists(cachedPath)) {
+            QPixmap pix(cachedPath);
+            if (!pix.isNull()) {
+                QIcon icon(pix);
+                m_thumbnailCache[filePath] = icon;
+                return icon;
+            }
+        }
+
+        if (!m_pendingThumbnails.contains(filePath)) {
+            m_pendingThumbnails.insert(filePath);
+            ImageThumbnailRunnable* task = new ImageThumbnailRunnable(filePath, cachedPath, const_cast<CustomFileSystemModel*>(this));
+            QThreadPool::globalInstance()->start(task);
+        }
+
+        return QIcon();
     }
 
     return QIcon();

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(Amifiles VERSION 2.3.44 LANGUAGES CXX)
+project(Amifiles VERSION 2.3.45 LANGUAGES CXX)
 
 configure_file(
     "${PROJECT_SOURCE_DIR}/src/version.h.in"
@@ -55,6 +55,8 @@ add_executable(Amifiles
     src/customfilesystemmodel.cpp
     src/comicthumbnailrunnable.h
     src/comicthumbnailrunnable.cpp
+    src/imagethumbnailrunnable.h
+    src/imagethumbnailrunnable.cpp
     src/buttoneditor.h
     src/buttoneditor.cpp
     src/searchworker.h
