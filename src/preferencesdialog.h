@@ -26,11 +26,18 @@ private slots:
     void onOkClicked();
     void onConfigureAgeRules();
     void onResetDefaults();
+    void onThemePresetChanged(int index);
+    void onSaveThemePresetClicked();
+    void onDeleteThemePresetClicked();
+    void chooseThemeColor(QPushButton* button, const QString& settingsKey);
 
 private:
     void setupUI();
     void loadPreferences();
     void savePreferences();
+    QPushButton* createThemeColorButton(const QString& colorHex, const QString& settingsKey, QWidget* parentPage);
+    void updateThemeControlsState();
+    void populateThemePresets();
 
     QListWidget* m_listCategory = nullptr;
     QStackedWidget* m_stackPages = nullptr;
@@ -83,6 +90,25 @@ private:
     // Services & API keys
     QLineEdit* m_editTmdbApiKey = nullptr;
     QLineEdit* m_editHidePatterns = nullptr;
+
+    // Theme Studio Tab Controls
+    class QComboBox* m_comboThemePreset = nullptr;
+    class QSpinBox* m_spinThemeFontSize = nullptr;
+    class QSpinBox* m_spinThemeBorderRadius = nullptr;
+    class QSlider* m_sliderThemeOpacity = nullptr;
+    class QLabel* m_lblThemeOpacityVal = nullptr;
+
+    QPushButton* m_btnThemeBg = nullptr;
+    QPushButton* m_btnThemeSidebar = nullptr;
+    QPushButton* m_btnThemeBorder = nullptr;
+    QPushButton* m_btnThemeAccent = nullptr;
+    QPushButton* m_btnThemeGreen = nullptr;
+    QPushButton* m_btnThemeText = nullptr;
+    QPushButton* m_btnThemeSecText = nullptr;
+    QPushButton* m_btnThemeHover = nullptr;
+
+    QPushButton* m_btnSaveThemePreset = nullptr;
+    QPushButton* m_btnDeleteThemePreset = nullptr;
 
     QPushButton* m_btnResetDefaults = nullptr;
     QPushButton* m_btnOk = nullptr;

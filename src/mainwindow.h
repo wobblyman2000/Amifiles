@@ -458,6 +458,8 @@ private:
     QAction* m_actToggleSyncScroll = nullptr;
     bool m_syncScrollEnabled = false;
     bool m_zenMode = false;
+    bool m_toolbarEditMode = false;
+    QPoint m_dragStartPos;
     FolderLayoutRule m_activeFolderRule;
     bool m_hasActiveFolderRule = false;
     bool m_isInitializing = false;
@@ -471,6 +473,7 @@ private:
     QAction* m_actRightShowCategoryButtons = nullptr;
     QAction* m_actAutoSizeColumns = nullptr;
     QAction* m_actToggleZenMode = nullptr;
+    QAction* m_actToggleToolbarEditMode = nullptr;
 
     QAction* m_actNewTab = nullptr;
     QAction* m_actCloseTab = nullptr;
@@ -519,9 +522,18 @@ private:
 
     // Custom Dynamic Toolbar System
     void rebuildToolBars();
+    QAction* findInternalAction(const QString& actId) const;
     void onConfigureToolbars();
     QList<QToolBar*> m_dynamicToolBars;
     QAction* m_actConfigureToolbars = nullptr;
+    void showToolbarItemEditMenu(QToolBar* tb, QAction* act, const QPoint& globalPos);
+    void showToolbarContextMenu(QToolBar* tb, const QPoint& pos);
+    void editToolbarItem(QToolBar* tb, QAction* act);
+    void removeToolbarItem(QToolBar* tb, QAction* act);
+    void handleToolbarDrop(const QString& sourceTbId, int sourceIdx, const QString& targetTbId, int targetIdx,
+                           const QString& type, const QString& actId, const QString& name, const QString& icon,
+                           const QString& command, bool isDynamicDrive);
+    QJsonObject m_copiedToolbarItem;
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;

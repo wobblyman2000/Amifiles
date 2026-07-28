@@ -298,6 +298,28 @@ void FolderLayoutDialog::setupUI() {
     m_editName = new QLineEdit(this);
     m_editName->setToolTip("Descriptive label for this profile or template (e.g. 'My Music Collection', 'Movies Showcase', 'TV Series').");
     triggerGrid->addWidget(m_editName, 0, 1, 1, 2);
+    connect(m_editName, &QLineEdit::textChanged, this, [this](const QString& text) {
+        if (m_currentIndex >= 0 && m_currentIndex < m_rules.size()) {
+            m_rules[m_currentIndex].name = text.trimmed();
+            for (int i = 0; i < m_listWidget->count(); ++i) {
+                QListWidgetItem* item = m_listWidget->item(i);
+                if (item && item->data(Qt::UserRole).toInt() == m_currentIndex) {
+                    ProfileListItemWidget* widget = qobject_cast<ProfileListItemWidget*>(m_listWidget->itemWidget(item));
+                    if (widget) {
+                        QString displayName = text.trimmed();
+                        if (displayName.isEmpty()) {
+                            displayName = (m_rules[m_currentIndex].ruleType == "Path") ? "(Unnamed Profile)" : "(Unnamed Template)";
+                        }
+                        if (m_rules[m_currentIndex].ruleType == "Path" && !m_rules[m_currentIndex].linkedProfile.isEmpty()) {
+                            displayName += QString(" [%1]").arg(m_rules[m_currentIndex].linkedProfile);
+                        }
+                        widget->setName(displayName);
+                    }
+                    break;
+                }
+            }
+        }
+    });
 
     QHBoxLayout* autoApplyLayout = new QHBoxLayout();
     m_checkAutoApply = new ToggleSwitch(this);
@@ -363,7 +385,7 @@ void FolderLayoutDialog::setupUI() {
 
     viewGrid->addWidget(new QLabel("View Mode:", this), 0, 0);
     m_comboViewMode = new QComboBox(this);
-    m_comboViewMode->addItems({"No Change", "List", "Grid", "Card", "Miller", "Timeline", "Filmstrip", "Audio Showcase (Classic)", "Video Showcase (Classic)", "Movies Full Screen", "TV Shows Full Screen", "Music Full Screen"});
+    m_comboViewMode->addItems({"No Change", "List", "Grid", "Card", "Miller", "Timeline", "Filmstrip", "Audio Showcase (Classic)", "Video Showcase (Classic)", "Movies Full Screen", "TV Shows Full Screen", "Music Full Screen", "Cover Flow Carousel"});
     viewGrid->addWidget(m_comboViewMode, 0, 1);
 
     m_lblCustomButtons = new QLabel("Filter Custom Buttons:", this);
@@ -599,6 +621,7 @@ void FolderLayoutDialog::updateModeVisibility(bool advanced) {
 }
 
 void FolderLayoutDialog::populateList() {
+    m_isPopulating = true;
     m_listWidget->clear();
 
     // --- SECTION 0: GLOBAL DEFAULT PROFILE ---
@@ -693,6 +716,11 @@ void FolderLayoutDialog::populateList() {
             m_listWidget->setItemWidget(item, widget);
         }
     }
+    m_isPopulating = false;
+    if (m_listWidget->count() == 0) {
+        m_currentIndex = -1;
+        m_editorWidget->setEnabled(false);
+    }
 }
 
 void FolderLayoutDialog::populateFields(const FolderLayoutRule& r) {
@@ -729,7 +757,7 @@ void FolderLayoutDialog::populateFields(const FolderLayoutRule& r) {
     }
     m_comboLinkedProfile->setEnabled(!isDefault);
 
-    bool isLinked = !r.linkedProfile.isEmpty();
+    bool isLinked = (m_comboLinkedProfile->currentIndex() > 0);
     m_viewGroup->setEnabled(!isLinked);
     m_visGroup->setEnabled(!isLinked);
     m_styleGroup->setEnabled(!isLinked);
@@ -738,7 +766,7 @@ void FolderLayoutDialog::populateFields(const FolderLayoutRule& r) {
     if (m_btnApplyNow) m_btnApplyNow->setEnabled(!isLinked);
 
     if (isLinked) {
-        m_labelInheritedInfo->setText(QString("Note: This profile inherits all layout settings from '%1'.").arg(r.linkedProfile));
+        m_labelInheritedInfo->setText(QString("Note: This profile inherits all layout settings from '%1'.").arg(m_comboLinkedProfile->currentText()));
         m_labelInheritedInfo->setVisible(true);
     } else {
         m_labelInheritedInfo->setVisible(false);
@@ -914,6 +942,7 @@ void FolderLayoutDialog::onLinkedProfileChanged(int index) {
 }
 
 void FolderLayoutDialog::onProfileSelected(int row) {
+    if (m_isPopulating) return;
     if (m_currentIndex >= 0 && m_currentIndex < m_rules.size()) {
         harvestCurrentProfile(m_currentIndex);
     }
@@ -1216,6 +1245,7 @@ void FolderLayoutDialog::onCaptureUI() {
         else if (idx == 8) m_comboViewMode->setCurrentText("Movies Full Screen");
         else if (idx == 9) m_comboViewMode->setCurrentText("TV Shows Full Screen");
         else if (idx == 10) m_comboViewMode->setCurrentText("Music Full Screen");
+        else if (idx == 11) m_comboViewMode->setCurrentText("Cover Flow Carousel");
     }
 
     // 2. Capture custom buttons filter list

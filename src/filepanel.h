@@ -1056,6 +1056,7 @@ private:
     class MillerColumnsView* m_millerView = nullptr;
     class TimelineView* m_timelineView = nullptr;
     class FilmstripView* m_filmstripView = nullptr;
+    class CoverFlowView* m_coverFlowView = nullptr;
     class TheaterListView* m_theaterListView = nullptr;
     class QComboBox* m_comboViewMode = nullptr;
     class QAbstractItemDelegate* m_defaultDelegate = nullptr;

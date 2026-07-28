@@ -8,9 +8,10 @@ ActionHelperDialog::ActionHelperDialog(QWidget* parent) : QDialog(parent) {
     setWindowTitle("Internal Commands Helper");
     resize(600, 400);
 
-    // Define all 14 internal commands
+    // Define all internal commands
     m_actions = {
         {"@internal:Copy", "Copy Files/Folders", "Copies selected files or directories to the sibling/opposite pane folder, or to the clipboard if only one pane is active."},
+        {"@internal:Move", "Move Files/Folders", "Moves selected files or directories to the sibling/opposite pane folder."},
         {"@internal:Cut", "Cut selected Files/Folders", "Cuts selected items to the clipboard for moving."},
         {"@internal:Paste", "Paste from Clipboard", "Pastes files currently copied or cut on the clipboard into the active directory."},
         {"@internal:Delete", "Delete Files/Folders", "Sends selected items to the system trash or prompts to delete them permanently."},
@@ -23,7 +24,13 @@ ActionHelperDialog::ActionHelperDialog(QWidget* parent) : QDialog(parent) {
         {"@internal:CompareSync", "Compare & Sync Folders", "Launches the Folder Comparison and Synchronization utility between left and right directory panes."},
         {"@internal:DuplicateFinder", "Find Duplicate Files", "Opens the Duplicate Files Finder panel to locate identical file hashes in selected paths."},
         {"@internal:SpaceAnalyzer", "Visual Disk Space sunburst Analyzer", "Launches the sunburst disk usage visualization dashboard for the active folder."},
+        {"@internal:BulkRename", "Bulk Rename Tool", "Launches the batch file and folder renaming utility."},
+        {"@internal:SyncScheduler", "Sync Scheduler Settings", "Configure backups and automated file synchronization schedules."},
+        {"@internal:ChecksumTool", "Calculate File Checksums", "Calculate and verify MD5, SHA-1, or SHA-256 cryptographic hashes."},
+        {"@internal:CloudMount", "Mount Cloud Drive", "Opens the dialog to mount external cloud storage systems (Dropbox, Google Drive, OneDrive) as local folders."},
+        {"@internal:Shred", "Secure File Shredder", "Permanently overwrites and destroys selected files/folders beyond recovery."},
         {"@internal:SmartHome", "Go to Landing Page Home Screen", "Navigates the active panel immediately to the dashboard Home Screen landing page."},
+        {"@internal:LoadProfile <ProfileName>", "Load Folder Profile Layout", "Loads and applies the specified folder layout profile / template to the active file panel."},
         {"@internal:Go <path>", "Navigate to specific folder path", "Navigates the panel to a custom directory. Supports macro variables: ~ (home), {dir} (active directory), {dest} (sibling directory)."}
     };
 

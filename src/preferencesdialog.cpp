@@ -13,6 +13,17 @@
 #include <QKeySequenceEdit>
 #include <QScrollArea>
 #include <QMessageBox>
+#include <QSpinBox>
+#include <QSlider>
+#include <QColorDialog>
+#include <QInputDialog>
+#include <QRegularExpression>
+#include <QDir>
+#include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QGroupBox>
+#include "theme.h"
 
 PreferencesDialog::PreferencesDialog(QWidget* parent) : QDialog(parent) {
     setWindowTitle("Preferences & System Settings");
@@ -50,6 +61,7 @@ void PreferencesDialog::setupUI() {
     m_listCategory->addItems({
         "General",
         "View & Colors",
+        "Theme Studio",
         "Archives & VFS",
         "Media Preview",
         "Services",
@@ -135,6 +147,120 @@ void PreferencesDialog::setupUI() {
 
     layView->addStretch(1);
     m_stackPages->addWidget(pageView);
+
+    // ----------------------------------------------------
+    // Page 3: Theme Studio
+    // ----------------------------------------------------
+    QWidget* pageTheme = new QWidget(this);
+    QVBoxLayout* layThemeMain = new QVBoxLayout(pageTheme);
+    layThemeMain->setContentsMargins(10, 10, 10, 10);
+    layThemeMain->setSpacing(8);
+
+    QLabel* lblThemeTitle = new QLabel("Application Theme Customizer", this);
+    lblThemeTitle->setStyleSheet("font-size: 16px; font-weight: bold; color: #89b4fa;");
+    layThemeMain->addWidget(lblThemeTitle);
+
+    QScrollArea* themeScroll = new QScrollArea(this);
+    themeScroll->setWidgetResizable(true);
+    themeScroll->setStyleSheet("QScrollArea { border: none; background: transparent; }");
+    QWidget* themeScrollContent = new QWidget(this);
+    QVBoxLayout* layTheme = new QVBoxLayout(themeScrollContent);
+    layTheme->setContentsMargins(0, 0, 0, 0);
+    layTheme->setSpacing(12);
+
+    // Group 1: Presets & Layout Metrics
+    QGroupBox* presetGroup = new QGroupBox("Presets & Layout Metrics", this);
+    presetGroup->setStyleSheet("QGroupBox { font-weight: bold; color: #b4befe; }");
+    QGridLayout* presetLayout = new QGridLayout(presetGroup);
+    presetLayout->setSpacing(8);
+
+    presetLayout->addWidget(new QLabel("Theme Preset:", this), 0, 0);
+    m_comboThemePreset = new QComboBox(this);
+    presetLayout->addWidget(m_comboThemePreset, 0, 1);
+
+    m_btnSaveThemePreset = new QPushButton("Save Custom...", this);
+    m_btnSaveThemePreset->setToolTip("Save the current color configuration as a new custom theme template");
+    m_btnSaveThemePreset->setStyleSheet("QPushButton { background-color: #fab387; color: #11111b; }");
+    presetLayout->addWidget(m_btnSaveThemePreset, 0, 2);
+
+    m_btnDeleteThemePreset = new QPushButton("Delete Preset", this);
+    m_btnDeleteThemePreset->setToolTip("Delete the currently highlighted custom theme template file");
+    m_btnDeleteThemePreset->setStyleSheet("QPushButton { background-color: #f38ba8; color: #11111b; }");
+    presetLayout->addWidget(m_btnDeleteThemePreset, 0, 3);
+
+    presetLayout->addWidget(new QLabel("Font Size (px):", this), 1, 0);
+    m_spinThemeFontSize = new QSpinBox(this);
+    m_spinThemeFontSize->setRange(8, 20);
+    presetLayout->addWidget(m_spinThemeFontSize, 1, 1);
+
+    presetLayout->addWidget(new QLabel("Border Radius (px):", this), 2, 0);
+    m_spinThemeBorderRadius = new QSpinBox(this);
+    m_spinThemeBorderRadius->setRange(0, 16);
+    presetLayout->addWidget(m_spinThemeBorderRadius, 2, 1);
+
+    presetLayout->addWidget(new QLabel("Sidebar Opacity:", this), 3, 0);
+    QHBoxLayout* opacityLayout = new QHBoxLayout();
+    m_sliderThemeOpacity = new QSlider(Qt::Horizontal, this);
+    m_sliderThemeOpacity->setRange(10, 100);
+    m_lblThemeOpacityVal = new QLabel("100%", this);
+    opacityLayout->addWidget(m_sliderThemeOpacity);
+    opacityLayout->addWidget(m_lblThemeOpacityVal);
+    presetLayout->addLayout(opacityLayout, 3, 1);
+
+    layTheme->addWidget(presetGroup);
+
+    // Group 2: Color Palette
+    QGroupBox* colorGroup = new QGroupBox("Custom Palette Color Config (Only for 'Custom' / Preset overrides)", this);
+    colorGroup->setStyleSheet("QGroupBox { font-weight: bold; color: #fab387; }");
+    QGridLayout* colorLayout = new QGridLayout(colorGroup);
+    colorLayout->setSpacing(8);
+
+    colorLayout->addWidget(new QLabel("Background Color:", this), 0, 0);
+    m_btnThemeBg = createThemeColorButton("#1e1e2e", "theme/custom_bg", pageTheme);
+    colorLayout->addWidget(m_btnThemeBg, 0, 1);
+
+    colorLayout->addWidget(new QLabel("Sidebar Color:", this), 0, 2);
+    m_btnThemeSidebar = createThemeColorButton("#181825", "theme/custom_sidebar", pageTheme);
+    colorLayout->addWidget(m_btnThemeSidebar, 0, 3);
+
+    colorLayout->addWidget(new QLabel("Border Color:", this), 1, 0);
+    m_btnThemeBorder = createThemeColorButton("#313244", "theme/custom_border", pageTheme);
+    colorLayout->addWidget(m_btnThemeBorder, 1, 1);
+
+    colorLayout->addWidget(new QLabel("Accent Color:", this), 1, 2);
+    m_btnThemeAccent = createThemeColorButton("#89b4fa", "theme/custom_accent", pageTheme);
+    colorLayout->addWidget(m_btnThemeAccent, 1, 3);
+
+    colorLayout->addWidget(new QLabel("Success/Green Color:", this), 2, 0);
+    m_btnThemeGreen = createThemeColorButton("#a6e3a1", "theme/custom_green", pageTheme);
+    colorLayout->addWidget(m_btnThemeGreen, 2, 1);
+
+    colorLayout->addWidget(new QLabel("Text Color:", this), 2, 2);
+    m_btnThemeText = createThemeColorButton("#cdd6f4", "theme/custom_text", pageTheme);
+    colorLayout->addWidget(m_btnThemeText, 2, 3);
+
+    colorLayout->addWidget(new QLabel("Secondary Text:", this), 3, 0);
+    m_btnThemeSecText = createThemeColorButton("#a6adc8", "theme/custom_sec_text", pageTheme);
+    colorLayout->addWidget(m_btnThemeSecText, 3, 1);
+
+    colorLayout->addWidget(new QLabel("Hover Color:", this), 3, 2);
+    m_btnThemeHover = createThemeColorButton("#45475a", "theme/custom_hover", pageTheme);
+    colorLayout->addWidget(m_btnThemeHover, 3, 3);
+
+    layTheme->addWidget(colorGroup);
+    layTheme->addStretch(1);
+
+    themeScroll->setWidget(themeScrollContent);
+    layThemeMain->addWidget(themeScroll);
+    m_stackPages->addWidget(pageTheme);
+
+    // Connections
+    connect(m_comboThemePreset, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &PreferencesDialog::onThemePresetChanged);
+    connect(m_sliderThemeOpacity, &QSlider::valueChanged, this, [this](int val) {
+        m_lblThemeOpacityVal->setText(QString("%1%").arg(val));
+    });
+    connect(m_btnSaveThemePreset, &QPushButton::clicked, this, &PreferencesDialog::onSaveThemePresetClicked);
+    connect(m_btnDeleteThemePreset, &QPushButton::clicked, this, &PreferencesDialog::onDeleteThemePresetClicked);
 
     // ----------------------------------------------------
     // Page 3: Archives & Disk Images
@@ -468,6 +594,15 @@ void PreferencesDialog::loadPreferences() {
     m_keyPlayerNext->setKeySequence(QKeySequence(settings.value("shortcuts/player_next", "N").toString()));
     m_keyPlayerMute->setKeySequence(QKeySequence(settings.value("shortcuts/player_mute", "M").toString()));
     m_keyPlayerMenu->setKeySequence(QKeySequence(settings.value("shortcuts/player_menu", "C").toString()));
+
+    // Load Theme Studio
+    populateThemePresets();
+    m_comboThemePreset->setCurrentText(settings.value("theme/preset", "Catppuccin Mocha").toString());
+    m_spinThemeFontSize->setValue(settings.value("theme/font_size", 13).toInt());
+    m_spinThemeBorderRadius->setValue(settings.value("theme/border_radius", 4).toInt());
+    m_sliderThemeOpacity->setValue(qRound(settings.value("theme/sidebar_opacity", 1.0).toDouble() * 100.0));
+    m_lblThemeOpacityVal->setText(QString("%1%").arg(m_sliderThemeOpacity->value()));
+    updateThemeControlsState();
 }
 
 void PreferencesDialog::savePreferences() {
@@ -515,6 +650,12 @@ void PreferencesDialog::savePreferences() {
     settings.setValue("shortcuts/player_mute", m_keyPlayerMute->keySequence().toString());
     settings.setValue("shortcuts/player_menu", m_keyPlayerMenu->keySequence().toString());
 
+    // Save Theme Studio Settings
+    settings.setValue("theme/preset", m_comboThemePreset->currentText());
+    settings.setValue("theme/font_size", m_spinThemeFontSize->value());
+    settings.setValue("theme/border_radius", m_spinThemeBorderRadius->value());
+    settings.setValue("theme/sidebar_opacity", m_sliderThemeOpacity->value() / 100.0);
+
     emit preferencesChanged();
 }
 
@@ -556,5 +697,172 @@ void PreferencesDialog::onResetDefaults() {
             "Reset Complete",
             "All settings, layout rules, and preferences have been successfully reset to factory defaults!"
         );
+    }
+}
+
+void PreferencesDialog::populateThemePresets() {
+    m_comboThemePreset->blockSignals(true);
+    m_comboThemePreset->clear();
+    m_comboThemePreset->addItems({
+        "Catppuccin Mocha", 
+        "Catppuccin Macchiato", 
+        "Catppuccin Frappé", 
+        "Catppuccin Latte", 
+        "Midnight High Contrast", 
+        "Cyber Obsidian", 
+        "Nordic Frost", 
+        "Amiga Workbench Classic", 
+        "System Theme", 
+        "Custom"
+    });
+
+    QDir themesDir(QDir::homePath() + "/.config/Amifiles/themes");
+    if (themesDir.exists()) {
+        QStringList customThemes = themesDir.entryList({"*.json"}, QDir::Files);
+        for (const QString& file : customThemes) {
+            QString name = file.left(file.length() - 5);
+            if (m_comboThemePreset->findText(name) == -1) {
+                m_comboThemePreset->addItem(name);
+            }
+        }
+    }
+    m_comboThemePreset->blockSignals(false);
+}
+
+QPushButton* PreferencesDialog::createThemeColorButton(const QString& colorHex, const QString& settingsKey, QWidget* parentPage) {
+    QPushButton* btn = new QPushButton(parentPage);
+    btn->setFixedWidth(100);
+    QSettings settings("Amifiles", "Amifiles");
+    QString color = settings.value(settingsKey, colorHex).toString();
+    btn->setProperty("colorHex", color);
+    btn->setStyleSheet(QString("QPushButton { background-color: %1; border: 1px solid #45475a; height: 20px; }").arg(color));
+    
+    connect(btn, &QPushButton::clicked, this, [this, btn, settingsKey]() {
+        chooseThemeColor(btn, settingsKey);
+    });
+    return btn;
+}
+
+void PreferencesDialog::chooseThemeColor(QPushButton* button, const QString& settingsKey) {
+    QString currentHex = button->property("colorHex").toString();
+    QColor initial(currentHex);
+    QColor selected = QColorDialog::getColor(initial, this, "Choose Palette Color");
+    if (selected.isValid()) {
+        QString newHex = selected.name();
+        button->setProperty("colorHex", newHex);
+        button->setStyleSheet(QString("QPushButton { background-color: %1; border: 1px solid #45475a; height: 20px; }").arg(newHex));
+        
+        QSettings settings("Amifiles", "Amifiles");
+        settings.setValue(settingsKey, newHex);
+        emit preferencesChanged();
+    }
+}
+
+void PreferencesDialog::onThemePresetChanged(int index) {
+    Q_UNUSED(index);
+    QString preset = m_comboThemePreset->currentText();
+    QSettings settings("Amifiles", "Amifiles");
+    settings.setValue("theme/preset", preset);
+
+    updateThemeControlsState();
+    emit preferencesChanged();
+}
+
+void PreferencesDialog::updateThemeControlsState() {
+    QString preset = m_comboThemePreset->currentText();
+    bool isCustom = (preset == "Custom");
+
+    m_btnThemeBg->setEnabled(isCustom);
+    m_btnThemeSidebar->setEnabled(isCustom);
+    m_btnThemeBorder->setEnabled(isCustom);
+    m_btnThemeAccent->setEnabled(isCustom);
+    m_btnThemeGreen->setEnabled(isCustom);
+    m_btnThemeText->setEnabled(isCustom);
+    m_btnThemeSecText->setEnabled(isCustom);
+    m_btnThemeHover->setEnabled(isCustom);
+
+    m_btnDeleteThemePreset->setEnabled(
+        preset != "Catppuccin Mocha" &&
+        preset != "Catppuccin Macchiato" &&
+        preset != "Catppuccin Frappé" &&
+        preset != "Catppuccin Latte" &&
+        preset != "Midnight High Contrast" &&
+        preset != "Cyber Obsidian" &&
+        preset != "Nordic Frost" &&
+        preset != "Amiga Workbench Classic" &&
+        preset != "System Theme" &&
+        preset != "Custom"
+    );
+
+    Theme::ThemeColors c = Theme::getThemeColors();
+
+    m_btnThemeBg->setStyleSheet(QString("QPushButton { background-color: %1; border: 1px solid #45475a; height: 20px; }").arg(c.bg));
+    m_btnThemeSidebar->setStyleSheet(QString("QPushButton { background-color: %1; border: 1px solid #45475a; height: 20px; }").arg(c.sidebar));
+    m_btnThemeBorder->setStyleSheet(QString("QPushButton { background-color: %1; border: 1px solid #45475a; height: 20px; }").arg(c.border));
+    m_btnThemeAccent->setStyleSheet(QString("QPushButton { background-color: %1; border: 1px solid #45475a; height: 20px; }").arg(c.accent));
+    m_btnThemeGreen->setStyleSheet(QString("QPushButton { background-color: %1; border: 1px solid #45475a; height: 20px; }").arg(c.green));
+    m_btnThemeText->setStyleSheet(QString("QPushButton { background-color: %1; border: 1px solid #45475a; height: 20px; }").arg(c.text));
+    m_btnThemeSecText->setStyleSheet(QString("QPushButton { background-color: %1; border: 1px solid #45475a; height: 20px; }").arg(c.secText));
+    m_btnThemeHover->setStyleSheet(QString("QPushButton { background-color: %1; border: 1px solid #45475a; height: 20px; }").arg(c.hover));
+}
+
+void PreferencesDialog::onSaveThemePresetClicked() {
+    bool ok;
+    QString name = QInputDialog::getText(this, "Save Custom Theme Preset", "Theme Preset Name:", QLineEdit::Normal, "", &ok);
+    if (!ok || name.trimmed().isEmpty()) return;
+
+    name = name.trimmed();
+    QString filename = name;
+    filename.replace(QRegularExpression("[^a-zA-Z0-9_\\- ]"), "");
+    if (filename.isEmpty()) {
+        QMessageBox::critical(this, "Error", "Invalid preset name.");
+        return;
+    }
+
+    QDir themesDir(QDir::homePath() + "/.config/Amifiles/themes");
+    if (!themesDir.exists()) {
+        themesDir.mkpath(".");
+    }
+
+    QJsonObject obj;
+    Theme::ThemeColors c = Theme::getThemeColors();
+
+    obj["name"] = name;
+    obj["bg"] = c.bg;
+    obj["sidebar"] = c.sidebar;
+    obj["border"] = c.border;
+    obj["accent"] = c.accent;
+    obj["green"] = c.green;
+    obj["text"] = c.text;
+    obj["secText"] = c.secText;
+    obj["hover"] = c.hover;
+    obj["fontSize"] = m_spinThemeFontSize->value();
+    obj["borderRadius"] = m_spinThemeBorderRadius->value();
+    obj["sidebarOpacity"] = m_sliderThemeOpacity->value() / 100.0;
+
+    QString savePath = themesDir.filePath(filename + ".json");
+    QFile file(savePath);
+    if (file.open(QIODevice::WriteOnly)) {
+        file.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
+        file.close();
+
+        QMessageBox::information(this, "Theme Saved", QString("Theme preset '%1' successfully saved!").arg(name));
+        populateThemePresets();
+        m_comboThemePreset->setCurrentText(filename);
+    } else {
+        QMessageBox::critical(this, "Error", "Could not save preset file.");
+    }
+}
+
+void PreferencesDialog::onDeleteThemePresetClicked() {
+    QString preset = m_comboThemePreset->currentText();
+    QString customThemePath = QDir::homePath() + "/.config/Amifiles/themes/" + preset + ".json";
+    if (QFile::exists(customThemePath)) {
+        auto res = QMessageBox::question(this, "Delete Preset", QString("Are you sure you want to delete the theme preset '%1'?").arg(preset));
+        if (res == QMessageBox::Yes) {
+            QFile::remove(customThemePath);
+            populateThemePresets();
+            m_comboThemePreset->setCurrentIndex(0);
+        }
     }
 }

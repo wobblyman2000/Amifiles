@@ -223,4 +223,5 @@ private:
     QList<CustomButton> m_availableButtons;
     QByteArray m_capturedWindowState;
     int m_currentIndex = -1;
+    bool m_isPopulating = false;
 };

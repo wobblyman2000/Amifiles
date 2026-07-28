@@ -4,6 +4,10 @@
 #include <QString>
 #include <QSettings>
 #include <QColor>
+#include <QDir>
+#include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
 
 namespace Theme {
 
@@ -21,6 +25,25 @@ struct ThemeColors {
 inline ThemeColors getThemeColors() {
     QSettings settings("Amifiles", "Amifiles");
     QString preset = settings.value("theme/preset", "Catppuccin Mocha").toString();
+
+    // Check if preset matches a custom JSON theme file
+    QString customThemePath = QDir::homePath() + "/.config/Amifiles/themes/" + preset + ".json";
+    if (QFile::exists(customThemePath)) {
+        QFile file(customThemePath);
+        if (file.open(QIODevice::ReadOnly)) {
+            QJsonObject obj = QJsonDocument::fromJson(file.readAll()).object();
+            ThemeColors c;
+            c.bg = obj["bg"].toString("#1e1e2e");
+            c.sidebar = obj["sidebar"].toString("#181825");
+            c.border = obj["border"].toString("#313244");
+            c.accent = obj["accent"].toString("#89b4fa");
+            c.green = obj["green"].toString("#a6e3a1");
+            c.text = obj["text"].toString("#cdd6f4");
+            c.secText = obj["secText"].toString("#a6adc8");
+            c.hover = obj["hover"].toString("#45475a");
+            return c;
+        }
+    }
 
     ThemeColors c;
     c.bg = "#1e1e2e";
@@ -119,6 +142,18 @@ inline QString getStylesheet() {
     int fontSize = settings.value("theme/font_size", 13).toInt();
     int borderRadius = settings.value("theme/border_radius", 4).toInt();
     double opacity = settings.value("theme/sidebar_opacity", 1.0).toDouble();
+
+    // Check if preset matches a custom JSON theme file to load its custom defaults
+    QString customThemePath = QDir::homePath() + "/.config/Amifiles/themes/" + preset + ".json";
+    if (QFile::exists(customThemePath)) {
+        QFile file(customThemePath);
+        if (file.open(QIODevice::ReadOnly)) {
+            QJsonObject obj = QJsonDocument::fromJson(file.readAll()).object();
+            if (obj.contains("fontSize")) fontSize = obj["fontSize"].toInt(fontSize);
+            if (obj.contains("borderRadius")) borderRadius = obj["borderRadius"].toInt(borderRadius);
+            if (obj.contains("sidebarOpacity")) opacity = obj["sidebarOpacity"].toDouble(opacity);
+        }
+    }
 
     ThemeColors colors = getThemeColors();
     QString bg = colors.bg;

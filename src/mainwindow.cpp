@@ -21,6 +21,7 @@
 #include "agestylingdialog.h"
 #include "autoorganizerdialog.h"
 #include "folderlayoutdialog.h"
+#include "toolbareditordialog.h"
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
@@ -45,6 +46,8 @@
 #include <QToolTip>
 #include <QMessageBox>
 #include <QMouseEvent>
+#include <QDrag>
+#include <QMimeData>
 #include <QAudioOutput>
 #include <QDebug>
 #include <QDir>
@@ -936,6 +939,22 @@ void MainWindow::setupActions() {
         setZenMode(!m_zenMode);
     });
 
+    m_actToggleToolbarEditMode = new QAction("Unlock Toolbar Layout Edit Mode", this);
+    m_actToggleToolbarEditMode->setCheckable(true);
+    {
+        QSettings s("Amifiles", "Amifiles");
+        bool em = s.value("preferences/toolbar_edit_mode", false).toBool();
+        m_actToggleToolbarEditMode->setChecked(em);
+        m_actToggleToolbarEditMode->setText(em ? "Lock Toolbar Layout" : "Unlock Toolbar Layout Edit Mode");
+    }
+    m_actToggleToolbarEditMode->setToolTip("Toggle dynamic layout editing (drag-and-drop reorganization, custom icons/labels)");
+    connect(m_actToggleToolbarEditMode, &QAction::triggered, this, [this](bool checked) {
+        QSettings s("Amifiles", "Amifiles");
+        s.setValue("preferences/toolbar_edit_mode", checked);
+        m_actToggleToolbarEditMode->setText(checked ? "Lock Toolbar Layout" : "Unlock Toolbar Layout Edit Mode");
+        rebuildToolBars();
+    });
+
     m_actConfigureBackupSchedule = new QAction("Configure Backup Schedule...", this);
     m_actConfigureBackupSchedule->setToolTip("Define automated copy and sync backup schedules for directories");
     m_actConfigureBackupSchedule->setStatusTip("Define automated copy and sync backup schedules for directories");
@@ -1232,6 +1251,7 @@ void MainWindow::setupMenus() {
 
     m_menuView->addAction(m_actAutoSizeColumns);
     m_menuView->addAction(m_actToggleZenMode);
+    m_menuView->addAction(m_actToggleToolbarEditMode);
     m_menuView->addSeparator();
     m_menuView->addAction(m_actRefresh);
 
@@ -1885,6 +1905,11 @@ void MainWindow::updateDrivesList() {
         // Toolbar action
         QAction* actTb = m_tbDrives->addAction(icon, name);
         actTb->setToolTip(QString("Navigate to %1").arg(QDir::toNativeSeparators(path)));
+        actTb->setProperty("type", "custom");
+        actTb->setProperty("name", name);
+        actTb->setProperty("icon", themeIconName);
+        actTb->setProperty("command", "@internal:Go " + path);
+        actTb->setProperty("is_dynamic_drive", true);
         connect(actTb, &QAction::triggered, this, [this, path]() {
             if (m_activePanel) m_activePanel->setPath(path);
         });
@@ -1903,6 +1928,11 @@ void MainWindow::updateDrivesList() {
         // Toolbar action
         QAction* actTb = m_tbDrives->addAction(icon, name);
         actTb->setToolTip(QString("Navigate to %1").arg(QDir::toNativeSeparators(path)));
+        actTb->setProperty("type", "custom");
+        actTb->setProperty("name", name);
+        actTb->setProperty("icon", "drive-harddisk");
+        actTb->setProperty("command", "@internal:Go " + path);
+        actTb->setProperty("is_dynamic_drive", true);
         connect(actTb, &QAction::triggered, this, [this, path]() {
             if (m_activePanel) m_activePanel->setPath(path);
         });
@@ -2009,6 +2039,11 @@ void MainWindow::updateDrivesList() {
                 QAction* actTb = m_tbDrives->addAction(icon, label);
                 actTb->setToolTip(QString("Navigate to %1").arg(QDir::toNativeSeparators(path)));
                 actTb->setData(label); // Store label for deletion
+                actTb->setProperty("type", "custom");
+                actTb->setProperty("name", label);
+                actTb->setProperty("icon", "folder");
+                actTb->setProperty("command", "@internal:Go " + path);
+                actTb->setProperty("is_dynamic_drive", true);
                 connect(actTb, &QAction::triggered, this, [this, path]() {
                     if (m_activePanel) m_activePanel->setPath(path);
                 });
@@ -2016,6 +2051,94 @@ void MainWindow::updateDrivesList() {
         }
     }
     settings.endGroup();
+
+    // 5. Load and append custom user items (non-drive/shortcuts) saved in JSON for the drive toolbar
+    QString jsonStr = settings.value("custom_toolbars_v1").toString();
+    QJsonArray arr;
+    if (!jsonStr.isEmpty()) {
+        arr = QJsonDocument::fromJson(jsonStr.toUtf8()).array();
+    } else {
+        arr = ToolbarEditorDialog::getDefaultToolbarsJson();
+    }
+    
+    QJsonObject tbObj;
+    bool found = false;
+    for (int i = 0; i < arr.size(); ++i) {
+        QJsonObject obj = arr[i].toObject();
+        if (obj["id"].toString() == "tb_drives" || obj["id"].toString() == "drivesToolBar") {
+            tbObj = obj;
+            found = true;
+            break;
+        }
+    }
+    if (found) {
+        QJsonArray itemsArr = tbObj["items"].toArray();
+        for (int j = 0; j < itemsArr.size(); ++j) {
+            QJsonObject itemObj = itemsArr[j].toObject();
+            QString type = itemObj["type"].toString();
+            QString itemName = itemObj["name"].toString();
+            QString itemIcon = itemObj["icon"].toString();
+
+            auto hasDynamicAction = [this](const QString& name, const QString& cmd) -> bool {
+                for (QAction* act : m_tbDrives->actions()) {
+                    if (act->property("is_dynamic_drive").toBool() || act->text() == "Refresh Drives") {
+                        if (act->text() == name) return true;
+                        if (!cmd.isEmpty() && act->property("command").toString() == cmd) return true;
+                    }
+                }
+                return false;
+            };
+
+            if (type == "separator") {
+                m_tbDrives->addSeparator();
+            } else if (type == "internal") {
+                QString actId = itemObj["id"].toString();
+                if (hasDynamicAction(itemName, "")) continue;
+                QAction* internalAct = findInternalAction(actId);
+                if (internalAct) {
+                    QAction* customAct = new QAction(m_tbDrives);
+                    customAct->setText(itemName.isEmpty() ? internalAct->text() : itemName);
+                    QIcon qicon;
+                    if (!itemIcon.isEmpty()) {
+                        if (itemIcon.startsWith("theme:")) qicon = QIcon::fromTheme(itemIcon.mid(6));
+                        else if (QFileInfo(itemIcon).exists()) qicon = QIcon(itemIcon);
+                        else qicon = QIcon::fromTheme(itemIcon);
+                    } else {
+                        qicon = internalAct->icon();
+                    }
+                    customAct->setProperty("type", "internal");
+                    customAct->setProperty("id", actId);
+                    customAct->setProperty("name", itemName.isEmpty() ? internalAct->text() : itemName);
+                    customAct->setProperty("icon", itemIcon);
+                    customAct->setIcon(qicon);
+                    connect(customAct, &QAction::triggered, internalAct, &QAction::trigger);
+                    m_tbDrives->addAction(customAct);
+                }
+            } else if (type == "custom") {
+                QString command = itemObj["command"].toString();
+                if (hasDynamicAction(itemName, command)) continue;
+                QAction* customAct = new QAction(m_tbDrives);
+                customAct->setText(itemName);
+                QIcon qicon;
+                if (!itemIcon.isEmpty()) {
+                    if (itemIcon.startsWith("theme:")) qicon = QIcon::fromTheme(itemIcon.mid(6));
+                    else if (QFileInfo(itemIcon).exists()) qicon = QIcon(itemIcon);
+                    else qicon = QIcon::fromTheme(itemIcon);
+                } else {
+                    qicon = QIcon::fromTheme("system-run");
+                }
+                customAct->setProperty("type", "custom");
+                customAct->setProperty("name", itemName);
+                customAct->setProperty("icon", itemIcon);
+                customAct->setProperty("command", command);
+                customAct->setIcon(qicon);
+                connect(customAct, &QAction::triggered, this, [this, command]() {
+                    executeCustomCommand(command);
+                });
+                m_tbDrives->addAction(customAct);
+            }
+        }
+    }
 }
 
 void MainWindow::onToggleDrivesMenu(bool checked) {
@@ -2465,6 +2588,7 @@ void MainWindow::onCustomButtonClicked() {
 }
 
 void MainWindow::onCustomToolBarContextMenu(const QPoint& pos) {
+    if (m_toolbarEditMode) return;
     if (!m_customToolBar) return;
     QAction* action = m_customToolBar->actionAt(pos);
     QMenu menu(this);
@@ -3594,6 +3718,7 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
         else if (r.viewMode == "Movies Full Screen" || r.viewMode == "Movie Showcase (v2)") targetPanel->setViewModeIndex(8);
         else if (r.viewMode == "TV Shows Full Screen" || r.viewMode == "TV Show Showcase (v2)") targetPanel->setViewModeIndex(9);
         else if (r.viewMode == "Music Full Screen" || r.viewMode == "Music Showcase (v2)") targetPanel->setViewModeIndex(10);
+        else if (r.viewMode == "Cover Flow Carousel") targetPanel->setViewModeIndex(11);
     } else if (!isDefaultProfile && def.viewMode != "No Change" && !def.viewMode.isEmpty()) {
         if (def.viewMode == "List") targetPanel->setViewModeIndex(0);
         else if (def.viewMode == "Grid") targetPanel->setViewModeIndex(1);
@@ -3606,6 +3731,7 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
         else if (def.viewMode == "Movies Full Screen" || def.viewMode == "Movie Showcase (v2)") targetPanel->setViewModeIndex(8);
         else if (def.viewMode == "TV Shows Full Screen" || def.viewMode == "TV Show Showcase (v2)") targetPanel->setViewModeIndex(9);
         else if (def.viewMode == "Music Full Screen" || def.viewMode == "Music Showcase (v2)") targetPanel->setViewModeIndex(10);
+        else if (def.viewMode == "Cover Flow Carousel") targetPanel->setViewModeIndex(11);
     }
 
     // 2. Toolbar filter
@@ -4234,6 +4360,7 @@ void MainWindow::onSaveFolderProfileForCurrentDir() {
     else if (idx == 8) r.viewMode = "Movies Full Screen";
     else if (idx == 9) r.viewMode = "TV Shows Full Screen";
     else if (idx == 10) r.viewMode = "Music Full Screen";
+    else if (idx == 11) r.viewMode = "Cover Flow Carousel";
     else r.viewMode = "No Change";
 
     // 2. Capture custom buttons filter list
@@ -4355,6 +4482,7 @@ void MainWindow::onSaveDefaultProfile() {
         else if (idx == 8) r.viewMode = "Movies Full Screen";
         else if (idx == 9) r.viewMode = "TV Shows Full Screen";
         else if (idx == 10) r.viewMode = "Music Full Screen";
+        else if (idx == 11) r.viewMode = "Cover Flow Carousel";
         else r.viewMode = "No Change";
         
         // 4. Capture Custom Background Color
@@ -4914,7 +5042,126 @@ QIcon MainWindow::getFolderIcon(const QString& folderName) {
 }
 
 bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
+    if (QToolButton* btn = qobject_cast<QToolButton*>(watched)) {
+        if (m_toolbarEditMode) {
+            if (event->type() == QEvent::MouseButtonPress) {
+                QMouseEvent* me = static_cast<QMouseEvent*>(event);
+                if (me->button() == Qt::LeftButton) {
+                    m_dragStartPos = me->pos();
+                    return true; // Consume press to prevent standard button click behavior and track dragging
+                } else if (me->button() == Qt::RightButton) {
+                    QAction* act = btn->defaultAction();
+                    if (act) {
+                        QToolBar* tb = qobject_cast<QToolBar*>(btn->parentWidget());
+                        if (tb) {
+                            showToolbarItemEditMenu(tb, act, btn->mapToGlobal(me->pos()));
+                            return true;
+                        }
+                    }
+                }
+            } else if (event->type() == QEvent::MouseButtonRelease) {
+                QMouseEvent* me = static_cast<QMouseEvent*>(event);
+                if (me->button() == Qt::LeftButton) {
+                    return true; // Consume release to prevent action triggering in edit mode
+                }
+            } else if (event->type() == QEvent::MouseButtonDblClick) {
+                QAction* act = btn->defaultAction();
+                if (act) {
+                    QToolBar* tb = qobject_cast<QToolBar*>(btn->parentWidget());
+                    if (tb) {
+                        editToolbarItem(tb, act);
+                        return true;
+                    }
+                }
+            } else if (event->type() == QEvent::MouseMove) {
+                QMouseEvent* me = static_cast<QMouseEvent*>(event);
+                if (me->buttons() & Qt::LeftButton) {
+                    if ((me->pos() - m_dragStartPos).manhattanLength() >= QApplication::startDragDistance()) {
+                        QAction* act = btn->defaultAction();
+                        if (act) {
+                            QToolBar* parentTb = qobject_cast<QToolBar*>(btn->parentWidget());
+                            if (parentTb) {
+                                QJsonObject mimeObj;
+                                mimeObj["type"] = act->property("type").toString();
+                                mimeObj["id"] = act->property("id").toString();
+                                mimeObj["name"] = act->property("name").toString();
+                                mimeObj["icon"] = act->property("icon").toString();
+                                mimeObj["command"] = act->property("command").toString();
+                                mimeObj["is_dynamic_drive"] = act->property("is_dynamic_drive").toBool();
+                                mimeObj["source_toolbar_id"] = parentTb->objectName();
+                                mimeObj["source_index"] = parentTb->actions().indexOf(act);
+
+                                QDrag* drag = new QDrag(this);
+                                QMimeData* mimeData = new QMimeData();
+                                mimeData->setData("application/x-amifiles-toolbar-item", QJsonDocument(mimeObj).toJson());
+                                drag->setMimeData(mimeData);
+
+                                QPixmap pixmap = btn->grab();
+                                drag->setPixmap(pixmap);
+                                drag->setHotSpot(me->pos());
+
+                                drag->exec(Qt::MoveAction | Qt::CopyAction);
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     if (QToolBar* tb = qobject_cast<QToolBar*>(watched)) {
+        if (m_toolbarEditMode) {
+            if (event->type() == QEvent::MouseButtonPress) {
+                QMouseEvent* me = static_cast<QMouseEvent*>(event);
+                if (me->button() == Qt::RightButton) {
+                    showToolbarContextMenu(tb, me->pos());
+                    return true;
+                }
+            }
+        }
+        bool isAmifilesItem = false;
+        if (event->type() == QEvent::DragEnter || event->type() == QEvent::DragMove || event->type() == QEvent::Drop) {
+            QDropEvent* dragEvent = static_cast<QDropEvent*>(event);
+            if (dragEvent->mimeData()->hasFormat("application/x-amifiles-toolbar-item")) {
+                isAmifilesItem = true;
+            }
+        }
+
+        if (isAmifilesItem) {
+            if (event->type() == QEvent::DragEnter) {
+                QDragEnterEvent* de = static_cast<QDragEnterEvent*>(event);
+                de->acceptProposedAction();
+                return true;
+            } else if (event->type() == QEvent::DragMove) {
+                QDragMoveEvent* dm = static_cast<QDragMoveEvent*>(event);
+                dm->acceptProposedAction();
+                return true;
+            } else if (event->type() == QEvent::Drop) {
+                QDropEvent* de = static_cast<QDropEvent*>(event);
+                QByteArray bytes = de->mimeData()->data("application/x-amifiles-toolbar-item");
+                QJsonObject mimeObj = QJsonDocument::fromJson(bytes).object();
+                
+                QString type = mimeObj["type"].toString();
+                QString actId = mimeObj["id"].toString();
+                QString name = mimeObj["name"].toString();
+                QString icon = mimeObj["icon"].toString();
+                QString command = mimeObj["command"].toString();
+                bool isDynamicDrive = mimeObj["is_dynamic_drive"].toBool();
+                QString sourceTbId = mimeObj["source_toolbar_id"].toString();
+                int sourceIdx = mimeObj["source_index"].toInt();
+
+                QString targetTbId = tb->objectName();
+                QAction* actionAtPos = tb->actionAt(de->pos());
+                int targetIdx = actionAtPos ? tb->actions().indexOf(actionAtPos) : tb->actions().size();
+
+                handleToolbarDrop(sourceTbId, sourceIdx, targetTbId, targetIdx, type, actId, name, icon, command, isDynamicDrive);
+                
+                de->acceptProposedAction();
+                return true;
+            }
+        }
+
         if (event->type() == QEvent::Move) {
             if (QApplication::mouseButtons() & Qt::LeftButton) {
                 QToolTip::showText(QCursor::pos(), QString("Toolbar: %1").arg(tb->windowTitle()), tb);
@@ -5038,6 +5285,7 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
 }
 
 void MainWindow::onDrivesToolbarContextMenu(const QPoint& pos) {
+    if (m_toolbarEditMode) return;
     QAction* act = m_tbDrives->actionAt(pos);
     if (!act) return;
 
@@ -5228,6 +5476,37 @@ void MainWindow::executeCustomCommand(const QString& commandOrPath) {
             path.replace("{dest}", destDir);
             path.replace("{dir}", activeDir);
             if (m_activePanel) m_activePanel->setPath(path);
+        } else if (cmd.startsWith("LoadProfile ")) {
+            QString profileName = cmd.mid(12).trimmed();
+            if ((profileName.startsWith("\"") && profileName.endsWith("\"")) ||
+                (profileName.startsWith("'") && profileName.endsWith("'"))) {
+                profileName = profileName.mid(1, profileName.length() - 2).trimmed();
+            }
+            FolderLayoutRule targetRule;
+            bool found = false;
+            for (const auto& r : m_folderRules) {
+                if (r.name.trimmed().compare(profileName, Qt::CaseInsensitive) == 0) {
+                    targetRule = r;
+                    found = true;
+                    break;
+                }
+            }
+            if (found) {
+                if (targetRule.ruleType == "Path" && !targetRule.value.isEmpty()) {
+                    if (m_activePanel) {
+                        m_activePanel->setPath(targetRule.value);
+                    }
+                }
+                applyProfile(targetRule, m_activePanel);
+            } else {
+                QStringList available;
+                for (const auto& r : m_folderRules) {
+                    if (!r.name.isEmpty()) {
+                        available.append("'" + r.name + "'");
+                    }
+                }
+                statusBar()->showMessage(QString("Profile not found: '%1'. Available: %2").arg(profileName).arg(available.join(", ")), 6000);
+            }
         } else {
             statusBar()->showMessage(QString("Unknown internal command: %1").arg(cmd), 4000);
         }
@@ -5298,7 +5577,22 @@ QJsonArray MainWindow::getDefaultCustomMenus() {
     return root;
 }
 
-#include "toolbareditordialog.h"
+QAction* MainWindow::findInternalAction(const QString& actId) const {
+    if (actId == "Copy") return m_actCopy;
+    if (actId == "Cut") return m_actCut;
+    if (actId == "Paste") return m_actPaste;
+    if (actId == "Delete") return m_actDelete;
+    if (actId == "Rename") return m_actRename;
+    if (actId == "NewFolder") return m_actNewFolder;
+    if (actId == "Refresh") return m_actRefresh;
+    if (actId == "ToggleDualPane") return m_actToggleDualPane;
+    if (actId == "TogglePreview") return m_actTogglePreview;
+    if (actId == "ToggleFlatView") return m_actToggleFlatView;
+    if (actId == "CompareSync") return m_actCompareSync;
+    if (actId == "DuplicateFinder") return m_actDuplicateFinder;
+    if (actId == "SpaceAnalyzer") return m_actSpaceAnalyzer;
+    return nullptr;
+}
 
 void MainWindow::rebuildToolBars() {
     // 1. Delete all existing dynamic toolbars
@@ -5322,24 +5616,6 @@ void MainWindow::rebuildToolBars() {
         QJsonDocument doc = QJsonDocument::fromJson(jsonStr.toUtf8());
         arr = doc.array();
     }
-
-    // Helper lambda to find internal actions by ID
-    auto findInternalAction = [this](const QString& actId) -> QAction* {
-        if (actId == "Copy") return m_actCopy;
-        if (actId == "Cut") return m_actCut;
-        if (actId == "Paste") return m_actPaste;
-        if (actId == "Delete") return m_actDelete;
-        if (actId == "Rename") return m_actRename;
-        if (actId == "NewFolder") return m_actNewFolder;
-        if (actId == "Refresh") return m_actRefresh;
-        if (actId == "ToggleDualPane") return m_actToggleDualPane;
-        if (actId == "TogglePreview") return m_actTogglePreview;
-        if (actId == "ToggleFlatView") return m_actToggleFlatView;
-        if (actId == "CompareSync") return m_actCompareSync;
-        if (actId == "DuplicateFinder") return m_actDuplicateFinder;
-        if (actId == "SpaceAnalyzer") return m_actSpaceAnalyzer;
-        return nullptr;
-    };
 
     // 3. Rebuild toolbars
     for (int i = 0; i < arr.size(); ++i) {
@@ -5384,6 +5660,10 @@ void MainWindow::rebuildToolBars() {
                     } else {
                         qicon = internalAct->icon();
                     }
+                    customAct->setProperty("type", "internal");
+                    customAct->setProperty("id", actId);
+                    customAct->setProperty("name", itemName.isEmpty() ? internalAct->text() : itemName);
+                    customAct->setProperty("icon", itemIcon);
                     customAct->setIcon(qicon);
                     connect(customAct, &QAction::triggered, internalAct, &QAction::trigger);
                     tb->addAction(customAct);
@@ -5401,6 +5681,10 @@ void MainWindow::rebuildToolBars() {
                 } else {
                     qicon = QIcon::fromTheme("system-run");
                 }
+                customAct->setProperty("type", "custom");
+                customAct->setProperty("name", itemName);
+                customAct->setProperty("icon", itemIcon);
+                customAct->setProperty("command", command);
                 customAct->setIcon(qicon);
                 connect(customAct, &QAction::triggered, this, [this, command]() {
                     executeCustomCommand(command);
@@ -5443,6 +5727,32 @@ void MainWindow::rebuildToolBars() {
                 tb->setVisible(tbObj["visible"].toBool(true));
                 break;
             }
+        }
+    }
+
+    // Populate dynamic/drive buttons before applying edit mode styles/event filters
+    updateDrivesList();
+
+    // 6. Hook drag & drop edit mode buttons
+    QSettings settingsObj("Amifiles", "Amifiles");
+    bool editMode = settingsObj.value("preferences/toolbar_edit_mode", false).toBool();
+    m_toolbarEditMode = editMode;
+    for (QToolBar* tb : m_dynamicToolBars) {
+        tb->setAcceptDrops(true);
+        tb->installEventFilter(this);
+        QList<QToolButton*> buttons = tb->findChildren<QToolButton*>();
+        for (QToolButton* btn : buttons) {
+            btn->installEventFilter(this);
+            if (editMode) {
+                btn->setStyleSheet("QToolButton { border: 1px dashed #f38ba8; background: transparent; border-radius: 4px; }");
+            } else {
+                btn->setStyleSheet("");
+            }
+        }
+        if (editMode) {
+            tb->setStyleSheet("QToolBar { border: 1.5px dashed #f38ba8; background-color: #1e1e2e; padding: 4px; margin: 2px; }");
+        } else {
+            tb->setStyleSheet("QToolBar { background-color: #11111b; border-bottom: 1px solid #313244; }");
         }
     }
 
@@ -6233,6 +6543,340 @@ void MainWindow::onMainPlayerStateChanged(QMediaPlayer::PlaybackState state) {
     for (FilePanel* panel : panels) {
         panel->onPlaybackStateChanged(static_cast<int>(state));
     }
+}
+
+void MainWindow::showToolbarItemEditMenu(QToolBar* tb, QAction* act, const QPoint& globalPos) {
+    QMenu menu(this);
+    menu.setStyleSheet(
+        "QMenu { background-color: #11111b; color: #cdd6f4; border: 1px solid #313244; border-radius: 4px; padding: 4px; }"
+        "QMenu::item { padding: 4px 20px 4px 20px; border-radius: 2px; }"
+        "QMenu::item:selected { background-color: #313244; color: #a6e3a1; }"
+    );
+    QAction* editAct = menu.addAction("✏️ Edit Button Icon & Label...");
+    QAction* addAct = menu.addAction("➕ Add Custom Button...");
+    QAction* copyAct = menu.addAction("📋 Copy Button");
+    QAction* removeAct = menu.addAction("🗑️ Remove Button");
+
+    QAction* selected = menu.exec(globalPos);
+    if (selected == editAct) {
+        editToolbarItem(tb, act);
+    } else if (selected == addAct) {
+        CustomButtonDialog dlg("", "", "", this);
+        if (dlg.exec() == QDialog::Accepted) {
+            QString name = dlg.buttonName();
+            QString command = dlg.script();
+            QString icon = dlg.iconPath();
+            
+            int targetIdx = tb->actions().indexOf(act);
+            if (targetIdx < 0) targetIdx = tb->actions().size();
+            
+            handleToolbarDrop("", -1, tb->objectName(), targetIdx, "custom", "", name, icon, command, false);
+        }
+    } else if (selected == copyAct) {
+        m_copiedToolbarItem = QJsonObject();
+        m_copiedToolbarItem["type"] = act->property("type").toString();
+        m_copiedToolbarItem["id"] = act->property("id").toString();
+        m_copiedToolbarItem["name"] = act->property("name").toString();
+        m_copiedToolbarItem["icon"] = act->property("icon").toString();
+        m_copiedToolbarItem["command"] = act->property("command").toString();
+        m_copiedToolbarItem["is_dynamic_drive"] = act->property("is_dynamic_drive").toBool();
+    } else if (selected == removeAct) {
+        removeToolbarItem(tb, act);
+    }
+}
+
+void MainWindow::showToolbarContextMenu(QToolBar* tb, const QPoint& pos) {
+    QMenu menu(this);
+    menu.setStyleSheet(
+        "QMenu { background-color: #11111b; color: #cdd6f4; border: 1px solid #313244; border-radius: 4px; padding: 4px; }"
+        "QMenu::item { padding: 4px 20px 4px 20px; border-radius: 2px; }"
+        "QMenu::item:selected { background-color: #313244; color: #a6e3a1; }"
+    );
+
+    QAction* addAct = menu.addAction("➕ Add Custom Button...");
+    QAction* pasteAct = menu.addAction("📋 Paste Button");
+    pasteAct->setEnabled(!m_copiedToolbarItem.isEmpty());
+
+    QAction* selected = menu.exec(tb->mapToGlobal(pos));
+    if (selected == addAct) {
+        CustomButtonDialog dlg("", "", "", this);
+        if (dlg.exec() == QDialog::Accepted) {
+            QString name = dlg.buttonName();
+            QString command = dlg.script();
+            QString icon = dlg.iconPath();
+            
+            QAction* actionAtPos = tb->actionAt(pos);
+            int targetIdx = actionAtPos ? tb->actions().indexOf(actionAtPos) : tb->actions().size();
+            
+            handleToolbarDrop("", -1, tb->objectName(), targetIdx, "custom", "", name, icon, command, false);
+        }
+    } else if (selected == pasteAct) {
+        QAction* actionAtPos = tb->actionAt(pos);
+        int targetIdx = actionAtPos ? tb->actions().indexOf(actionAtPos) : tb->actions().size();
+        
+        QString type = m_copiedToolbarItem["type"].toString();
+        QString actId = m_copiedToolbarItem["id"].toString();
+        QString name = m_copiedToolbarItem["name"].toString();
+        QString icon = m_copiedToolbarItem["icon"].toString();
+        QString command = m_copiedToolbarItem["command"].toString();
+        bool isDynamicDrive = m_copiedToolbarItem["is_dynamic_drive"].toBool();
+        
+        handleToolbarDrop("", -1, tb->objectName(), targetIdx, type, actId, name, icon, command, isDynamicDrive);
+    }
+}
+
+void MainWindow::editToolbarItem(QToolBar* tb, QAction* act) {
+    QString tbId = tb->objectName();
+    QString type = act->property("type").toString();
+    QString actId = act->property("id").toString();
+    QString name = act->property("name").toString();
+    QString icon = act->property("icon").toString();
+    QString command = act->property("command").toString();
+    bool isDynamicDrive = act->property("is_dynamic_drive").toBool();
+
+    QDialog dlg(this);
+    dlg.setWindowTitle("Edit Toolbar Item");
+    QVBoxLayout* lay = new QVBoxLayout(&dlg);
+
+    QHBoxLayout* layName = new QHBoxLayout();
+    layName->addWidget(new QLabel("Label:", &dlg));
+    QLineEdit* editName = new QLineEdit(name, &dlg);
+    layName->addWidget(editName);
+    lay->addLayout(layName);
+
+    QHBoxLayout* layIcon = new QHBoxLayout();
+    layIcon->addWidget(new QLabel("Icon (Theme/Path):", &dlg));
+    QLineEdit* editIcon = new QLineEdit(icon, &dlg);
+    layIcon->addWidget(editIcon);
+    QPushButton* btnBrowse = new QPushButton("Browse...", &dlg);
+    layIcon->addWidget(btnBrowse);
+    lay->addLayout(layIcon);
+
+    connect(btnBrowse, &QPushButton::clicked, this, [this, &dlg, editIcon]() {
+        IconPickerDialog iconDlg(&dlg);
+        if (iconDlg.exec() == QDialog::Accepted) {
+            QString path = iconDlg.selectedIconName();
+            if (!path.isEmpty()) {
+                if (!path.contains("/") && !path.contains("\\")) {
+                    editIcon->setText("theme:" + path);
+                } else {
+                    editIcon->setText(path);
+                }
+            }
+        }
+    });
+
+    QLineEdit* editCommand = nullptr;
+    if (type == "custom") {
+        QHBoxLayout* layCmd = new QHBoxLayout();
+        layCmd->addWidget(new QLabel("Command:", &dlg));
+        editCommand = new QLineEdit(command, &dlg);
+        layCmd->addWidget(editCommand);
+        lay->addLayout(layCmd);
+    }
+
+    QHBoxLayout* layButtons = new QHBoxLayout();
+    QPushButton* btnSave = new QPushButton("Save", &dlg);
+    QPushButton* btnCancel = new QPushButton("Cancel", &dlg);
+    layButtons->addWidget(btnSave);
+    layButtons->addWidget(btnCancel);
+    lay->addLayout(layButtons);
+
+    connect(btnSave, &QPushButton::clicked, &dlg, &QDialog::accept);
+    connect(btnCancel, &QPushButton::clicked, &dlg, &QDialog::reject);
+
+    if (dlg.exec() == QDialog::Accepted) {
+        QString newName = editName->text().trimmed();
+        QString newIcon = editIcon->text().trimmed();
+        QString newCommand = editCommand ? editCommand->text().trimmed() : command;
+
+        if (isDynamicDrive) {
+            QSettings settings("Amifiles", "Amifiles");
+            QString actualPath = command.startsWith("@internal:Go ") ? command.mid(13) : command;
+            settings.remove("DrivesShortcuts/" + name);
+            settings.setValue("DrivesShortcuts/" + newName, actualPath);
+            if (!newIcon.isEmpty()) {
+                settings.setValue("ShortcutsIcons/" + newName, newIcon);
+            }
+            updateDrivesList();
+        } else {
+            QSettings settings("Amifiles", "Amifiles");
+            QString jsonStr = settings.value("custom_toolbars_v1").toString();
+            QJsonArray arr;
+            if (jsonStr.isEmpty()) {
+                arr = ToolbarEditorDialog::getDefaultToolbarsJson();
+            } else {
+                arr = QJsonDocument::fromJson(jsonStr.toUtf8()).array();
+            }
+
+            for (int i = 0; i < arr.size(); ++i) {
+                QJsonObject tbObj = arr[i].toObject();
+                if (tbObj["id"].toString() == tbId) {
+                    QJsonArray items = tbObj["items"].toArray();
+                    if (tbId == "tb_drives" || tbId == "drivesToolBar") {
+                        // Match custom item by properties since the toolbar has dynamic/system drives mixed in
+                        int jsonIdx = -1;
+                        for (int j = 0; j < items.size(); ++j) {
+                            QJsonObject item = items[j].toObject();
+                            if (item["type"].toString() == type &&
+                                item["name"].toString() == name &&
+                                item["icon"].toString() == icon &&
+                                item["command"].toString() == command &&
+                                item["id"].toString() == actId) {
+                                jsonIdx = j;
+                                break;
+                            }
+                        }
+                        if (jsonIdx >= 0) {
+                            QJsonObject item = items[jsonIdx].toObject();
+                            item["name"] = newName;
+                            item["icon"] = newIcon;
+                            if (type == "custom") {
+                                item["command"] = newCommand;
+                            }
+                            items[jsonIdx] = item;
+                            tbObj["items"] = items;
+                            arr[i] = tbObj;
+                            break;
+                        }
+                    } else {
+                        int idx = tb->actions().indexOf(act);
+                        if (idx >= 0 && idx < items.size()) {
+                            QJsonObject item = items[idx].toObject();
+                            item["name"] = newName;
+                            item["icon"] = newIcon;
+                            if (type == "custom") {
+                                item["command"] = newCommand;
+                            }
+                            items[idx] = item;
+                            tbObj["items"] = items;
+                            arr[i] = tbObj;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            settings.setValue("custom_toolbars_v1", QJsonDocument(arr).toJson(QJsonDocument::Compact));
+            rebuildToolBars();
+        }
+    }
+}
+
+void MainWindow::removeToolbarItem(QToolBar* tb, QAction* act) {
+    QString tbId = tb->objectName();
+    QString name = act->property("name").toString();
+    bool isDynamicDrive = act->property("is_dynamic_drive").toBool();
+
+    if (isDynamicDrive) {
+        QSettings settings("Amifiles", "Amifiles");
+        settings.remove("DrivesShortcuts/" + name);
+        updateDrivesList();
+    } else {
+        QSettings settings("Amifiles", "Amifiles");
+        QString jsonStr = settings.value("custom_toolbars_v1").toString();
+        QJsonArray arr;
+        if (jsonStr.isEmpty()) {
+            arr = ToolbarEditorDialog::getDefaultToolbarsJson();
+        } else {
+            arr = QJsonDocument::fromJson(jsonStr.toUtf8()).array();
+        }
+
+        for (int i = 0; i < arr.size(); ++i) {
+            QJsonObject tbObj = arr[i].toObject();
+            if (tbObj["id"].toString() == tbId) {
+                QJsonArray items = tbObj["items"].toArray();
+                if (tbId == "tb_drives" || tbId == "drivesToolBar") {
+                    // Match custom item by properties since the toolbar has dynamic/system drives mixed in
+                    int jsonIdx = -1;
+                    for (int j = 0; j < items.size(); ++j) {
+                        QJsonObject item = items[j].toObject();
+                        if (item["type"].toString() == act->property("type").toString() &&
+                            item["name"].toString() == act->property("name").toString() &&
+                            item["icon"].toString() == act->property("icon").toString() &&
+                            item["command"].toString() == act->property("command").toString() &&
+                            item["id"].toString() == act->property("id").toString()) {
+                            jsonIdx = j;
+                            break;
+                        }
+                    }
+                    if (jsonIdx >= 0) {
+                        items.removeAt(jsonIdx);
+                        tbObj["items"] = items;
+                        arr[i] = tbObj;
+                        break;
+                    }
+                } else {
+                    int idx = tb->actions().indexOf(act);
+                    if (idx >= 0 && idx < items.size()) {
+                        items.removeAt(idx);
+                        tbObj["items"] = items;
+                        arr[i] = tbObj;
+                        break;
+                    }
+                }
+            }
+        }
+
+        settings.setValue("custom_toolbars_v1", QJsonDocument(arr).toJson(QJsonDocument::Compact));
+        rebuildToolBars();
+    }
+}
+
+void MainWindow::handleToolbarDrop(const QString& sourceTbId, int sourceIdx, const QString& targetTbId, int targetIdx,
+                                   const QString& type, const QString& actId, const QString& name, const QString& icon,
+                                   const QString& command, bool isDynamicDrive) {
+    QSettings settings("Amifiles", "Amifiles");
+    QString jsonStr = settings.value("custom_toolbars_v1").toString();
+    QJsonArray arr;
+    if (jsonStr.isEmpty()) {
+        arr = ToolbarEditorDialog::getDefaultToolbarsJson();
+    } else {
+        arr = QJsonDocument::fromJson(jsonStr.toUtf8()).array();
+    }
+
+    if (!isDynamicDrive && !sourceTbId.isEmpty() && sourceIdx >= 0) {
+        for (int i = 0; i < arr.size(); ++i) {
+            QJsonObject tbObj = arr[i].toObject();
+            if (tbObj["id"].toString() == sourceTbId) {
+                QJsonArray items = tbObj["items"].toArray();
+                if (sourceIdx < items.size()) {
+                    items.removeAt(sourceIdx);
+                    if (sourceTbId == targetTbId && sourceIdx < targetIdx) {
+                        targetIdx--;
+                    }
+                    tbObj["items"] = items;
+                    arr[i] = tbObj;
+                }
+                break;
+            }
+        }
+    }
+
+    QJsonObject newItem;
+    newItem["type"] = type;
+    newItem["name"] = name;
+    newItem["icon"] = icon;
+    if (type == "internal") {
+        newItem["id"] = actId;
+    } else if (type == "custom") {
+        newItem["command"] = command;
+    }
+
+    for (int i = 0; i < arr.size(); ++i) {
+        QJsonObject tbObj = arr[i].toObject();
+        if (tbObj["id"].toString() == targetTbId) {
+            QJsonArray items = tbObj["items"].toArray();
+            targetIdx = qBound(0, targetIdx, items.size());
+            items.insert(targetIdx, newItem);
+            tbObj["items"] = items;
+            arr[i] = tbObj;
+            break;
+        }
+    }
+
+    settings.setValue("custom_toolbars_v1", QJsonDocument(arr).toJson(QJsonDocument::Compact));
+    rebuildToolBars();
 }
 
 #include "mainwindow.moc"

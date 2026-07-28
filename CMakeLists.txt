@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(Amifiles VERSION 2.3.17 LANGUAGES CXX)
+project(Amifiles VERSION 2.3.33 LANGUAGES CXX)
 
 configure_file(
     "${PROJECT_SOURCE_DIR}/src/version.h.in"
@@ -139,6 +139,8 @@ add_executable(Amifiles
     src/timelineview.cpp
     src/filmstripview.h
     src/filmstripview.cpp
+    src/coverflowview.h
+    src/coverflowview.cpp
     src/commandpalette.h
     src/commandpalette.cpp
     src/folderdiffdialog.h

@@ -10,6 +10,7 @@
 #include "millercolumnsview.h"
 #include "timelineview.h"
 #include "filmstripview.h"
+#include "coverflowview.h"
 #include "cardviewdelegate.h"
 #include "groupproxymodel.h"
 #include "columnscustomizerdialog.h"
@@ -255,7 +256,8 @@ void FilePanel::setupUI() {
         "Video Showcase (Classic)",
         "Movies Full Screen",
         "TV Shows Full Screen",
-        "Music Full Screen"
+        "Music Full Screen",
+        "Cover Flow Carousel"
     });
     m_comboViewMode->setToolTip("Switch active file listing visual layout view mode");
     m_comboViewMode->setStyleSheet("QComboBox { background-color: #313244; color: #89b4fa; border: 1px solid #45475a; border-radius: 4px; padding: 2px 6px; font-weight: bold; }");
@@ -833,12 +835,30 @@ void FilePanel::setupUI() {
     m_filmstripView->installEventFilter(this);
     m_filmstripView->setAcceptDrops(true);
 
+    m_coverFlowView = new CoverFlowView(this);
+    m_coverFlowView->setModel(m_proxyModel);
+    m_coverFlowView->setSelectionModel(m_treeView->selectionModel());
+    m_coverFlowView->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_coverFlowView, &CoverFlowView::customContextMenuRequested, this, &FilePanel::onCustomContextMenu);
+
     m_viewStack->addWidget(m_theaterContainer);
     m_viewStack->addWidget(m_millerView);
     m_viewStack->addWidget(m_timelineView);
     m_viewStack->addWidget(m_filmstripView);
+    m_viewStack->addWidget(m_coverFlowView);
     m_viewStack->addWidget(m_dashboardWidget);
     m_viewStack->addWidget(m_homeDashboardWidget);
+
+    connect(m_coverFlowView, &CoverFlowView::itemDoubleClicked, this, [this](const QModelIndex& index) {
+        onDoubleClicked(index);
+    });
+    connect(m_coverFlowView, &CoverFlowView::currentIndexChanged, this, [this](int index) {
+        if (m_proxyModel) {
+            QModelIndex modelIdx = m_proxyModel->index(index, 0, m_listView->rootIndex());
+            QString path = m_proxyModel->data(modelIdx, Qt::UserRole + 1).toString();
+            emit fileSelected(path);
+        }
+    });
 
     connect(m_millerView, &MillerColumnsView::fileSelected, this, &FilePanel::fileSelected);
     connect(m_millerView, &MillerColumnsView::fileDoubleClicked, this, &FilePanel::onDoubleClickedPath);
@@ -1516,14 +1536,20 @@ void FilePanel::updateActiveViewModel() {
         m_listView->setModel(m_groupProxy);
         m_theaterListView->setModel(m_groupProxy);
         m_filmstripView->setModel(m_groupProxy);
+        if (m_coverFlowView) m_coverFlowView->setModel(m_groupProxy);
     } else {
         m_treeView->setModel(base);
         m_listView->setModel(base);
         m_theaterListView->setModel(base);
         m_filmstripView->setModel(base);
+        if (m_coverFlowView) m_coverFlowView->setModel(base);
     }
     m_listView->setSelectionModel(m_treeView->selectionModel());
     m_theaterListView->setSelectionModel(m_treeView->selectionModel());
+    if (m_coverFlowView) {
+        m_coverFlowView->setSelectionModel(m_treeView->selectionModel());
+        m_coverFlowView->setRootIndex(m_listView->rootIndex());
+    }
     
     if (m_treeView->selectionModel()) {
         connect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
@@ -1771,6 +1797,7 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
         m_treeView->setRootIndex(QModelIndex());
         m_listView->setRootIndex(QModelIndex());
         m_theaterListView->setRootIndex(QModelIndex());
+        if (m_coverFlowView) m_coverFlowView->setRootIndex(QModelIndex());
     } else {
         m_proxyModel->setCurrentPath(m_currentPath);
         QModelIndex srcIndex = m_fileModel->setRootPath(m_currentPath);
@@ -1780,6 +1807,7 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
             m_treeView->setRootIndex(QModelIndex());
             m_listView->setRootIndex(QModelIndex());
             m_theaterListView->setRootIndex(QModelIndex());
+            if (m_coverFlowView) m_coverFlowView->setRootIndex(QModelIndex());
             
             if (m_viewStack->currentWidget() == m_theaterContainer) {
                 m_theaterListView->setVisible(false);
@@ -1792,6 +1820,7 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
             m_treeView->setRootIndex(proxyIndex);
             m_listView->setRootIndex(proxyIndex);
             m_theaterListView->setRootIndex(proxyIndex);
+            if (m_coverFlowView) m_coverFlowView->setRootIndex(proxyIndex);
             
             m_theaterListView->setVisible(true);
             m_theaterScrollArea->setVisible(false);
@@ -2980,7 +3009,7 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     if (vMode == 6) {
         showAudioShowcaseContextMenu(pos);
         return;
-    } else if (vMode == 10) {
+    } else if (vMode == 10 || vMode == 11) {
         showMusicShowcaseContextMenu(pos);
         return;
     } else if (vMode == 7 || vMode == 8 || vMode == 9) {
@@ -2992,22 +3021,28 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         index = m_listView->indexAt(pos);
     } else if (m_viewStack->currentWidget() == m_theaterListView || m_viewStack->currentWidget() == m_theaterContainer) {
         index = m_theaterListView->indexAt(pos);
+    } else if (m_viewStack->currentWidget() == m_coverFlowView) {
+        index = m_coverFlowView->indexAt(pos);
     } else {
         index = m_treeView->indexAt(pos);
     }
     
     if (index.isValid()) {
         QWidget* cur = m_viewStack->currentWidget();
-        QAbstractItemView* activeView = nullptr;
-        if (cur == m_theaterContainer) {
-            activeView = m_theaterListView;
+        if (cur == m_coverFlowView) {
+            m_coverFlowView->setSelectedIndex(index.row());
         } else {
-            activeView = qobject_cast<QAbstractItemView*>(cur);
-        }
-        if (activeView && activeView->selectionModel()) {
-            if (!activeView->selectionModel()->isSelected(index)) {
-                activeView->selectionModel()->select(index, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
-                activeView->setCurrentIndex(index);
+            QAbstractItemView* activeView = nullptr;
+            if (cur == m_theaterContainer) {
+                activeView = m_theaterListView;
+            } else {
+                activeView = qobject_cast<QAbstractItemView*>(cur);
+            }
+            if (activeView && activeView->selectionModel()) {
+                if (!activeView->selectionModel()->isSelected(index)) {
+                    activeView->selectionModel()->select(index, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+                    activeView->setCurrentIndex(index);
+                }
             }
         }
     }
@@ -3017,6 +3052,7 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     bool isTheater = (m_viewStack->currentWidget() == m_theaterListView || m_viewStack->currentWidget() == m_theaterContainer);
 
     QAction* actOpen = menu.addAction(style->standardIcon(QStyle::SP_DialogOpenButton), "Open");
+    QAction* actPlayAlbum = menu.addAction(style->standardIcon(QStyle::SP_MediaPlay), "Open in Full Screen View");
     menu.addSeparator();
     
     QAction* actCopy = nullptr;
@@ -3292,6 +3328,8 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
 
     bool hasSelection = index.isValid();
     actOpen->setEnabled(hasSelection);
+    actPlayAlbum->setEnabled(hasSelection && isFolder);
+    actPlayAlbum->setVisible(isFolder);
     if (actFileTags) actFileTags->setEnabled(hasSelection);
     if (!isTheater) {
         actCopy->setEnabled(hasSelection);
@@ -3492,6 +3530,33 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         } else {
             onDoubleClicked(index);
         }
+    } else if (selected == actPlayAlbum) {
+        if (!selectedPath.isEmpty()) {
+            int targetViewMode = 10; // Default to Music Full Screen (Showcase v2)
+            bool containsVideo = false;
+            QStringList videoExts = { "mp4", "mkv", "avi", "mov", "webm", "mpeg", "mpg" };
+            QDir dir(selectedPath);
+            QFileInfoList fileList = dir.entryInfoList(QDir::Files);
+            for (const QFileInfo& fi : fileList) {
+                if (videoExts.contains(fi.suffix().toLower())) {
+                    containsVideo = true;
+                    break;
+                }
+            }
+            if (containsVideo) {
+                bool isTv = false;
+                for (const QString& subDir : dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+                    if (subDir.toLower().contains("season") || subDir.toLower().contains("series")) {
+                        isTv = true;
+                        break;
+                    }
+                }
+                targetViewMode = isTv ? 9 : 8;
+            }
+            m_comboViewMode->setCurrentIndex(targetViewMode);
+            navigateTo(selectedPath, true);
+        }
+        return;
     } else if (selected == actCopy) {
         onCopy();
     } else if (selected == actCut) {
@@ -4014,11 +4079,20 @@ void FilePanel::showAudioShowcaseContextMenu(const QPoint& pos) {
 }
 
 void FilePanel::showMusicShowcaseContextMenu(const QPoint& pos) {
-    QModelIndex index = m_theaterListView->indexAt(pos);
-    if (index.isValid()) {
-        if (!m_theaterListView->selectionModel()->isSelected(index)) {
-            m_theaterListView->selectionModel()->select(index, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
-            m_theaterListView->setCurrentIndex(index);
+    QModelIndex index;
+    int vMode = viewModeIndex();
+    if (vMode == 11 && m_coverFlowView) {
+        index = m_coverFlowView->indexAt(pos);
+        if (index.isValid()) {
+            m_coverFlowView->setSelectedIndex(index.row());
+        }
+    } else {
+        index = m_theaterListView->indexAt(pos);
+        if (index.isValid()) {
+            if (!m_theaterListView->selectionModel()->isSelected(index)) {
+                m_theaterListView->selectionModel()->select(index, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+                m_theaterListView->setCurrentIndex(index);
+            }
         }
     }
 
@@ -4038,6 +4112,10 @@ void FilePanel::showMusicShowcaseContextMenu(const QPoint& pos) {
 
     QAction* actPlay = menu.addAction(style->standardIcon(QStyle::SP_MediaPlay), isFolder ? "Play Album" : "Play Track");
     QAction* actQueue = menu.addAction(style->standardIcon(QStyle::SP_MediaVolume), isFolder ? "Queue Album to Playlist" : "Queue Track to Playlist");
+    QAction* actOpenFullscreen = nullptr;
+    if (isFolder) {
+        actOpenFullscreen = menu.addAction(style->standardIcon(QStyle::SP_DialogOpenButton), "Open in Full Screen View");
+    }
     QAction* actApplyDvdOverlay = nullptr;
     if (!selectedPath.isEmpty() && !isFolder) {
         actApplyDvdOverlay = menu.addAction("💿 Apply DVD Case Overlay (Auto-Rename folder.jpg)");
@@ -4092,6 +4170,32 @@ void FilePanel::showMusicShowcaseContextMenu(const QPoint& pos) {
             if (!playlistPaths.isEmpty()) {
                 emit playMediaFullscreenRequested(playlistPaths);
             }
+        }
+    } else if (selected == actOpenFullscreen) {
+        if (!selectedPath.isEmpty()) {
+            int targetViewMode = 10; // Default to Music Full Screen (Showcase v2)
+            bool containsVideo = false;
+            QStringList videoExts = { "mp4", "mkv", "avi", "mov", "webm", "mpeg", "mpg" };
+            QDir dir(selectedPath);
+            QFileInfoList fileList = dir.entryInfoList(QDir::Files);
+            for (const QFileInfo& fi : fileList) {
+                if (videoExts.contains(fi.suffix().toLower())) {
+                    containsVideo = true;
+                    break;
+                }
+            }
+            if (containsVideo) {
+                bool isTv = false;
+                for (const QString& subDir : dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+                    if (subDir.toLower().contains("season") || subDir.toLower().contains("series")) {
+                        isTv = true;
+                        break;
+                    }
+                }
+                targetViewMode = isTv ? 9 : 8;
+            }
+            m_comboViewMode->setCurrentIndex(targetViewMode);
+            navigateTo(selectedPath, true);
         }
     } else if (selected == actQueue) {
         if (!selectedPath.isEmpty()) {
@@ -4689,10 +4793,12 @@ void FilePanel::setFlatViewEnabled(bool enabled) {
             m_treeView->setRootIndex(QModelIndex());
             m_listView->setRootIndex(QModelIndex());
             m_theaterListView->setRootIndex(QModelIndex());
+            if (m_coverFlowView) m_coverFlowView->setRootIndex(QModelIndex());
         } else {
             m_treeView->setRootIndex(proxyIndex);
             m_listView->setRootIndex(proxyIndex);
             m_theaterListView->setRootIndex(proxyIndex);
+            if (m_coverFlowView) m_coverFlowView->setRootIndex(proxyIndex);
         }
     }
 
@@ -5545,6 +5651,12 @@ void FilePanel::onViewModeChanged(int index) {
         } else {
             m_theaterListView->setVisible(true);
             m_theaterScrollArea->setVisible(false);
+        }
+    } else if (index == 11) { // Cover Flow Carousel
+        if (m_coverFlowView) {
+            m_coverFlowView->setRootIndex(m_listView->rootIndex());
+            m_coverFlowView->setSelectedIndex(0);
+            m_viewStack->setCurrentWidget(m_coverFlowView);
         }
     }
     

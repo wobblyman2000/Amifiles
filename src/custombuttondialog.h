@@ -128,7 +128,7 @@ public:
         cmdLabelLayout->addWidget(lblCmd);
         cmdLabelLayout->addStretch(1);
         QPushButton* btnInsertAction = new QPushButton("Insert Action...", this);
-        btnInsertAction->setMaximumWidth(125);
+        btnInsertAction->setMinimumWidth(130);
         connect(btnInsertAction, &QPushButton::clicked, this, [this]() {
             ActionHelperDialog dlg(this);
             if (dlg.exec() == QDialog::Accepted) {
