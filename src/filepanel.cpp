@@ -566,12 +566,16 @@ void FilePanel::setupUI() {
         
         m_drawerBtnContainer = new QWidget(m_theaterSideContainer);
         QHBoxLayout* drawerBtnLayout = new QHBoxLayout(m_drawerBtnContainer);
-        drawerBtnLayout->setContentsMargins(6, 6, 6, 6);
+        drawerBtnLayout->setContentsMargins(6, 6, 12, 6);
         drawerBtnLayout->setSpacing(6);
         
         QPushButton* btnDrawerPlay = new QPushButton("▶ Play", m_drawerBtnContainer);
         QPushButton* btnDrawerRemove = new QPushButton("✖ Remove", m_drawerBtnContainer);
         QPushButton* btnDrawerClear = new QPushButton("🗑 Clear", m_drawerBtnContainer);
+
+        btnDrawerPlay->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        btnDrawerRemove->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        btnDrawerClear->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
         
         QString btnStyle = 
             "QPushButton { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 4px; padding: 6px 8px; font-weight: bold; font-family: 'Outfit'; font-size: 11px; } "
