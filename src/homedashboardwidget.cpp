@@ -305,6 +305,29 @@ static CardTheme getCardTheme(int index, int layoutIndex) {
     return theme;
 }
 
+struct QATheme {
+    QString iconStyle;
+    QString cardHoverStyle;
+};
+
+static QATheme getQATheme(const QString& name) {
+    QATheme t;
+    QString color;
+    if (name == "Documents") color = "137, 180, 250"; // Blue
+    else if (name == "Downloads") color = "166, 227, 161"; // Green
+    else if (name == "Music") color = "203, 166, 247"; // Purple
+    else if (name == "Desktop") color = "250, 179, 135"; // Orange
+    else if (name == "Videos") color = "243, 139, 168"; // Red
+    else if (name == "Pictures") color = "148, 226, 213"; // Teal
+    else color = "180, 190, 254"; // Lavender (Home)
+    
+    t.iconStyle = QString("background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 rgba(%1, 0.25), stop:1 rgba(%1, 0.05)); border: 1px solid rgba(%1, 0.4); border-radius: 10px; font-size: 22px; min-width: 44px; min-height: 44px;").arg(color);
+    
+    t.cardHoverStyle = QString("QFrame#cardFrame { background-color: rgba(30, 30, 46, 0.4); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 12px; } "
+                               "QFrame#cardFrame:hover { background-color: rgba(%1, 0.08); border: 1px solid rgba(%1, 0.4); }").arg(color);
+    return t;
+}
+
 HomeDashboardWidget::HomeDashboardWidget(QWidget* parent) : QWidget(parent) {
     setupUi();
     refreshDashboard();
@@ -573,8 +596,11 @@ void HomeDashboardWidget::populateQuickAccess() {
     for (const auto& entry : entries) {
         if (entry.path.isEmpty() || !QDir(entry.path).exists()) continue;
 
+        QATheme qat = getQATheme(entry.name);
+
         ClickableCardFrame* card = new ClickableCardFrame(entry.path, -1, this);
         card->setFixedSize(240, 84);
+        card->setStyleSheet(qat.cardHoverStyle);
         connect(card, &ClickableCardFrame::doubleClicked, this, &HomeDashboardWidget::onQuickAccessClicked);
 
         QHBoxLayout* layout = new QHBoxLayout(card);
@@ -584,7 +610,7 @@ void HomeDashboardWidget::populateQuickAccess() {
         QLabel* iconLabel = new QLabel(card);
         iconLabel->setText(entry.icon);
         iconLabel->setAlignment(Qt::AlignCenter);
-        iconLabel->setStyleSheet("background-color: rgba(137, 180, 250, 0.1); border-radius: 10px; font-size: 22px; min-width: 44px; min-height: 44px;");
+        iconLabel->setStyleSheet(qat.iconStyle);
         layout->addWidget(iconLabel);
 
         QVBoxLayout* details = new QVBoxLayout();
