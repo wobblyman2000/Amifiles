@@ -479,6 +479,8 @@ void HomeDashboardWidget::refreshDashboard() {
 
 void HomeDashboardWidget::populateDrives() {
     clearLayout(m_drivesLayout);
+    m_drivesLayout->setSpacing(10);
+    for (int i = 0; i < 10; ++i) m_drivesLayout->setColumnStretch(i, 0);
 
     int row = 0;
     int col = 0;
@@ -533,7 +535,7 @@ void HomeDashboardWidget::populateDrives() {
 
         layout->addLayout(details, 1);
 
-        m_drivesLayout->addWidget(card, row, col);
+        m_drivesLayout->addWidget(card, row, col, Qt::AlignLeft | Qt::AlignVCenter);
 
         col++;
         if (col >= 3) {
@@ -541,10 +543,13 @@ void HomeDashboardWidget::populateDrives() {
             row++;
         }
     }
+    m_drivesLayout->setColumnStretch(3, 1);
 }
 
 void HomeDashboardWidget::populateQuickAccess() {
     clearLayout(m_quickAccessLayout);
+    m_quickAccessLayout->setSpacing(8);
+    for (int i = 0; i < 10; ++i) m_quickAccessLayout->setColumnStretch(i, 0);
 
     struct QAEntry {
         QString name;
@@ -611,10 +616,13 @@ void HomeDashboardWidget::populateQuickAccess() {
             row++;
         }
     }
+    m_quickAccessLayout->setColumnStretch(4, 1);
 }
 
 void HomeDashboardWidget::populatePinnedFolders() {
     clearLayout(m_pinnedLayout);
+    m_pinnedLayout->setSpacing(6);
+    for (int i = 0; i < 10; ++i) m_pinnedLayout->setColumnStretch(i, 0);
 
     QSettings settings("Amifiles", "Amifiles");
     QStringList pinned = settings.value("dashboard/pinned_folders").toStringList();
@@ -707,6 +715,7 @@ void HomeDashboardWidget::populatePinnedFolders() {
             row++;
         }
     }
+    m_pinnedLayout->setColumnStretch(4, 1);
 }
 
 void HomeDashboardWidget::onDriveDoubleClicked(const QString& path) {
