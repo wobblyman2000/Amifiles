@@ -1175,7 +1175,7 @@ void PreviewPanel::setupUI() {
     // 4. Media View (Audio / Video)
     m_mediaView = new QWidget(this);
     QVBoxLayout* mediaLayout = new QVBoxLayout(m_mediaView);
-    mediaLayout->setContentsMargins(4, 4, 4, 4);
+    mediaLayout->setContentsMargins(4, 4, 4, 16);
 
     m_videoWidget = new QVideoWidget(m_mediaView);
     m_videoWidget->setStyleSheet("background-color: #000000; border-radius: 4px;");
