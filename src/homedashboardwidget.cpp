@@ -80,6 +80,112 @@ private:
     QColor m_color = QColor("#89b4fa");
 };
 
+// Custom graphical folder illustration & cover art widget
+class FolderGraphicWidget : public QWidget {
+    Q_OBJECT
+public:
+    FolderGraphicWidget(const QString& path, int layoutIndex, const QColor& accentColor, QWidget* parent = nullptr)
+        : QWidget(parent), m_path(path), m_layoutIndex(layoutIndex), m_accent(accentColor) {
+        setFixedSize(56, 56);
+        m_artwork = getFolderArtwork(path, 112, 112);
+    }
+protected:
+    void paintEvent(QPaintEvent*) override {
+        QPainter p(this);
+        p.setRenderHint(QPainter::Antialiasing);
+        
+        QRectF rect(0, 0, width(), height());
+        
+        if (!m_artwork.isNull()) {
+            QPainterPath path;
+            path.addRoundedRect(rect, 10, 10);
+            p.setClipPath(path);
+            p.drawPixmap(rect.toRect(), m_artwork);
+            return;
+        }
+        
+        // Fallback custom vector drawing
+        QPainterPath path;
+        path.addRoundedRect(rect, 10, 10);
+        
+        QColor bg = m_accent;
+        bg.setAlpha(25);
+        p.fillPath(path, bg);
+        
+        QPen pen(m_accent, 1.5);
+        p.setPen(pen);
+        p.drawPath(path);
+        
+        p.setPen(m_accent);
+        if (m_layoutIndex == 1) { // Grid (4x4 Grid layout design)
+            int margin = 14;
+            int size = (width() - margin * 2 - 6) / 2;
+            for (int r = 0; r < 2; ++r) {
+                for (int c = 0; c < 2; ++c) {
+                    QRectF rRect(margin + c * (size + 6), margin + r * (size + 6), size, size);
+                    p.drawRoundedRect(rRect, 2, 2);
+                }
+            }
+        } else if (m_layoutIndex == 0) { // List (List lines layout design)
+            int margin = 14;
+            int w = width() - margin * 2;
+            int h = 4;
+            int spacing = 8;
+            for (int i = 0; i < 3; ++i) {
+                p.drawRoundedRect(QRectF(margin, margin + i * (h + spacing), w, h), 1, 1);
+            }
+        } else if (m_layoutIndex == 2 || m_layoutIndex == 11) { // Cover Flow or Tiles (Tilted cards mockup)
+            p.save();
+            p.translate(width()/2, height()/2);
+            p.rotate(-12);
+            p.drawRoundedRect(QRectF(-16, -20, 22, 28), 2, 2);
+            p.restore();
+            
+            p.save();
+            p.translate(width()/2, height()/2);
+            p.rotate(10);
+            p.drawRoundedRect(QRectF(-6, -16, 22, 28), 2, 2);
+            p.restore();
+        } else if (m_layoutIndex == 6 || m_layoutIndex == 10) { // Music note
+            QFont font = p.font();
+            font.setPointSize(18);
+            p.setFont(font);
+            p.drawText(rect, Qt::AlignCenter, "🎵");
+        } else if (m_layoutIndex == 7 || m_layoutIndex == 8 || m_layoutIndex == 9) { // Video/Cinema
+            QFont font = p.font();
+            font.setPointSize(18);
+            p.setFont(font);
+            p.drawText(rect, Qt::AlignCenter, "🎬");
+        } else { // Standard folder
+            QFont font = p.font();
+            font.setPointSize(18);
+            p.setFont(font);
+            p.drawText(rect, Qt::AlignCenter, "📁");
+        }
+    }
+private:
+    QPixmap getFolderArtwork(const QString& path, int targetWidth, int targetHeight) {
+        QStringList candidates = {"folder.jpg", "folder.png", "cover.jpg", "cover.png", "album.jpg"};
+        QDir dir(path);
+        for (const QString& name : candidates) {
+            if (dir.exists(name)) {
+                QPixmap pm(dir.filePath(name));
+                if (!pm.isNull()) return pm.scaled(targetWidth, targetHeight, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+            }
+        }
+        QStringList entryImages = dir.entryList({"*.jpg", "*.jpeg", "*.png", "*.webp", "*.bmp"}, QDir::Files);
+        if (!entryImages.isEmpty()) {
+            QPixmap pm(dir.filePath(entryImages.first()));
+            if (!pm.isNull()) return pm.scaled(targetWidth, targetHeight, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+        }
+        return QPixmap();
+    }
+    QString m_path;
+    int m_layoutIndex;
+    QColor m_accent;
+    QPixmap m_artwork;
+};
+
 // Custom double-clickable card widget
 class ClickableCardFrame : public QFrame {
     Q_OBJECT
@@ -147,49 +253,49 @@ static CardTheme getCardTheme(int index, int layoutIndex) {
         theme.bgStyle = "background-color: #241c30; border: 1px solid #cba6f7;";
         theme.textStyle = "color: #f5c2e7; font-weight: bold;";
         theme.badgeStyle = "color: #f5c2e7;";
-        theme.badgeBgStyle = "background-color: #3b2552; border-radius: 4px; padding: 2px 6px;";
+        theme.badgeBgStyle = "background-color: #3b2552; border-radius: 9px; padding: 2px 8px;";
         theme.symbol = "⣿";
     } else if (choice == 1) { // Blue / Development
         theme.bgStyle = "background-color: #162035; border: 1px solid #89b4fa;";
         theme.textStyle = "color: #89b4fa; font-weight: bold;";
         theme.badgeStyle = "color: #89b4fa;";
-        theme.badgeBgStyle = "background-color: #223456; border-radius: 4px; padding: 2px 6px;";
+        theme.badgeBgStyle = "background-color: #223456; border-radius: 9px; padding: 2px 8px;";
         theme.symbol = "☷";
     } else if (choice == 2) { // Teal / Photos
         theme.bgStyle = "background-color: #16272b; border: 1px solid #94e2d5;";
         theme.textStyle = "color: #94e2d5; font-weight: bold;";
         theme.badgeStyle = "color: #94e2d5;";
-        theme.badgeBgStyle = "background-color: #1e3f42; border-radius: 4px; padding: 2px 6px;";
+        theme.badgeBgStyle = "background-color: #1e3f42; border-radius: 9px; padding: 2px 8px;";
         theme.symbol = "🖼️";
     } else if (choice == 3) { // Orange / Server Backups
         theme.bgStyle = "background-color: #302016; border: 1px solid #fab387;";
         theme.textStyle = "color: #fab387; font-weight: bold;";
         theme.badgeStyle = "color: #fab387;";
-        theme.badgeBgStyle = "background-color: #4a2e1d; border-radius: 4px; padding: 2px 6px;";
+        theme.badgeBgStyle = "background-color: #4a2e1d; border-radius: 9px; padding: 2px 8px;";
         theme.symbol = "🗎";
     } else if (choice == 4) { // Red / Videos
         theme.bgStyle = "background-color: #30161b; border: 1px solid #f38ba8;";
         theme.textStyle = "color: #f38ba8; font-weight: bold;";
         theme.badgeStyle = "color: #f38ba8;";
-        theme.badgeBgStyle = "background-color: #4a1d23; border-radius: 4px; padding: 2px 6px;";
+        theme.badgeBgStyle = "background-color: #4a1d23; border-radius: 9px; padding: 2px 8px;";
         theme.symbol = "🎬";
     } else if (choice == 5) { // Yellow / Assets
         theme.bgStyle = "background-color: #2d2d16; border: 1px solid #f9e2af;";
         theme.textStyle = "color: #f9e2af; font-weight: bold;";
         theme.badgeStyle = "color: #f9e2af;";
-        theme.badgeBgStyle = "background-color: #45451c; border-radius: 4px; padding: 2px 6px;";
+        theme.badgeBgStyle = "background-color: #45451c; border-radius: 9px; padding: 2px 8px;";
         theme.symbol = "📁";
     } else if (choice == 6) { // Pink / Personal
         theme.bgStyle = "background-color: #2e1624; border: 1px solid #f5c2e7;";
         theme.textStyle = "color: #f5c2e7; font-weight: bold;";
         theme.badgeStyle = "color: #f5c2e7;";
-        theme.badgeBgStyle = "background-color: #471c35; border-radius: 4px; padding: 2px 6px;";
+        theme.badgeBgStyle = "background-color: #471c35; border-radius: 9px; padding: 2px 8px;";
         theme.symbol = "👤";
     } else { // Slate / Archive
         theme.bgStyle = "background-color: #222530; border: 1px solid #bac2de;";
         theme.textStyle = "color: #bac2de; font-weight: bold;";
         theme.badgeStyle = "color: #secText;";
-        theme.badgeBgStyle = "background-color: #343946; border-radius: 4px; padding: 2px 6px;";
+        theme.badgeBgStyle = "background-color: #343946; border-radius: 9px; padding: 2px 8px;";
         theme.symbol = "📦";
     }
     
@@ -552,13 +658,13 @@ void HomeDashboardWidget::populatePinnedFolders() {
         details->setSpacing(4);
 
         QLabel* nameLabel = new QLabel(name, card);
-        nameLabel->setStyleSheet(theme.textStyle + " font-size: 13px;");
+        nameLabel->setStyleSheet(theme.textStyle + " font-size: 15px;");
         details->addWidget(nameLabel);
 
         int itemCount = QDir(path).entryList(QDir::NoDotAndDotDot | QDir::AllEntries).count();
         QString countText = QString("%1 items").arg(itemCount);
         QLabel* countLabel = new QLabel(countText, card);
-        countLabel->setStyleSheet("font-size: 10px; color: #a6adc8;");
+        countLabel->setStyleSheet("font-size: 11px; color: #a6adc8;");
         details->addWidget(countLabel);
 
         QString layoutName = "Details View";
@@ -572,16 +678,20 @@ void HomeDashboardWidget::populatePinnedFolders() {
         QHBoxLayout* badgeLayout = new QHBoxLayout();
         badgeLayout->setContentsMargins(0, 0, 0, 0);
         QLabel* layoutBadge = new QLabel(layoutName, card);
-        layoutBadge->setStyleSheet(theme.badgeStyle + " font-size: 9px; font-weight: bold; " + theme.badgeBgStyle);
+        layoutBadge->setStyleSheet(theme.badgeStyle + " font-size: 9px; font-weight: bold; border-radius: 9px; padding: 3px 8px; " + theme.badgeBgStyle);
         badgeLayout->addWidget(layoutBadge);
         badgeLayout->addStretch(1);
         details->addLayout(badgeLayout);
 
+        QLabel* pathLabel = new QLabel(QDir::toNativeSeparators(path), card);
+        pathLabel->setStyleSheet("font-size: 8px; color: rgba(205, 214, 244, 0.35);");
+        details->addWidget(pathLabel);
+
         layout->addLayout(details, 1);
 
-        QLabel* symLabel = new QLabel(theme.symbol, card);
-        symLabel->setStyleSheet(QString("font-size: 28px; color: %1; opacity: 0.8;").arg(theme.textStyle.split(';').first().split(' ').last()));
-        layout->addWidget(symLabel);
+        QColor accentColor(theme.textStyle.split(';').first().split(' ').last().trimmed());
+        FolderGraphicWidget* graphic = new FolderGraphicWidget(path, layoutIndex, accentColor, card);
+        layout->addWidget(graphic);
 
         QPushButton* btnUnpin = new QPushButton("✖", card);
         btnUnpin->setProperty("class", "unpinButton");
