@@ -888,6 +888,14 @@ public:
     void setFlatViewEnabled(bool enabled);
     bool isFlatViewEnabled() const { return m_flatViewEnabled; }
     
+    // Playlist Track list helpers
+    int getTrackListCurrentIndex() const;
+    int getTrackListCount() const;
+    QString getTrackListPathAt(int index) const;
+    QStringList getTrackListPaths() const;
+    void setShuffleState(bool enabled);
+    void setRepeatState(int mode);
+
     // Search Support
     void setSearchQuery(const QString& query);
     QString searchQuery() const;
@@ -916,6 +924,10 @@ signals:
     void playPauseRequested();
     void volumeChangedRequested(int value);
     void mediaPlaybackSettingsChanged();
+    void prevTrackRequested();
+    void nextTrackRequested();
+    void shuffleToggledRequested();
+    void repeatClickedRequested();
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;

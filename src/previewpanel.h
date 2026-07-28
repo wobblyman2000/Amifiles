@@ -274,6 +274,10 @@ public slots:
     void exitFullscreen();
     void updateFullscreenTrack();
     void setBuiltinPlayerDoubleclickActive(bool active);
+    void onPrevTrack();
+    void onNextTrack();
+    void onShuffleToggled();
+    void onRepeatClicked();
 
 signals:
     void fileSaved(const QString& filePath);
@@ -282,6 +286,8 @@ signals:
     void builtinPlayerDoubleclickToggled(bool active);
     void fullscreenExited();
     void playlistChanged();
+    void shuffleStateChanged(bool enabled);
+    void repeatStateChanged(int mode);
 
 public:
     QSize minimumSizeHint() const override { return QSize(220, 200); }
@@ -310,8 +316,6 @@ private slots:
     void onMediaStatusChanged(QMediaPlayer::MediaStatus status);
     void onPlaybackStateChanged(QMediaPlayer::PlaybackState state);
     void onSubtitleMenuRequested();
-    void onShuffleToggled();
-    void onRepeatClicked();
     void onEqPresetChanged(int index);
     void onEqSlidersChanged();
     void showPlaylistContextMenu(const QPoint& pos);
@@ -436,8 +440,6 @@ private:
     QLabel* m_fullscreenTextLabel = nullptr;
 
 private slots:
-    void onPrevTrack();
-    void onNextTrack();
     void onPlaylistItemDoubleClicked(class QListWidgetItem* item);
     void onChooseOverlayIcon();
     void onClearOverlayIcon();

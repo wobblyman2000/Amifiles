@@ -503,6 +503,8 @@ void MainWindow::setupCentralWidget() {
 
 
     connect(m_previewPanel, &PreviewPanel::playlistChanged, this, &MainWindow::syncFullscreenQueue);
+    connect(m_previewPanel, &PreviewPanel::shuffleStateChanged, this, &MainWindow::onShuffleStateChanged);
+    connect(m_previewPanel, &PreviewPanel::repeatStateChanged, this, &MainWindow::onRepeatStateChanged);
 
     m_previewDock->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(m_previewDock, &QDockWidget::customContextMenuRequested, this, &MainWindow::onPreviewDockContextMenu);
@@ -2756,14 +2758,62 @@ FilePanel* MainWindow::createTab(QTabWidget* tabWidget, const QString& path) {
     connect(panel, &FilePanel::playlistPlayRequested, this, [this](const QStringList& paths) {
         if (m_previewPanel) m_previewPanel->playPlaylist(paths);
     });
-    connect(panel, &FilePanel::playPauseRequested, this, [this]() {
+    connect(panel, &FilePanel::playPauseRequested, this, [this, panel]() {
         if (m_previewPanel && m_previewPanel->player()) {
             QMediaPlayer* p = m_previewPanel->player();
-            if (p->playbackState() == QMediaPlayer::PlayingState) {
-                p->pause();
+            if (m_previewPanel->playlist().isEmpty()) {
+                QStringList plist = panel->getTrackListPaths();
+                if (!plist.isEmpty()) {
+                    m_previewPanel->playPlaylist(plist);
+                    int idx = panel->getTrackListCurrentIndex();
+                    if (idx < 0) idx = 0;
+                    m_previewPanel->playPlaylistIndex(idx);
+                }
             } else {
-                p->play();
+                if (p->playbackState() == QMediaPlayer::PlayingState) {
+                    p->pause();
+                } else {
+                    p->play();
+                }
             }
+        }
+    });
+    connect(panel, &FilePanel::prevTrackRequested, this, [this, panel]() {
+        if (m_previewPanel) {
+            if (m_previewPanel->playlist().isEmpty()) {
+                QStringList plist = panel->getTrackListPaths();
+                if (!plist.isEmpty()) {
+                    m_previewPanel->playPlaylist(plist);
+                    int idx = panel->getTrackListCurrentIndex();
+                    if (idx < 0) idx = 0;
+                    m_previewPanel->playPlaylistIndex(idx);
+                }
+            }
+            m_previewPanel->onPrevTrack();
+        }
+    });
+    connect(panel, &FilePanel::nextTrackRequested, this, [this, panel]() {
+        if (m_previewPanel) {
+            if (m_previewPanel->playlist().isEmpty()) {
+                QStringList plist = panel->getTrackListPaths();
+                if (!plist.isEmpty()) {
+                    m_previewPanel->playPlaylist(plist);
+                    int idx = panel->getTrackListCurrentIndex();
+                    if (idx < 0) idx = 0;
+                    m_previewPanel->playPlaylistIndex(idx);
+                }
+            }
+            m_previewPanel->onNextTrack();
+        }
+    });
+    connect(panel, &FilePanel::shuffleToggledRequested, this, [this]() {
+        if (m_previewPanel) {
+            m_previewPanel->onShuffleToggled();
+        }
+    });
+    connect(panel, &FilePanel::repeatClickedRequested, this, [this]() {
+        if (m_previewPanel) {
+            m_previewPanel->onRepeatClicked();
         }
     });
     connect(panel, &FilePanel::volumeChangedRequested, this, [this](int value) {
@@ -6280,6 +6330,44 @@ void MainWindow::syncFullscreenQueue() {
     
     if (leftPanel()) leftPanel()->syncPlaylist(playlist, activeIdx);
     if (rightPanel()) rightPanel()->syncPlaylist(playlist, activeIdx);
+}
+
+void MainWindow::onShuffleStateChanged(bool enabled) {
+    QList<FilePanel*> panels;
+    if (m_leftTabWidget) {
+        for (int i = 0; i < m_leftTabWidget->count(); ++i) {
+            FilePanel* p = qobject_cast<FilePanel*>(m_leftTabWidget->widget(i));
+            if (p) panels.append(p);
+        }
+    }
+    if (m_rightTabWidget) {
+        for (int i = 0; i < m_rightTabWidget->count(); ++i) {
+            FilePanel* p = qobject_cast<FilePanel*>(m_rightTabWidget->widget(i));
+            if (p) panels.append(p);
+        }
+    }
+    for (FilePanel* panel : panels) {
+        panel->setShuffleState(enabled);
+    }
+}
+
+void MainWindow::onRepeatStateChanged(int mode) {
+    QList<FilePanel*> panels;
+    if (m_leftTabWidget) {
+        for (int i = 0; i < m_leftTabWidget->count(); ++i) {
+            FilePanel* p = qobject_cast<FilePanel*>(m_leftTabWidget->widget(i));
+            if (p) panels.append(p);
+        }
+    }
+    if (m_rightTabWidget) {
+        for (int i = 0; i < m_rightTabWidget->count(); ++i) {
+            FilePanel* p = qobject_cast<FilePanel*>(m_rightTabWidget->widget(i));
+            if (p) panels.append(p);
+        }
+    }
+    for (FilePanel* panel : panels) {
+        panel->setRepeatState(mode);
+    }
 }
 
 void MainWindow::onQueueMediaBuiltin(const QStringList& filePaths) {

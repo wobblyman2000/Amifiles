@@ -210,6 +210,8 @@ private slots:
     void onQueueMediaBuiltin(const QStringList& filePaths);
     void onActivePanelViewModeChanged();
     void syncFullscreenQueue();
+    void onShuffleStateChanged(bool enabled);
+    void onRepeatStateChanged(int mode);
     void updateScrollSyncConnections();
     void onTabContextMenuRequested(const QPoint& pos);
     

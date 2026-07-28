@@ -2729,6 +2729,7 @@ void PreviewPanel::onShuffleToggled() {
         m_fullscreenWidget->hudShuffleButton()->setIcon(createShuffleIcon(m_shuffleEnabled ? QColor("#a6e3a1") : QColor("#cdd6f4")));
         m_fullscreenWidget->hudShuffleButton()->setStyleSheet(m_shuffleEnabled ? "QPushButton { color: #a6e3a1; font-weight: bold; }" : "");
     }
+    emit shuffleStateChanged(m_shuffleEnabled);
 }
 
 void PreviewPanel::onRepeatClicked() {
@@ -2750,6 +2751,7 @@ void PreviewPanel::onRepeatClicked() {
         m_fullscreenWidget->hudRepeatButton()->setIcon(createRepeatIcon(m_repeatMode > 0 ? QColor("#a6e3a1") : QColor("#cdd6f4"), m_repeatMode == 1));
         m_fullscreenWidget->hudRepeatButton()->setStyleSheet(m_repeatMode > 0 ? "QPushButton { color: #a6e3a1; font-weight: bold; }" : "");
     }
+    emit repeatStateChanged(m_repeatMode);
 }
 
 void PreviewPanel::onSubtitleMenuRequested() {

@@ -658,27 +658,25 @@ void FilePanel::setupUI() {
 
     // Playback control connections
     connect(m_btnPrev, &QToolButton::clicked, this, [this]() {
-        int row = m_trackListWidget->currentRow();
-        if (row > 0) {
-            m_trackListWidget->setCurrentRow(row - 1);
-            QString path = m_trackListWidget->currentItem()->data(Qt::UserRole).toString();
-            int vm = viewModeIndex();
-            if (vm == 8 || vm == 9 || vm == 10) {
-                emit playMediaFullscreenRequested({path});
-            } else {
+        if (viewModeIndex() == 10) {
+            emit prevTrackRequested();
+        } else {
+            int row = m_trackListWidget->currentRow();
+            if (row > 0) {
+                m_trackListWidget->setCurrentRow(row - 1);
+                QString path = m_trackListWidget->currentItem()->data(Qt::UserRole).toString();
                 emit playMediaBuiltinRequested({path});
             }
         }
     });
     connect(m_btnNext, &QToolButton::clicked, this, [this]() {
-        int row = m_trackListWidget->currentRow();
-        if (row >= 0 && row < m_trackListWidget->count() - 1) {
-            m_trackListWidget->setCurrentRow(row + 1);
-            QString path = m_trackListWidget->currentItem()->data(Qt::UserRole).toString();
-            int vm = viewModeIndex();
-            if (vm == 8 || vm == 9 || vm == 10) {
-                emit playMediaFullscreenRequested({path});
-            } else {
+        if (viewModeIndex() == 10) {
+            emit nextTrackRequested();
+        } else {
+            int row = m_trackListWidget->currentRow();
+            if (row >= 0 && row < m_trackListWidget->count() - 1) {
+                m_trackListWidget->setCurrentRow(row + 1);
+                QString path = m_trackListWidget->currentItem()->data(Qt::UserRole).toString();
                 emit playMediaBuiltinRequested({path});
             }
         }
@@ -694,6 +692,16 @@ void FilePanel::setupUI() {
                 m_btnPlayPause->setText("▶");
                 if (m_themePlayer) m_themePlayer->pause();
             }
+        }
+    });
+    connect(m_btnShuffle, &QToolButton::clicked, this, [this]() {
+        if (viewModeIndex() == 10) {
+            emit shuffleToggledRequested();
+        }
+    });
+    connect(m_btnRepeat, &QToolButton::clicked, this, [this]() {
+        if (viewModeIndex() == 10) {
+            emit repeatClickedRequested();
         }
     });
     connect(m_musicVolumeSlider, &QSlider::valueChanged, this, [this](int value) {
@@ -5863,6 +5871,49 @@ void FilePanel::onDoubleClickedPath(const QString& path) {
 
 int FilePanel::viewModeIndex() const {
     return m_comboViewMode ? m_comboViewMode->currentIndex() : 0;
+}
+
+int FilePanel::getTrackListCurrentIndex() const {
+    return m_trackListWidget ? m_trackListWidget->currentRow() : -1;
+}
+
+int FilePanel::getTrackListCount() const {
+    return m_trackListWidget ? m_trackListWidget->count() : 0;
+}
+
+QString FilePanel::getTrackListPathAt(int index) const {
+    if (!m_trackListWidget || index < 0 || index >= m_trackListWidget->count()) return QString();
+    QListWidgetItem* item = m_trackListWidget->item(index);
+    return item ? item->data(Qt::UserRole).toString() : QString();
+}
+
+QStringList FilePanel::getTrackListPaths() const {
+    QStringList plist;
+    if (!m_trackListWidget) return plist;
+    for (int i = 0; i < m_trackListWidget->count(); ++i) {
+        QString p = m_trackListWidget->item(i)->data(Qt::UserRole).toString();
+        if (!p.isEmpty()) plist.append(p);
+    }
+    return plist;
+}
+
+void FilePanel::setShuffleState(bool enabled) {
+    if (m_btnShuffle) {
+        m_btnShuffle->blockSignals(true);
+        m_btnShuffle->setChecked(enabled);
+        m_btnShuffle->blockSignals(false);
+    }
+}
+
+void FilePanel::setRepeatState(int mode) {
+    if (m_btnRepeat) {
+        m_btnRepeat->blockSignals(true);
+        m_btnRepeat->setChecked(mode > 0);
+        if (mode == 0) m_btnRepeat->setToolTip("Repeat: Off");
+        else if (mode == 1) m_btnRepeat->setToolTip("Repeat: One");
+        else if (mode == 2) m_btnRepeat->setToolTip("Repeat: All");
+        m_btnRepeat->blockSignals(false);
+    }
 }
 
 void FilePanel::setViewModeIndex(int index) {
