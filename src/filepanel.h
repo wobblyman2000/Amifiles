@@ -697,12 +697,8 @@ protected:
 
         // 2.6. Apply Show Recent Only (Modified in last 24 hours) Filter
         if (m_showRecentOnly) {
-            if (isDir) {
-                // Keep directories navigable
-            } else {
-                if (!modDate.isValid() || modDate.secsTo(QDateTime::currentDateTime()) > 24 * 3600) {
-                    return false;
-                }
+            if (!modDate.isValid() || modDate.secsTo(QDateTime::currentDateTime()) > 24 * 3600) {
+                return false;
             }
         }
 
@@ -766,7 +762,7 @@ protected:
             if (pictureExts.contains(ext)) return true;
         }
         if (m_filterTypes.contains(FilterDocs)) {
-            static const QStringList docExts = { "txt", "log", "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "odp", "md", "csv", "rtf", "html", "xml", "json" };
+            static const QStringList docExts = { "txt", "log", "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "odp", "md", "csv", "rtf", "html", "xml", "json", "nfo", "info", "diz", "conf", "config", "ini", "cfg", "me", "readme", "asc" };
             if (docExts.contains(ext)) return true;
         }
         if (m_filterTypes.contains(FilterArchive)) {

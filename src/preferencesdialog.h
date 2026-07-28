@@ -44,6 +44,7 @@ private:
     QCheckBox* m_chkAlwaysCenterSplitter = nullptr;
     QCheckBox* m_chkAlwaysCenterPreview = nullptr;
     QCheckBox* m_chkLockLayoutInShowcase = nullptr;
+    QCheckBox* m_chkDetailsFullRowSelect = nullptr;
 
     // View & Style Colors
     QCheckBox* m_chkAgeColoring = nullptr;

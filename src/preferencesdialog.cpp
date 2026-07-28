@@ -104,6 +104,10 @@ void PreferencesDialog::setupUI() {
     m_chkLockLayoutInShowcase->setToolTip("Disables and hides the standard dual pane and preview dock when viewing directories in Showcase modes (Movie, TV, Music, etc.).");
     layGen->addWidget(m_chkLockLayoutInShowcase);
 
+    m_chkDetailsFullRowSelect = new QCheckBox("Select full row in Details Table view", this);
+    m_chkDetailsFullRowSelect->setToolTip("If unchecked, selecting items only highlights the first column and clicking empty columns deselects selection, allowing you to paste items directly into the current folder.");
+    layGen->addWidget(m_chkDetailsFullRowSelect);
+
     layGen->addStretch(1);
     m_stackPages->addWidget(pageGeneral);
 
@@ -429,6 +433,7 @@ void PreferencesDialog::loadPreferences() {
     m_chkAlwaysCenterSplitter->setChecked(settings.value("preferences/always_center_splitter", true).toBool());
     m_chkAlwaysCenterPreview->setChecked(settings.value("preferences/always_center_preview", true).toBool());
     m_chkLockLayoutInShowcase->setChecked(settings.value("preferences/lock_layout_in_showcase", true).toBool());
+    m_chkDetailsFullRowSelect->setChecked(settings.value("preferences/details_full_row_select", true).toBool());
 
     m_chkAgeColoring->setChecked(settings.value("preferences/age_coloring_enabled", true).toBool());
 
@@ -476,6 +481,7 @@ void PreferencesDialog::savePreferences() {
     settings.setValue("preferences/always_center_splitter", m_chkAlwaysCenterSplitter->isChecked());
     settings.setValue("preferences/always_center_preview", m_chkAlwaysCenterPreview->isChecked());
     settings.setValue("preferences/lock_layout_in_showcase", m_chkLockLayoutInShowcase->isChecked());
+    settings.setValue("preferences/details_full_row_select", m_chkDetailsFullRowSelect->isChecked());
 
     settings.setValue("preferences/age_coloring_enabled", m_chkAgeColoring->isChecked());
 

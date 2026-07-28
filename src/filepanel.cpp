@@ -288,7 +288,9 @@ void FilePanel::setupUI() {
     m_treeView->setItemDelegate(new RenameItemDelegate(m_treeView));
     m_treeView->setAlternatingRowColors(true);
     m_treeView->setSortingEnabled(true);
-    m_treeView->setSelectionBehavior(QAbstractItemView::SelectRows);
+    QSettings prefSettings("Amifiles", "Amifiles");
+    bool detailsFullRowSelect = prefSettings.value("preferences/details_full_row_select", true).toBool();
+    m_treeView->setSelectionBehavior(detailsFullRowSelect ? QAbstractItemView::SelectRows : QAbstractItemView::SelectItems);
     m_treeView->setSelectionMode(QAbstractItemView::ExtendedSelection);
     m_treeView->setContextMenuPolicy(Qt::CustomContextMenu); // Enable context menu
     m_treeView->installEventFilter(this); // Install event filter to capture focus events
@@ -2559,6 +2561,12 @@ void FilePanel::updateStatusText() {
 }
 
 void FilePanel::refresh() {
+    QSettings settings("Amifiles", "Amifiles");
+    bool detailsFullRowSelect = settings.value("preferences/details_full_row_select", true).toBool();
+    if (m_treeView) {
+        m_treeView->setSelectionBehavior(detailsFullRowSelect ? QAbstractItemView::SelectRows : QAbstractItemView::SelectItems);
+    }
+
     if (m_fileModel) {
         m_fileModel->clearCache();
     }
