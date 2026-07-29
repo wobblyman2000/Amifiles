@@ -1122,6 +1122,8 @@ void FilePanel::setupUI() {
         "Group by Genre",
         "Group by Type",
         "Group by Rating",
+        "Group by Year",
+        "Group by Decade",
         "Group by Custom Text..."
     });
     m_comboGrouping->setFixedWidth(160);
@@ -5141,7 +5143,9 @@ void FilePanel::onGroupingChanged(int index) {
         case 3: groupType = "Genre"; break;
         case 4: groupType = "Type"; break;
         case 5: groupType = "Rating"; break;
-        case 6: {
+        case 6: groupType = "Year"; break;
+        case 7: groupType = "Decade"; break;
+        case 8: {
             bool ok = false;
             QString text = QInputDialog::getText(this, "Group by Custom Text",
                                                  "Enter custom metadata/annotation attribute key:",

@@ -1,5 +1,6 @@
 #include "groupproxymodel.h"
 #include "tagmanager.h"
+#include "metadataextractor.h"
 #include "flatmodel.h"
 #include "filepanel.h"
 #include <QFileInfo>
@@ -97,31 +98,93 @@ QString GroupProxyModel::getGroupValue(const QModelIndex& sourceIndex) const {
             filePath = ffsm->filePath(srcIndex);
         }
     }
+    if (filePath.isEmpty()) {
+        if (QFileSystemModel* fsm = qobject_cast<QFileSystemModel*>(sourceModel())) {
+            filePath = fsm->filePath(sourceIndex);
+        }
+    }
     
     if (m_groupType == "Artist") {
+        QString artistStr;
         for (int c = 4; c < sourceModel()->columnCount(); ++c) {
             QString header = sourceModel()->headerData(c, Qt::Horizontal).toString();
             if (header == "Artist") {
                 QModelIndex idx = sourceModel()->index(sourceIndex.row(), c, sourceIndex.parent());
-                return sourceModel()->data(idx).toString();
+                artistStr = sourceModel()->data(idx).toString();
+                break;
             }
         }
+        if (artistStr.isEmpty() && !filePath.isEmpty()) {
+            artistStr = MetadataExtractor::extract(filePath).artist;
+        }
+        if (artistStr.isEmpty()) return "Unassigned Artist";
+        return artistStr;
     } else if (m_groupType == "Album") {
+        QString albumStr;
         for (int c = 4; c < sourceModel()->columnCount(); ++c) {
             QString header = sourceModel()->headerData(c, Qt::Horizontal).toString();
             if (header == "Album") {
                 QModelIndex idx = sourceModel()->index(sourceIndex.row(), c, sourceIndex.parent());
-                return sourceModel()->data(idx).toString();
+                albumStr = sourceModel()->data(idx).toString();
+                break;
             }
         }
+        if (albumStr.isEmpty() && !filePath.isEmpty()) {
+            albumStr = MetadataExtractor::extract(filePath).album;
+        }
+        if (albumStr.isEmpty()) return "Unassigned Album";
+        return albumStr;
     } else if (m_groupType == "Genre") {
+        QString genreStr;
         for (int c = 4; c < sourceModel()->columnCount(); ++c) {
             QString header = sourceModel()->headerData(c, Qt::Horizontal).toString();
             if (header == "Genre") {
                 QModelIndex idx = sourceModel()->index(sourceIndex.row(), c, sourceIndex.parent());
-                return sourceModel()->data(idx).toString();
+                genreStr = sourceModel()->data(idx).toString();
+                break;
             }
         }
+        if (genreStr.isEmpty() && !filePath.isEmpty()) {
+            genreStr = MetadataExtractor::extract(filePath).genre;
+        }
+        if (genreStr.isEmpty()) return "Unassigned Genre";
+        return genreStr;
+    } else if (m_groupType == "Year") {
+        QString yearStr;
+        for (int c = 4; c < sourceModel()->columnCount(); ++c) {
+            QString header = sourceModel()->headerData(c, Qt::Horizontal).toString();
+            if (header == "Year") {
+                QModelIndex idx = sourceModel()->index(sourceIndex.row(), c, sourceIndex.parent());
+                yearStr = sourceModel()->data(idx).toString();
+                break;
+            }
+        }
+        if (yearStr.isEmpty() && !filePath.isEmpty()) {
+            yearStr = MetadataExtractor::extract(filePath).year;
+        }
+        if (yearStr.isEmpty()) return "Unknown Year";
+        return yearStr;
+    } else if (m_groupType == "Decade") {
+        QString yearStr;
+        for (int c = 4; c < sourceModel()->columnCount(); ++c) {
+            QString header = sourceModel()->headerData(c, Qt::Horizontal).toString();
+            if (header == "Year") {
+                QModelIndex idx = sourceModel()->index(sourceIndex.row(), c, sourceIndex.parent());
+                yearStr = sourceModel()->data(idx).toString();
+                break;
+            }
+        }
+        if (yearStr.isEmpty() && !filePath.isEmpty()) {
+            yearStr = MetadataExtractor::extract(filePath).year;
+        }
+        if (!yearStr.isEmpty()) {
+            int year = yearStr.toInt();
+            if (year > 1800 && year < 2100) {
+                int decade = (year / 10) * 10;
+                return QString("%1s").arg(decade);
+            }
+        }
+        return "Unknown Decade";
     } else if (m_groupType == "Rating") {
         int r = TagManager::instance().getFileRating(filePath);
         if (r <= 0) return "No Rating";

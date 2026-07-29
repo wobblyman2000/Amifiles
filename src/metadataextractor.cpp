@@ -5,6 +5,8 @@
 #include <QFile>
 #include <QDir>
 #include <QDebug>
+#include <QTextStream>
+#include <QRegularExpression>
 
 // Helper to read 16-bit word depending on endianness
 static quint16 read16(const char* data, bool intel) {
@@ -166,6 +168,50 @@ static bool parseMpegHeader(const QByteArray& header, int& bitrate, int& sampleR
     return false;
 }
 
+static void extractNfoInfo(const QString& nfoPath, FileMetadata& meta) {
+    QFile file(nfoPath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return;
+    }
+    QTextStream in(&file);
+    QString content = in.readAll();
+    file.close();
+
+    if (content.trimmed().startsWith("<?xml") || content.contains("<movie") || content.contains("<tvshow") || content.contains("<episodedetails")) {
+        auto matchTag = [](const QString& tag, const QString& src) -> QString {
+            QRegularExpression re(QString("<%1>(.*?)</%1>").arg(tag), QRegularExpression::DotMatchesEverythingOption);
+            auto m = re.match(src);
+            if (m.hasMatch()) {
+                QString val = m.captured(1).trimmed();
+                val.replace("&amp;", "&")
+                   .replace("&lt;", "<")
+                   .replace("&gt;", ">")
+                   .replace("&quot;", "\"")
+                   .replace("&apos;", "'");
+                return val;
+            }
+            return QString();
+        };
+
+        QString title = matchTag("title", content);
+        if (!title.isEmpty()) meta.title = title;
+
+        QString genre = matchTag("genre", content);
+        if (!genre.isEmpty()) meta.genre = genre;
+
+        QString year = matchTag("year", content);
+        if (!year.isEmpty()) meta.year = year;
+
+        QString studio = matchTag("studio", content);
+        if (!studio.isEmpty()) meta.artist = studio; // Map studio to artist
+
+        QString plot = matchTag("plot", content);
+        if (!plot.isEmpty()) meta.comment = plot; // Map plot to comment
+    } else {
+        meta.comment = content.trimmed();
+    }
+}
+
 FileMetadata MetadataExtractor::extract(const QString& filePath) {
     FileMetadata meta;
     extractBasic(filePath, meta);
@@ -175,14 +221,57 @@ FileMetadata MetadataExtractor::extract(const QString& filePath) {
         return meta;
     }
 
-    QString ext = info.suffix().toLower();
-    if (ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "gif" || ext == "bmp" || ext == "webp" || ext == "svg") {
-        extractImageInfo(filePath, meta);
-        if (ext == "jpg" || ext == "jpeg") {
-            extractJpegExif(filePath, meta.cameraModel, meta.dateTaken);
+    if (info.isDir()) {
+        // Look for .nfo files inside the directory
+        QDir dir(filePath);
+        QStringList nfoCandidates = { "tvshow.nfo", "movie.nfo", "summary.txt", "description.txt", "info.txt" };
+        QString foundNfoPath;
+        // First try the candidate list
+        for (const QString& cand : nfoCandidates) {
+            QString testPath = dir.filePath(cand);
+            if (QFile::exists(testPath)) {
+                foundNfoPath = testPath;
+                break;
+            }
         }
-    } else if (ext == "mp3" || ext == "wav" || ext == "ogg" || ext == "flac" || ext == "m4a") {
-        extractAudioInfo(filePath, meta);
+        // If not found, look for any .nfo file
+        if (foundNfoPath.isEmpty()) {
+            QFileInfoList list = dir.entryInfoList(QStringList() << "*.nfo", QDir::Files);
+            if (!list.isEmpty()) {
+                foundNfoPath = list.first().absoluteFilePath();
+            }
+        }
+        if (!foundNfoPath.isEmpty()) {
+            extractNfoInfo(foundNfoPath, meta);
+        }
+    } else {
+        QString ext = info.suffix().toLower();
+        if (ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "gif" || ext == "bmp" || ext == "webp" || ext == "svg") {
+            extractImageInfo(filePath, meta);
+            if (ext == "jpg" || ext == "jpeg") {
+                extractJpegExif(filePath, meta.cameraModel, meta.dateTaken);
+            }
+        } else if (ext == "mp3" || ext == "wav" || ext == "ogg" || ext == "flac" || ext == "m4a") {
+            extractAudioInfo(filePath, meta);
+        } else if (ext == "mp4" || ext == "mkv" || ext == "avi" || ext == "mov" || ext == "wmv" || ext == "m4v") {
+            // Video file: check for specific .nfo or parent folder tvshow.nfo/movie.nfo
+            QDir parentDir = info.dir();
+            QString baseName = info.completeBaseName();
+            QString specificNfo = parentDir.filePath(baseName + ".nfo");
+            if (QFile::exists(specificNfo)) {
+                extractNfoInfo(specificNfo, meta);
+            } else {
+                // Check for folder level nfo
+                QStringList folderNfos = { "tvshow.nfo", "movie.nfo" };
+                for (const QString& fNfo : folderNfos) {
+                    QString testNfo = parentDir.filePath(fNfo);
+                    if (QFile::exists(testNfo)) {
+                        extractNfoInfo(testNfo, meta);
+                        break;
+                    }
+                }
+            }
+        }
     }
 
     return meta;
