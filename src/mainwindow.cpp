@@ -5586,6 +5586,21 @@ void MainWindow::executeCustomCommand(const QString& commandOrPath) {
     FilePanel* destPanel = (m_activePanel == leftPanel()) ? rightPanel() : leftPanel();
     QString destDir = destPanel ? destPanel->currentPath() : QDir::homePath();
     
+    QStringList curSelected = m_activePanel ? m_activePanel->selectedPaths() : QStringList();
+    QString firstSelected = curSelected.isEmpty() ? "" : curSelected.first();
+    QString firstSelectedName = firstSelected.isEmpty() ? "" : QFileInfo(firstSelected).fileName();
+    
+    QStringList quotedFiles;
+    QStringList quotedNames;
+    for (const QString& path : curSelected) {
+        quotedFiles.append("\"" + path + "\"");
+        quotedNames.append("\"" + QFileInfo(path).fileName() + "\"");
+    }
+    
+    script.replace("{file}", firstSelected.isEmpty() ? "" : "\"" + firstSelected + "\"");
+    script.replace("{files}", quotedFiles.join(" "));
+    script.replace("{name}", firstSelectedName.isEmpty() ? "" : "\"" + firstSelectedName + "\"");
+    script.replace("{names}", quotedNames.join(" "));
     script.replace("{dir}", activeDir);
     script.replace("{dest}", destDir);
     

@@ -325,6 +325,8 @@ public:
     const QList<FolderLayoutRule>& folderRules() const { return m_folderRules; }
     FilePanel* createTab(QTabWidget* tabWidget, const QString& path);
     void updateSiblingLinks();
+    void executeCustomCommand(const QString& commandOrPath);
+    QJsonArray getDefaultCustomMenus();
 
 private:
     void setupActions();
@@ -516,9 +518,7 @@ private:
     // Custom Dynamic Menu System
     void rebuildCustomMenus();
     void onConfigureCustomMenus();
-    void executeCustomCommand(const QString& commandOrPath);
     void buildMenuTree(QMenu* menu, const QJsonArray& itemsArray);
-    QJsonArray getDefaultCustomMenus();
     QList<QMenu*> m_customMenus;
     QAction* m_actConfigureCustomMenus = nullptr;
 

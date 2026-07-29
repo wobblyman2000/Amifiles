@@ -1,4 +1,8 @@
 #include "filepanel.h"
+#include <QWidgetAction>
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QJsonDocument>
 #include "mainwindow.h"
 #include <QDebug>
 #include "theme.h"
@@ -3678,6 +3682,82 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
                     mw->onApplyProfileToCurrentFolder(profileName);
                 });
             }
+        }
+    }
+
+    // Build and insert Custom Actions Submenu
+    if (mw) {
+        QSettings settings("Amifiles", "Amifiles");
+        QString jsonStr = settings.value("custom_menus_v2").toString();
+        QJsonArray arr;
+        if (jsonStr.isEmpty()) {
+            arr = mw->getDefaultCustomMenus();
+        } else {
+            QJsonDocument doc = QJsonDocument::fromJson(jsonStr.toUtf8());
+            arr = doc.array();
+        }
+        
+        if (!arr.isEmpty()) {
+            menu.addSeparator();
+            QMenu* customSubMenu = menu.addMenu("⚡ Custom Actions");
+            customSubMenu->setStyleSheet(
+                "QMenu { background-color: #1e1e2e; color: #cdd6f4; border: 1px solid #45475a; }"
+                "QMenu::item:selected { background-color: #313244; color: #f5c2e7; }"
+            );
+            
+            // Recursive population function definition as a lambda
+            std::function<void(QMenu*, const QJsonArray&)> populateCustomMenu = [&](QMenu* subMenu, const QJsonArray& itemsArray) {
+                for (int i = 0; i < itemsArray.size(); ++i) {
+                    QJsonObject obj = itemsArray[i].toObject();
+                    QString type = obj["type"].toString();
+                    
+                    if (type == "separator") {
+                        subMenu->addSeparator();
+                    } else if (type == "menu") {
+                        QString title = obj["title"].toString();
+                        QMenu* sub = subMenu->addMenu(title);
+                        
+                        QString iconPath = obj["icon"].toString();
+                        if (!iconPath.isEmpty()) {
+                            QIcon icon;
+                            if (QFileInfo(iconPath).exists()) icon = QIcon(iconPath);
+                            else icon = QIcon::fromTheme(iconPath);
+                            if (!icon.isNull()) sub->setIcon(icon);
+                        }
+                        
+                        populateCustomMenu(sub, obj["children"].toArray());
+                    } else if (type == "action") {
+                        QString title = obj["title"].toString();
+                        QString command = obj["command"].toString();
+                        QString iconPath = obj["icon"].toString();
+                        QString colorStr = obj["color"].toString();
+                        QString mode = obj["mode"].toString("Normal");
+                        
+                        QIcon icon;
+                        if (!iconPath.isEmpty()) {
+                            if (QFileInfo(iconPath).exists()) icon = QIcon(iconPath);
+                            else icon = QIcon::fromTheme(iconPath);
+                        }
+                        
+                        QWidgetAction* act = new QWidgetAction(subMenu);
+                        CustomMenuActionWidget* w = new CustomMenuActionWidget(icon, title, colorStr, mode, subMenu);
+                        act->setDefaultWidget(w);
+                        
+                        connect(w, &CustomMenuActionWidget::clicked, this, [mw, act, command, subMenu]() {
+                            // Close parent menus recursively
+                            QMenu* p = subMenu;
+                            while (p) {
+                                p->close();
+                                p = qobject_cast<QMenu*>(p->parentWidget());
+                            }
+                            mw->executeCustomCommand(command);
+                        });
+                        subMenu->addAction(act);
+                    }
+                }
+            };
+            
+            populateCustomMenu(customSubMenu, arr);
         }
     }
 
