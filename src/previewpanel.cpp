@@ -2125,10 +2125,10 @@ void PreviewPanel::showMediaPreview(const QString& filePath, bool isVideo, bool 
                 sid2wavPath = "./sid2wav";
             }
             program = sid2wavPath;
-            arguments << filePath << tempWav << "180";
+            arguments << filePath << tempWav << "60";
         } else {
             program = "openmpt123";
-            arguments << "--force" << "-o" << tempWav << filePath;
+            arguments << "-q" << "--force" << "-o" << tempWav << filePath;
         }
 
         proc.start(program, arguments);

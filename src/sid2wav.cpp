@@ -1,7 +1,7 @@
 #include <sidplayfp/sidplayfp.h>
 #include <sidplayfp/SidTune.h>
 #include <sidplayfp/SidConfig.h>
-#include <sidplayfp/builders/residfp.h>
+#include <sidplayfp/builders/sidlite.h>
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -48,13 +48,13 @@ int main(int argc, char* argv[]) {
     sidplayfp player;
     
     // Setup builder
-    ReSIDfpBuilder resid("residfp");
+    SIDLiteBuilder resid("sidlite");
     
     // Configure player
     SidConfig cfg = player.config();
     cfg.frequency = 44100;
     cfg.sidEmulation = &resid;
-    cfg.samplingMethod = SidConfig::RESAMPLE_INTERPOLATE;
+    cfg.samplingMethod = SidConfig::INTERPOLATE;
     cfg.defaultSidModel = SidConfig::MOS6581;
     cfg.forceSidModel = false;
     
