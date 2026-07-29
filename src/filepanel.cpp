@@ -33,6 +33,7 @@
 #include <QMediaPlayer>
 #include <QAudioOutput>
 #include "folderartscraperdialog.h"
+#include <QProcess>
 #include "showcaseinfodialog.h"
 #include "showcasesettingsdialog.h"
 #include "copyqueue.h"
@@ -2544,6 +2545,7 @@ void FilePanel::onSelectionChanged() {
                 // For Music Showcase v2, scan the selected directory for tracks and populate tracklist drawer
                 if (modeIndex == 10 && m_trackListWidget) {
                     m_trackListWidget->clear();
+                    m_trackListWidget->setIconSize(QSize(40, 40));
                     QString targetDir = pathInfo.isDir() ? path : pathInfo.absolutePath();
                     QDir dir(targetDir);
                     QStringList audioExts = { "mp3", "flac", "wav", "ogg", "m4a", "wma", "aac" };
@@ -2551,9 +2553,18 @@ void FilePanel::onSelectionChanged() {
                     int selectIndex = -1;
                     for (const QFileInfo& trackFi : trackFiles) {
                         if (audioExts.contains(trackFi.suffix().toLower())) {
-                            QListWidgetItem* item = new QListWidgetItem(trackFi.fileName(), m_trackListWidget);
-                            item->setData(Qt::UserRole, trackFi.absoluteFilePath());
-                            if (trackFi.absoluteFilePath() == path) {
+                            QString pathVal = trackFi.absoluteFilePath();
+                            QString filename = trackFi.fileName();
+                            QString folderName = QFileInfo(trackFi.absolutePath()).fileName();
+                            QString displayName = filename;
+                            if (!folderName.isEmpty() && folderName.toLower() != "music" && folderName.toLower() != "audio" && folderName.toLower() != "download" && folderName.toLower() != "downloads") {
+                                displayName = QString("%1 (%2)").arg(filename).arg(folderName);
+                            }
+                            
+                            QListWidgetItem* item = new QListWidgetItem(displayName, m_trackListWidget);
+                            item->setData(Qt::UserRole, pathVal);
+                            item->setIcon(getTrackArtworkIcon(pathVal));
+                            if (pathVal == path) {
                                 selectIndex = m_trackListWidget->count() - 1;
                             }
                         }
@@ -6991,9 +7002,18 @@ void FilePanel::syncPlaylist(const QStringList& playlistPaths, int currentIndex)
     if (!m_trackListWidget) return;
     m_trackListWidget->blockSignals(true);
     m_trackListWidget->clear();
+    m_trackListWidget->setIconSize(QSize(40, 40));
     for (const QString& path : playlistPaths) {
-        QListWidgetItem* item = new QListWidgetItem(QFileInfo(path).fileName(), m_trackListWidget);
+        QString filename = QFileInfo(path).fileName();
+        QString folderName = QFileInfo(QFileInfo(path).absolutePath()).fileName();
+        QString displayName = filename;
+        if (!folderName.isEmpty() && folderName.toLower() != "music" && folderName.toLower() != "audio" && folderName.toLower() != "download" && folderName.toLower() != "downloads") {
+            displayName = QString("%1 (%2)").arg(filename).arg(folderName);
+        }
+        
+        QListWidgetItem* item = new QListWidgetItem(displayName, m_trackListWidget);
         item->setData(Qt::UserRole, path);
+        item->setIcon(getTrackArtworkIcon(path));
     }
     if (currentIndex >= 0 && currentIndex < m_trackListWidget->count()) {
         m_trackListWidget->setCurrentRow(currentIndex);
@@ -7041,4 +7061,77 @@ void FilePanel::notifyPathDataChanged(const QString& path) {
             }
         }
     }
+}
+
+QIcon FilePanel::getTrackArtworkIcon(const QString& trackPath) {
+    static QHash<QString, QIcon> trackArtCache;
+    if (trackArtCache.contains(trackPath)) {
+        return trackArtCache[trackPath];
+    }
+
+    QString dirPath = QFileInfo(trackPath).absolutePath();
+    static QHash<QString, QIcon> folderArtCache;
+    if (folderArtCache.contains(dirPath)) {
+        QIcon icon = folderArtCache[dirPath];
+        trackArtCache[trackPath] = icon;
+        return icon;
+    }
+
+    // Try finding local folder cover art
+    QDir dir(dirPath);
+    QStringList artNames = { "folder", "cover", "album", "poster", "front" };
+    QStringList artExts = { "jpg", "jpeg", "png", "webp" };
+    for (const QString& name : artNames) {
+        for (const QString& ext : artExts) {
+            QString path = dir.filePath(name + "." + ext);
+            if (QFile::exists(path)) {
+                QPixmap p(path);
+                if (!p.isNull()) {
+                    QIcon icon(p.scaled(40, 40, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+                    folderArtCache[dirPath] = icon;
+                    trackArtCache[trackPath] = icon;
+                    return icon;
+                }
+            }
+        }
+    }
+
+    // Check parent directory (in case of CD 1 / CD 2 folders)
+    QDir parentDir = dir;
+    if (parentDir.cdUp()) {
+        for (const QString& name : artNames) {
+            for (const QString& ext : artExts) {
+                QString path = parentDir.filePath(name + "." + ext);
+                if (QFile::exists(path)) {
+                    QPixmap p(path);
+                    if (!p.isNull()) {
+                        QIcon icon(p.scaled(40, 40, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+                        folderArtCache[dirPath] = icon;
+                        trackArtCache[trackPath] = icon;
+                        return icon;
+                    }
+                }
+            }
+        }
+    }
+
+    // Try embedded artwork via exiftool as fallback
+    QProcess proc;
+    proc.start("exiftool", {"-Picture", "-b", trackPath});
+    if (proc.waitForFinished(800)) {
+        QByteArray imgData = proc.readAllStandardOutput();
+        if (!imgData.isEmpty()) {
+            QPixmap p;
+            if (p.loadFromData(imgData)) {
+                QIcon icon(p.scaled(40, 40, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+                trackArtCache[trackPath] = icon;
+                return icon;
+            }
+        }
+    }
+
+    // Default fallback icon
+    QIcon fallbackIcon = QIcon::fromTheme("audio-x-generic");
+    trackArtCache[trackPath] = fallbackIcon;
+    return fallbackIcon;
 }

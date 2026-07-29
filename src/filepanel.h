@@ -1097,6 +1097,7 @@ private slots:
 
 private:
     void updateDrawerVisibility();
+    QIcon getTrackArtworkIcon(const QString& trackPath);
     QString formatDuration(qint64 ms) const;
     void setupUI();
     void updateNavigationButtons();
