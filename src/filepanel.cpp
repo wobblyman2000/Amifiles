@@ -367,6 +367,12 @@ void FilePanel::setupUI() {
         QFile(newFilePath).setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
     });
 
+    connect(m_fileModel, &QFileSystemModel::directoryLoaded, this, [this](const QString& path) {
+        if (path == m_currentPath) {
+            focusFirstItemInActiveView();
+        }
+    });
+
     m_proxyModel = new FileFilterProxyModel(this);
     m_proxyModel->setSourceModel(m_fileModel);
 
@@ -1152,6 +1158,87 @@ void FilePanel::setupUI() {
 }
 
 bool FilePanel::eventFilter(QObject* watched, QEvent* event) {
+    if (event->type() == QEvent::KeyPress) {
+        QKeyEvent* ke = static_cast<QKeyEvent*>(event);
+        QListView* grid = nullptr;
+        for (QListView* g : m_theaterGrids) {
+            if (watched == g || (g && watched == g->viewport())) {
+                grid = g;
+                break;
+            }
+        }
+        if (grid) {
+            int gridIdx = m_theaterGrids.indexOf(grid);
+            int key = ke->key();
+            int currentRow = grid->currentIndex().row();
+            int totalItems = grid->model()->rowCount(grid->rootIndex());
+
+            if (gridIdx != -1 && currentRow >= 0 && totalItems > 0) {
+                int gw = 135;
+                if (m_zoomLevel >= 0) {
+                    gw = 100 + m_zoomLevel * 35;
+                }
+                int cols = qMax(1, grid->width() / gw);
+
+                QListView* targetGrid = nullptr;
+                int targetRow = -1;
+
+                if (key == Qt::Key_Down) {
+                    if (currentRow >= totalItems - cols) {
+                        if (gridIdx < m_theaterGrids.size() - 1) {
+                            targetGrid = m_theaterGrids[gridIdx + 1];
+                            int nextTotal = targetGrid->model()->rowCount(targetGrid->rootIndex());
+                            targetRow = qMin(currentRow % cols, nextTotal - 1);
+                        }
+                    }
+                } else if (key == Qt::Key_Up) {
+                    if (currentRow < cols) {
+                        if (gridIdx > 0) {
+                            targetGrid = m_theaterGrids[gridIdx - 1];
+                            int prevTotal = targetGrid->model()->rowCount(targetGrid->rootIndex());
+                            int prevLastRowStart = (prevTotal - 1) / cols * cols;
+                            targetRow = qMin(prevLastRowStart + (currentRow % cols), prevTotal - 1);
+                        }
+                    }
+                } else if (key == Qt::Key_Right) {
+                    if (currentRow == totalItems - 1) {
+                        if (gridIdx < m_theaterGrids.size() - 1) {
+                            targetGrid = m_theaterGrids[gridIdx + 1];
+                            targetRow = 0;
+                        }
+                    }
+                } else if (key == Qt::Key_Left) {
+                    if (currentRow == 0) {
+                        if (gridIdx > 0) {
+                            targetGrid = m_theaterGrids[gridIdx - 1];
+                            int prevTotal = targetGrid->model()->rowCount(targetGrid->rootIndex());
+                            targetRow = prevTotal - 1;
+                        }
+                    }
+                }
+
+                if (targetGrid && targetRow >= 0) {
+                    disconnect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
+                    m_treeView->selectionModel()->clearSelection();
+                    for (QListView* g : m_theaterGrids) {
+                        g->selectionModel()->clearSelection();
+                    }
+                    QModelIndex targetIdx = targetGrid->model()->index(targetRow, 0, targetGrid->rootIndex());
+                    if (targetIdx.isValid()) {
+                        targetGrid->setCurrentIndex(targetIdx);
+                        targetGrid->selectionModel()->select(targetIdx, QItemSelectionModel::ClearAndSelect);
+                        targetGrid->setFocus();
+                        m_theaterScrollArea->ensureWidgetVisible(targetGrid);
+                        m_treeView->selectionModel()->select(targetIdx, QItemSelectionModel::Select | QItemSelectionModel::Rows);
+                    }
+                    connect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
+                    onSelectionChanged();
+                    return true;
+                }
+            }
+        }
+    }
+
     if (watched == m_trackListWidget || (m_trackListWidget && watched == m_trackListWidget->viewport())) {
         if (event->type() == QEvent::KeyPress) {
             QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
@@ -2097,6 +2184,7 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
 
     // Since we navigated, trigger selection check
     onSelectionChanged();
+    focusFirstItemInActiveView();
 }
 
 void FilePanel::onNavigateUp() {
@@ -6913,6 +7001,7 @@ void FilePanel::rebuildTheaterGroups() {
         grid->setViewMode(QListView::IconMode);
         grid->setResizeMode(QListView::Adjust);
         grid->setSelectionMode(QAbstractItemView::ExtendedSelection);
+        grid->installEventFilter(this);
         if (grid->viewport()) grid->viewport()->installEventFilter(this);
         grid->setDragEnabled(false);
         grid->setAcceptDrops(false);
@@ -6971,6 +7060,54 @@ void FilePanel::rebuildTheaterGroups() {
     m_theaterScrollLayout->addStretch(1);
     if (m_theaterScrollWidget) {
         m_theaterScrollWidget->setUpdatesEnabled(true);
+    }
+    focusFirstItemInActiveView();
+}
+
+void FilePanel::focusFirstItemInActiveView() {
+    QWidget* activeView = m_viewStack->currentWidget();
+    if (activeView == m_theaterContainer) {
+        if (m_groupProxy && m_groupProxy->isGroupingActive()) {
+            if (!m_theaterGrids.isEmpty()) {
+                bool anySelected = false;
+                for (QListView* g : m_theaterGrids) {
+                    if (g->selectionModel() && !g->selectionModel()->selectedIndexes().isEmpty()) {
+                        anySelected = true;
+                        break;
+                    }
+                }
+                if (!anySelected) {
+                    QListView* firstGrid = m_theaterGrids.first();
+                    QModelIndex firstIdx = firstGrid->model()->index(0, 0, firstGrid->rootIndex());
+                    if (firstIdx.isValid()) {
+                        firstGrid->setCurrentIndex(firstIdx);
+                        firstGrid->selectionModel()->select(firstIdx, QItemSelectionModel::ClearAndSelect);
+                        firstGrid->setFocus();
+                        
+                        disconnect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
+                        m_treeView->selectionModel()->clearSelection();
+                        m_treeView->selectionModel()->select(firstIdx, QItemSelectionModel::Select | QItemSelectionModel::Rows);
+                        connect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
+                        onSelectionChanged();
+                    }
+                }
+            }
+        } else {
+            if (m_theaterListView->selectionModel() && m_theaterListView->selectionModel()->selectedIndexes().isEmpty()) {
+                QModelIndex firstIdx = m_theaterListView->model()->index(0, 0, m_theaterListView->rootIndex());
+                if (firstIdx.isValid()) {
+                    m_theaterListView->setCurrentIndex(firstIdx);
+                    m_theaterListView->selectionModel()->select(firstIdx, QItemSelectionModel::ClearAndSelect);
+                    m_theaterListView->setFocus();
+                    
+                    disconnect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
+                    m_treeView->selectionModel()->clearSelection();
+                    m_treeView->selectionModel()->select(firstIdx, QItemSelectionModel::Select | QItemSelectionModel::Rows);
+                    connect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
+                    onSelectionChanged();
+                }
+            }
+        }
     }
 }
 
