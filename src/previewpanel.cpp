@@ -1,5 +1,6 @@
 #include "previewpanel.h"
 #include <QCoreApplication>
+#include <QStandardPaths>
 #include <functional>
 #include <QVBoxLayout>
 #include <QSplitter>
@@ -2120,15 +2121,24 @@ void PreviewPanel::showMediaPreview(const QString& filePath, bool isVideo, bool 
         QStringList arguments;
 
         if (suffix == "sid") {
-            QString sid2wavPath = QDir(qApp->applicationDirPath()).filePath("sid2wav");
-            if (!QFileInfo::exists(sid2wavPath)) {
-                sid2wavPath = "./sid2wav";
+            QString sid2wavPath = QStandardPaths::findExecutable("sid2wav");
+            if (sid2wavPath.isEmpty()) {
+                sid2wavPath = QDir(qApp->applicationDirPath()).filePath("sid2wav");
+            }
+            if (sid2wavPath.isEmpty() || !QFileInfo::exists(sid2wavPath)) {
+                if (QFileInfo::exists("/usr/bin/sid2wav")) {
+                    sid2wavPath = "/usr/bin/sid2wav";
+                } else if (QFileInfo::exists("/usr/local/bin/sid2wav")) {
+                    sid2wavPath = "/usr/local/bin/sid2wav";
+                } else {
+                    sid2wavPath = "./sid2wav";
+                }
             }
             program = sid2wavPath;
             arguments << filePath << tempWav << "60";
         } else {
             program = "openmpt123";
-            arguments << "-q" << "--force" << "-o" << tempWav << filePath;
+            arguments << "-q" << "--no-float" << "--force" << "-o" << tempWav << filePath;
         }
 
         proc.start(program, arguments);
@@ -2136,10 +2146,10 @@ void PreviewPanel::showMediaPreview(const QString& filePath, bool isVideo, bool 
             if (QFileInfo::exists(tempWav) && QFileInfo(tempWav).size() > 1024) {
                 activePlayPath = tempWav;
             } else {
-                qDebug() << "Retro music render output file is invalid or empty!";
+                qDebug() << "Retro music render output file is invalid or empty! Exit code:" << proc.exitCode() << "Error:" << proc.errorString();
             }
         } else {
-            qDebug() << "Retro music conversion timed out!";
+            qDebug() << "Retro music conversion timed out! Error:" << proc.errorString();
         }
     }
 
