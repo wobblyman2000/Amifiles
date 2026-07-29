@@ -777,6 +777,11 @@ void FilePanel::setupUI() {
     m_bottomPlayBtn->setStyleSheet("QPushButton { background-color: #a6e3a1; color: #11111b; font-weight: bold; padding: 6px 12px; border-radius: 4px; border: none; min-width: 90px; } QPushButton:hover { background-color: #94e2d5; }");
     bottomLayout->addWidget(m_bottomPlayBtn, 0, Qt::AlignVCenter);
 
+    m_bottomEnterBtn = new QPushButton("📂 Enter Folder", m_bottomInfoPanel);
+    m_bottomEnterBtn->setStyleSheet("QPushButton { background-color: #89b4fa; color: #11111b; font-weight: bold; padding: 6px 12px; border-radius: 4px; border: none; min-width: 90px; } QPushButton:hover { background-color: #b4befe; }");
+    m_bottomEnterBtn->setVisible(false);
+    bottomLayout->addWidget(m_bottomEnterBtn, 0, Qt::AlignVCenter);
+
     // Initialize Cinema Buttons Widget for Trailer & Metadata Edit
     m_cinemaButtonsWidget = new QWidget(m_bottomInfoPanel);
     QVBoxLayout* cinemaButtonsLayout = new QVBoxLayout(m_cinemaButtonsWidget);
@@ -833,6 +838,12 @@ void FilePanel::setupUI() {
     });
 
     theaterLayout->addWidget(m_bottomInfoPanel);
+
+    connect(m_bottomEnterBtn, &QPushButton::clicked, this, [this]() {
+        if (!m_bottomPanelPath.isEmpty() && QFileInfo(m_bottomPanelPath).isDir()) {
+            navigateTo(m_bottomPanelPath, true);
+        }
+    });
 
     connect(m_bottomPlayBtn, &QPushButton::clicked, this, [this]() {
         if (m_bottomPanelPath.isEmpty()) return;
@@ -934,10 +945,13 @@ void FilePanel::setupUI() {
     });
 
     connect(m_treeView, &QTreeView::doubleClicked, this, &FilePanel::onDoubleClicked);
+    connect(m_treeView, &QTreeView::activated, this, &FilePanel::onDoubleClicked);
     connect(m_treeView, &QTreeView::customContextMenuRequested, this, &FilePanel::onCustomContextMenu);
     connect(m_listView, &QListView::doubleClicked, this, &FilePanel::onDoubleClicked);
+    connect(m_listView, &QListView::activated, this, &FilePanel::onDoubleClicked);
     connect(m_listView, &QListView::customContextMenuRequested, this, &FilePanel::onCustomContextMenu);
     connect(m_theaterListView, &QListView::doubleClicked, this, &FilePanel::onDoubleClicked);
+    connect(m_theaterListView, &QListView::activated, this, &FilePanel::onDoubleClicked);
     connect(m_theaterListView, &QListView::customContextMenuRequested, this, &FilePanel::onCustomContextMenu);
     connect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
 
@@ -2175,6 +2189,11 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
                     }
                 }
             }
+        } else {
+            m_bottomPanelPath.clear();
+            if (m_bottomEnterBtn) {
+                m_bottomEnterBtn->setVisible(false);
+            }
         }
     }
 
@@ -2521,6 +2540,10 @@ void FilePanel::onSelectionChanged() {
             QString path = paths.first();
             QFileInfo pathInfo(path);
             m_bottomPanelPath = path;
+
+            if (m_bottomEnterBtn) {
+                m_bottomEnterBtn->setVisible(pathInfo.isDir());
+            }
 
             QSettings settings("Amifiles", "Amifiles");
             int modeIndex = viewModeIndex(); // 6 = Music Showcase, 7 = Cinema Showcase, 8 = Movie, 9 = TV, 10 = Music (v2)
@@ -7041,6 +7064,7 @@ void FilePanel::rebuildTheaterGroups() {
         grid->setContextMenuPolicy(Qt::CustomContextMenu);
         connect(grid, &QListView::customContextMenuRequested, this, &FilePanel::onCustomContextMenu);
         connect(grid, &QListView::doubleClicked, this, &FilePanel::onDoubleClicked);
+        connect(grid, &QListView::activated, this, &FilePanel::onDoubleClicked);
 
         // Connect selection model sync so clicking cards updates selection
         connect(grid->selectionModel(), &QItemSelectionModel::selectionChanged, this, [this, grid](const QItemSelection& selected, const QItemSelection& deselected) {

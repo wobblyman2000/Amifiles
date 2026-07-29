@@ -1201,6 +1201,7 @@ private:
     QLabel* m_bottomMeta = nullptr;
     QLabel* m_bottomSynopsis = nullptr;
     QPushButton* m_bottomPlayBtn = nullptr;
+    QPushButton* m_bottomEnterBtn = nullptr;
     QWidget* m_musicControlsWidget = nullptr;
     QToolButton* m_btnShuffle = nullptr;
     QToolButton* m_btnPrev = nullptr;
