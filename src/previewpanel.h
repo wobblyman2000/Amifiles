@@ -439,6 +439,9 @@ private:
     QLabel* m_fullscreenAudioLabel = nullptr;
     QLabel* m_fullscreenTextLabel = nullptr;
 
+    QIcon getTrackArtworkIcon(const QString& trackPath);
+    void refreshPlaylistUI();
+
 private slots:
     void onPlaylistItemDoubleClicked(class QListWidgetItem* item);
     void onChooseOverlayIcon();

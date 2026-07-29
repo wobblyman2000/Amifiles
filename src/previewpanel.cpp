@@ -1529,6 +1529,7 @@ void PreviewPanel::setupUI() {
     playlistToolbar->addStretch(1);
 
     m_playlistList = new QListWidget(this);
+    m_playlistList->setIconSize(QSize(40, 40));
     m_playlistList->setStyleSheet(
         "QListWidget { background-color: transparent; border: none; color: #cdd6f4; }"
         "QListWidget::item { padding: 4px 8px; }"
@@ -1849,9 +1850,7 @@ void PreviewPanel::previewFile(const QString& filePath, const QStringList& sibli
                 m_playlist.append(filePath);
                 m_playlistIndex = 0;
                 if (m_playlistList) {
-                    m_playlistList->clear();
-                    m_playlistList->addItem(QFileInfo(filePath).fileName());
-                    m_playlistList->setCurrentRow(0);
+                    refreshPlaylistUI();
                 }
             } else {
                 // Only reconstruct playlist if current file is not already in the active playlist
@@ -1880,11 +1879,7 @@ void PreviewPanel::previewFile(const QString& filePath, const QStringList& sibli
                         m_playlistIndex = idx;
                         
                         if (m_playlistList) {
-                            m_playlistList->clear();
-                            for (const QString& path : m_playlist) {
-                                m_playlistList->addItem(QFileInfo(path).fileName());
-                            }
-                            m_playlistList->setCurrentRow(m_playlistIndex);
+                            refreshPlaylistUI();
                         }
                     }
                 }
@@ -2534,10 +2529,7 @@ void PreviewPanel::playPlaylist(const QStringList& filePaths) {
     m_playlist = filePaths;
     m_playlistIndex = 0;
     
-    m_playlistList->clear();
-    for (const QString& path : m_playlist) {
-        m_playlistList->addItem(QFileInfo(path).fileName());
-    }
+    refreshPlaylistUI();
 
     if (m_playlist.isEmpty()) {
         clearPreview();
@@ -2581,11 +2573,7 @@ void PreviewPanel::prepareForFullscreenPlayback(const QStringList& filePaths) {
     m_playlistIndex = 0;
     
     if (m_playlistList) {
-        m_playlistList->clear();
-        for (const QString& path : m_playlist) {
-            m_playlistList->addItem(QFileInfo(path).fileName());
-        }
-        m_playlistList->setCurrentRow(m_playlistIndex);
+        refreshPlaylistUI();
     }
     
     // 5. Start playing the first track
@@ -2608,7 +2596,14 @@ void PreviewPanel::addToPlaylist(const QStringList& filePaths) {
 
     for (const QString& path : filePaths) {
         m_playlist.append(path);
-        m_playlistList->addItem(QFileInfo(path).fileName());
+        QString filename = QFileInfo(path).fileName();
+        QString folderName = QFileInfo(QFileInfo(path).absolutePath()).fileName();
+        QString displayName = filename;
+        if (!folderName.isEmpty() && folderName.toLower() != "music" && folderName.toLower() != "audio" && folderName.toLower() != "download" && folderName.toLower() != "downloads") {
+            displayName = QString("%1 (%2)").arg(filename).arg(folderName);
+        }
+        QListWidgetItem* item = new QListWidgetItem(displayName, m_playlistList);
+        item->setIcon(getTrackArtworkIcon(path));
     }
 
     if (wasEmpty) {
@@ -3069,13 +3064,7 @@ void PreviewPanel::toggleFullscreen() {
     }
 
     if (m_playlistList) {
-        m_playlistList->clear();
-        for (const QString& path : m_playlist) {
-            m_playlistList->addItem(QFileInfo(path).fileName());
-        }
-        if (m_playlistIndex >= 0 && m_playlistIndex < m_playlist.size()) {
-            m_playlistList->setCurrentRow(m_playlistIndex);
-        }
+        refreshPlaylistUI();
     }
 
     // Create the borderless fullscreen widget
@@ -3253,13 +3242,7 @@ void PreviewPanel::exitFullscreen() {
     m_playlist = m_previewPlaylist;
     m_playlistIndex = m_previewPlaylistIndex;
     if (m_playlistList) {
-        m_playlistList->clear();
-        for (const QString& path : m_playlist) {
-            m_playlistList->addItem(QFileInfo(path).fileName());
-        }
-        if (m_playlistIndex >= 0 && m_playlistIndex < m_playlist.size()) {
-            m_playlistList->setCurrentRow(m_playlistIndex);
-        }
+        refreshPlaylistUI();
     }
 
     emit fullscreenExited();
@@ -3726,13 +3709,7 @@ void PreviewPanel::setPlaylistMode(bool audio) {
 
     // Refresh m_playlistList widget
     if (m_playlistList) {
-        m_playlistList->clear();
-        for (const QString& path : m_playlist) {
-            m_playlistList->addItem(QFileInfo(path).fileName());
-        }
-        if (m_playlistIndex >= 0 && m_playlistIndex < m_playlist.size()) {
-            m_playlistList->setCurrentRow(m_playlistIndex);
-        }
+        refreshPlaylistUI();
     }
 
     emit playlistChanged();
@@ -3856,5 +3833,98 @@ void PreviewPanel::onTextSearchChanged(const QString& text) {
         if (m_lblTextSearchMatches) {
             m_lblTextSearchMatches->setText("No matches");
         }
+    }
+}
+
+QIcon PreviewPanel::getTrackArtworkIcon(const QString& trackPath) {
+    static QHash<QString, QIcon> trackArtCache;
+    if (trackArtCache.contains(trackPath)) {
+        return trackArtCache[trackPath];
+    }
+
+    QString dirPath = QFileInfo(trackPath).absolutePath();
+    static QHash<QString, QIcon> folderArtCache;
+    if (folderArtCache.contains(dirPath)) {
+        QIcon icon = folderArtCache[dirPath];
+        trackArtCache[trackPath] = icon;
+        return icon;
+    }
+
+    // Try finding local folder cover art
+    QDir dir(dirPath);
+    QStringList artNames = { "folder", "cover", "album", "poster", "front" };
+    QStringList artExts = { "jpg", "jpeg", "png", "webp" };
+    for (const QString& name : artNames) {
+        for (const QString& ext : artExts) {
+            QString path = dir.filePath(name + "." + ext);
+            if (QFile::exists(path)) {
+                QPixmap p(path);
+                if (!p.isNull()) {
+                    QIcon icon(p.scaled(40, 40, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+                    folderArtCache[dirPath] = icon;
+                    trackArtCache[trackPath] = icon;
+                    return icon;
+                }
+            }
+        }
+    }
+
+    // Check parent directory (in case of CD 1 / CD 2 folders)
+    QDir parentDir = dir;
+    if (parentDir.cdUp()) {
+        for (const QString& name : artNames) {
+            for (const QString& ext : artExts) {
+                QString path = parentDir.filePath(name + "." + ext);
+                if (QFile::exists(path)) {
+                    QPixmap p(path);
+                    if (!p.isNull()) {
+                        QIcon icon(p.scaled(40, 40, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+                        folderArtCache[dirPath] = icon;
+                        trackArtCache[trackPath] = icon;
+                        return icon;
+                    }
+                }
+            }
+        }
+    }
+
+    // Try embedded artwork via exiftool as fallback
+    QProcess proc;
+    proc.start("exiftool", {"-Picture", "-b", trackPath});
+    if (proc.waitForFinished(800)) {
+        QByteArray imgData = proc.readAllStandardOutput();
+        if (!imgData.isEmpty()) {
+            QPixmap p;
+            if (p.loadFromData(imgData)) {
+                QIcon icon(p.scaled(40, 40, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+                trackArtCache[trackPath] = icon;
+                return icon;
+            }
+        }
+    }
+
+    // Default fallback icon
+    QIcon fallbackIcon = QIcon::fromTheme("audio-x-generic");
+    trackArtCache[trackPath] = fallbackIcon;
+    return fallbackIcon;
+}
+
+void PreviewPanel::refreshPlaylistUI() {
+    if (!m_playlistList) return;
+    m_playlistList->clear();
+    for (int i = 0; i < m_playlist.size(); ++i) {
+        QString path = m_playlist[i];
+        QString filename = QFileInfo(path).fileName();
+        QString folderName = QFileInfo(QFileInfo(path).absolutePath()).fileName();
+        QString displayName = filename;
+        if (!folderName.isEmpty() && folderName.toLower() != "music" && folderName.toLower() != "audio" && folderName.toLower() != "download" && folderName.toLower() != "downloads") {
+            displayName = QString("%1 (%2)").arg(filename).arg(folderName);
+        }
+        
+        QListWidgetItem* item = new QListWidgetItem(displayName, m_playlistList);
+        item->setIcon(getTrackArtworkIcon(path));
+    }
+    if (m_playlistIndex >= 0 && m_playlistIndex < m_playlist.size()) {
+        m_playlistList->setCurrentRow(m_playlistIndex);
     }
 }
