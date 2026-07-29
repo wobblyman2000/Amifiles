@@ -6840,24 +6840,34 @@ void FilePanel::queueRebuildTheaterGroups() {
 void FilePanel::rebuildTheaterGroups() {
     // Dynamic Ambient Background Glow in Showcase Mode
     if (m_theaterScrollWidget && (viewModeIndex() >= 6 && viewModeIndex() <= 10)) {
-        QStringList bgCandidates = { "poster.jpg", "cover.jpg", "folder.jpg", "fanart.jpg" };
-        QString bgArtPath;
-        for (const QString& cand : bgCandidates) {
-            QString fp = QDir(m_currentPath).filePath(cand);
-            if (QFile::exists(fp)) { bgArtPath = fp; break; }
-        }
-        if (!bgArtPath.isEmpty()) {
-            QPixmap pix(bgArtPath);
-            if (!pix.isNull()) {
-                QImage img = pix.toImage().scaled(16, 16, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-                QColor avgCol = img.pixelColor(8, 8);
-                QColor darkCol = QColor::fromRgb(qMin(avgCol.red(), 40), qMin(avgCol.green(), 45), qMin(avgCol.blue(), 60));
-                m_theaterScrollWidget->setStyleSheet(QString("QWidget#theaterScrollWidget { background-color: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 %1, stop:1 #11111b); }")
-                    .arg(darkCol.name()));
+        if (m_cachedBgPath != m_currentPath) {
+            m_cachedBgPath = m_currentPath;
+            QStringList bgCandidates = { "poster.jpg", "cover.jpg", "folder.jpg", "fanart.jpg" };
+            QString bgArtPath;
+            for (const QString& cand : bgCandidates) {
+                QString fp = QDir(m_currentPath).filePath(cand);
+                if (QFile::exists(fp)) { bgArtPath = fp; break; }
             }
-        } else {
-            m_theaterScrollWidget->setStyleSheet("QWidget#theaterScrollWidget { background: transparent; }");
+            if (!bgArtPath.isEmpty()) {
+                QPixmap pix(bgArtPath);
+                if (!pix.isNull()) {
+                    QImage img = pix.toImage().scaled(16, 16, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+                    QColor avgCol = img.pixelColor(8, 8);
+                    QColor darkCol = QColor::fromRgb(qMin(avgCol.red(), 40), qMin(avgCol.green(), 45), qMin(avgCol.blue(), 60));
+                    m_cachedBgStyle = QString("QWidget#theaterScrollWidget { background-color: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 %1, stop:1 #11111b); }")
+                        .arg(darkCol.name());
+                } else {
+                    m_cachedBgStyle = "QWidget#theaterScrollWidget { background: transparent; }";
+                }
+            } else {
+                m_cachedBgStyle = "QWidget#theaterScrollWidget { background: transparent; }";
+            }
         }
+        m_theaterScrollWidget->setStyleSheet(m_cachedBgStyle);
+    }
+
+    if (m_theaterScrollWidget) {
+        m_theaterScrollWidget->setUpdatesEnabled(false);
     }
 
     // Clear old headers and grids
@@ -6873,6 +6883,9 @@ void FilePanel::rebuildTheaterGroups() {
 
     if (!m_groupProxy || !m_groupProxy->isGroupingActive()) {
         m_theaterScrollLayout->addStretch(1);
+        if (m_theaterScrollWidget) {
+            m_theaterScrollWidget->setUpdatesEnabled(true);
+        }
         return;
     }
 
@@ -6952,6 +6965,9 @@ void FilePanel::rebuildTheaterGroups() {
     }
 
     m_theaterScrollLayout->addStretch(1);
+    if (m_theaterScrollWidget) {
+        m_theaterScrollWidget->setUpdatesEnabled(true);
+    }
 }
 
 void FilePanel::updateThemeMusic() {

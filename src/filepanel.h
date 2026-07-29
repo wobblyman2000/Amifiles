@@ -1247,6 +1247,8 @@ private:
     FilePanel* m_siblingPanel = nullptr;
 
     QString m_folderArtPath;
+    QString m_cachedBgPath;
+    QString m_cachedBgStyle;
 
     class QMediaPlayer* m_themePlayer = nullptr;
     class QAudioOutput* m_themeAudio = nullptr;
