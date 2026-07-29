@@ -3967,8 +3967,8 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         infoDlg.exec();
     } else if (selected && selected == actToggleWatch) {
         QSettings settings("Amifiles", "Amifiles");
-        bool isWatched = settings.value("theater/watch_status/" + selectedPath, false).toBool();
-        settings.setValue("theater/watch_status/" + selectedPath, !isWatched);
+        bool isWatched = settings.value("watched/" + selectedPath, false).toBool();
+        settings.setValue("watched/" + selectedPath, !isWatched);
         for (QListView* grid : m_theaterGrids) {
             grid->viewport()->update();
             grid->update();

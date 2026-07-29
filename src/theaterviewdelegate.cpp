@@ -10,6 +10,7 @@
 #include <QProcess>
 #include <QTimer>
 #include <QSettings>
+#include <QDebug>
 
 TheaterViewDelegate::TheaterViewDelegate(QObject* parent) : RenameItemDelegate(parent) {}
 
@@ -186,7 +187,7 @@ void TheaterViewDelegate::paint(QPainter* painter, const QStyleOptionViewItem& o
 
         // Paint Watch Status Badge (Top-Left)
         QSettings settings("Amifiles", "Amifiles");
-        bool isWatched = settings.value("theater/watch_status/" + path, false).toBool();
+        bool isWatched = settings.value("watched/" + path, false).toBool();
         if (isWatched) {
             painter->save();
             QFont wFont = painter->font();

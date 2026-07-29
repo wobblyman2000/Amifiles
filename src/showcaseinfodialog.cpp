@@ -48,7 +48,7 @@ void ShowcaseInfoDialog::setupUI() {
     connect(m_btnToggleWatch, &QPushButton::clicked, this, [this]() {
         m_isWatched = !m_isWatched;
         QSettings settings("Amifiles", "Amifiles");
-        settings.setValue("theater/watch_status/" + m_path, m_isWatched);
+        settings.setValue("watched/" + m_path, m_isWatched);
         
         m_btnToggleWatch->setText(m_isWatched ? "✔ Watched" : "⭕ Mark as Watched");
         m_btnToggleWatch->setStyleSheet(m_isWatched ? "QPushButton { background-color: #a6e3a1; color: #11111b; border: none; font-weight: bold; padding: 7px 14px; border-radius: 6px; }"
@@ -147,7 +147,7 @@ void ShowcaseInfoDialog::loadMetadata() {
     m_lblTitle->setText(fi.fileName());
 
     QSettings settings("Amifiles", "Amifiles");
-    m_isWatched = settings.value("theater/watch_status/" + m_path, false).toBool();
+    m_isWatched = settings.value("watched/" + m_path, false).toBool();
     m_btnToggleWatch->setText(m_isWatched ? "✔ Watched" : "⭕ Mark as Watched");
     if (m_isWatched) {
         m_btnToggleWatch->setStyleSheet("QPushButton { background-color: #a6e3a1; color: #11111b; border: none; font-weight: bold; padding: 7px 14px; border-radius: 6px; }");
