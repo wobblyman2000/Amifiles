@@ -992,8 +992,8 @@ void FullscreenWidget::contextMenuEvent(QContextMenuEvent* event) {
     QAction* actResume = nullptr;
     QAction* actRestart = nullptr;
     qint64 savedPos = 0;
+    QSettings settings("Amifiles", "Amifiles");
     if (!m_currentTrackPath.isEmpty()) {
-        QSettings settings("Amifiles", "Amifiles");
         savedPos = settings.value(QString("watched_progress/%1").arg(m_currentTrackPath), 0).toLongLong();
         if (savedPos > 5000) {
             qint64 secs = savedPos / 1000;
@@ -1006,6 +1006,11 @@ void FullscreenWidget::contextMenuEvent(QContextMenuEvent* event) {
             menu.addSeparator();
         }
     }
+
+    QAction* actAutoQueue = menu.addAction("Auto-Queue Sibling Files");
+    actAutoQueue->setCheckable(true);
+    actAutoQueue->setChecked(settings.value("preview/auto_queue_sibling_files", true).toBool());
+    menu.addSeparator();
 
     QAction* actPlayPause = menu.addAction("Play / Pause (Space)");
     QAction* actStop = menu.addAction("Stop");
@@ -1054,6 +1059,12 @@ void FullscreenWidget::contextMenuEvent(QContextMenuEvent* event) {
         emit prevRequested();
     } else if (selected == actNext) {
         emit nextRequested();
+    } else if (selected == actAutoQueue) {
+        settings.setValue("preview/auto_queue_sibling_files", actAutoQueue->isChecked());
+        PreviewPanel* pPanel = qobject_cast<PreviewPanel*>(parentWidget());
+        if (pPanel) {
+            pPanel->loadPreferences();
+        }
     }
 }
 
@@ -3926,5 +3937,14 @@ void PreviewPanel::refreshPlaylistUI() {
     }
     if (m_playlistIndex >= 0 && m_playlistIndex < m_playlist.size()) {
         m_playlistList->setCurrentRow(m_playlistIndex);
+    }
+}
+
+void PreviewPanel::loadPreferences() {
+    QSettings settings("Amifiles", "Amifiles");
+    if (m_chkAutoQueue) {
+        m_chkAutoQueue->blockSignals(true);
+        m_chkAutoQueue->setChecked(settings.value("preview/auto_queue_sibling_files", true).toBool());
+        m_chkAutoQueue->blockSignals(false);
     }
 }

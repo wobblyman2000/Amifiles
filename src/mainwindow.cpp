@@ -4998,6 +4998,7 @@ void MainWindow::onPreferencesAction() {
         if (m_previewPanel) {
             m_previewPanel->setMuted(previewMuted);
             m_previewPanel->setSpectrumVisualizerVisible(settings.value("preview/show_spectrum_visualizer", true).toBool());
+            m_previewPanel->loadPreferences();
         }
         setBuiltinPlayerDoubleclickActive(settings.value("preferences/builtin_player_doubleclick", false).toBool());
         
@@ -5041,6 +5042,7 @@ void MainWindow::onMediaPreferences() {
         if (m_previewPanel) {
             m_previewPanel->setMuted(previewMuted);
             m_previewPanel->setSpectrumVisualizerVisible(settings.value("preview/show_spectrum_visualizer", true).toBool());
+            m_previewPanel->loadPreferences();
         }
         setBuiltinPlayerDoubleclickActive(settings.value("preferences/builtin_player_doubleclick", false).toBool());
         

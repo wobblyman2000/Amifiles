@@ -262,6 +262,7 @@ public:
     bool isSpectrumVisualizerEnabled() const { return m_spectrumVisualizerEnabled; }
     void setZenMode(bool enabled);
     bool isAutoPreviewEnabled() const;
+    void loadPreferences();
     
     QStringList playlist() const { return m_playlist; }
     int playlistIndex() const { return m_playlistIndex; }

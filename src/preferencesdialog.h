@@ -72,6 +72,7 @@ private:
     QCheckBox* m_chkAutoPlayThemeMusic = nullptr;
     QCheckBox* m_chkRememberVideoProgress = nullptr;
     QCheckBox* m_chkKeyboardRemoteMode = nullptr;
+    QCheckBox* m_chkAutoQueueSiblings = nullptr;
     
     // Shortcuts Mapping
     class QKeySequenceEdit* m_keyPlayCollection = nullptr;
