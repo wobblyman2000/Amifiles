@@ -1623,7 +1623,7 @@ bool FilePanel::eventFilter(QObject* watched, QEvent* event) {
                     onNavigateUp();
                     return true;
                 }
-                if (pressed == shortcutNavigateBack) {
+                if (pressed == shortcutNavigateBack || key == Qt::Key_Back) {
                     onNavigateBack();
                     return true;
                 }
