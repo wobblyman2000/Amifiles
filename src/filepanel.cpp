@@ -2397,7 +2397,7 @@ void FilePanel::onRecentFilterToggled(bool checked) {
 
 static bool containsMediaFilesDirectly(const QString& folderPath) {
     QDir dir(folderPath);
-    QStringList mediaExts = { "mp3", "wav", "flac", "ogg", "m4a", "mp4", "avi", "mkv", "mov", "webm", "mpeg", "mpg" };
+    QStringList mediaExts = { "mp3", "wav", "flac", "ogg", "m4a", "mp4", "avi", "mkv", "mov", "webm", "mpeg", "mpg", "mod", "sid", "s3m", "xm", "it" };
     QFileInfoList files = dir.entryInfoList(QDir::Files);
     for (const QFileInfo& fInfo : files) {
         if (fInfo.isSymLink()) continue;
@@ -2689,7 +2689,7 @@ void FilePanel::onSelectionChanged() {
                         m_trackListWidget->setIconSize(QSize(40, 40));
                         QString targetDir = pathInfo.isDir() ? path : pathInfo.absolutePath();
                         QDir dir(targetDir);
-                        QStringList audioExts = { "mp3", "flac", "wav", "ogg", "m4a", "wma", "aac" };
+                        QStringList audioExts = { "mp3", "flac", "wav", "ogg", "m4a", "wma", "aac", "mod", "sid", "s3m", "xm", "it" };
                         QFileInfoList trackFiles = dir.entryInfoList(QDir::Files, QDir::Name);
                         int selectIndex = -1;
                         for (const QFileInfo& trackFi : trackFiles) {
@@ -3317,11 +3317,11 @@ static void scanMediaFilesRecursively(const QString& folderPath, QStringList& pl
     QDir dir(folderPath);
     QStringList mediaExts;
     if (mediaTypeFilter == 1) { // Audio only
-        mediaExts = { "mp3", "wav", "flac", "ogg", "m4a", "aac", "wma" };
+        mediaExts = { "mp3", "wav", "flac", "ogg", "m4a", "aac", "wma", "mod", "sid", "s3m", "xm", "it" };
     } else if (mediaTypeFilter == 2) { // Video only
         mediaExts = { "mp4", "avi", "mkv", "mov", "webm", "flv", "wmv", "m4v", "mpg", "mpeg" };
     } else { // All
-        mediaExts = { "mp3", "wav", "flac", "ogg", "m4a", "aac", "wma", "mp4", "avi", "mkv", "mov", "webm", "flv", "wmv", "m4v", "mpg", "mpeg" };
+        mediaExts = { "mp3", "wav", "flac", "ogg", "m4a", "aac", "wma", "mod", "sid", "s3m", "xm", "it", "mp4", "avi", "mkv", "mov", "webm", "flv", "wmv", "m4v", "mpg", "mpeg" };
     }
     
     QFileInfoList files = dir.entryInfoList(QDir::Files, QDir::Name);
@@ -3348,7 +3348,7 @@ static bool hasAudioFilesRecursively(const QString& folderPath, int depth) {
     for (const QFileInfo& fInfo : files) {
         if (fInfo.isSymLink()) continue;
         QString ext = fInfo.suffix().toLower();
-        if (ext == "mp3" || ext == "flac") return true;
+        if (ext == "mp3" || ext == "flac" || ext == "wav" || ext == "ogg" || ext == "m4a" || ext == "aac" || ext == "wma" || ext == "mod" || ext == "sid" || ext == "s3m" || ext == "xm" || ext == "it") return true;
     }
 
     QFileInfoList subdirs = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
@@ -3561,7 +3561,7 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
             }
         } else {
             QDir dir(folderToCheck);
-            QStringList mediaExts = { "mp3", "wav", "flac", "ogg", "m4a", "mp4", "avi", "mkv", "mov", "webm", "mpeg", "mpg" };
+            QStringList mediaExts = { "mp3", "wav", "flac", "ogg", "m4a", "mp4", "avi", "mkv", "mov", "webm", "mpeg", "mpg", "mod", "sid", "s3m", "xm", "it" };
             QFileInfoList files = dir.entryInfoList(QDir::Files, QDir::Name);
             for (const QFileInfo& fInfo : files) {
                 if (mediaExts.contains(fInfo.suffix().toLower())) {
@@ -3807,7 +3807,7 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
             }
         } else if (info.isFile()) {
             QString ext = info.suffix().toLower();
-            if (ext == "mp3" || ext == "flac") {
+            if (ext == "mp3" || ext == "flac" || ext == "wav" || ext == "ogg" || ext == "m4a" || ext == "aac" || ext == "wma" || ext == "mod" || ext == "sid" || ext == "s3m" || ext == "xm" || ext == "it") {
                 hasAudioFiles = true;
             }
         }
@@ -6348,7 +6348,7 @@ void FilePanel::onDoubleClickedPath(const QString& path) {
     } else {
         QString ext = info.suffix().toLower();
         static const QStringList mediaExts = {
-            "mp3", "wav", "flac", "ogg", "m4a", "aac", "wma",
+            "mp3", "wav", "flac", "ogg", "m4a", "aac", "wma", "mod", "sid", "s3m", "xm", "it",
             "mp4", "avi", "mkv", "mov", "webm", "flv", "wmv", "m4v", "mpg", "mpeg"
         };
         if (mediaExts.contains(ext)) {

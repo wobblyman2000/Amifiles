@@ -1,4 +1,5 @@
 #include "previewpanel.h"
+#include <QCoreApplication>
 #include <functional>
 #include <QVBoxLayout>
 #include <QSplitter>
@@ -2108,7 +2109,41 @@ void PreviewPanel::showMediaPreview(const QString& filePath, bool isVideo, bool 
     m_btnPlayPause->setIcon(style()->standardIcon(QStyle::SP_MediaPlay));
     m_stack->setCurrentWidget(m_mediaView);
 
-    m_player->setSource(QUrl::fromLocalFile(filePath));
+    QString suffix = QFileInfo(filePath).suffix().toLower();
+    bool isRetro = (suffix == "mod" || suffix == "xm" || suffix == "s3m" || suffix == "it" || suffix == "sid");
+    QString activePlayPath = filePath;
+
+    if (isRetro) {
+        QString tempWav = QDir::temp().filePath(QString("amifiles_retro_%1.wav").arg(qApp->applicationPid()));
+        QProcess proc;
+        QString program;
+        QStringList arguments;
+
+        if (suffix == "sid") {
+            QString sid2wavPath = QDir(qApp->applicationDirPath()).filePath("sid2wav");
+            if (!QFileInfo::exists(sid2wavPath)) {
+                sid2wavPath = "./sid2wav";
+            }
+            program = sid2wavPath;
+            arguments << filePath << tempWav << "180";
+        } else {
+            program = "openmpt123";
+            arguments << "--force" << "-o" << tempWav << filePath;
+        }
+
+        proc.start(program, arguments);
+        if (proc.waitForFinished(3000)) {
+            if (QFileInfo::exists(tempWav) && QFileInfo(tempWav).size() > 1024) {
+                activePlayPath = tempWav;
+            } else {
+                qDebug() << "Retro music render output file is invalid or empty!";
+            }
+        } else {
+            qDebug() << "Retro music conversion timed out!";
+        }
+    }
+
+    m_player->setSource(QUrl::fromLocalFile(activePlayPath));
     
     QSettings settings("Amifiles", "Amifiles");
     bool muted = settings.value("preview/muted", false).toBool();

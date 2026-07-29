@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(Amifiles VERSION 2.3.65 LANGUAGES CXX)
+project(Amifiles VERSION 2.3.66 LANGUAGES CXX)
 
 configure_file(
     "${PROJECT_SOURCE_DIR}/src/version.h.in"
@@ -196,3 +196,7 @@ target_include_directories(Amifiles PRIVATE
 )
 
 install(TARGETS Amifiles DESTINATION bin)
+
+add_executable(sid2wav src/sid2wav.cpp)
+target_link_libraries(sid2wav PRIVATE sidplayfp residfp)
+
