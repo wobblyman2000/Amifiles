@@ -3957,23 +3957,15 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         connect(&infoDlg, &ShowcaseInfoDialog::openFolderRequested, this, [this](const QString& path) {
             navigateTo(path, true);
         });
-        connect(&infoDlg, &ShowcaseInfoDialog::watchStatusChanged, this, [this]() {
-            for (QListView* grid : m_theaterGrids) {
-                grid->viewport()->update();
-                grid->update();
-            }
-            if (m_theaterScrollWidget) m_theaterScrollWidget->update();
+        connect(&infoDlg, &ShowcaseInfoDialog::watchStatusChanged, this, [this](const QString& p, bool) {
+            notifyPathDataChanged(p);
         });
         infoDlg.exec();
     } else if (selected && selected == actToggleWatch) {
         QSettings settings("Amifiles", "Amifiles");
         bool isWatched = settings.value("watched/" + selectedPath, false).toBool();
         settings.setValue("watched/" + selectedPath, !isWatched);
-        for (QListView* grid : m_theaterGrids) {
-            grid->viewport()->update();
-            grid->update();
-        }
-        if (m_theaterScrollWidget) m_theaterScrollWidget->update();
+        notifyPathDataChanged(selectedPath);
     }
 }
 
@@ -4595,12 +4587,8 @@ void FilePanel::showInfoSheet(const QString& path) {
     connect(&infoDlg, &ShowcaseInfoDialog::openFolderRequested, this, [this](const QString& p) {
         navigateTo(p, true);
     });
-    connect(&infoDlg, &ShowcaseInfoDialog::watchStatusChanged, this, [this]() {
-        for (QListView* grid : m_theaterGrids) {
-            grid->viewport()->update();
-            grid->update();
-        }
-        if (m_theaterScrollWidget) m_theaterScrollWidget->update();
+    connect(&infoDlg, &ShowcaseInfoDialog::watchStatusChanged, this, [this](const QString& p, bool) {
+        notifyPathDataChanged(p);
     });
     infoDlg.exec();
 }
@@ -6859,4 +6847,25 @@ QString FilePanel::formatDuration(qint64 ms) const {
     return QString("%1:%2")
         .arg(min, 2, 10, QChar('0'))
         .arg(sec, 2, 10, QChar('0'));
+}
+
+void FilePanel::notifyPathDataChanged(const QString& path) {
+    if (!m_fileModel) return;
+    QModelIndex srcIdx = m_fileModel->index(path);
+    if (!srcIdx.isValid()) return;
+
+    emit m_fileModel->dataChanged(srcIdx, srcIdx);
+
+    if (m_proxyModel) {
+        QModelIndex filterIdx = m_proxyModel->mapFromSource(srcIdx);
+        if (filterIdx.isValid()) {
+            emit m_proxyModel->dataChanged(filterIdx, filterIdx);
+            if (m_groupProxy) {
+                QModelIndex grpIdx = m_groupProxy->mapFromSource(filterIdx);
+                if (grpIdx.isValid()) {
+                    emit m_groupProxy->dataChanged(grpIdx, grpIdx);
+                }
+            }
+        }
+    }
 }

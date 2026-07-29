@@ -935,6 +935,7 @@ protected:
     void resizeEvent(QResizeEvent* event) override;
 
 public slots:
+    void notifyPathDataChanged(const QString& path);
     void updatePlaybackProgress(qint64 position, qint64 duration);
     void onNavigateUp();
     void onNavigateBack();
