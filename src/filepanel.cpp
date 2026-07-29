@@ -732,17 +732,28 @@ void FilePanel::setupUI() {
             w = w->parentWidget();
         }
         if (mainWin && mainWin->previewPanel()) {
-            int idx = m_trackListWidget->row(item);
-            QStringList plist;
-            for (int i = 0; i < m_trackListWidget->count(); ++i) {
-                QString pathVal = m_trackListWidget->item(i)->data(Qt::UserRole).toString();
-                if (!pathVal.isEmpty()) {
-                    plist.append(pathVal);
+            QSettings settings("Amifiles", "Amifiles");
+            bool autoQueue = settings.value("preview/auto_queue_sibling_files", true).toBool();
+            
+            if (autoQueue) {
+                int idx = m_trackListWidget->row(item);
+                QStringList plist;
+                for (int i = 0; i < m_trackListWidget->count(); ++i) {
+                    QString pathVal = m_trackListWidget->item(i)->data(Qt::UserRole).toString();
+                    if (!pathVal.isEmpty()) {
+                        plist.append(pathVal);
+                    }
                 }
-            }
-            if (!plist.isEmpty()) {
-                mainWin->previewPanel()->playPlaylist(plist);
-                mainWin->previewPanel()->playPlaylistIndex(idx);
+                if (!plist.isEmpty()) {
+                    mainWin->previewPanel()->playPlaylist(plist);
+                    mainWin->previewPanel()->playPlaylistIndex(idx);
+                }
+            } else {
+                QString pathVal = item->data(Qt::UserRole).toString();
+                if (!pathVal.isEmpty()) {
+                    mainWin->previewPanel()->playPlaylist({pathVal});
+                    mainWin->previewPanel()->playPlaylistIndex(0);
+                }
             }
             int vm = viewModeIndex();
             if ((vm == 8 || vm == 9 || vm == 10) && !mainWin->previewPanel()->isFullscreen()) {
@@ -2544,37 +2555,41 @@ void FilePanel::onSelectionChanged() {
 
                 // For Music Showcase v2, scan the selected directory for tracks and populate tracklist drawer
                 if (modeIndex == 10 && m_trackListWidget) {
-                    m_trackListWidget->clear();
-                    m_trackListWidget->setIconSize(QSize(40, 40));
-                    QString targetDir = pathInfo.isDir() ? path : pathInfo.absolutePath();
-                    QDir dir(targetDir);
-                    QStringList audioExts = { "mp3", "flac", "wav", "ogg", "m4a", "wma", "aac" };
-                    QFileInfoList trackFiles = dir.entryInfoList(QDir::Files, QDir::Name);
-                    int selectIndex = -1;
-                    for (const QFileInfo& trackFi : trackFiles) {
-                        if (audioExts.contains(trackFi.suffix().toLower())) {
-                            QString pathVal = trackFi.absoluteFilePath();
-                            QString filename = trackFi.fileName();
-                            QString folderName = QFileInfo(trackFi.absolutePath()).fileName();
-                            QString displayName = filename;
-                            if (!folderName.isEmpty() && folderName.toLower() != "music" && folderName.toLower() != "audio" && folderName.toLower() != "download" && folderName.toLower() != "downloads") {
-                                displayName = QString("%1 (%2)").arg(filename).arg(folderName);
-                            }
-                            
-                            QListWidgetItem* item = new QListWidgetItem(displayName, m_trackListWidget);
-                            item->setData(Qt::UserRole, pathVal);
-                            item->setIcon(getTrackArtworkIcon(pathVal));
-                            if (pathVal == path) {
-                                selectIndex = m_trackListWidget->count() - 1;
+                    QSettings settings("Amifiles", "Amifiles");
+                    bool autoQueue = settings.value("preview/auto_queue_sibling_files", true).toBool();
+                    if (autoQueue) {
+                        m_trackListWidget->clear();
+                        m_trackListWidget->setIconSize(QSize(40, 40));
+                        QString targetDir = pathInfo.isDir() ? path : pathInfo.absolutePath();
+                        QDir dir(targetDir);
+                        QStringList audioExts = { "mp3", "flac", "wav", "ogg", "m4a", "wma", "aac" };
+                        QFileInfoList trackFiles = dir.entryInfoList(QDir::Files, QDir::Name);
+                        int selectIndex = -1;
+                        for (const QFileInfo& trackFi : trackFiles) {
+                            if (audioExts.contains(trackFi.suffix().toLower())) {
+                                QString pathVal = trackFi.absoluteFilePath();
+                                QString filename = trackFi.fileName();
+                                QString folderName = QFileInfo(trackFi.absolutePath()).fileName();
+                                QString displayName = filename;
+                                if (!folderName.isEmpty() && folderName.toLower() != "music" && folderName.toLower() != "audio" && folderName.toLower() != "download" && folderName.toLower() != "downloads") {
+                                    displayName = QString("%1 (%2)").arg(filename).arg(folderName);
+                                }
+                                
+                                QListWidgetItem* item = new QListWidgetItem(displayName, m_trackListWidget);
+                                item->setData(Qt::UserRole, pathVal);
+                                item->setIcon(getTrackArtworkIcon(pathVal));
+                                if (pathVal == path) {
+                                    selectIndex = m_trackListWidget->count() - 1;
+                                }
                             }
                         }
+                        if (selectIndex != -1) {
+                            m_trackListWidget->setCurrentRow(selectIndex);
+                        } else if (m_trackListWidget->count() > 0) {
+                            m_trackListWidget->setCurrentRow(0);
+                        }
+                        updateDrawerVisibility();
                     }
-                    if (selectIndex != -1) {
-                        m_trackListWidget->setCurrentRow(selectIndex);
-                    } else if (m_trackListWidget->count() > 0) {
-                        m_trackListWidget->setCurrentRow(0);
-                    }
-                    updateDrawerVisibility();
                 }
 
                 QString key = (modeIndex == 10) ? "music_showcase/show_info_panel" : "audio_showcase/show_info_panel";
