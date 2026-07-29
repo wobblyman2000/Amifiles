@@ -372,9 +372,13 @@ void FilePanel::setupUI() {
 
     updateHideSettings();
 
+    m_rebuildGroupsTimer = new QTimer(this);
+    m_rebuildGroupsTimer->setSingleShot(true);
+    connect(m_rebuildGroupsTimer, &QTimer::timeout, this, &FilePanel::rebuildTheaterGroups);
+
     m_groupProxy = new GroupProxyModel(this);
     m_groupProxy->setSourceModel(m_proxyModel);
-    connect(m_groupProxy, &QAbstractItemModel::modelReset, this, &FilePanel::rebuildTheaterGroups);
+    connect(m_groupProxy, &QAbstractItemModel::modelReset, this, &FilePanel::queueRebuildTheaterGroups);
 
     m_flatModel = new FlatFileSystemModel(this);
     m_flatProxyModel = new FileFilterProxyModel(this);
@@ -436,12 +440,7 @@ void FilePanel::setupUI() {
 
     m_theaterSplitter->addWidget(m_theaterListView);
 
-    m_theaterSideContainer = new QWidget(m_theaterSplitter);
-    QVBoxLayout* sideLayout = new QVBoxLayout(m_theaterSideContainer);
-    sideLayout->setContentsMargins(0, 0, 0, 0);
-    sideLayout->setSpacing(0);
-
-    m_theaterScrollArea = new QScrollArea(m_theaterSideContainer);
+    m_theaterScrollArea = new QScrollArea(m_theaterSplitter);
     m_theaterScrollArea->setWidgetResizable(true);
     m_theaterScrollArea->setFrameShape(QFrame::NoFrame);
     m_theaterScrollArea->setStyleSheet("QScrollArea { background: transparent; }");
@@ -456,11 +455,17 @@ void FilePanel::setupUI() {
     m_theaterScrollLayout->addStretch(1);
     m_theaterScrollArea->setWidget(m_theaterScrollWidget);
 
-    sideLayout->addWidget(m_theaterScrollArea);
+    m_theaterSplitter->addWidget(m_theaterScrollArea);
+
+    m_theaterSideContainer = new QWidget(m_theaterSplitter);
+    QVBoxLayout* sideLayout = new QVBoxLayout(m_theaterSideContainer);
+    sideLayout->setContentsMargins(0, 0, 0, 0);
+    sideLayout->setSpacing(0);
 
     m_theaterSplitter->addWidget(m_theaterSideContainer);
     m_theaterSplitter->setStretchFactor(0, 7);
-    m_theaterSplitter->setStretchFactor(1, 3);
+    m_theaterSplitter->setStretchFactor(1, 7);
+    m_theaterSplitter->setStretchFactor(2, 3);
 
     theaterLayout->addWidget(m_theaterSplitter, 1);
 
@@ -2008,7 +2013,7 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
                 m_theaterScrollArea->setVisible(true);
                 if (m_trackListWidget) m_trackListWidget->setVisible(false);
                 if (m_drawerBtnContainer) m_drawerBtnContainer->setVisible(false);
-                rebuildTheaterGroups();
+                queueRebuildTheaterGroups();
             }
         } else {
             m_treeView->setRootIndex(proxyIndex);
@@ -4090,7 +4095,7 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         }
         refresh();
         if (m_groupProxy && m_groupProxy->isGroupingActive() && m_viewStack->currentWidget() == m_theaterContainer) {
-            rebuildTheaterGroups();
+            queueRebuildTheaterGroups();
         }
     } else if (selected && selected == actHideAuxiliaryFiles) {
         QSettings settings("Amifiles", "Amifiles");
@@ -4117,7 +4122,7 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         updateHideSettings();
         refresh();
         if (m_groupProxy && m_groupProxy->isGroupingActive() && m_viewStack->currentWidget() == m_theaterContainer) {
-            rebuildTheaterGroups();
+            queueRebuildTheaterGroups();
         }
     } else if (selected && selected == actToggleTracksDrawer) {
         QSettings settings("Amifiles", "Amifiles");
@@ -4303,7 +4308,7 @@ void FilePanel::showAudioShowcaseContextMenu(const QPoint& pos) {
         m_proxyModel->setGroupMultiDiscActive(!groupMultiDisc);
         refresh();
         if (m_groupProxy && m_groupProxy->isGroupingActive() && m_viewStack->currentWidget() == m_theaterContainer) {
-            rebuildTheaterGroups();
+            queueRebuildTheaterGroups();
         }
     } else if (selected == actHideAuxiliaryFiles) {
         settings.setValue("audio_showcase/hide_active", !hideAuxiliary);
@@ -4493,7 +4498,7 @@ void FilePanel::showMusicShowcaseContextMenu(const QPoint& pos) {
         m_proxyModel->setGroupMultiDiscActive(!groupMultiDisc);
         refresh();
         if (m_groupProxy && m_groupProxy->isGroupingActive() && m_viewStack->currentWidget() == m_theaterContainer) {
-            rebuildTheaterGroups();
+            queueRebuildTheaterGroups();
         }
     } else if (selected == actHideAuxiliaryFiles) {
         settings.setValue("audio_showcase/hide_active", !hideAuxiliary);
@@ -5888,7 +5893,7 @@ void FilePanel::onViewModeChanged(int index) {
         if (m_groupProxy && m_groupProxy->isGroupingActive()) {
             m_theaterListView->setVisible(false);
             m_theaterScrollArea->setVisible(true);
-            rebuildTheaterGroups();
+            queueRebuildTheaterGroups();
         } else {
             m_theaterListView->setVisible(true);
             m_theaterScrollArea->setVisible(false);
@@ -6157,7 +6162,7 @@ void FilePanel::showEvent(QShowEvent* event) {
 void FilePanel::resizeEvent(QResizeEvent* event) {
     QWidget::resizeEvent(event);
     if (m_groupProxy && m_groupProxy->isGroupingActive() && m_viewStack->currentWidget() == m_theaterContainer) {
-        rebuildTheaterGroups();
+        queueRebuildTheaterGroups();
     }
 }
 
@@ -6824,6 +6829,12 @@ void FilePanel::setNavigationAndFilterVisible(bool visible) {
         if (m_globalSearchEdit) m_globalSearchEdit->setVisible(m_isSearchModeActive);
     }
     if (m_statusWidget) m_statusWidget->setVisible(visible);
+}
+
+void FilePanel::queueRebuildTheaterGroups() {
+    if (m_rebuildGroupsTimer) {
+        m_rebuildGroupsTimer->start(50); // 50ms coalescing window
+    }
 }
 
 void FilePanel::rebuildTheaterGroups() {

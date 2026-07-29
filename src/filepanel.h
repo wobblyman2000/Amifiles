@@ -1080,6 +1080,7 @@ private slots:
     void onToggleViewMode();
     void onZoomChanged(int value);
     void onGroupingChanged(int index);
+    void queueRebuildTheaterGroups();
     void onHeaderContextMenu(const QPoint& pos);
     void onGlobalSearchChanged(const QString& text);
     void startSearch();
@@ -1222,6 +1223,7 @@ private:
     class QVBoxLayout* m_theaterScrollLayout = nullptr;
     QList<QPushButton*> m_theaterHeaders;
     QList<QListView*> m_theaterGrids;
+    QTimer* m_rebuildGroupsTimer = nullptr;
     int m_zoomLevel = -1;
 
     // Bottom Filter Bar
