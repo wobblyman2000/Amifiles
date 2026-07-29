@@ -81,6 +81,7 @@ private:
     class QKeySequenceEdit* m_keyApplyCasing = nullptr;
     class QKeySequenceEdit* m_keyToggleDrawer = nullptr;
     class QKeySequenceEdit* m_keyNavigateUp = nullptr;
+    class QKeySequenceEdit* m_keyNavigateBack = nullptr;
 
     class QKeySequenceEdit* m_keyPlayerPlayPause = nullptr;
     class QKeySequenceEdit* m_keyPlayerPrev = nullptr;

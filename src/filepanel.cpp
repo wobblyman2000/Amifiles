@@ -1557,6 +1557,7 @@ bool FilePanel::eventFilter(QObject* watched, QEvent* event) {
                 QKeySequence shortcutApplyCasing(settings.value("shortcuts/apply_casing", "D").toString());
                 QKeySequence shortcutToggleDrawer(settings.value("shortcuts/toggle_drawer", "P").toString());
                 QKeySequence shortcutNavigateUp(settings.value("shortcuts/navigate_up", "Backspace").toString());
+                QKeySequence shortcutNavigateBack(settings.value("shortcuts/navigate_back", "Alt+Left").toString());
 
                 if (pressed == QKeySequence(Qt::Key_Return) || pressed == QKeySequence(Qt::Key_Enter)) {
                     QModelIndex currentIdx;
@@ -1620,6 +1621,10 @@ bool FilePanel::eventFilter(QObject* watched, QEvent* event) {
                 }
                 if (pressed == shortcutNavigateUp || key == Qt::Key_Escape) {
                     onNavigateUp();
+                    return true;
+                }
+                if (pressed == shortcutNavigateBack) {
+                    onNavigateBack();
                     return true;
                 }
                 if (pressed == shortcutScrapeMeta) {
