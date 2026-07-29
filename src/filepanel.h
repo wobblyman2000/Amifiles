@@ -33,6 +33,10 @@
 #include <QImage>
 #include <QImageReader>
 #include <QRunnable>
+#include <QMenu>
+#include <QAction>
+#include <QContextMenuEvent>
+#include <QPainterPath>
 #include <QThreadPool>
 #include <QPointer>
 #include <QSet>
@@ -53,34 +57,74 @@ class FileFilterProxyModel;
 class AudioVisualizerWidget : public QWidget {
     Q_OBJECT
 public:
+    enum Style {
+        VerticalBars = 0,
+        CrtOscilloscope = 1,
+        LedMatrix = 2
+    };
+
     explicit AudioVisualizerWidget(QWidget* parent = nullptr) : QWidget(parent) {
         setMinimumSize(130, 60);
+        
+        QSettings settings("Amifiles", "Amifiles");
+        m_style = static_cast<Style>(settings.value("preview/visualizer_style", VerticalBars).toInt());
+        
         m_timer = new QTimer(this);
         connect(m_timer, &QTimer::timeout, this, [this]() {
-            if (!m_playing) return;
-            for (int i = 0; i < 15; ++i) {
-                m_heights[i] = QRandomGenerator::global()->bounded(5, height() - 5);
+            if (m_playing) {
+                m_phase += 0.25;
+                for (int i = 0; i < 15; ++i) {
+                    m_heights[i] = QRandomGenerator::global()->bounded(5, height() - 5);
+                }
+            } else {
+                m_phase += 0.05; // Gentle baseline idle float
             }
             update();
         });
         for (int i = 0; i < 15; ++i) m_heights[i] = 4;
+        m_timer->start(60); // Constant updates at ~16fps for smooth vector oscilloscope lines
     }
 
     void setPlaying(bool playing) {
         m_playing = playing;
-        if (m_playing) {
-            if (!m_timer->isActive()) {
-                m_timer->start(100);
-            }
-        } else {
-            m_timer->stop();
+        if (!m_playing) {
             for (int i = 0; i < 15; ++i) m_heights[i] = 4;
-            update();
         }
+        update();
     }
     bool isPlaying() const { return m_playing; }
     
+    void setStyle(Style style) {
+        m_style = style;
+        QSettings settings("Amifiles", "Amifiles");
+        settings.setValue("preview/visualizer_style", static_cast<int>(m_style));
+        update();
+    }
+    Style style() const { return m_style; }
+
 protected:
+    void contextMenuEvent(QContextMenuEvent* event) override {
+        QMenu menu(this);
+        menu.setStyleSheet("QMenu { background-color: #1e1e2e; color: #cdd6f4; border: 1px solid #313244; } QMenu::item:selected { background-color: #313244; color: #f5c2e7; }");
+        
+        QAction* actBars = menu.addAction("Classic Spectrum Bars");
+        QAction* actCrt = menu.addAction("CRT Oscilloscope");
+        QAction* actLed = menu.addAction("Retro LED Matrix");
+        
+        actBars->setCheckable(true);
+        actCrt->setCheckable(true);
+        actLed->setCheckable(true);
+        
+        if (m_style == VerticalBars) actBars->setChecked(true);
+        else if (m_style == CrtOscilloscope) actCrt->setChecked(true);
+        else if (m_style == LedMatrix) actLed->setChecked(true);
+        
+        QAction* selected = menu.exec(event->globalPos());
+        if (selected == actBars) setStyle(VerticalBars);
+        else if (selected == actCrt) setStyle(CrtOscilloscope);
+        else if (selected == actLed) setStyle(LedMatrix);
+    }
+
     void paintEvent(QPaintEvent* event) override {
         Q_UNUSED(event);
         QPainter p(this);
@@ -88,21 +132,89 @@ protected:
         
         int w = width();
         int h = height();
-        int numBars = 15;
-        double gap = 3.0;
-        double barW = (w - (numBars - 1) * gap) / numBars;
         
-        QLinearGradient grad(0, h, 0, 0);
-        grad.setColorAt(0.0, QColor("#a6e3a1"));
-        grad.setColorAt(0.6, QColor("#89b4fa"));
-        grad.setColorAt(1.0, QColor("#f5c2e7"));
-        p.setBrush(grad);
-        p.setPen(Qt::NoPen);
-        
-        for (int i = 0; i < numBars; ++i) {
-            double barH = m_heights[i];
-            QRectF barRect(i * (barW + gap), h - barH, barW, barH);
-            p.drawRoundedRect(barRect, 2, 2);
+        if (m_style == VerticalBars) {
+            int numBars = 15;
+            double gap = 3.0;
+            double barW = (w - (numBars - 1) * gap) / numBars;
+            
+            QLinearGradient grad(0, h, 0, 0);
+            grad.setColorAt(0.0, QColor("#a6e3a1"));
+            grad.setColorAt(0.6, QColor("#89b4fa"));
+            grad.setColorAt(1.0, QColor("#f5c2e7"));
+            p.setBrush(grad);
+            p.setPen(Qt::NoPen);
+            
+            for (int i = 0; i < numBars; ++i) {
+                double barH = m_heights[i];
+                QRectF barRect(i * (barW + gap), h - barH, barW, barH);
+                p.drawRoundedRect(barRect, 2, 2);
+            }
+        } 
+        else if (m_style == CrtOscilloscope) {
+            int cy = h / 2;
+            p.setBrush(Qt::NoBrush);
+            
+            QPainterPath path;
+            path.moveTo(0, cy);
+            
+            double amp = m_playing ? (h * 0.35) : 2.0;
+            for (int x = 0; x < w; x += 2) {
+                double t = (double)x / w;
+                double y = cy;
+                if (m_playing) {
+                    y += qSin(t * 8.0 + m_phase) * amp * 0.65;
+                    y += qCos(t * 22.0 - m_phase * 1.3) * amp * 0.35;
+                } else {
+                    y += qSin(t * 12.0 + m_phase) * amp;
+                }
+                path.lineTo(x, y);
+            }
+            
+            // Draw CRT Glow
+            QPen penGlow(QColor(166, 227, 161, 70));
+            penGlow.setWidth(6);
+            p.setPen(penGlow);
+            p.drawPath(path);
+            
+            // Draw CRT Core Line
+            QPen penCore(QColor("#a6e3a1"));
+            penCore.setWidth(2);
+            p.setPen(penCore);
+            p.drawPath(path);
+        }
+        else if (m_style == LedMatrix) {
+            int numBars = 12;
+            double gap = 4.0;
+            double barW = (w - (numBars - 1) * gap) / numBars;
+            int segmentH = 4;
+            int segmentGap = 2;
+            int maxSegments = h / (segmentH + segmentGap);
+            
+            p.setPen(Qt::NoPen);
+            
+            for (int i = 0; i < numBars; ++i) {
+                double barH = m_heights[i % 15];
+                int activeSegments = (barH / h) * maxSegments;
+                if (activeSegments < 1 && m_playing) activeSegments = 1;
+                
+                for (int s = 0; s < maxSegments; ++s) {
+                    double t = (double)s / maxSegments;
+                    QColor col;
+                    if (t < 0.6) col = QColor("#a6e3a1");      // Green bottom
+                    else if (t < 0.85) col = QColor("#f9e2af"); // Yellow middle
+                    else col = QColor("#f38ba8");               // Red peak
+                    
+                    if (s >= activeSegments) {
+                        col.setAlpha(35); // Dim background LED grid cells
+                    }
+                    p.setBrush(col);
+                    
+                    double y = h - (s + 1) * (segmentH + segmentGap);
+                    QRectF segRect(i * (barW + gap), y, barW, segmentH);
+                    p.drawRect(segRect);
+                }
+            }
         }
     }
     
@@ -110,6 +222,8 @@ private:
     QTimer* m_timer = nullptr;
     int m_heights[15];
     bool m_playing = false;
+    Style m_style = VerticalBars;
+    double m_phase = 0.0;
 };
 
 class CasingRunnable : public QRunnable {

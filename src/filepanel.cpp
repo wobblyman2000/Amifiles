@@ -1228,6 +1228,14 @@ bool FilePanel::eventFilter(QObject* watched, QEvent* event) {
         }
     }
 
+    bool isGrid = false;
+    for (QListView* grid : m_theaterGrids) {
+        if (watched == grid || (grid && watched == grid->viewport())) {
+            isGrid = true;
+            break;
+        }
+    }
+
     bool isWatched = (watched == m_treeView || (m_treeView && watched == m_treeView->viewport()) ||
                       watched == m_listView || (m_listView && watched == m_listView->viewport()) ||
                       watched == m_searchResultsView || (m_searchResultsView && watched == m_searchResultsView->viewport()) ||
@@ -1235,7 +1243,8 @@ bool FilePanel::eventFilter(QObject* watched, QEvent* event) {
                       watched == m_millerView || (m_millerView && watched == m_millerView->viewport()) ||
                       watched == m_timelineView || (m_timelineView && watched == m_timelineView->viewport()) ||
                       watched == m_filmstripView ||
-                      watched == m_theaterContainer || watched == m_bottomInfoPanel);
+                      watched == m_theaterContainer || watched == m_bottomInfoPanel ||
+                      isGrid);
 
     if (!isWatched && (m_millerView || m_filmstripView)) {
         QWidget* w = qobject_cast<QWidget*>(watched);
@@ -1280,7 +1289,142 @@ bool FilePanel::eventFilter(QObject* watched, QEvent* event) {
 
         if (event->type() == QEvent::KeyPress) {
             QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
-            
+            int key = keyEvent->key();
+
+            // Keyboard Focus Navigation between Grouped Grids
+            if (isGrid && (key == Qt::Key_Up || key == Qt::Key_Down)) {
+                QListView* grid = nullptr;
+                QWidget* targetW = qobject_cast<QWidget*>(watched);
+                if (qobject_cast<QListView*>(targetW)) {
+                    grid = qobject_cast<QListView*>(targetW);
+                } else if (targetW && qobject_cast<QListView*>(targetW->parentWidget())) {
+                    grid = qobject_cast<QListView*>(targetW->parentWidget());
+                }
+
+                if (grid) {
+                    int gridIdx = m_theaterGrids.indexOf(grid);
+                    if (gridIdx >= 0) {
+                        if (key == Qt::Key_Down) {
+                            QModelIndex currentIdx = grid->currentIndex();
+                            if (currentIdx.isValid()) {
+                                QRect currentRect = grid->visualRect(currentIdx);
+                                bool hasItemBelow = false;
+                                int rowCount = grid->model()->rowCount(grid->rootIndex());
+                                for (int r = 0; r < rowCount; ++r) {
+                                    QModelIndex testIdx = grid->model()->index(r, 0, grid->rootIndex());
+                                    if (testIdx.isValid() && testIdx != currentIdx) {
+                                        QRect testRect = grid->visualRect(testIdx);
+                                        if (testRect.top() >= currentRect.bottom() - 5) {
+                                            hasItemBelow = true;
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                if (!hasItemBelow) {
+                                    if (gridIdx + 1 < m_theaterGrids.size()) {
+                                        QListView* nextGrid = m_theaterGrids[gridIdx + 1];
+                                        int nextCount = nextGrid->model()->rowCount(nextGrid->rootIndex());
+                                        if (nextCount > 0) {
+                                            int minTop = 999999;
+                                            for (int r = 0; r < nextCount; ++r) {
+                                                QModelIndex testIdx = nextGrid->model()->index(r, 0, nextGrid->rootIndex());
+                                                QRect testRect = nextGrid->visualRect(testIdx);
+                                                if (testRect.top() < minTop) {
+                                                    minTop = testRect.top();
+                                                }
+                                            }
+
+                                            QModelIndex targetIdx;
+                                            int minDiff = 999999;
+                                            int currentCenterX = currentRect.center().x();
+                                            for (int r = 0; r < nextCount; ++r) {
+                                                QModelIndex testIdx = nextGrid->model()->index(r, 0, nextGrid->rootIndex());
+                                                QRect testRect = nextGrid->visualRect(testIdx);
+                                                if (qAbs(testRect.top() - minTop) < 10) {
+                                                    int diff = qAbs(testRect.center().x() - currentCenterX);
+                                                    if (diff < minDiff) {
+                                                        minDiff = diff;
+                                                        targetIdx = testIdx;
+                                                    }
+                                                }
+                                            }
+
+                                            if (targetIdx.isValid()) {
+                                                grid->selectionModel()->clearSelection();
+                                                nextGrid->setCurrentIndex(targetIdx);
+                                                nextGrid->selectionModel()->select(targetIdx, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+                                                nextGrid->setFocus();
+                                                nextGrid->scrollTo(targetIdx, QAbstractItemView::EnsureVisible);
+                                                return true;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } else if (key == Qt::Key_Up) {
+                            QModelIndex currentIdx = grid->currentIndex();
+                            if (currentIdx.isValid()) {
+                                QRect currentRect = grid->visualRect(currentIdx);
+                                bool hasItemAbove = false;
+                                int rowCount = grid->model()->rowCount(grid->rootIndex());
+                                for (int r = 0; r < rowCount; ++r) {
+                                    QModelIndex testIdx = grid->model()->index(r, 0, grid->rootIndex());
+                                    if (testIdx.isValid() && testIdx != currentIdx) {
+                                        QRect testRect = grid->visualRect(testIdx);
+                                        if (testRect.bottom() <= currentRect.top() + 5) {
+                                            hasItemAbove = true;
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                if (!hasItemAbove) {
+                                    if (gridIdx - 1 >= 0) {
+                                        QListView* prevGrid = m_theaterGrids[gridIdx - 1];
+                                        int prevCount = prevGrid->model()->rowCount(prevGrid->rootIndex());
+                                        if (prevCount > 0) {
+                                            int maxBottom = -999999;
+                                            for (int r = 0; r < prevCount; ++r) {
+                                                QModelIndex testIdx = prevGrid->model()->index(r, 0, prevGrid->rootIndex());
+                                                QRect testRect = prevGrid->visualRect(testIdx);
+                                                if (testRect.bottom() > maxBottom) {
+                                                    maxBottom = testRect.bottom();
+                                                }
+                                            }
+
+                                            QModelIndex targetIdx;
+                                            int minDiff = 999999;
+                                            int currentCenterX = currentRect.center().x();
+                                            for (int r = 0; r < prevCount; ++r) {
+                                                QModelIndex testIdx = prevGrid->model()->index(r, 0, prevGrid->rootIndex());
+                                                QRect testRect = prevGrid->visualRect(testIdx);
+                                                if (qAbs(testRect.bottom() - maxBottom) < 10) {
+                                                    int diff = qAbs(testRect.center().x() - currentCenterX);
+                                                    if (diff < minDiff) {
+                                                        minDiff = diff;
+                                                        targetIdx = testIdx;
+                                                    }
+                                                }
+                                            }
+
+                                            if (targetIdx.isValid()) {
+                                                grid->selectionModel()->clearSelection();
+                                                prevGrid->setCurrentIndex(targetIdx);
+                                                prevGrid->selectionModel()->select(targetIdx, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+                                                prevGrid->setFocus();
+                                                prevGrid->scrollTo(targetIdx, QAbstractItemView::EnsureVisible);
+                                                return true;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             QSettings settings("Amifiles", "Amifiles");
             bool remoteMode = settings.value("preferences/keyboard_remote_mode", false).toBool();
             
@@ -1294,10 +1438,20 @@ bool FilePanel::eventFilter(QObject* watched, QEvent* event) {
                 QKeySequence shortcutToggleDrawer(settings.value("shortcuts/toggle_drawer", "P").toString());
                 QKeySequence shortcutNavigateUp(settings.value("shortcuts/navigate_up", "Backspace").toString());
 
-                int key = keyEvent->key();
-                
                 if (pressed == QKeySequence(Qt::Key_Return) || pressed == QKeySequence(Qt::Key_Enter)) {
-                    QModelIndex currentIdx = m_theaterListView->currentIndex();
+                    QModelIndex currentIdx;
+                    if (isGrid) {
+                        QListView* grid = nullptr;
+                        QWidget* targetW = qobject_cast<QWidget*>(watched);
+                        if (qobject_cast<QListView*>(targetW)) {
+                            grid = qobject_cast<QListView*>(targetW);
+                        } else if (targetW && qobject_cast<QListView*>(targetW->parentWidget())) {
+                            grid = qobject_cast<QListView*>(targetW->parentWidget());
+                        }
+                        if (grid) currentIdx = grid->currentIndex();
+                    } else {
+                        currentIdx = m_theaterListView->currentIndex();
+                    }
                     if (currentIdx.isValid()) {
                         onDoubleClicked(currentIdx);
                         return true;
@@ -2476,7 +2630,26 @@ QStringList FilePanel::selectedPaths() const {
         selModel = m_theaterListView->selectionModel();
     } else if (active == m_theaterContainer) {
         if (m_groupProxy && m_groupProxy->isGroupingActive()) {
-            selModel = m_treeView->selectionModel();
+            QListView* activeGrid = nullptr;
+            for (QListView* grid : m_theaterGrids) {
+                if (grid && (grid->hasFocus() || (grid->viewport() && grid->viewport()->hasFocus()))) {
+                    activeGrid = grid;
+                    break;
+                }
+            }
+            if (!activeGrid) {
+                for (QListView* grid : m_theaterGrids) {
+                    if (grid && grid->selectionModel() && grid->selectionModel()->hasSelection()) {
+                        activeGrid = grid;
+                        break;
+                    }
+                }
+            }
+            if (activeGrid) {
+                selModel = activeGrid->selectionModel();
+            } else {
+                selModel = m_treeView->selectionModel();
+            }
         } else {
             selModel = m_theaterListView->selectionModel();
         }
