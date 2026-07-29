@@ -5799,6 +5799,7 @@ void MainWindow::rebuildToolBars() {
 
     // Populate dynamic/drive buttons before applying edit mode styles/event filters
     updateDrivesList();
+    rebuildCustomToolBar();
 
     // 6. Hook drag & drop edit mode buttons
     QSettings settingsObj("Amifiles", "Amifiles");
