@@ -5122,7 +5122,7 @@ void FilePanel::onZoomChanged(int value) {
 void FilePanel::onGroupingChanged(int index) {
     if (index == 0) {
         m_groupProxy->setGrouping(false, "");
-        m_treeView->expandAll();
+        updateActiveViewModel();
         navigateTo(m_currentPath, false);
         return;
     }
@@ -5156,6 +5156,7 @@ void FilePanel::onGroupingChanged(int index) {
     }
 
     m_groupProxy->setGrouping(true, groupType, customKey);
+    updateActiveViewModel();
     m_treeView->expandAll();
     navigateTo(m_currentPath, false);
 }
