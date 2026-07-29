@@ -1847,7 +1847,7 @@ void PreviewPanel::previewFile(const QString& filePath, const QStringList& sibli
         QStringList txtExts = { "txt", "log", "ini", "cfg", "conf", "json", "xml", "html", "css", "js", 
                                 "py", "cpp", "h", "sh", "md", "csv", "yml", "yaml", "properties" };
         QStringList imgExts = { "png", "jpg", "jpeg", "gif", "bmp", "webp", "svg" };
-        QStringList audioExts = { "mp3", "wav", "flac", "ogg", "m4a" };
+        QStringList audioExts = { "mp3", "wav", "flac", "ogg", "m4a", "mod", "xm", "s3m", "it", "sid" };
         QStringList videoExts = { "mp4", "avi", "mkv", "mov", "webm", "flv", "wmv", "m4v", "mpg", "mpeg" };
         
         QStringList filterExtensions;
@@ -1921,7 +1921,7 @@ void PreviewPanel::previewFile(const QString& filePath, const QStringList& sibli
     QStringList txtExts = { "txt", "log", "ini", "cfg", "conf", "json", "xml", "html", "css", "js", 
                             "py", "cpp", "h", "sh", "md", "csv", "yml", "yaml", "properties" };
     QStringList imgExts = { "png", "jpg", "jpeg", "gif", "bmp", "webp", "svg" };
-    QStringList audioExts = { "mp3", "wav", "flac", "ogg", "m4a" };
+    QStringList audioExts = { "mp3", "wav", "flac", "ogg", "m4a", "mod", "xm", "s3m", "it", "sid" };
     QStringList videoExts = { "mp4", "avi", "mkv", "mov", "webm", "flv", "wmv", "m4v", "mpg", "mpeg" };
 
     if (txtExts.contains(ext)) {
@@ -2272,7 +2272,7 @@ void PreviewPanel::dropEvent(QDropEvent* event) {
     }
 
     QStringList playableFiles;
-    QStringList audioExts = { "mp3", "wav", "flac", "ogg", "m4a" };
+    QStringList audioExts = { "mp3", "wav", "flac", "ogg", "m4a", "mod", "xm", "s3m", "it", "sid" };
     QStringList videoExts = { "mp4", "avi", "mkv", "mov", "webm" };
     QStringList allMedia = audioExts + videoExts;
 
