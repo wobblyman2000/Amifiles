@@ -277,6 +277,7 @@ public slots:
     void setBuiltinPlayerDoubleclickActive(bool active);
     void onPrevTrack();
     void onNextTrack();
+    void onPlayPause();
     void onShuffleToggled();
     void onRepeatClicked();
 
@@ -307,7 +308,6 @@ private slots:
     void onTextChanged();
     
     // Media Player Slots
-    void onPlayPause();
     void onStop();
     void onPositionChanged(qint64 position);
     void onDurationChanged(qint64 duration);

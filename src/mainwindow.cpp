@@ -5533,6 +5533,82 @@ void MainWindow::executeCustomCommand(const QString& commandOrPath) {
             onCloudMount();
         } else if (cmd == "Shred") {
             onSecureShred();
+        } else if (cmd == "ToggleWatched") {
+            if (m_activePanel) {
+                QStringList selected = m_activePanel->selectedPaths();
+                for (const QString& path : selected) {
+                    m_activePanel->toggleWatchStatus(path);
+                }
+            }
+        } else if (cmd == "MediaInfoSheet") {
+            if (m_activePanel) {
+                QStringList selected = m_activePanel->selectedPaths();
+                if (!selected.isEmpty()) {
+                    m_activePanel->showInfoSheet(selected.first());
+                }
+            }
+        } else if (cmd == "ScrapeVideoMetadata") {
+            if (m_activePanel) {
+                m_activePanel->scrapeVideoMetadata();
+            }
+        } else if (cmd == "FetchAlbumMetadata") {
+            if (m_activePanel) {
+                m_activePanel->editAudioTags(true);
+            }
+        } else if (cmd == "ApplyDvdCasing") {
+            if (m_activePanel) {
+                m_activePanel->applyDvdCasing();
+            }
+        } else if (cmd == "PlayCollection") {
+            if (m_activePanel) {
+                m_activePanel->playCollection();
+            }
+        } else if (cmd == "PlayerPlayPause") {
+            if (m_previewPanel) {
+                m_previewPanel->onPlayPause();
+            }
+        } else if (cmd == "PlayerNext") {
+            if (m_previewPanel) {
+                m_previewPanel->onNextTrack();
+            }
+        } else if (cmd == "PlayerPrev") {
+            if (m_previewPanel) {
+                m_previewPanel->onPrevTrack();
+            }
+        } else if (cmd == "PlayerMute") {
+            if (m_previewPanel) {
+                m_previewPanel->setMuted(!m_previewPanel->isMuted());
+            }
+        } else if (cmd == "OpenTerminal") {
+            if (m_actToggleConsole) {
+                m_actToggleConsole->setChecked(true);
+            }
+            if (m_bottomTabWidget && m_terminalPanel) {
+                m_bottomTabWidget->setCurrentWidget(m_terminalPanel);
+            }
+        } else if (cmd == "OpenCommandPalette") {
+            onCommandPaletteAction();
+        } else if (cmd == "EditAudioTags") {
+            if (m_activePanel) {
+                m_activePanel->editAudioTags(false);
+            }
+        } else if (cmd == "CreateArchive") {
+            if (m_activePanel) {
+                m_activePanel->createArchive(false);
+            }
+        } else if (cmd == "ExtractArchive") {
+            if (m_activePanel) {
+                m_activePanel->extractArchive();
+            }
+        } else if (cmd.startsWith("LoadTheme ")) {
+            QString themeName = cmd.mid(10).trimmed();
+            if ((themeName.startsWith("\"") && themeName.endsWith("\"")) ||
+                (themeName.startsWith("'") && themeName.endsWith("'"))) {
+                themeName = themeName.mid(1, themeName.length() - 2).trimmed();
+            }
+            QSettings settings("Amifiles", "Amifiles");
+            settings.setValue("theme/preset", themeName);
+            updateWidgetStylesheets();
         } else if (cmd.startsWith("QuickRename_")) {
             onQuickRenameAction(cmd.mid(12));
         } else if (cmd == "SmartHome" || cmd == "Home" || cmd == "GoHome") {

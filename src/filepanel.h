@@ -933,6 +933,14 @@ public:
     QString customBgColor() const { return m_customBgColor; }
     void setPath(const QString& path);
     void focusActiveView();
+    void toggleWatchStatus(const QString& path);
+    void scrapeVideoMetadata();
+    void editAudioTags(bool autoFetch = false);
+    void applyDvdCasing();
+    void playCollection();
+    void createArchive(bool secure);
+    void extractArchive();
+    void showInfoSheet(const QString& path);
     class QScrollBar* activeVerticalScrollBar() const;
 
     bool isPinned() const { return m_isPinned; }
@@ -1075,7 +1083,6 @@ private slots:
     void showAudioShowcaseContextMenu(const QPoint& pos);
     void showMusicShowcaseContextMenu(const QPoint& pos);
     void showVideoShowcaseContextMenu(const QPoint& pos);
-    void showInfoSheet(const QString& path);
     void onFavoriteButtonContextMenu(const QPoint& pos);
     void onToggleViewMode();
     void onZoomChanged(int value);

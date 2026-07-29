@@ -4995,6 +4995,103 @@ void FilePanel::showInfoSheet(const QString& path) {
     infoDlg.exec();
 }
 
+void FilePanel::toggleWatchStatus(const QString& path) {
+    if (path.isEmpty()) return;
+    QSettings settings("Amifiles", "Amifiles");
+    bool isWatched = settings.value("watched/" + path, false).toBool();
+    settings.setValue("watched/" + path, !isWatched);
+    notifyPathDataChanged(path);
+}
+
+void FilePanel::scrapeVideoMetadata() {
+    QStringList curSelected = selectedPaths();
+    if (curSelected.isEmpty()) return;
+    VideoScraperDialog dlg(curSelected, this);
+    if (dlg.exec() == QDialog::Accepted) {
+        refresh();
+        onSelectionChanged();
+    }
+}
+
+void FilePanel::editAudioTags(bool autoFetch) {
+    QStringList curSelected = selectedPaths();
+    if (curSelected.isEmpty()) return;
+    TagEditorDialog dlg(curSelected, this, autoFetch);
+    if (dlg.exec() == QDialog::Accepted) {
+        refresh();
+    }
+}
+
+void FilePanel::applyDvdCasing() {
+    QStringList curSelected = selectedPaths();
+    QString selectedPath = curSelected.isEmpty() ? "" : curSelected.first();
+    if (selectedPath.isEmpty()) return;
+    QFileInfo info(selectedPath);
+    if (!info.isDir()) {
+        QString dirPath = info.absolutePath();
+        QString baseName = info.completeBaseName();
+        QStringList genericImages = { "folder.jpg", "folder.jpeg", "folder.png", "poster.jpg", "poster.jpeg", "poster.png", "cover.jpg", "cover.jpeg", "cover.png" };
+        QString foundGeneric;
+        for (const QString& name : genericImages) {
+            QFileInfo fi(QDir(dirPath).filePath(name));
+            if (fi.exists()) {
+                foundGeneric = fi.absoluteFilePath();
+                break;
+            }
+        }
+        if (!foundGeneric.isEmpty()) {
+            QString ext = QFileInfo(foundGeneric).suffix();
+            QString destPath = QDir(dirPath).filePath(baseName + "_cover." + ext);
+            if (QFile::rename(foundGeneric, destPath)) {
+                if (m_proxyModel) m_proxyModel->clearCasingCache();
+                refresh();
+            }
+        }
+    }
+}
+
+void FilePanel::playCollection() {
+    QStringList curSelected = selectedPaths();
+    QString selectedPath = curSelected.isEmpty() ? m_currentPath : curSelected.first();
+    if (selectedPath.isEmpty()) return;
+    QFileInfo info(selectedPath);
+    QStringList playlistPaths;
+    int filter = 0;
+    int vm = viewModeIndex();
+    if (vm == 6 || vm == 10) filter = 1;
+    else if (vm == 7 || vm == 8 || vm == 9) filter = 2;
+    
+    if (info.isDir()) {
+        scanMediaFilesRecursively(selectedPath, playlistPaths, filter);
+    } else {
+        playlistPaths.append(selectedPath);
+    }
+    
+    if (!playlistPaths.isEmpty()) {
+        if (vm == 8 || vm == 9 || vm == 10) {
+            emit playMediaFullscreenRequested(playlistPaths);
+        } else {
+            emit playMediaBuiltinRequested(playlistPaths);
+        }
+    }
+}
+
+void FilePanel::createArchive(bool secure) {
+    QStringList curSelected = selectedPaths();
+    if (curSelected.isEmpty()) return;
+    ArchiveDialog* dlg = new ArchiveDialog(ArchiveDialog::ModeCreate, curSelected, m_currentPath, secure, this);
+    connect(dlg, &QDialog::accepted, this, &FilePanel::refresh);
+    dlg->show();
+}
+
+void FilePanel::extractArchive() {
+    QStringList curSelected = selectedPaths();
+    if (curSelected.isEmpty()) return;
+    ArchiveDialog* dlg = new ArchiveDialog(ArchiveDialog::ModeExtract, curSelected.first(), m_currentPath, this);
+    connect(dlg, &QDialog::accepted, this, &FilePanel::refresh);
+    dlg->show();
+}
+
 
 void FilePanel::setCategoryButtonsVisible(bool visible) {
     m_categoryButtonsVisible = visible;
