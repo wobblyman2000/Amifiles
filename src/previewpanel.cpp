@@ -1,6 +1,8 @@
 #include "previewpanel.h"
 #include <QCoreApplication>
 #include <QStandardPaths>
+#include <complex>
+#include <vector>
 #include <functional>
 #include <QVBoxLayout>
 #include <QSplitter>
@@ -1777,6 +1779,10 @@ void PreviewPanel::clearPreview() {
 
     m_player->stop();
     m_player->setSource(QUrl());
+    if (m_visualizer) {
+        m_visualizer->setPlayer(nullptr);
+        m_visualizer->setAudioPath("");
+    }
     if (m_autoFsTimer) {
         m_autoFsTimer->stop();
     }
@@ -2151,6 +2157,14 @@ void PreviewPanel::showMediaPreview(const QString& filePath, bool isVideo, bool 
         } else {
             qDebug() << "Retro music conversion timed out! Error:" << proc.errorString();
         }
+    }
+
+    if (!isVideo) {
+        m_visualizer->setPlayer(m_player);
+        m_visualizer->setAudioPath(activePlayPath);
+    } else {
+        m_visualizer->setPlayer(nullptr);
+        m_visualizer->setAudioPath("");
     }
 
     m_player->setSource(QUrl::fromLocalFile(activePlayPath));
@@ -3444,12 +3458,43 @@ void PreviewPanel::updateFullscreenTrack() {
 #include <QRandomGenerator>
 #include <QTimer>
 
+static void fft_iterative(std::vector<std::complex<double>>& a) {
+    int n = a.size();
+    for (int i = 1, j = 0; i < n; i++) {
+        int bit = n >> 1;
+        for (; j & bit; bit >>= 1)
+            j ^= bit;
+        j ^= bit;
+        if (i < j)
+            std::swap(a[i], a[j]);
+    }
+    for (int len = 2; len <= n; len <<= 1) {
+        double angle = -2.0 * 3.14159265358979323846 / len;
+        std::complex<double> wlen(std::cos(angle), std::sin(angle));
+        for (int i = 0; i < n; i += len) {
+            std::complex<double> w(1);
+            for (int j = 0; j < len / 2; j++) {
+                std::complex<double> u = a[i + j];
+                std::complex<double> v = a[i + j + len / 2] * w;
+                a[i + j] = u + v;
+                a[i + j + len / 2] = u - v;
+                w *= wlen;
+            }
+        }
+    }
+}
+
 SpectrumVisualizerWidget::SpectrumVisualizerWidget(QWidget* parent)
     : QWidget(parent), m_barHeights(15, 0.0), m_targetHeights(15, 0.0) {
     setMinimumHeight(80);
     m_timer = new QTimer(this);
     connect(m_timer, &QTimer::timeout, this, &SpectrumVisualizerWidget::onAnimate);
-    m_timer->start(50);
+    m_timer->start(30);
+}
+
+SpectrumVisualizerWidget::~SpectrumVisualizerWidget() {
+    QString tempPath = QDir::temp().filePath(QString("amifiles_analysis_%1.wav").arg(qApp->applicationPid()));
+    QFile::remove(tempPath);
 }
 
 void SpectrumVisualizerWidget::setPlaying(bool playing) {
@@ -3467,35 +3512,165 @@ void SpectrumVisualizerWidget::setVisualizerMode(VisualizerMode mode) {
     update();
 }
 
-void SpectrumVisualizerWidget::onAnimate() {
-    double averageHeight = 0.0;
-    for (int i = 0; i < 15; ++i) {
-        if (m_playing) {
-            double boost = 1.0;
-            if (i < 5) boost = m_bassBoost;
-            else if (i < 10) boost = m_midBoost;
-            else boost = m_trebleBoost;
+void SpectrumVisualizerWidget::setPlayer(QMediaPlayer* player) {
+    m_player = player;
+}
 
-            m_targetHeights[i] = QRandomGenerator::global()->bounded(10, 95) * boost;
-            if (m_targetHeights[i] > 100.0) m_targetHeights[i] = 100.0;
-        } else {
-            m_targetHeights[i] = 0.0;
+void SpectrumVisualizerWidget::setAudioPath(const QString& path) {
+    if (m_loadedAudioPath == path) return;
+    m_loadedAudioPath = path;
+
+    m_audioData.clear();
+    m_samples = nullptr;
+    m_numSamples = 0;
+
+    if (path.isEmpty()) return;
+
+    QFileInfo info(path);
+    QString ext = info.suffix().toLower();
+
+    if (ext == "wav") {
+        loadWavData(path);
+    } else {
+        QString tempPath = QDir::temp().filePath(QString("amifiles_analysis_%1.wav").arg(qApp->applicationPid()));
+        QProcess* proc = new QProcess(this);
+        connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this, [this, tempPath, proc](int exitCode, QProcess::ExitStatus exitStatus) {
+            if (exitStatus == QProcess::NormalExit && exitCode == 0) {
+                loadWavData(tempPath);
+            }
+            proc->deleteLater();
+        });
+        proc->start("ffmpeg", QStringList() << "-y" << "-i" << path 
+                                            << "-map_metadata" << "-1" 
+                                            << "-ac" << "1" 
+                                            << "-ar" << "22050" 
+                                            << "-acodec" << "pcm_s16le" 
+                                            << tempPath);
+    }
+}
+
+void SpectrumVisualizerWidget::loadWavData(const QString& wavPath) {
+    QFile file(wavPath);
+    if (!file.open(QIODevice::ReadOnly)) return;
+    m_audioData = file.readAll();
+    file.close();
+
+    if (m_audioData.size() < 44) return;
+    if (m_audioData.mid(0, 4) != "RIFF" || m_audioData.mid(8, 4) != "WAVE") return;
+
+    int pos = 12;
+    int dataOffset = -1;
+    int dataSize = 0;
+    int sampleRate = 22050;
+    int numChannels = 1;
+
+    while (pos + 8 <= m_audioData.size()) {
+        QByteArray chunkId = m_audioData.mid(pos, 4);
+        int chunkSize = *reinterpret_cast<const int*>(m_audioData.constData() + pos + 4);
+        if (chunkId == "fmt ") {
+            if (chunkSize >= 16) {
+                numChannels = *reinterpret_cast<const int16_t*>(m_audioData.constData() + pos + 8 + 2);
+                sampleRate = *reinterpret_cast<const int*>(m_audioData.constData() + pos + 8 + 4);
+            }
+        } else if (chunkId == "data") {
+            dataOffset = pos + 8;
+            dataSize = chunkSize;
+            break;
+        }
+        pos += 8 + chunkSize;
+    }
+
+    if (dataOffset != -1 && dataOffset + dataSize <= m_audioData.size()) {
+        m_samples = reinterpret_cast<const int16_t*>(m_audioData.constData() + dataOffset);
+        m_numSamples = dataSize / 2;
+        m_sampleRate = sampleRate;
+        m_numChannels = numChannels;
+    }
+}
+
+void SpectrumVisualizerWidget::onAnimate() {
+    m_playing = m_player && (m_player->playbackState() == QMediaPlayer::PlayingState);
+
+    qint64 positionMs = m_player ? m_player->position() : 0;
+    int sampleIndex = static_cast<int>((positionMs / 1000.0) * m_sampleRate);
+
+    if (m_mode == VisualizerBars || m_mode == VisualizerRadial) {
+        int fftSize = 512;
+        std::vector<std::complex<double>> fftInput(fftSize, 0.0);
+
+        if (m_playing && m_samples && m_numSamples > 0) {
+            int start = sampleIndex - fftSize / 2;
+            for (int i = 0; i < fftSize; ++i) {
+                int idx = (start + i) * m_numChannels;
+                if (idx >= 0 && idx < m_numSamples) {
+                    double window = 0.5 * (1.0 - std::cos(2.0 * 3.14159265358979323846 * i / (fftSize - 1)));
+                    double sampleVal = m_samples[idx] / 32768.0;
+                    fftInput[i] = sampleVal * window;
+                } else {
+                    fftInput[i] = 0.0;
+                }
+            }
         }
 
-        m_barHeights[i] = m_barHeights[i] * 0.6 + m_targetHeights[i] * 0.4;
-        averageHeight += m_barHeights[i];
-    }
-    averageHeight /= 15.0;
+        fft_iterative(fftInput);
 
-    double value = 0.0;
-    if (m_playing) {
-        static double phase = 0.0;
-        phase += 0.4;
-        value = (qSin(phase) * 0.6 + (QRandomGenerator::global()->bounded(100) / 100.0 - 0.5) * 0.4) * averageHeight;
-    }
-    m_waveformHistory.append(value);
-    while (m_waveformHistory.size() > 80) {
-        m_waveformHistory.removeFirst();
+        std::vector<double> magnitudes(fftSize / 2, 0.0);
+        for (int i = 0; i < fftSize / 2; ++i) {
+            magnitudes[i] = std::abs(fftInput[i]);
+        }
+
+        int numBars = 15;
+        double startFreq = 20.0;
+        double endFreq = 8000.0;
+
+        for (int b = 0; b < numBars; ++b) {
+            if (m_playing) {
+                double fStart = startFreq * std::pow(endFreq / startFreq, static_cast<double>(b) / numBars);
+                double fEnd = startFreq * std::pow(endFreq / startFreq, static_cast<double>(b + 1) / numBars);
+
+                int binStart = qBound(0, static_cast<int>(fStart * fftSize / m_sampleRate), fftSize / 2 - 1);
+                int binEnd = qBound(binStart + 1, static_cast<int>(fEnd * fftSize / m_sampleRate), fftSize / 2);
+
+                double sum = 0.0;
+                for (int i = binStart; i < binEnd; ++i) {
+                    sum += magnitudes[i];
+                }
+                double avg = sum / (binEnd - binStart);
+
+                double boost = 1.0;
+                if (b < 5) boost = m_bassBoost;
+                else if (b < 10) boost = m_midBoost;
+                else boost = m_trebleBoost;
+
+                double height = avg * 300.0 * boost;
+                if (height > 100.0) height = 100.0;
+                if (height < 2.0) height = 2.0;
+
+                m_targetHeights[b] = height;
+            } else {
+                m_targetHeights[b] = 0.0;
+            }
+
+            m_barHeights[b] = m_barHeights[b] * 0.6 + m_targetHeights[b] * 0.4;
+        }
+    } else if (m_mode == VisualizerWaveform) {
+        m_waveformHistory.clear();
+        if (m_playing && m_samples && m_numSamples > 0) {
+            int spacing = 5;
+            for (int i = 0; i < 80; ++i) {
+                int idx = (sampleIndex + i * spacing) * m_numChannels;
+                if (idx >= 0 && idx < m_numSamples) {
+                    double sampleVal = (m_samples[idx] / 32768.0) * 80.0;
+                    m_waveformHistory.append(sampleVal);
+                } else {
+                    m_waveformHistory.append(0.0);
+                }
+            }
+        } else {
+            for (int i = 0; i < 80; ++i) {
+                m_waveformHistory.append(0.0);
+            }
+        }
     }
 
     update();

@@ -216,10 +216,13 @@ public:
     };
 
     explicit SpectrumVisualizerWidget(QWidget* parent = nullptr);
+    ~SpectrumVisualizerWidget() override;
     void setPlaying(bool playing);
     void setBoost(double bass, double mid, double treble);
     void setVisualizerMode(VisualizerMode mode);
     VisualizerMode visualizerMode() const { return m_mode; }
+    void setPlayer(class QMediaPlayer* player);
+    void setAudioPath(const QString& path);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -228,6 +231,8 @@ private slots:
     void onAnimate();
 
 private:
+    void loadWavData(const QString& wavPath);
+
     QTimer* m_timer = nullptr;
     bool m_playing = false;
     double m_bassBoost = 1.0;
@@ -237,6 +242,14 @@ private:
     QVector<double> m_barHeights;
     QVector<double> m_targetHeights;
     QList<double> m_waveformHistory;
+
+    class QMediaPlayer* m_player = nullptr;
+    QString m_loadedAudioPath;
+    QByteArray m_audioData;
+    const int16_t* m_samples = nullptr;
+    int m_numSamples = 0;
+    int m_sampleRate = 22050;
+    int m_numChannels = 1;
 };
 
 class PreviewPanel : public QWidget {
