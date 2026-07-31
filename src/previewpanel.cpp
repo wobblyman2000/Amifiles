@@ -912,6 +912,9 @@ bool FullscreenWidget::eventFilter(QObject* watched, QEvent* event) {
     if (m_activeMenu && event->type() == QEvent::KeyPress) {
         if (watched == m_activeMenu || (watched && watched->inherits("QMenu"))) {
             QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
+            if (keyEvent->isAutoRepeat()) {
+                return true;
+            }
             QSettings settings("Amifiles", "Amifiles");
             QKeySequence shortcutMenu(settings.value("shortcuts/player_menu", "C").toString());
             QKeySequence pressed(keyEvent->modifiers() | keyEvent->key());
@@ -987,10 +990,14 @@ void FullscreenWidget::keyPressEvent(QKeyEvent* event) {
         emit prevRequested();
         event->accept();
     } else if (pressed == shortcutMenu || event->key() == Qt::Key_Menu) {
-        QPoint center = rect().center();
-        QContextMenuEvent contextEvent(QContextMenuEvent::Keyboard, center, mapToGlobal(center));
-        contextMenuEvent(&contextEvent);
         event->accept();
+        if (!event->isAutoRepeat()) {
+            QTimer::singleShot(0, this, [this]() {
+                QPoint center = rect().center();
+                QContextMenuEvent contextEvent(QContextMenuEvent::Keyboard, center, mapToGlobal(center));
+                contextMenuEvent(&contextEvent);
+            });
+        }
     } else {
         QWidget::keyPressEvent(event);
     }
