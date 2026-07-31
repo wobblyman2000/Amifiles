@@ -197,6 +197,7 @@ private:
     class QMediaPlayer* m_player = nullptr;
     class QAudioOutput* m_audioOutput = nullptr;
     QString m_currentTrackPath;
+    class QMenu* m_activeMenu = nullptr;
     class QLabel* m_lblCurrentPlaying = nullptr;
     class QLabel* m_lblNextPlaying = nullptr;
     class QLabel* m_lblCurrentArtwork = nullptr;

@@ -909,6 +909,18 @@ bool FullscreenWidget::eventFilter(QObject* watched, QEvent* event) {
     if (event->type() == QEvent::MouseMove) {
         showHud();
     }
+    if (m_activeMenu && event->type() == QEvent::KeyPress) {
+        if (watched == m_activeMenu || (watched && watched->inherits("QMenu"))) {
+            QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
+            QSettings settings("Amifiles", "Amifiles");
+            QKeySequence shortcutMenu(settings.value("shortcuts/player_menu", "C").toString());
+            QKeySequence pressed(keyEvent->modifiers() | keyEvent->key());
+            if (pressed == shortcutMenu || keyEvent->key() == Qt::Key_Menu) {
+                m_activeMenu->close();
+                return true;
+            }
+        }
+    }
     return QWidget::eventFilter(watched, event);
 }
 
@@ -991,6 +1003,8 @@ void FullscreenWidget::mouseDoubleClickEvent(QMouseEvent* event) {
 
 void FullscreenWidget::contextMenuEvent(QContextMenuEvent* event) {
     QMenu menu(this);
+    m_activeMenu = &menu;
+    menu.installEventFilter(this);
     menu.setStyleSheet(
         "QMenu { background-color: #1e1e2e; color: #cdd6f4; border: 1px solid #45475a; border-radius: 6px; padding: 4px; }"
         "QMenu::item { padding: 6px 20px 6px 20px; border-radius: 4px; }"
@@ -1028,13 +1042,25 @@ void FullscreenWidget::contextMenuEvent(QContextMenuEvent* event) {
     QAction* actPrev = menu.addAction("Previous Track (P/B)");
     QAction* actNext = menu.addAction("Next Track (N)");
     
+    QAction* actPrevChapter = nullptr;
+    QAction* actNextChapter = nullptr;
+    QList<ScrubSlider::Chapter> chapters;
+    if (m_sliderProgress) {
+        chapters = m_sliderProgress->chapters();
+        if (!chapters.isEmpty()) {
+            menu.addSeparator();
+            actPrevChapter = menu.addAction("⏮ Jump to Previous Chapter");
+            actNextChapter = menu.addAction("⏭ Jump to Next Chapter");
+        }
+    }
+
     QMenu* submenuChapters = nullptr;
     if (m_sliderProgress) {
-        QList<ScrubSlider::Chapter> chapters = m_sliderProgress->chapters();
         if (!chapters.isEmpty()) {
             menu.addSeparator();
             submenuChapters = menu.addMenu("📖 Chapters");
             submenuChapters->setStyleSheet(menu.styleSheet());
+            submenuChapters->installEventFilter(this);
             for (const auto& ch : chapters) {
                 qint64 secs = ch.startMs / 1000;
                 qint64 mins = secs / 60;
@@ -1050,6 +1076,8 @@ void FullscreenWidget::contextMenuEvent(QContextMenuEvent* event) {
     }
     
     QAction* selected = menu.exec(event->globalPos());
+    m_activeMenu = nullptr;
+
     if (selected == actExit) {
         emit exitRequested();
     } else if (selected == actResume) {
@@ -1070,6 +1098,37 @@ void FullscreenWidget::contextMenuEvent(QContextMenuEvent* event) {
         emit prevRequested();
     } else if (selected == actNext) {
         emit nextRequested();
+    } else if (selected == actPrevChapter) {
+        if (m_player) {
+            qint64 currentPos = m_player->position();
+            int prevIdx = -1;
+            for (int i = 0; i < chapters.size(); ++i) {
+                if (chapters[i].startMs < currentPos - 2000) {
+                    prevIdx = i;
+                } else {
+                    break;
+                }
+            }
+            if (prevIdx != -1) {
+                m_player->setPosition(chapters[prevIdx].startMs);
+            } else {
+                m_player->setPosition(0);
+            }
+        }
+    } else if (selected == actNextChapter) {
+        if (m_player) {
+            qint64 currentPos = m_player->position();
+            int nextIdx = -1;
+            for (int i = 0; i < chapters.size(); ++i) {
+                if (chapters[i].startMs > currentPos + 1000) {
+                    nextIdx = i;
+                    break;
+                }
+            }
+            if (nextIdx != -1) {
+                m_player->setPosition(chapters[nextIdx].startMs);
+            }
+        }
     } else if (selected == actAutoQueue) {
         settings.setValue("preview/auto_queue_sibling_files", actAutoQueue->isChecked());
         PreviewPanel* pPanel = qobject_cast<PreviewPanel*>(parentWidget());
