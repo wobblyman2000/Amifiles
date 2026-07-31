@@ -16,7 +16,18 @@ ArchiveModel::ArchiveModel(QObject* parent)
     m_currentVirtualPath = "";
 }
 
+ArchiveModel::~ArchiveModel() {
+    for (const QString& tempPath : m_tempAdfPaths.values()) {
+        QFile::remove(tempPath);
+    }
+}
+
 bool ArchiveModel::loadArchive(const QString& archivePath) {
+    for (const QString& tempPath : m_tempAdfPaths.values()) {
+        QFile::remove(tempPath);
+    }
+    m_tempAdfPaths.clear();
+
     beginResetModel();
     m_archivePath = archivePath;
     m_currentVirtualPath = "";
@@ -54,7 +65,7 @@ bool ArchiveModel::loadArchive(const QString& archivePath) {
         if (proc.waitForFinished() && proc.exitCode() == 0) {
             parse7z(QString::fromUtf8(proc.readAllStandardOutput()));
         }
-    } else if (ext == "d64") {
+    } else if (ext == "d64" || ext == "d71" || ext == "d81" || ext == "g64") {
         proc.start("c1541", { "-attach", archivePath, "-list" });
         if (proc.waitForFinished() && proc.exitCode() == 0) {
             parseD64(QString::fromUtf8(proc.readAllStandardOutput()));
@@ -63,6 +74,22 @@ bool ArchiveModel::loadArchive(const QString& archivePath) {
         proc.start("xdftool", { archivePath, "list" });
         if (proc.waitForFinished() && proc.exitCode() == 0) {
             parseAdf(QString::fromUtf8(proc.readAllStandardOutput()));
+        }
+    } else if (ext == "adz") {
+        QString hash = QString::number(qHash(archivePath), 16);
+        QString tempAdfPath = QString("/tmp/amifiles_adz_%1.adf").arg(hash);
+        
+        QProcess zcatProc;
+        zcatProc.setStandardOutputFile(tempAdfPath);
+        zcatProc.start("gzip", { "-dc", archivePath });
+        if (zcatProc.waitForFinished() && zcatProc.exitCode() == 0) {
+            proc.start("xdftool", { tempAdfPath, "list" });
+            if (proc.waitForFinished() && proc.exitCode() == 0) {
+                parseAdf(QString::fromUtf8(proc.readAllStandardOutput()));
+                m_tempAdfPaths[archivePath] = tempAdfPath;
+            } else {
+                QFile::remove(tempAdfPath);
+            }
         }
     }
 
@@ -464,17 +491,25 @@ bool ArchiveModel::extractFileToPath(const QString& virtualFilePath, const QStri
     QProcess proc;
     QDir().mkpath(QFileInfo(localDestPath).absolutePath());
 
-    if (m_archivePath.endsWith(".d64", Qt::CaseInsensitive)) {
+    QString ext = QFileInfo(m_archivePath).suffix().toLower();
+    if (ext == "d64" || ext == "d71" || ext == "d81" || ext == "g64") {
         proc.start("c1541", { "-attach", m_archivePath, "-read", virtualFilePath, localDestPath });
-    } else if (m_archivePath.endsWith(".adf", Qt::CaseInsensitive)) {
+    } else if (ext == "adf") {
         proc.start("xdftool", { m_archivePath, "read", virtualFilePath, localDestPath });
+    } else if (ext == "adz") {
+        QString tempAdf = m_tempAdfPaths.value(m_archivePath);
+        if (!tempAdf.isEmpty() && QFile::exists(tempAdf)) {
+            proc.start("xdftool", { tempAdf, "read", virtualFilePath, localDestPath });
+        } else {
+            return false;
+        }
     } else {
         proc.setStandardOutputFile(localDestPath);
-        if (m_archivePath.endsWith(".zip", Qt::CaseInsensitive)) {
+        if (ext == "zip") {
             proc.start("unzip", { "-p", m_archivePath, virtualFilePath });
-        } else if (m_archivePath.endsWith(".rar", Qt::CaseInsensitive)) {
+        } else if (ext == "rar") {
             proc.start("unrar", { "p", "-inul", m_archivePath, virtualFilePath });
-        } else if (m_archivePath.endsWith(".7z", Qt::CaseInsensitive) || m_archivePath.endsWith(".iso", Qt::CaseInsensitive) || m_archivePath.endsWith(".img", Qt::CaseInsensitive)) {
+        } else if (ext == "7z" || ext == "iso" || ext == "img") {
             proc.start("7z", { "x", m_archivePath, virtualFilePath, "-so" });
         } else {
             proc.start("tar", { "-xOf", m_archivePath, virtualFilePath });

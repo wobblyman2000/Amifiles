@@ -47,6 +47,7 @@ void RemoteMountDialog::setupUI() {
     m_listAddresses->setFocusPolicy(Qt::NoFocus);
     m_listAddresses->setMinimumWidth(220);
     connect(m_listAddresses, &QListWidget::currentRowChanged, this, &RemoteMountDialog::onAddressSelected);
+    connect(m_listAddresses, &QListWidget::itemDoubleClicked, this, &RemoteMountDialog::onMount);
     leftCol->addWidget(m_listAddresses, 1);
 
     m_btnSaveAddress = new QPushButton("Save Bookmark", this);
@@ -181,14 +182,10 @@ void RemoteMountDialog::onMount() {
     else protocol = "smb";
 
     // Build GVFS connection URL
-    // Format: protocol://[user[:password]@]host[:port]/path
+    // Format: protocol://[user@]host[:port]/path
     QString url = protocol + "://";
     if (!user.isEmpty()) {
-        url += user;
-        if (!pass.isEmpty()) {
-            url += ":" + pass;
-        }
-        url += "@";
+        url += user + "@";
     }
     url += host;
     if (typeIndex != 2) { // GVFS handles SMB ports differently or defaults are fine
@@ -203,6 +200,10 @@ void RemoteMountDialog::onMount() {
     QProcess proc;
     proc.start("gio", {"mount", url});
     
+    // Pass the password through stdin (this handles interactive prompts securely without blocking)
+    proc.write(pass.toUtf8() + "\n");
+    proc.closeWriteChannel();
+
     // Provide a visual loading cursor
     QApplication::setOverrideCursor(Qt::WaitCursor);
     
@@ -214,7 +215,17 @@ void RemoteMountDialog::onMount() {
 
     QApplication::restoreOverrideCursor();
 
-    if (proc.exitCode() == 0) {
+    bool isSuccess = (proc.exitCode() == 0);
+    QString errMsg = proc.readAllStandardError();
+    if (errMsg.isEmpty()) errMsg = proc.readAllStandardOutput();
+
+    bool alreadyMounted = false;
+    if (!isSuccess && errMsg.contains("already mounted", Qt::CaseInsensitive)) {
+        isSuccess = true;
+        alreadyMounted = true;
+    }
+
+    if (isSuccess) {
         // Find gvfs mount directory
         QString runtimeDir = qgetenv("XDG_RUNTIME_DIR");
         if (runtimeDir.isEmpty()) {
@@ -236,6 +247,17 @@ void RemoteMountDialog::onMount() {
         }
 
         if (!mountedPath.isEmpty()) {
+            // Append remote subfolder path if specified to support pointing to different folders/devices on same host
+            if (!path.isEmpty() && path != "/") {
+                QString subPath = path;
+                if (subPath.startsWith("/")) {
+                    subPath = subPath.mid(1);
+                }
+                if (!subPath.isEmpty()) {
+                    mountedPath = QDir(mountedPath).filePath(subPath);
+                }
+            }
+
             QSettings settings("Amifiles", "Amifiles");
             settings.beginGroup("RemoteMounts");
             settings.setValue(label, mountedPath);
@@ -243,15 +265,16 @@ void RemoteMountDialog::onMount() {
 
             RemoteMountManager::addActiveMount(label, mountedPath, protocol.toUpper());
 
-            QMessageBox::information(this, "Success", QString("Remote share mounted successfully at: %1").arg(mountedPath));
+            m_mountedPath = mountedPath;
+            if (!alreadyMounted) {
+                QMessageBox::information(this, "Success", QString("Remote share mounted successfully at: %1").arg(mountedPath));
+            }
             accept();
         } else {
             QMessageBox::warning(this, "Mounted", "Remote share mounted, but mount folder could not be located in GVFS.");
             reject();
         }
     } else {
-        QString errMsg = proc.readAllStandardError();
-        if (errMsg.isEmpty()) errMsg = proc.readAllStandardOutput();
         QMessageBox::critical(this, "Mount Failed", "Error mounting share: " + errMsg);
     }
 }

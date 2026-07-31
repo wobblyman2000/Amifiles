@@ -212,8 +212,27 @@ static void extractNfoInfo(const QString& nfoPath, FileMetadata& meta) {
     }
 }
 
+static bool isRemotePath(const QString& path) {
+    if (path.startsWith("/run/user/") && path.contains("/gvfs/")) {
+        return true;
+    }
+    QString home = QDir::homePath();
+    if (path.startsWith(home + "/CloudMounts/")) {
+        return true;
+    }
+    return false;
+}
+
 FileMetadata MetadataExtractor::extract(const QString& filePath) {
     FileMetadata meta;
+    meta.path = filePath;
+    meta.name = QFileInfo(filePath).fileName();
+    meta.extension = QFileInfo(filePath).suffix().toLower();
+
+    if (isRemotePath(filePath)) {
+        return meta;
+    }
+
     extractBasic(filePath, meta);
 
     QFileInfo info(filePath);

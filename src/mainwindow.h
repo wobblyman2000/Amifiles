@@ -175,6 +175,7 @@ public:
     static FolderLayoutRule jsonToRule(const QJsonObject& obj);
     ~MainWindow() override;
     void navigateToPathAndSelect(const QString& filePath);
+    void updateDrivesList();
 
 signals:
     void builtinPlayerDoubleclickChanged(bool active);
@@ -244,7 +245,6 @@ private slots:
     void updateMiniPlayer();
 
     // Drive navigation slots
-    void updateDrivesList();
     void onToggleDrivesMenu(bool checked);
     void onToggleDrivesToolbar(bool checked);
     void onDrivesToolbarContextMenu(const QPoint& pos);
@@ -289,6 +289,7 @@ private slots:
     void onSecureShred();
     void onRemoteMount();
     void onCloudMount();
+    void onCreateVhd();
     void onImageConvert();
     void onConfigureDynamicBookmarks();
     void onImportCustomButtons();
@@ -379,7 +380,8 @@ private:
     QFrame* m_tbCenterOps = nullptr;
     QFrame* m_tbCenterOpsSeparator = nullptr;
     QAction* m_actToggleCenterOps = nullptr;
-    MiniMediaControls* m_miniMediaControls = nullptr;
+    class QSystemTrayIcon* m_trayIcon = nullptr;
+    QMenu* m_trayMenu = nullptr;
     class QMediaPlayer* m_themePlayer = nullptr;
     class QAudioOutput* m_themeAudioOutput = nullptr;
     void updateThemeMusic();
@@ -410,6 +412,18 @@ private:
     QMenu* m_menuHelp = nullptr;
     QMenu* m_menuSearch = nullptr;
     QMenu* m_menuSearchPresets = nullptr;
+    QMenu* m_menuPlayback = nullptr;
+    QAction* m_actPlaybackNowPlaying = nullptr;
+    QAction* m_actPlaybackPlayPause = nullptr;
+    QAction* m_actPlaybackStop = nullptr;
+    QAction* m_actPlaybackNext = nullptr;
+    QAction* m_actPlaybackPrev = nullptr;
+    QAction* m_actPlaybackShuffle = nullptr;
+    QAction* m_actPlaybackRepeat = nullptr;
+    QAction* m_actPlayFolder = nullptr;
+    QAction* m_actQueueFolder = nullptr;
+    QAction* m_actPlayQueue = nullptr;
+    QAction* m_actPlayCollection = nullptr;
 
     // Actions (wired to toolbar & menu items)
     QAction* m_actCopy = nullptr;
@@ -489,6 +503,7 @@ private:
     QAction* m_actSecureShred = nullptr;
     QAction* m_actRemoteMount = nullptr;
     QAction* m_actCloudMount = nullptr;
+    QAction* m_actCreateVhd = nullptr;
     QAction* m_actImageConvert = nullptr;
     QAction* m_actProcessManager = nullptr;
     QAction* m_actEncryptVault = nullptr;

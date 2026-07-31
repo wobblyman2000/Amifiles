@@ -4,6 +4,7 @@
 #include <QJsonObject>
 #include <QJsonDocument>
 #include "mainwindow.h"
+#include "remotemountmanager.h"
 #include <QDebug>
 #include "theme.h"
 #include "favoritesmanager.h"
@@ -1584,30 +1585,8 @@ bool FilePanel::eventFilter(QObject* watched, QEvent* event) {
                 }
                 
                 if (pressed == shortcutPlayCollection) {
-                    QStringList curSelected = selectedPaths();
-                    QString selectedPath = curSelected.isEmpty() ? "" : curSelected.first();
-                    if (!selectedPath.isEmpty()) {
-                        QFileInfo info(selectedPath);
-                        QStringList playlistPaths;
-                        int vm = viewModeIndex();
-                        int filter = 0;
-                        if (vm == 6 || vm == 10) filter = 1;
-                        else if (vm == 7 || vm == 8 || vm == 9) filter = 2;
-                        
-                        if (info.isDir()) {
-                            scanMediaFilesRecursively(selectedPath, playlistPaths, filter);
-                        } else {
-                            playlistPaths.append(selectedPath);
-                        }
-                        if (!playlistPaths.isEmpty()) {
-                            if (vm == 8 || vm == 9 || vm == 10) {
-                                emit playMediaFullscreenRequested(playlistPaths);
-                            } else {
-                                emit playMediaBuiltinRequested(playlistPaths);
-                            }
-                        }
-                        return true;
-                    }
+                    playCollection();
+                    return true;
                 }
                 if (pressed == shortcutInfoSheet) {
                     QStringList curSelected = selectedPaths();
@@ -2067,12 +2046,36 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
         }
     }
 
-    QDir dir(path);
-    if (!dir.exists()) {
-        return;
+    QString cleanPath = path;
+    // Skip blocking exists() check for remote/network paths
+    bool isRemote = false;
+    if (path.startsWith("/run/user/") && path.contains("/gvfs/")) {
+        isRemote = true;
+    } else if (path.contains("CloudMounts") || path.startsWith(QDir::homePath() + "/CloudMounts")) {
+        isRemote = true;
+    } else if (path.startsWith("ftp://") || path.startsWith("sftp://") || path.startsWith("smb://")) {
+        isRemote = true;
     }
 
-    m_currentPath = dir.absolutePath();
+    if (isRemote) {
+        if (cleanPath.startsWith("/")) {
+            // Run a non-blocking responsiveness check on the remote share
+            QProcess checkProc;
+            checkProc.start("timeout", {"1s", "ls", "-d", cleanPath});
+            if (!checkProc.waitForFinished(1200) || checkProc.exitCode() != 0) {
+                QMessageBox::warning(this, "Remote Connection", "The remote share is not responding. Please verify that the server is online.");
+                return;
+            }
+        }
+    } else {
+        QDir dir(path);
+        if (!dir.exists()) {
+            return;
+        }
+        cleanPath = dir.absolutePath();
+    }
+
+    m_currentPath = cleanPath;
     m_pathEdit->setText(QDir::toNativeSeparators(m_currentPath));
 
     // Sticky filters logic on folder navigation
@@ -2111,6 +2114,27 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
         if (m_coverFlowView) m_coverFlowView->setRootIndex(QModelIndex());
     } else {
         m_proxyModel->setCurrentPath(m_currentPath);
+
+        // Optimize remote directory listing to prevent blocking and slow file/symlink resolution
+        auto isRemotePath = [](const QString& p) {
+            if (p.startsWith("/run/user/") && p.contains("/gvfs/")) {
+                return true;
+            }
+            QString home = QDir::homePath();
+            if (p.startsWith(home + "/CloudMounts/")) {
+                return true;
+            }
+            return false;
+        };
+
+        if (isRemotePath(m_currentPath)) {
+            m_fileModel->setOption(QFileSystemModel::DontWatchForChanges, true);
+            m_fileModel->setResolveSymlinks(false);
+        } else {
+            m_fileModel->setOption(QFileSystemModel::DontWatchForChanges, false);
+            m_fileModel->setResolveSymlinks(true);
+        }
+
         QModelIndex srcIndex = m_fileModel->setRootPath(m_currentPath);
         QModelIndex proxyIndex = m_proxyModel->mapFromSource(srcIndex);
         if (m_groupProxy && m_groupProxy->isGroupingActive()) {
@@ -3631,14 +3655,37 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     QAction* actCalculateChecksum = nullptr;
     QAction* actSecureShred = nullptr;
     QAction* actImageConvert = nullptr;
+    QAction* actMountIso = nullptr;
+    QAction* actUnmountIso = nullptr;
+    QAction* actMountVhd = nullptr;
+    QAction* actUnmountVhd = nullptr;
 
     if (!isTheater) {
         menu.addSeparator();
         if (index.isValid()) {
-            if (QFileInfo(selectedPath).suffix().toLower() == "vault") {
+            QString selectedExt = QFileInfo(selectedPath).suffix().toLower();
+            if (selectedExt == "vault") {
                 actDecryptVault = menu.addAction("Decrypt Secure Vault...");
             } else {
                 actEncryptVault = menu.addAction("Encrypt into Secure Vault...");
+            }
+
+            if (selectedExt == "iso") {
+                QString dummy;
+                if (RemoteMountManager::isIsoMounted(selectedPath, dummy)) {
+                    actUnmountIso = menu.addAction(style->standardIcon(QStyle::SP_DriveCDIcon), "Unmount ISO Virtual Drive");
+                } else {
+                    actMountIso = menu.addAction(style->standardIcon(QStyle::SP_DriveCDIcon), "Mount ISO as Virtual Drive");
+                }
+            }
+
+            if (selectedExt == "vhd" || selectedExt == "vhdx") {
+                QString dummy;
+                if (RemoteMountManager::isVhdMounted(selectedPath, dummy)) {
+                    actUnmountVhd = menu.addAction(style->standardIcon(QStyle::SP_DriveHDIcon), "Unmount VHD Virtual Drive");
+                } else {
+                    actMountVhd = menu.addAction(style->standardIcon(QStyle::SP_DriveHDIcon), "Mount VHD as Virtual Drive");
+                }
             }
         }
 
@@ -4179,6 +4226,66 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
                 refresh();
                 if (m_siblingPanel) m_siblingPanel->refresh();
             });
+        }
+    } else if (selected == actMountIso) {
+        QString errorMsg, mountPath;
+        if (RemoteMountManager::mountIso(selectedPath, errorMsg, mountPath)) {
+            QMessageBox::information(this, "Mount ISO", QString("ISO mounted successfully at:\n%1").arg(mountPath));
+            QWidget* parentW = parentWidget();
+            while (parentW && !parentW->inherits("MainWindow")) {
+                parentW = parentW->parentWidget();
+            }
+            if (MainWindow* mw = qobject_cast<MainWindow*>(parentW)) {
+                mw->updateDrivesList();
+            }
+            refresh();
+        } else {
+            QMessageBox::critical(this, "Mount ISO Error", QString("Failed to mount ISO:\n%1").arg(errorMsg));
+        }
+    } else if (selected == actUnmountIso) {
+        QString errorMsg;
+        if (RemoteMountManager::unmountIso(selectedPath, errorMsg)) {
+            QMessageBox::information(this, "Unmount ISO", "ISO unmounted successfully.");
+            QWidget* parentW = parentWidget();
+            while (parentW && !parentW->inherits("MainWindow")) {
+                parentW = parentW->parentWidget();
+            }
+            if (MainWindow* mw = qobject_cast<MainWindow*>(parentW)) {
+                mw->updateDrivesList();
+            }
+            refresh();
+        } else {
+            QMessageBox::critical(this, "Unmount ISO Error", QString("Failed to unmount ISO:\n%1").arg(errorMsg));
+        }
+    } else if (selected == actMountVhd) {
+        QString errorMsg, mountPath;
+        if (RemoteMountManager::mountVhd(selectedPath, errorMsg, mountPath)) {
+            QMessageBox::information(this, "Mount VHD", QString("VHD mounted successfully at:\n%1").arg(mountPath));
+            QWidget* parentW = parentWidget();
+            while (parentW && !parentW->inherits("MainWindow")) {
+                parentW = parentW->parentWidget();
+            }
+            if (MainWindow* mw = qobject_cast<MainWindow*>(parentW)) {
+                mw->updateDrivesList();
+            }
+            refresh();
+        } else {
+            QMessageBox::critical(this, "Mount VHD Error", QString("Failed to mount VHD:\n%1").arg(errorMsg));
+        }
+    } else if (selected == actUnmountVhd) {
+        QString errorMsg;
+        if (RemoteMountManager::unmountVhd(selectedPath, errorMsg)) {
+            QMessageBox::information(this, "Unmount VHD", "VHD unmounted successfully.");
+            QWidget* parentW = parentWidget();
+            while (parentW && !parentW->inherits("MainWindow")) {
+                parentW = parentW->parentWidget();
+            }
+            if (MainWindow* mw = qobject_cast<MainWindow*>(parentW)) {
+                mw->updateDrivesList();
+            }
+            refresh();
+        } else {
+            QMessageBox::critical(this, "Unmount VHD Error", QString("Failed to unmount VHD:\n%1").arg(errorMsg));
         }
     } else if (selected == actCalculateChecksum) {
         ChecksumDialog dlg(selectedPath, this);
@@ -5889,7 +5996,16 @@ void FilePanel::onSearchContextMenu(const QPoint& pos) {
     } else if (selected == actCopyToSibling) {
         if (m_siblingPanel) {
             QString siblingPath = m_siblingPanel->currentPath();
-            if (!siblingPath.isEmpty() && QDir(siblingPath).exists()) {
+            bool isRemote = false;
+            if (siblingPath.startsWith("/run/user/") && siblingPath.contains("/gvfs/")) {
+                isRemote = true;
+            } else if (siblingPath.contains("CloudMounts") || siblingPath.startsWith(QDir::homePath() + "/CloudMounts")) {
+                isRemote = true;
+            } else if (siblingPath.startsWith("ftp://") || siblingPath.startsWith("sftp://") || siblingPath.startsWith("smb://")) {
+                isRemote = true;
+            }
+
+            if (!siblingPath.isEmpty() && (isRemote || QDir(siblingPath).exists())) {
                 for (const QString& f : selectedFiles) {
                     QFileInfo fi(f);
                     QString destPath = QDir(siblingPath).filePath(fi.fileName());
@@ -5901,7 +6017,16 @@ void FilePanel::onSearchContextMenu(const QPoint& pos) {
     } else if (selected == actMoveToSibling) {
         if (m_siblingPanel) {
             QString siblingPath = m_siblingPanel->currentPath();
-            if (!siblingPath.isEmpty() && QDir(siblingPath).exists()) {
+            bool isRemote = false;
+            if (siblingPath.startsWith("/run/user/") && siblingPath.contains("/gvfs/")) {
+                isRemote = true;
+            } else if (siblingPath.contains("CloudMounts") || siblingPath.startsWith(QDir::homePath() + "/CloudMounts")) {
+                isRemote = true;
+            } else if (siblingPath.startsWith("ftp://") || siblingPath.startsWith("sftp://") || siblingPath.startsWith("smb://")) {
+                isRemote = true;
+            }
+
+            if (!siblingPath.isEmpty() && (isRemote || QDir(siblingPath).exists())) {
                 for (const QString& f : selectedFiles) {
                     QFileInfo fi(f);
                     QString destPath = QDir(siblingPath).filePath(fi.fileName());
@@ -6368,7 +6493,7 @@ void FilePanel::onDoubleClickedPath(const QString& path) {
         }
 
         bool archiveNavEnabled = settings.value("preferences/archive_nav", true).toBool();
-        QStringList archiveExts = { "zip", "tar", "gz", "xz", "bz2", "tgz", "rar", "7z", "adf", "d64", "iso", "img" };
+        QStringList archiveExts = { "zip", "tar", "gz", "xz", "bz2", "tgz", "rar", "7z", "adf", "adz", "d64", "d71", "d81", "g64", "iso", "img" };
 
         if (archiveNavEnabled && archiveExts.contains(ext)) {
             m_statusLabel->setText("Loading archive...");
@@ -7312,8 +7437,22 @@ void FilePanel::focusFirstItemInActiveView() {
                     connect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
                     onSelectionChanged();
                 }
+            } else {
+                m_theaterListView->setFocus();
             }
         }
+    } else if (activeView == m_listView) {
+        m_listView->setFocus();
+    } else if (activeView == m_treeView) {
+        m_treeView->setFocus();
+    } else if (activeView == m_coverFlowView) {
+        m_coverFlowView->setFocus();
+    } else if (activeView == m_millerView) {
+        m_millerView->setFocus();
+    } else if (activeView == m_timelineView) {
+        m_timelineView->setFocus();
+    } else if (activeView == m_filmstripView) {
+        m_filmstripView->setFocus();
     }
 }
 
@@ -7524,4 +7663,431 @@ QIcon FilePanel::getTrackArtworkIcon(const QString& trackPath) {
     QIcon fallbackIcon = QIcon::fromTheme("audio-x-generic");
     trackArtCache[trackPath] = fallbackIcon;
     return fallbackIcon;
+}
+
+// ==========================================
+// AudioVisualizerWidget Implementation
+// ==========================================
+
+#include <complex>
+#include <vector>
+#include <cmath>
+#include <QCoreApplication>
+#include <QFileInfo>
+#include <QProcess>
+#include <QDir>
+#include <QMediaPlayer>
+#include "mainwindow.h"
+#include "previewpanel.h"
+
+static void fft_iterative_panel(std::vector<std::complex<double>>& a) {
+    int n = a.size();
+    for (int i = 1, j = 0; i < n; i++) {
+        int bit = n >> 1;
+        for (; j & bit; bit >>= 1)
+            j ^= bit;
+        j ^= bit;
+        if (i < j)
+            std::swap(a[i], a[j]);
+    }
+    for (int len = 2; len <= n; len <<= 1) {
+        double angle = -2.0 * 3.14159265358979323846 / len;
+        std::complex<double> wlen(std::cos(angle), std::sin(angle));
+        for (int i = 0; i < n; i += len) {
+            std::complex<double> w(1);
+            for (int j = 0; j < len / 2; j++) {
+                std::complex<double> u = a[i + j];
+                std::complex<double> v = a[i + j + len / 2] * w;
+                a[i + j] = u + v;
+                a[i + j + len / 2] = u - v;
+                w *= wlen;
+            }
+        }
+    }
+}
+
+AudioVisualizerWidget::AudioVisualizerWidget(QWidget* parent) : QWidget(parent) {
+    setMinimumSize(130, 60);
+    
+    QSettings settings("Amifiles", "Amifiles");
+    m_style = static_cast<Style>(settings.value("preview/visualizer_style", VerticalBars).toInt());
+    
+    m_timer = new QTimer(this);
+    connect(m_timer, &QTimer::timeout, this, &AudioVisualizerWidget::onAnimate);
+    
+    for (int i = 0; i < 15; ++i) m_heights[i] = 4.0;
+    m_timer->start(30); // 30ms for smooth rendering
+}
+
+AudioVisualizerWidget::~AudioVisualizerWidget() {
+    QString tempPath = QDir::temp().filePath(QString("amifiles_analysis_panel_%1.wav").arg(qApp->applicationPid()));
+    QFile::remove(tempPath);
+}
+
+void AudioVisualizerWidget::setPlaying(bool playing) {
+    m_playing = playing;
+    if (!m_playing) {
+        for (int i = 0; i < 15; ++i) m_heights[i] = 4.0;
+    }
+    update();
+}
+
+void AudioVisualizerWidget::setStyle(Style style) {
+    m_style = style;
+    QSettings settings("Amifiles", "Amifiles");
+    settings.setValue("preview/visualizer_style", static_cast<int>(m_style));
+    update();
+}
+
+void AudioVisualizerWidget::contextMenuEvent(QContextMenuEvent* event) {
+    QMenu menu(this);
+    menu.setStyleSheet("QMenu { background-color: #1e1e2e; color: #cdd6f4; border: 1px solid #313244; } QMenu::item:selected { background-color: #313244; color: #f5c2e7; }");
+    
+    QAction* actBars = menu.addAction("Classic Spectrum Bars");
+    QAction* actCrt = menu.addAction("CRT Oscilloscope");
+    QAction* actLed = menu.addAction("Retro LED Matrix");
+    
+    actBars->setCheckable(true);
+    actCrt->setCheckable(true);
+    actLed->setCheckable(true);
+    
+    if (m_style == VerticalBars) actBars->setChecked(true);
+    else if (m_style == CrtOscilloscope) actCrt->setChecked(true);
+    else if (m_style == LedMatrix) actLed->setChecked(true);
+    
+    QAction* selected = menu.exec(event->globalPos());
+    if (selected == actBars) setStyle(VerticalBars);
+    else if (selected == actCrt) setStyle(CrtOscilloscope);
+    else if (selected == actLed) setStyle(LedMatrix);
+}
+
+void AudioVisualizerWidget::updateAudioPath() {
+    QWidget* p = parentWidget();
+    while (p && !p->inherits("MainWindow")) {
+        p = p->parentWidget();
+    }
+    if (!p) return;
+    
+    MainWindow* mw = qobject_cast<MainWindow*>(p);
+    if (!mw || !mw->previewPanel()) return;
+    
+    QMediaPlayer* player = mw->previewPanel()->player();
+    if (!player) return;
+    
+    QString activePath = player->source().toLocalFile();
+    
+    QString suffix = QFileInfo(activePath).suffix().toLower();
+    if (suffix == "mod" || suffix == "xm" || suffix == "s3m" || suffix == "it" || suffix == "sid") {
+        QString tempWav = QDir::temp().filePath(QString("amifiles_retro_%1.wav").arg(qApp->applicationPid()));
+        if (QFile::exists(tempWav)) {
+            activePath = tempWav;
+        }
+    }
+    
+    if (m_loadedAudioPath != activePath) {
+        m_loadedAudioPath = activePath;
+        m_audioData.clear();
+        m_samples = nullptr;
+        m_numSamples = 0;
+        
+        if (!activePath.isEmpty()) {
+            QFileInfo info(activePath);
+            QString ext = info.suffix().toLower();
+            if (ext == "wav") {
+                loadWavData(activePath);
+            } else {
+                QString tempPath = QDir::temp().filePath(QString("amifiles_analysis_panel_%1.wav").arg(qApp->applicationPid()));
+                QProcess* proc = new QProcess(this);
+                connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this, [this, tempPath, proc](int exitCode, QProcess::ExitStatus exitStatus) {
+                    if (exitStatus == QProcess::NormalExit && exitCode == 0) {
+                        loadWavData(tempPath);
+                    }
+                    proc->deleteLater();
+                });
+                proc->start("ffmpeg", QStringList() << "-y" << "-i" << activePath 
+                                                    << "-map_metadata" << "-1" 
+                                                    << "-ac" << "1" 
+                                                    << "-ar" << "22050" 
+                                                    << "-acodec" << "pcm_s16le" 
+                                                    << tempPath);
+            }
+        }
+    }
+}
+
+void AudioVisualizerWidget::loadWavData(const QString& wavPath) {
+    QFile file(wavPath);
+    if (!file.open(QIODevice::ReadOnly)) return;
+    m_audioData = file.readAll();
+    file.close();
+
+    if (m_audioData.size() < 44) return;
+    if (m_audioData.mid(0, 4) != "RIFF" || m_audioData.mid(8, 4) != "WAVE") return;
+
+    int pos = 12;
+    int dataOffset = -1;
+    int dataSize = 0;
+    int sampleRate = 22050;
+    int numChannels = 1;
+
+    while (pos + 8 <= m_audioData.size()) {
+        QByteArray chunkId = m_audioData.mid(pos, 4);
+        int chunkSize = *reinterpret_cast<const int*>(m_audioData.constData() + pos + 4);
+        if (chunkId == "fmt ") {
+            if (chunkSize >= 16) {
+                numChannels = *reinterpret_cast<const int16_t*>(m_audioData.constData() + pos + 8 + 2);
+                sampleRate = *reinterpret_cast<const int*>(m_audioData.constData() + pos + 8 + 4);
+            }
+        } else if (chunkId == "data") {
+            dataOffset = pos + 8;
+            dataSize = chunkSize;
+            break;
+        }
+        pos += 8 + chunkSize;
+    }
+
+    if (dataOffset != -1 && dataOffset + dataSize <= m_audioData.size()) {
+        m_samples = reinterpret_cast<const int16_t*>(m_audioData.constData() + dataOffset);
+        m_numSamples = dataSize / 2;
+        m_sampleRate = sampleRate;
+        m_numChannels = numChannels;
+    }
+}
+
+void AudioVisualizerWidget::onAnimate() {
+    updateAudioPath();
+    
+    QWidget* p = parentWidget();
+    while (p && !p->inherits("MainWindow")) {
+        p = p->parentWidget();
+    }
+    QMediaPlayer* player = nullptr;
+    if (p) {
+        MainWindow* mw = qobject_cast<MainWindow*>(p);
+        if (mw && mw->previewPanel()) {
+            player = mw->previewPanel()->player();
+        }
+    }
+    
+    m_playing = player && (player->playbackState() == QMediaPlayer::PlayingState);
+    qint64 positionMs = player ? player->position() : 0;
+    int sampleIndex = static_cast<int>((positionMs / 1000.0) * m_sampleRate);
+    
+    if (m_style == VerticalBars || m_style == LedMatrix) {
+        int fftSize = 512;
+        std::vector<std::complex<double>> fftInput(fftSize, 0.0);
+
+        if (m_playing && m_samples && m_numSamples > 0) {
+            int start = sampleIndex - fftSize / 2;
+            for (int i = 0; i < fftSize; ++i) {
+                int idx = (start + i) * m_numChannels;
+                if (idx >= 0 && idx < m_numSamples) {
+                    double window = 0.5 * (1.0 - std::cos(2.0 * 3.14159265358979323846 * i / (fftSize - 1)));
+                    double sampleVal = m_samples[idx] / 32768.0;
+                    fftInput[i] = sampleVal * window;
+                } else {
+                    fftInput[i] = 0.0;
+                }
+            }
+        }
+
+        fft_iterative_panel(fftInput);
+
+        std::vector<double> magnitudes(fftSize / 2, 0.0);
+        for (int i = 0; i < fftSize / 2; ++i) {
+            magnitudes[i] = std::abs(fftInput[i]);
+        }
+
+        int numBars = 15;
+        double startFreq = 20.0;
+        double endFreq = 8000.0;
+
+        for (int b = 0; b < numBars; ++b) {
+            double target = 0.0;
+            if (m_playing) {
+                double fStart = startFreq * std::pow(endFreq / startFreq, static_cast<double>(b) / numBars);
+                double fEnd = startFreq * std::pow(endFreq / startFreq, static_cast<double>(b + 1) / numBars);
+
+                int binStart = qBound(0, static_cast<int>(fStart * fftSize / m_sampleRate), fftSize / 2 - 1);
+                int binEnd = qBound(binStart + 1, static_cast<int>(fEnd * fftSize / m_sampleRate), fftSize / 2);
+
+                double sum = 0.0;
+                for (int i = binStart; i < binEnd; ++i) {
+                    sum += magnitudes[i];
+                }
+                double avg = sum / (binEnd - binStart);
+
+                // Adjust gain factor for visual appeal and screen height
+                double heightVal = avg * (height() - 8.0) * 3.0;
+                if (heightVal > height() - 8.0) heightVal = height() - 8.0;
+                if (heightVal < 2.0) heightVal = 2.0;
+                target = heightVal;
+            } else {
+                target = 2.0;
+            }
+            m_heights[b] = m_heights[b] * 0.6 + target * 0.4;
+        }
+    } else {
+        m_phase += 0.25;
+    }
+    
+    update();
+}
+
+void AudioVisualizerWidget::paintEvent(QPaintEvent* event) {
+    Q_UNUSED(event);
+    QPainter p(this);
+    p.setRenderHint(QPainter::Antialiasing);
+    
+    int w = width();
+    int h = height();
+    
+    if (m_style == VerticalBars) {
+        int numBars = 15;
+        double gap = 3.0;
+        double barW = (w - (numBars - 1) * gap) / numBars;
+        
+        QLinearGradient grad(0, h, 0, 0);
+        grad.setColorAt(0.0, QColor("#a6e3a1"));
+        grad.setColorAt(0.6, QColor("#89b4fa"));
+        grad.setColorAt(1.0, QColor("#f5c2e7"));
+        p.setBrush(grad);
+        p.setPen(Qt::NoPen);
+        
+        for (int i = 0; i < numBars; ++i) {
+            double barH = m_heights[i];
+            QRectF barRect(i * (barW + gap), h - barH, barW, barH);
+            p.drawRoundedRect(barRect, 2, 2);
+        }
+    } 
+    else if (m_style == CrtOscilloscope) {
+        int cy = h / 2;
+        p.setBrush(Qt::NoBrush);
+        
+        QPainterPath path;
+        path.moveTo(0, cy);
+        
+        int numPoints = w / 2;
+        if (numPoints < 10) numPoints = 10;
+        
+        QWidget* parent = parentWidget();
+        while (parent && !parent->inherits("MainWindow")) {
+            parent = parent->parentWidget();
+        }
+        QMediaPlayer* player = nullptr;
+        if (parent) {
+            MainWindow* mw = qobject_cast<MainWindow*>(parent);
+            if (mw && mw->previewPanel()) {
+                player = mw->previewPanel()->player();
+            }
+        }
+        
+        qint64 positionMs = player ? player->position() : 0;
+        int sampleIndex = static_cast<int>((positionMs / 1000.0) * m_sampleRate);
+        
+        if (m_playing && m_samples && m_numSamples > 0) {
+            int spacing = 5;
+            for (int i = 0; i < numPoints; ++i) {
+                int x = i * 2;
+                int idx = (sampleIndex + i * spacing) * m_numChannels;
+                double y = cy;
+                if (idx >= 0 && idx < m_numSamples) {
+                    y += (m_samples[idx] / 32768.0) * (h * 0.4);
+                }
+                path.lineTo(x, y);
+            }
+        } else {
+            for (int x = 0; x < w; x += 2) {
+                double t = (double)x / w;
+                double y = cy + qSin(t * 12.0 + m_phase) * 2.0;
+                path.lineTo(x, y);
+            }
+        }
+        
+        QPen penGlow(QColor(166, 227, 161, 70));
+        penGlow.setWidth(6);
+        p.setPen(penGlow);
+        p.drawPath(path);
+        
+        QPen penCore(QColor("#a6e3a1"));
+        penCore.setWidth(2);
+        p.setPen(penCore);
+        p.drawPath(path);
+    }
+    else if (m_style == LedMatrix) {
+        int numBars = 12;
+        double gap = 4.0;
+        double barW = (w - (numBars - 1) * gap) / numBars;
+        int segmentH = 4;
+        int segmentGap = 2;
+        int maxSegments = h / (segmentH + segmentGap);
+        if (maxSegments < 2) maxSegments = 2;
+        
+        p.setPen(Qt::NoPen);
+        
+        for (int i = 0; i < numBars; ++i) {
+            double barH = m_heights[i % 15];
+            int activeSegments = (barH / h) * maxSegments;
+            if (activeSegments < 1 && m_playing) activeSegments = 1;
+            
+            for (int s = 0; s < maxSegments; ++s) {
+                double t = (double)s / maxSegments;
+                QColor col;
+                if (t < 0.6) col = QColor("#a6e3a1");      // Green bottom
+                else if (t < 0.85) col = QColor("#f9e2af"); // Yellow middle
+                else col = QColor("#f38ba8");               // Red peak
+                
+                if (s >= activeSegments) {
+                    col.setAlpha(35); // Dim background LED grid cells
+                }
+                p.setBrush(col);
+                
+                double y = h - (s + 1) * (segmentH + segmentGap);
+                QRectF segRect(i * (barW + gap), y, barW, segmentH);
+                p.drawRect(segRect);
+            }
+        }
+    }
+}
+
+void FilePanel::playCurrentOrSelectedFolder() {
+    QString targetFolder = m_currentPath;
+    
+    QModelIndexList selected = m_treeView->selectionModel()->selectedRows();
+    if (!selected.isEmpty()) {
+        QModelIndex srcIndex = m_proxyModel->mapToSource(selected.first());
+        QFileInfo info = m_fileModel->fileInfo(srcIndex);
+        if (info.isDir()) {
+            targetFolder = info.absoluteFilePath();
+        }
+    }
+    
+    QStringList playlistPaths;
+    scanMediaFilesRecursively(targetFolder, playlistPaths, 0);
+    if (!playlistPaths.isEmpty()) {
+        emit playMediaBuiltinRequested(playlistPaths);
+    }
+}
+
+void FilePanel::queueCurrentOrSelectedFolder() {
+    QString targetFolder = m_currentPath;
+    
+    QModelIndexList selected = m_treeView->selectionModel()->selectedRows();
+    if (!selected.isEmpty()) {
+        QModelIndex srcIndex = m_proxyModel->mapToSource(selected.first());
+        QFileInfo info = m_fileModel->fileInfo(srcIndex);
+        if (info.isDir()) {
+            targetFolder = info.absoluteFilePath();
+        }
+    }
+    
+    QStringList playlistPaths;
+    scanMediaFilesRecursively(targetFolder, playlistPaths, 0);
+    if (!playlistPaths.isEmpty()) {
+        emit queueMediaBuiltinRequested(playlistPaths);
+    }
+}
+
+void FilePanel::playPlaylistQueue() {
+    emit playQueueFullscreenRequested();
 }

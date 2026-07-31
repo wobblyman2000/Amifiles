@@ -7,6 +7,7 @@
 #include <QList>
 #include <QIcon>
 #include <QMimeData>
+#include <QMap>
 
 struct ArchiveFileEntry {
     QString name;
@@ -20,7 +21,7 @@ class ArchiveModel : public QAbstractTableModel {
     Q_OBJECT
 public:
     explicit ArchiveModel(QObject* parent = nullptr);
-    ~ArchiveModel() override = default;
+    ~ArchiveModel() override;
 
     bool loadArchive(const QString& archivePath);
     QString archivePath() const { return m_archivePath; }
@@ -65,6 +66,7 @@ private:
     QString m_currentVirtualPath; // Empty means root
     QList<ArchiveFileEntry> m_allEntries;
     QList<ArchiveFileEntry> m_activeEntries; // Filtered to current subfolder
+    QMap<QString, QString> m_tempAdfPaths;
 };
 
 #endif // ARCHIVEMODEL_H

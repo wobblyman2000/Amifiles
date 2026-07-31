@@ -291,8 +291,12 @@ public slots:
     void onPrevTrack();
     void onNextTrack();
     void onPlayPause();
+    void onStop();
     void onShuffleToggled();
     void onRepeatClicked();
+    
+    bool isShuffleEnabled() const { return m_shuffleEnabled; }
+    int repeatMode() const { return m_repeatMode; }
 
 signals:
     void fileSaved(const QString& filePath);
@@ -321,7 +325,6 @@ private slots:
     void onTextChanged();
     
     // Media Player Slots
-    void onStop();
     void onPositionChanged(qint64 position);
     void onDurationChanged(qint64 duration);
     void onVolumeChanged(int value);
@@ -452,6 +455,7 @@ private:
     QVideoWidget* m_fullscreenVideoWidget = nullptr;
     QLabel* m_fullscreenAudioLabel = nullptr;
     QLabel* m_fullscreenTextLabel = nullptr;
+    SpectrumVisualizerWidget* m_fullscreenVisualizer = nullptr;
 
     QIcon getTrackArtworkIcon(const QString& trackPath);
     void refreshPlaylistUI();

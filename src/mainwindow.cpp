@@ -1,4 +1,6 @@
 #include "mainwindow.h"
+#include <QThread>
+#include <QSystemTrayIcon>
 #include <iostream>
 #include "copyqueue.h"
 #include "theme.h"
@@ -52,11 +54,23 @@
 #include <QDebug>
 #include <QDir>
 #include <QDateTime>
+#include <QTimeZone>
 #include <QRandomGenerator>
 #include <QTimer>
 #include <QProcess>
 #include <QProcessEnvironment>
 #include <QDialog>
+#include <QFormLayout>
+#include <QLineEdit>
+#include <QPushButton>
+#include <QSpinBox>
+#include <QComboBox>
+#include <QCheckBox>
+#include <QFileDialog>
+#include <QDialogButtonBox>
+#include <QProgressDialog>
+#include <QUuid>
+#include <QtEndian>
 #include <QLineEdit>
 #include <QPlainTextEdit>
 #include <QTextEdit>
@@ -73,104 +87,7 @@
 
 #include "custombuttondialog.h"
 
-// Mini player widget designed to sit in status bar when preview pane is toggled off
-class MiniMediaControls : public QWidget {
-    Q_OBJECT
-public:
-    MiniMediaControls(QMediaPlayer* player, QWidget* parent = nullptr) 
-        : QWidget(parent), m_player(player) {
-        
-        QHBoxLayout* layout = new QHBoxLayout(this);
-        layout->setContentsMargins(4, 2, 4, 2);
-        layout->setSpacing(4);
 
-        QStyle* style = QApplication::style();
-
-        m_btnPlayPause = new QToolButton(this);
-        m_btnPlayPause->setIcon(style->standardIcon(QStyle::SP_MediaPlay));
-        m_btnPlayPause->setToolTip("Play/Pause");
-        m_btnPlayPause->setStyleSheet("QToolButton { background-color: transparent; border: none; }");
-        connect(m_btnPlayPause, &QToolButton::clicked, this, &MiniMediaControls::onPlayPause);
-
-        m_btnStop = new QToolButton(this);
-        m_btnStop->setIcon(style->standardIcon(QStyle::SP_MediaStop));
-        m_btnStop->setToolTip("Stop");
-        m_btnStop->setStyleSheet("QToolButton { background-color: transparent; border: none; }");
-        connect(m_btnStop, &QToolButton::clicked, this, &MiniMediaControls::onStop);
-
-        m_lblInfo = new QLabel(this);
-        m_lblInfo->setStyleSheet("color: #a6e3a1; font-size: 11px; font-weight: bold;");
-
-        layout->addWidget(m_btnPlayPause);
-        layout->addWidget(m_btnStop);
-        layout->addWidget(m_lblInfo);
-
-        // Connect player signals to keep controls in sync
-        connect(m_player, &QMediaPlayer::playbackStateChanged, this, &MiniMediaControls::onStateChanged);
-        connect(m_player, &QMediaPlayer::positionChanged, this, &MiniMediaControls::onPositionChanged);
-    }
-
-    void updateTrackInfo(const QString& name, qint64 duration, bool isVideo) {
-        m_trackName = name;
-        m_duration = duration;
-        m_isVideo = isVideo;
-        updateLabel(m_player->position());
-    }
-
-private slots:
-    void onPlayPause() {
-        if (m_player->playbackState() == QMediaPlayer::PlayingState) {
-            m_player->pause();
-        } else {
-            m_player->play();
-        }
-    }
-
-    void onStop() {
-        m_player->stop();
-    }
-
-    void onStateChanged(QMediaPlayer::PlaybackState state) {
-        QStyle* style = QApplication::style();
-        if (state == QMediaPlayer::PlayingState) {
-            m_btnPlayPause->setIcon(style->standardIcon(QStyle::SP_MediaPause));
-        } else {
-            m_btnPlayPause->setIcon(style->standardIcon(QStyle::SP_MediaPlay));
-        }
-    }
-
-    void onPositionChanged(qint64 position) {
-        updateLabel(position);
-    }
-
-private:
-    void updateLabel(qint64 position) {
-        QString prefix = m_isVideo ? "🎥" : "🎵";
-        m_lblInfo->setText(QString("%1 %2 (%3 / %4)")
-                           .arg(prefix)
-                           .arg(m_trackName)
-                           .arg(formatDuration(position))
-                           .arg(formatDuration(m_duration)));
-    }
-
-    QString formatDuration(qint64 ms) const {
-        qint64 totalSec = ms / 1000;
-        qint64 min = totalSec / 60;
-        qint64 sec = totalSec % 60;
-        return QString("%1:%2")
-            .arg(min, 2, 10, QChar('0'))
-            .arg(sec, 2, 10, QChar('0'));
-    }
-
-    QMediaPlayer* m_player = nullptr;
-    QToolButton* m_btnPlayPause = nullptr;
-    QToolButton* m_btnStop = nullptr;
-    QLabel* m_lblInfo = nullptr;
-    
-    QString m_trackName;
-    qint64 m_duration = 0;
-    bool m_isVideo = false;
-};
 
 bool MainWindow::isBuiltinPlayerDoubleclickActive() const {
     if (m_hasActiveFolderRule && (m_activeFolderRule.overrideBuiltinPlayerDoubleclick || m_activeFolderRule.name.toLower() == "default")) {
@@ -491,6 +408,10 @@ void MainWindow::setupCentralWidget() {
         if (m_actTogglePreview && !m_actTogglePreview->isChecked()) {
             m_previewPanel->clearPreview();
         }
+        if (m_activePanel) {
+            m_activePanel->setFocus();
+            m_activePanel->focusFirstItemInActiveView();
+        }
     });
 
     m_previewDock = new QDockWidget("File Preview Panel", this);
@@ -625,9 +546,60 @@ void MainWindow::setupCentralWidget() {
 
     updateSiblingLinks();
 
-    // Initialize mini media controller as a floating overlay HUD
-    m_miniMediaControls = new MiniMediaControls(m_previewPanel->player(), this);
-    m_miniMediaControls->hide();
+    // Initialize system tray icon and menu
+    m_trayIcon = new QSystemTrayIcon(this);
+    m_trayIcon->setIcon(QIcon::fromTheme("audio-x-generic"));
+    
+    m_trayMenu = new QMenu(this);
+    m_trayMenu->setStyleSheet("QMenu { background-color: #1e1e2e; color: #cdd6f4; border: 1px solid #313244; } QMenu::item:selected { background-color: #313244; color: #f5c2e7; }");
+    
+    QAction* actTrayTitle = m_trayMenu->addAction("Now Playing: None");
+    actTrayTitle->setEnabled(false);
+    m_trayMenu->addSeparator();
+    
+    QAction* actTrayPlay = m_trayMenu->addAction("Play / Pause");
+    connect(actTrayPlay, &QAction::triggered, this, [this]() {
+        if (m_previewPanel) m_previewPanel->onPlayPause();
+    });
+    
+    QAction* actTrayStop = m_trayMenu->addAction("Stop");
+    connect(actTrayStop, &QAction::triggered, this, [this]() {
+        if (m_previewPanel) m_previewPanel->onStop();
+    });
+    
+    QAction* actTrayNext = m_trayMenu->addAction("Next Track");
+    connect(actTrayNext, &QAction::triggered, this, [this]() {
+        if (m_previewPanel) m_previewPanel->onNextTrack();
+    });
+    
+    QAction* actTrayPrev = m_trayMenu->addAction("Previous Track");
+    connect(actTrayPrev, &QAction::triggered, this, [this]() {
+        if (m_previewPanel) m_previewPanel->onPrevTrack();
+    });
+    
+    m_trayMenu->addSeparator();
+    QAction* actTrayShow = m_trayMenu->addAction("Show Amifiles");
+    connect(actTrayShow, &QAction::triggered, this, [this]() {
+        this->show();
+        this->raise();
+        this->activateWindow();
+    });
+    
+    QAction* actTrayExit = m_trayMenu->addAction("Exit");
+    connect(actTrayExit, &QAction::triggered, this, &QWidget::close);
+    
+    m_trayIcon->setContextMenu(m_trayMenu);
+    m_trayIcon->setToolTip("Amifiles Media Player");
+    
+    connect(m_trayIcon, &QSystemTrayIcon::activated, this, [this](QSystemTrayIcon::ActivationReason reason) {
+        if (reason == QSystemTrayIcon::Trigger || reason == QSystemTrayIcon::DoubleClick) {
+            this->show();
+            this->raise();
+            this->activateWindow();
+        }
+    });
+    
+    m_trayIcon->show();
 
     // Wire player notifications to keep mini status bar controller synchronized
     connect(m_previewPanel->player(), &QMediaPlayer::sourceChanged, this, &MainWindow::updateMiniPlayer);
@@ -1096,6 +1068,12 @@ void MainWindow::setupActions() {
     connect(m_actCloudMount, &QAction::triggered, this, &MainWindow::onCloudMount);
     addAction(m_actCloudMount);
 
+    m_actCreateVhd = new QAction("Create Virtual Hard Disk (VHD)...", this);
+    m_actCreateVhd->setToolTip("Create a new fixed VHD virtual disk (compatible with MiSTer FPGA, VMs, etc.)");
+    m_actCreateVhd->setStatusTip("Create a new fixed VHD virtual disk (compatible with MiSTer FPGA, VMs, etc.)");
+    connect(m_actCreateVhd, &QAction::triggered, this, &MainWindow::onCreateVhd);
+    addAction(m_actCreateVhd);
+
     m_actImageConvert = new QAction("Batch Image Converter...", this);
     m_actImageConvert->setToolTip("Bulk format conversion and resizing for images");
     m_actImageConvert->setStatusTip("Bulk format conversion and resizing for images");
@@ -1119,6 +1097,38 @@ void MainWindow::setupActions() {
     m_actDecryptVault->setStatusTip("Unlock password-protected secure vaults");
     connect(m_actDecryptVault, &QAction::triggered, this, &MainWindow::onDecryptVault);
     addAction(m_actDecryptVault);
+
+    m_actPlayFolder = new QAction("Play Entire Folder", this);
+    m_actPlayFolder->setToolTip("Play all media files in the current or selected folder");
+    m_actPlayFolder->setStatusTip("Play all media files in the current or selected folder");
+    connect(m_actPlayFolder, &QAction::triggered, this, [this]() {
+        if (m_activePanel) m_activePanel->playCurrentOrSelectedFolder();
+    });
+    addAction(m_actPlayFolder);
+
+    m_actQueueFolder = new QAction("Queue Folder to Playlist", this);
+    m_actQueueFolder->setToolTip("Queue all media files in the current or selected folder to playlist");
+    m_actQueueFolder->setStatusTip("Queue all media files in the current or selected folder to playlist");
+    connect(m_actQueueFolder, &QAction::triggered, this, [this]() {
+        if (m_activePanel) m_activePanel->queueCurrentOrSelectedFolder();
+    });
+    addAction(m_actQueueFolder);
+
+    m_actPlayQueue = new QAction("Play Playlist Queue", this);
+    m_actPlayQueue->setToolTip("Play the current playlist queue in fullscreen");
+    m_actPlayQueue->setStatusTip("Play the current playlist queue in fullscreen");
+    connect(m_actPlayQueue, &QAction::triggered, this, [this]() {
+        if (m_activePanel) m_activePanel->playPlaylistQueue();
+    });
+    addAction(m_actPlayQueue);
+
+    m_actPlayCollection = new QAction("Play Collection", this);
+    m_actPlayCollection->setToolTip("Play the current album/season/collection recursively");
+    m_actPlayCollection->setStatusTip("Play the current album/season/collection recursively");
+    connect(m_actPlayCollection, &QAction::triggered, this, [this]() {
+        if (m_activePanel) m_activePanel->playCollection();
+    });
+    addAction(m_actPlayCollection);
 
     // Register action mapping for custom keybindings
     registerKeybindableAction("copy", m_actCopy);
@@ -1149,6 +1159,10 @@ void MainWindow::setupActions() {
     registerKeybindableAction("save_folder_profile", m_actSaveFolderProfileForCurrentDir);
     registerKeybindableAction("configure_age_styles", m_actConfigureAgeStyling);
     registerKeybindableAction("configure_autotags", m_actConfigureAutoTags);
+    registerKeybindableAction("play_folder", m_actPlayFolder);
+    registerKeybindableAction("queue_folder", m_actQueueFolder);
+    registerKeybindableAction("play_queue", m_actPlayQueue);
+    registerKeybindableAction("play_collection", m_actPlayCollection);
 }
 
 void MainWindow::setupMenus() {
@@ -1272,6 +1286,7 @@ void MainWindow::setupMenus() {
     m_menuTools->addAction(m_actSecureShred);
     m_menuTools->addAction(m_actRemoteMount);
     m_menuTools->addAction(m_actCloudMount);
+    m_menuTools->addAction(m_actCreateVhd);
     m_menuTools->addAction(m_actImageConvert);
     m_menuTools->addAction(m_actProcessManager);
     m_menuTools->addSeparator();
@@ -1285,6 +1300,55 @@ void MainWindow::setupMenus() {
     m_menuSearch->addAction("Save Current Search as Preset...", this, &MainWindow::onSaveSearchPreset);
     m_menuSearchPresets = m_menuSearch->addMenu("Saved Presets");
     connect(m_menuSearchPresets, &QMenu::aboutToShow, this, &MainWindow::updateSearchPresetsMenu);
+
+    m_menuPlayback = menuBar()->addMenu("Playback");
+    m_actPlaybackNowPlaying = m_menuPlayback->addAction("Now Playing: None");
+    m_actPlaybackNowPlaying->setEnabled(false);
+    m_menuPlayback->addSeparator();
+    
+    m_actPlaybackPlayPause = m_menuPlayback->addAction("Play / Pause");
+    m_actPlaybackPlayPause->setShortcut(Qt::Key_MediaPlay);
+    connect(m_actPlaybackPlayPause, &QAction::triggered, this, [this]() {
+        if (m_previewPanel) m_previewPanel->onPlayPause();
+    });
+    
+    m_actPlaybackStop = m_menuPlayback->addAction("Stop");
+    m_actPlaybackStop->setShortcut(Qt::Key_MediaStop);
+    connect(m_actPlaybackStop, &QAction::triggered, this, [this]() {
+        if (m_previewPanel) m_previewPanel->onStop();
+    });
+    
+    m_actPlaybackNext = m_menuPlayback->addAction("Next Track");
+    m_actPlaybackNext->setShortcut(Qt::Key_MediaNext);
+    connect(m_actPlaybackNext, &QAction::triggered, this, [this]() {
+        if (m_previewPanel) m_previewPanel->onNextTrack();
+    });
+    
+    m_actPlaybackPrev = m_menuPlayback->addAction("Previous Track");
+    m_actPlaybackPrev->setShortcut(Qt::Key_MediaPrevious);
+    connect(m_actPlaybackPrev, &QAction::triggered, this, [this]() {
+        if (m_previewPanel) m_previewPanel->onPrevTrack();
+    });
+    
+    m_menuPlayback->addSeparator();
+    
+    m_actPlaybackShuffle = m_menuPlayback->addAction("Shuffle");
+    m_actPlaybackShuffle->setCheckable(true);
+    connect(m_actPlaybackShuffle, &QAction::triggered, this, [this]() {
+        if (m_previewPanel) m_previewPanel->onShuffleToggled();
+    });
+    
+    m_actPlaybackRepeat = m_menuPlayback->addAction("Repeat");
+    m_actPlaybackRepeat->setCheckable(true);
+    connect(m_actPlaybackRepeat, &QAction::triggered, this, [this]() {
+        if (m_previewPanel) m_previewPanel->onRepeatClicked();
+    });
+
+    m_menuPlayback->addSeparator();
+    m_menuPlayback->addAction(m_actPlayFolder);
+    m_menuPlayback->addAction(m_actQueueFolder);
+    m_menuPlayback->addAction(m_actPlayQueue);
+    m_menuPlayback->addAction(m_actPlayCollection);
 
     m_menuHelp = menuBar()->addMenu("Help");
     m_menuHelp->addAction(m_actShowHelp);
@@ -1495,43 +1559,43 @@ void MainWindow::onTogglePreview(bool checked) {
 }
 
 void MainWindow::updateMiniPlayer() {
-    if (!m_previewPanel || !m_miniMediaControls) return;
-
-    QMediaPlayer* player = m_previewPanel->player();
+    QMediaPlayer* player = m_previewPanel ? m_previewPanel->player() : nullptr;
+    if (!player) return;
+    
     QUrl source = player->source();
     QString path = source.toLocalFile();
     QFileInfo info(path);
-    QString ext = info.suffix().toLower();
-    static const QStringList audioExts = { "mp3", "wav", "flac", "ogg", "m4a", "wma", "aac" };
-    static const QStringList videoExts = { "mp4", "avi", "mkv", "mov", "webm", "flv", "wmv", "m4v" };
-
-    bool isAudio = audioExts.contains(ext);
-    bool isVideo = videoExts.contains(ext);
-    bool isMedia = isAudio || isVideo;
-
-    if (!m_showPreview && isMedia) {
-        m_miniMediaControls->updateTrackInfo(info.fileName(), player->duration(), isVideo);
-        m_miniMediaControls->show();
-        m_miniMediaControls->raise();
-
-        // Dynamically position the overlay in the bottom-right corner
-        int statusHeight = (statusBar() && statusBar()->isVisible()) ? statusBar()->height() : 0;
-        int x = width() - m_miniMediaControls->width() - 20;
-        int y = height() - m_miniMediaControls->height() - statusHeight - 20;
-        m_miniMediaControls->move(x, y);
-    } else {
-        m_miniMediaControls->hide();
+    QString trackName = info.fileName();
+    
+    if (trackName.isEmpty()) {
+        trackName = "None";
+    }
+    
+    // Update Menu Bar Playback Actions
+    if (m_actPlaybackNowPlaying) {
+        m_actPlaybackNowPlaying->setText("Now Playing: " + trackName);
+    }
+    if (m_actPlaybackShuffle) {
+        m_actPlaybackShuffle->setChecked(m_previewPanel->isShuffleEnabled());
+    }
+    if (m_actPlaybackRepeat) {
+        m_actPlaybackRepeat->setChecked(m_previewPanel->repeatMode() > 0);
+    }
+    
+    // Update System Tray Menu Title & Tooltip
+    if (m_trayMenu) {
+        QList<QAction*> actions = m_trayMenu->actions();
+        if (!actions.isEmpty()) {
+            actions.first()->setText("Now Playing: " + trackName);
+        }
+    }
+    if (m_trayIcon) {
+        m_trayIcon->setToolTip("Amifiles - Now Playing: " + trackName);
     }
 }
 
 void MainWindow::resizeEvent(QResizeEvent* event) {
     QMainWindow::resizeEvent(event);
-    if (m_miniMediaControls && m_miniMediaControls->isVisible()) {
-        int statusHeight = (statusBar() && statusBar()->isVisible()) ? statusBar()->height() : 0;
-        int x = width() - m_miniMediaControls->width() - 20;
-        int y = height() - m_miniMediaControls->height() - statusHeight - 20;
-        m_miniMediaControls->move(x, y);
-    }
 
     // Adaptive Responsive Panels Collapsing
     int w = width();
@@ -1912,6 +1976,7 @@ void MainWindow::updateDrivesList() {
         actTb->setProperty("icon", themeIconName);
         actTb->setProperty("command", "@internal:Go " + path);
         actTb->setProperty("is_dynamic_drive", true);
+        actTb->setProperty("path", path);
         connect(actTb, &QAction::triggered, this, [this, path]() {
             if (m_activePanel) m_activePanel->setPath(path);
         });
@@ -1935,6 +2000,7 @@ void MainWindow::updateDrivesList() {
         actTb->setProperty("icon", "drive-harddisk");
         actTb->setProperty("command", "@internal:Go " + path);
         actTb->setProperty("is_dynamic_drive", true);
+        actTb->setProperty("path", path);
         connect(actTb, &QAction::triggered, this, [this, path]() {
             if (m_activePanel) m_activePanel->setPath(path);
         });
@@ -1985,10 +2051,26 @@ void MainWindow::updateDrivesList() {
         // Filter out duplicates or internal system mounts to keep the list clean
         if (addedPaths.contains(path)) continue;
 
+        bool isActiveMount = false;
+        bool isRemoteMount = false;
+        QList<ActiveMount> activeMounts = RemoteMountManager::getActiveMounts();
+        for (const auto& am : activeMounts) {
+            if (am.path == path) {
+                isActiveMount = true;
+                if (!am.type.startsWith("ISO|") && !am.type.startsWith("VHD|")) {
+                    isRemoteMount = true;
+                }
+                break;
+            }
+        }
+
+        if (isRemoteMount) continue;
+
         bool isPhysicalDrive = path == "/" ||
                                path.startsWith("/media/") ||
                                path.startsWith("/mnt/") ||
-                               path.startsWith("/run/media/");
+                               path.startsWith("/run/media/") ||
+                               isActiveMount;
 
         if (!isPhysicalDrive) continue;
 
@@ -2000,7 +2082,17 @@ void MainWindow::updateDrivesList() {
             name = (path == "/") ? "Root (/) " : QFileInfo(path).fileName();
         }
 
-        addDriveOption(name, path, QStyle::SP_DriveHDIcon);
+        bool isCd = (volume.fileSystemType().toLower() == "iso9660" || volume.fileSystemType().toLower() == "udf");
+        if (!isCd) {
+            for (const auto& am : activeMounts) {
+                if (am.path == path && am.type.startsWith("ISO|")) {
+                    isCd = true;
+                    break;
+                }
+            }
+        }
+
+        addDriveOption(name, path, isCd ? QStyle::SP_DriveCDIcon : QStyle::SP_DriveHDIcon);
         addedPaths.append(path);
     }
 
@@ -2011,10 +2103,52 @@ void MainWindow::updateDrivesList() {
     if (!keys.isEmpty()) {
         m_menuDrives->addSeparator();
         m_tbDrives->addSeparator();
+        
+        QList<ActiveMount> activeMounts = RemoteMountManager::getActiveMounts();
+        
         for (const QString& label : keys) {
             QString mountedPath = settings.value(label).toString();
-            if (QDir(mountedPath).exists()) {
+            if (addedPaths.contains(mountedPath)) continue;
+
+            bool isRemote = false;
+            if (mountedPath.startsWith("/run/user/") && mountedPath.contains("/gvfs/")) {
+                isRemote = true;
+            } else if (mountedPath.contains("CloudMounts") || mountedPath.startsWith(QDir::homePath() + "/CloudMounts")) {
+                isRemote = true;
+            } else if (mountedPath.startsWith("ftp://") || mountedPath.startsWith("sftp://") || mountedPath.startsWith("smb://")) {
+                isRemote = true;
+            }
+
+            bool isActive = false;
+            if (isRemote) {
+                if (mountedPath.startsWith("/run/user/") && mountedPath.contains("/gvfs/")) {
+                    int gvfsIdx = mountedPath.indexOf("/gvfs/");
+                    if (gvfsIdx != -1) {
+                        QString gvfsRoot = mountedPath.left(gvfsIdx + 6);
+                        QString sub = mountedPath.mid(gvfsIdx + 6);
+                        QString firstPart = sub.split('/').first();
+                        if (!firstPart.isEmpty()) {
+                            QDir gvfsDir(gvfsRoot);
+                            if (gvfsDir.exists() && gvfsDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot).contains(firstPart)) {
+                                isActive = true;
+                            }
+                        }
+                    }
+                } else {
+                    for (const auto& am : activeMounts) {
+                        if (am.path == mountedPath) {
+                            isActive = true;
+                            break;
+                        }
+                    }
+                }
+            } else {
+                isActive = QDir(mountedPath).exists();
+            }
+
+            if (isActive) {
                 addShortcutOption(label, mountedPath, "folder-remote", QStyle::SP_DirLinkIcon);
+                addedPaths.append(mountedPath);
             }
         }
     }
@@ -2026,9 +2160,49 @@ void MainWindow::updateDrivesList() {
     if (!shortcutKeys.isEmpty()) {
         m_menuDrives->addSeparator();
         m_tbDrives->addSeparator();
+        
+        QList<ActiveMount> activeMounts = RemoteMountManager::getActiveMounts();
+        
         for (const QString& label : shortcutKeys) {
             QString path = settings.value(label).toString();
-            if (QDir(path).exists()) {
+
+            bool isRemote = false;
+            if (path.startsWith("/run/user/") && path.contains("/gvfs/")) {
+                isRemote = true;
+            } else if (path.contains("CloudMounts") || path.startsWith(QDir::homePath() + "/CloudMounts")) {
+                isRemote = true;
+            } else if (path.startsWith("ftp://") || path.startsWith("sftp://") || path.startsWith("smb://")) {
+                isRemote = true;
+            }
+
+            bool isActive = false;
+            if (isRemote) {
+                if (path.startsWith("/run/user/") && path.contains("/gvfs/")) {
+                    int gvfsIdx = path.indexOf("/gvfs/");
+                    if (gvfsIdx != -1) {
+                        QString gvfsRoot = path.left(gvfsIdx + 6);
+                        QString sub = path.mid(gvfsIdx + 6);
+                        QString firstPart = sub.split('/').first();
+                        if (!firstPart.isEmpty()) {
+                            QDir gvfsDir(gvfsRoot);
+                            if (gvfsDir.exists() && gvfsDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot).contains(firstPart)) {
+                                isActive = true;
+                            }
+                        }
+                    }
+                } else {
+                    for (const auto& am : activeMounts) {
+                        if (am.path == path) {
+                            isActive = true;
+                            break;
+                        }
+                    }
+                }
+            } else {
+                isActive = QDir(path).exists();
+            }
+
+            if (isActive) {
                 QIcon icon = getFolderIcon(label);
 
                 // Menu action
@@ -3160,6 +3334,10 @@ void MainWindow::loadKeybindings() {
     m_keybindings["checksum"] = QKeySequence("Ctrl+H");
     m_keybindings["configure_layouts"] = QKeySequence("Ctrl+Shift+L");
     m_keybindings["configure_age_styles"] = QKeySequence("Ctrl+Shift+A");
+    m_keybindings["play_folder"] = QKeySequence("Ctrl+Alt+F");
+    m_keybindings["queue_folder"] = QKeySequence("Ctrl+Alt+Q");
+    m_keybindings["play_queue"] = QKeySequence("Ctrl+Alt+Space");
+    m_keybindings["play_collection"] = QKeySequence("Ctrl+Space");
 
     QSettings settings("Amifiles", "Amifiles");
     settings.beginGroup("Keybindings");
@@ -3169,6 +3347,20 @@ void MainWindow::loadKeybindings() {
         }
     }
     settings.endGroup();
+
+    // Prioritize/sync from remote control shortcuts (Page 6 of Preferences)
+    if (settings.contains("shortcuts/play_folder")) {
+        m_keybindings["play_folder"] = QKeySequence(settings.value("shortcuts/play_folder").toString());
+    }
+    if (settings.contains("shortcuts/queue_folder")) {
+        m_keybindings["queue_folder"] = QKeySequence(settings.value("shortcuts/queue_folder").toString());
+    }
+    if (settings.contains("shortcuts/play_queue")) {
+        m_keybindings["play_queue"] = QKeySequence(settings.value("shortcuts/play_queue").toString());
+    }
+    if (settings.contains("shortcuts/play_collection")) {
+        m_keybindings["play_collection"] = QKeySequence(settings.value("shortcuts/play_collection").toString());
+    }
 }
 
 void MainWindow::saveKeybindings() {
@@ -3178,6 +3370,12 @@ void MainWindow::saveKeybindings() {
         settings.setValue(it.key(), it.value().toString());
     }
     settings.endGroup();
+
+    // Keep Page 6 remote control preferences in sync
+    settings.setValue("shortcuts/play_folder", m_keybindings["play_folder"].toString());
+    settings.setValue("shortcuts/queue_folder", m_keybindings["queue_folder"].toString());
+    settings.setValue("shortcuts/play_queue", m_keybindings["play_queue"].toString());
+    settings.setValue("shortcuts/play_collection", m_keybindings["play_collection"].toString());
 }
 
 void MainWindow::applyKeybindings() {
@@ -3244,6 +3442,15 @@ void MainWindow::onRemoteMount() {
     RemoteMountDialog dlg(this);
     if (dlg.exec() == QDialog::Accepted) {
         updateDrivesList();
+        QString path = dlg.mountedPath();
+        if (!path.isEmpty() && m_activePanel) {
+            int retries = 0;
+            while (!QDir(path).exists() && retries < 20) {
+                QThread::msleep(100);
+                retries++;
+            }
+            m_activePanel->setPath(path);
+        }
     }
 }
 
@@ -3251,6 +3458,286 @@ void MainWindow::onCloudMount() {
     CloudMountDialog dlg(this);
     if (dlg.exec() == QDialog::Accepted) {
         updateDrivesList();
+        QString path = dlg.mountedPath();
+        if (!path.isEmpty() && m_activePanel) {
+            int retries = 0;
+            while (!QDir(path).exists() && retries < 20) {
+                QThread::msleep(100);
+                retries++;
+            }
+            m_activePanel->setPath(path);
+        }
+    }
+}
+
+class CreateVhdDialog : public QDialog {
+public:
+    explicit CreateVhdDialog(const QString& defaultDir, QWidget* parent = nullptr) : QDialog(parent) {
+        setWindowTitle("Create Virtual Hard Disk (VHD)");
+        resize(450, 220);
+
+        QVBoxLayout* mainLayout = new QVBoxLayout(this);
+        QFormLayout* formLayout = new QFormLayout();
+
+        QHBoxLayout* pathLayout = new QHBoxLayout();
+        m_txtPath = new QLineEdit(this);
+        QString defaultPath = defaultDir;
+        if (defaultPath.isEmpty() || !QDir(defaultPath).exists()) {
+            defaultPath = QDir::homePath();
+        }
+        m_txtPath->setText(QDir(defaultPath).filePath("new_disk.vhd"));
+        pathLayout->addWidget(m_txtPath);
+
+        QPushButton* btnBrowse = new QPushButton("Browse...", this);
+        connect(btnBrowse, &QPushButton::clicked, this, &CreateVhdDialog::onBrowse);
+        pathLayout->addWidget(btnBrowse);
+        formLayout->addRow("Save To:", pathLayout);
+
+        QHBoxLayout* sizeLayout = new QHBoxLayout();
+        m_spinSize = new QSpinBox(this);
+        m_spinSize->setRange(1, 1048576);
+        m_spinSize->setValue(100);
+        sizeLayout->addWidget(m_spinSize);
+
+        m_comboUnit = new QComboBox(this);
+        m_comboUnit->addItems({"MB", "GB"});
+        sizeLayout->addWidget(m_comboUnit);
+        formLayout->addRow("Disk Size:", sizeLayout);
+
+        m_chkFormat = new QCheckBox("Format with FAT32 filesystem (Super Floppy / MiSTer compatible)", this);
+        m_chkFormat->setChecked(true);
+        formLayout->addRow("", m_chkFormat);
+
+        mainLayout->addLayout(formLayout);
+
+        QDialogButtonBox* btnBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
+        connect(btnBox, &QDialogButtonBox::accepted, this, &CreateVhdDialog::onAccept);
+        connect(btnBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
+        mainLayout->addWidget(btnBox);
+    }
+
+    QString getVhdPath() const { return m_txtPath->text(); }
+    qint64 getDiskSizeInBytes() const {
+        qint64 size = m_spinSize->value();
+        if (m_comboUnit->currentText() == "GB") {
+            return size * 1024LL * 1024LL * 1024LL;
+        }
+        return size * 1024LL * 1024LL;
+    }
+    bool shouldFormatFat32() const { return m_chkFormat->isChecked(); }
+
+private:
+    void onBrowse() {
+        QString currentPath = m_txtPath->text();
+        QString selected = QFileDialog::getSaveFileName(this, "Save VHD File", currentPath, "VHD Images (*.vhd *.vhdx)");
+        if (!selected.isEmpty()) {
+            m_txtPath->setText(selected);
+        }
+    }
+
+    void onAccept() {
+        QString path = m_txtPath->text().trimmed();
+        if (path.isEmpty()) {
+            QMessageBox::warning(this, "Validation", "Please specify a target VHD path.");
+            return;
+        }
+        if (QFile::exists(path)) {
+            if (QMessageBox::question(this, "Overwrite File", "The file already exists. Do you want to overwrite it?") != QMessageBox::Yes) {
+                return;
+            }
+        }
+        accept();
+    }
+
+    QLineEdit* m_txtPath;
+    QSpinBox* m_spinSize;
+    QComboBox* m_comboUnit;
+    QCheckBox* m_chkFormat;
+};
+
+static bool createVhdFile(const QString& filePath, qint64 sizeInBytes, bool formatFat32, QString& errorMsg) {
+    uint64_t totalSectors = sizeInBytes / 512;
+    uint16_t cyl = 0;
+    uint8_t heads = 0;
+    uint8_t spt = 0;
+
+    if (totalSectors > 65535ULL * 16 * 255) {
+        totalSectors = 65535ULL * 16 * 255;
+    }
+
+    if (totalSectors >= 17 * 4 * 1024) {
+        spt = 63;
+        heads = 16;
+        cyl = totalSectors / spt / heads;
+    } else {
+        spt = 17;
+        uint32_t cylTimesHeads = totalSectors / spt;
+        heads = (cylTimesHeads + 1023) / 1024;
+        if (heads < 4) {
+            heads = 4;
+        }
+        if (cylTimesHeads >= (heads * 1024) || heads > 16) {
+            spt = 31;
+            heads = 16;
+            cyl = totalSectors / spt / heads;
+        } else {
+            cyl = cylTimesHeads / heads;
+        }
+    }
+
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadWrite)) {
+        errorMsg = "Could not open file for writing: " + file.errorString();
+        return false;
+    }
+
+    if (!file.resize(sizeInBytes)) {
+        errorMsg = "Failed to allocate file size: " + file.errorString();
+        file.close();
+        return false;
+    }
+    file.close();
+
+    if (formatFat32) {
+        QString rawLabel = QFileInfo(filePath).baseName().trimmed().toUpper();
+        QString cleanLabel;
+        for (int i = 0; i < rawLabel.length(); ++i) {
+            if (cleanLabel.length() >= 11) break;
+            QChar c = rawLabel.at(i);
+            if (c.isLetterOrNumber() || c == '_' || c == '-') {
+                cleanLabel.append(c);
+            } else if (c.isSpace()) {
+                cleanLabel.append('_');
+            }
+        }
+        if (cleanLabel.isEmpty()) {
+            cleanLabel = "VHD_DISK";
+        }
+
+        QProcess proc;
+        proc.start("mkfs.vfat", {"-I", "-n", cleanLabel, filePath});
+        if (!proc.waitForFinished()) {
+            errorMsg = "Formatting tool mkfs.vfat timed out.";
+            QFile::remove(filePath);
+            return false;
+        }
+        if (proc.exitCode() != 0) {
+            QString err = proc.readAllStandardError();
+            if (err.isEmpty()) err = "Exit code " + QString::number(proc.exitCode());
+            errorMsg = "Formatting failed: " + err;
+            QFile::remove(filePath);
+            return false;
+        }
+    }
+
+    if (!file.open(QIODevice::ReadWrite)) {
+        errorMsg = "Could not open file to append VHD footer: " + file.errorString();
+        return false;
+    }
+
+#pragma pack(push, 1)
+    struct VhdFooter {
+        char cookie[8];
+        uint32_t features;
+        uint32_t ffVersion;
+        uint64_t dataOffset;
+        uint32_t timestamp;
+        char creatorApp[4];
+        uint32_t creatorVersion;
+        char creatorHostOs[4];
+        uint64_t originalSize;
+        uint64_t currentSize;
+        struct {
+            uint16_t cylinders;
+            uint8_t heads;
+            uint8_t sectorsPerTrack;
+        } geometry;
+        uint32_t diskType;
+        uint32_t checksum;
+        uint8_t uniqueId[16];
+        uint8_t savedState;
+        uint8_t reserved[427];
+    } footer;
+#pragma pack(pop)
+
+    memset(&footer, 0, sizeof(footer));
+    memcpy(footer.cookie, "conectix", 8);
+    footer.features = qToBigEndian<uint32_t>(0x00000002);
+    footer.ffVersion = qToBigEndian<uint32_t>(0x00010000);
+    footer.dataOffset = qToBigEndian<uint64_t>(0xFFFFFFFFFFFFFFFF);
+
+    QDateTime epoch(QDate(2000, 1, 1), QTime(0, 0, 0), QTimeZone::UTC);
+    uint32_t vhdTimestamp = epoch.secsTo(QDateTime::currentDateTimeUtc());
+    footer.timestamp = qToBigEndian<uint32_t>(vhdTimestamp);
+
+    memcpy(footer.creatorApp, "amif", 4);
+    footer.creatorVersion = qToBigEndian<uint32_t>(0x00010000);
+    memcpy(footer.creatorHostOs, "Lx  ", 4);
+    footer.originalSize = qToBigEndian<uint64_t>(sizeInBytes);
+    footer.currentSize = qToBigEndian<uint64_t>(sizeInBytes);
+    footer.geometry.cylinders = qToBigEndian<uint16_t>(cyl);
+    footer.geometry.heads = heads;
+    footer.geometry.sectorsPerTrack = spt;
+    footer.diskType = qToBigEndian<uint32_t>(2);
+
+    QUuid uuid = QUuid::createUuid();
+    memcpy(footer.uniqueId, uuid.toRfc4122().constData(), 16);
+
+    uint32_t chk = 0;
+    const uint8_t* bytes = reinterpret_cast<const uint8_t*>(&footer);
+    for (size_t i = 0; i < sizeof(footer); ++i) {
+        if (i >= 64 && i < 68) continue;
+        chk += bytes[i];
+    }
+    footer.checksum = qToBigEndian<uint32_t>(~chk);
+
+    if (!file.seek(sizeInBytes)) {
+        errorMsg = "Failed to seek to end of VHD file: " + file.errorString();
+        file.close();
+        return false;
+    }
+
+    if (file.write(reinterpret_cast<const char*>(&footer), sizeof(footer)) != sizeof(footer)) {
+        errorMsg = "Failed to write VHD footer: " + file.errorString();
+        file.close();
+        return false;
+    }
+
+    file.close();
+    return true;
+}
+
+void MainWindow::onCreateVhd() {
+    QString currentDirPath;
+    if (m_activePanel) {
+        currentDirPath = m_activePanel->currentPath();
+    }
+
+    CreateVhdDialog dlg(currentDirPath, this);
+    if (dlg.exec() == QDialog::Accepted) {
+        QString vhdPath = dlg.getVhdPath();
+        qint64 sizeBytes = dlg.getDiskSizeInBytes();
+        sizeBytes = (sizeBytes + 511) & ~511;
+        bool formatFat32 = dlg.shouldFormatFat32();
+
+        QProgressDialog progress("Creating Virtual Hard Disk...", "Cancel", 0, 0, this);
+        progress.setWindowModality(Qt::WindowModal);
+        progress.show();
+        QApplication::processEvents();
+
+        QString errorMsg;
+        bool success = createVhdFile(vhdPath, sizeBytes, formatFat32, errorMsg);
+
+        progress.close();
+
+        if (success) {
+            QMessageBox::information(this, "Success", QString("VHD file created successfully at:\n%1").arg(vhdPath));
+            if (m_activePanel) {
+                m_activePanel->refresh();
+            }
+        } else {
+            QMessageBox::critical(this, "Error", QString("Failed to create VHD file:\n%1").arg(errorMsg));
+        }
     }
 }
 
@@ -3343,7 +3830,11 @@ void MainWindow::closeEvent(QCloseEvent* event) {
         settings.setValue("window/geometry", saveGeometry());
         settings.setValue("window/state", saveState());
     }
+    if (m_trayIcon) {
+        m_trayIcon->hide();
+    }
     QMainWindow::closeEvent(event);
+    QApplication::quit();
 }
 
 QMenu* MainWindow::createPopupMenu() {
@@ -4972,12 +5463,24 @@ void MainWindow::onRemoteMountsManager() {
     RemoteMountManager dlg(this);
     dlg.exec();
     updateDrivesList();
+    QString path = dlg.targetNavigatePath();
+    if (!path.isEmpty() && m_activePanel) {
+        // Wait for the asynchronous GVFS mount point to become available in the filesystem
+        int retries = 0;
+        while (!QDir(path).exists() && retries < 20) {
+            QThread::msleep(100);
+            retries++;
+        }
+        m_activePanel->setPath(path);
+    }
 }
 
 void MainWindow::onPreferencesAction() {
     PreferencesDialog dlg(this);
     connect(&dlg, &PreferencesDialog::preferencesChanged, this, [this]() {
         updateWidgetStylesheets();
+        loadKeybindings();
+        applyKeybindings();
         QSettings settings("Amifiles", "Amifiles");
         
         bool horizontalSplit = settings.value("preferences/horizontal_split", false).toBool();
@@ -5022,6 +5525,8 @@ void MainWindow::onMediaPreferences() {
     dlg.setCurrentPage(3); // Media page index
     connect(&dlg, &PreferencesDialog::preferencesChanged, this, [this]() {
         updateWidgetStylesheets();
+        loadKeybindings();
+        applyKeybindings();
         QSettings settings("Amifiles", "Amifiles");
         
         bool horizontalSplit = settings.value("preferences/horizontal_split", false).toBool();
@@ -5358,16 +5863,192 @@ void MainWindow::onDrivesToolbarContextMenu(const QPoint& pos) {
     QAction* act = m_tbDrives->actionAt(pos);
     if (!act) return;
 
-    QString label = act->data().toString();
-    if (label.isEmpty()) return;
+    QString path = act->property("path").toString();
+    QString label = act->property("name").toString();
+    if (label.isEmpty()) label = act->text();
 
     QMenu menu(this);
-    QAction* actRemove = menu.addAction(QIcon::fromTheme("edit-delete"), QString("Remove Shortcut '%1'").arg(label));
+    QStyle* style = QApplication::style();
+
+    bool canUnmount = false;
+    bool isIso = false;
+    bool isVhd = false;
+    QString isoFile;
+    QString vhdFile;
+    QString cleanPath = QDir::cleanPath(path);
+    if (cleanPath.endsWith("/")) cleanPath.chop(1);
+
+    if (!cleanPath.isEmpty() && cleanPath != "/" && cleanPath != QDir::homePath()) {
+        if (cleanPath.startsWith("/media/") || cleanPath.startsWith("/mnt/") || cleanPath.startsWith("/run/media/")) {
+            canUnmount = true;
+        }
+        if (cleanPath.startsWith("/run/user/") && cleanPath.contains("/gvfs/")) {
+            canUnmount = true;
+        }
+        if (cleanPath.contains("CloudMounts") || cleanPath.startsWith(QDir::homePath() + "/CloudMounts")) {
+            canUnmount = true;
+        }
+        QList<ActiveMount> activeMounts = RemoteMountManager::getActiveMounts();
+        for (const auto& am : activeMounts) {
+            QString cleanAm = QDir::cleanPath(am.path);
+            if (cleanAm.endsWith("/")) cleanAm.chop(1);
+            if (cleanAm == cleanPath) {
+                canUnmount = true;
+                if (am.type.startsWith("ISO|")) {
+                    isIso = true;
+                    QStringList parts = am.type.split('|');
+                    if (parts.size() >= 3) {
+                        isoFile = parts[2];
+                    }
+                } else if (am.type.startsWith("VHD_GUEST|") || am.type.startsWith("VHD_LOOP|")) {
+                    isVhd = true;
+                    QStringList parts = am.type.split('|');
+                    if (parts.size() >= 2) {
+                        vhdFile = (parts.size() == 2) ? parts[1] : parts[2];
+                    }
+                }
+                break;
+            }
+        }
+    }
+
+    QAction* actRemove = nullptr;
+    QAction* actUnmount = nullptr;
+    QAction* actEject = nullptr;
+
+    if (canUnmount) {
+        actUnmount = menu.addAction(style->standardIcon(QStyle::SP_MediaStop), "Unmount Drive");
+        actEject = menu.addAction(style->standardIcon(QStyle::SP_DriveCDIcon), "Eject / Power Off Drive");
+        menu.addSeparator();
+    }
+
+    QString shortcutLabel = act->data().toString();
+    if (!shortcutLabel.isEmpty()) {
+        actRemove = menu.addAction(QIcon::fromTheme("edit-delete"), QString("Remove Shortcut '%1'").arg(shortcutLabel));
+    }
+
+    if (menu.isEmpty()) return;
+
     QAction* selected = menu.exec(m_tbDrives->mapToGlobal(pos));
+    if (!selected) return;
+
     if (selected == actRemove) {
         QSettings settings("Amifiles", "Amifiles");
-        settings.remove("DrivesShortcuts/" + label);
+        settings.remove("DrivesShortcuts/" + shortcutLabel);
         updateDrivesList();
+    } else if (selected == actUnmount || selected == actEject) {
+        bool ejectMode = (selected == actEject);
+        QString errorMsg;
+        bool success = false;
+
+        // Navigate panels away from the path if they are currently displaying it, to prevent 'device busy' blocks
+        QString cleanPath = QDir::cleanPath(path);
+        if (cleanPath.endsWith("/")) cleanPath.chop(1);
+
+        FilePanel* lp = leftPanel();
+        FilePanel* rp = rightPanel();
+        if (lp) {
+            QString lpPath = QDir::cleanPath(lp->currentPath());
+            if (lpPath.endsWith("/")) lpPath.chop(1);
+            if (lpPath == cleanPath || lpPath.startsWith(cleanPath + "/", Qt::CaseInsensitive)) {
+                lp->setPath(QDir::homePath());
+            }
+        }
+        if (rp) {
+            QString rpPath = QDir::cleanPath(rp->currentPath());
+            if (rpPath.endsWith("/")) rpPath.chop(1);
+            if (rpPath == cleanPath || rpPath.startsWith(cleanPath + "/", Qt::CaseInsensitive)) {
+                rp->setPath(QDir::homePath());
+            }
+        }
+        QCoreApplication::processEvents();
+
+        if (isIso) {
+            success = RemoteMountManager::unmountIso(isoFile, errorMsg);
+        } else if (isVhd) {
+            success = RemoteMountManager::unmountVhd(vhdFile, errorMsg);
+        } else {
+            QString devicePath;
+            QList<QStorageInfo> volumes = QStorageInfo::mountedVolumes();
+            QString fsType;
+            for (const QStorageInfo& vol : volumes) {
+                if (vol.rootPath() == path) {
+                    devicePath = vol.device();
+                    fsType = vol.fileSystemType().toLower();
+                    break;
+                }
+            }
+
+            if (!devicePath.isEmpty()) {
+                QProcess unmountProc;
+                unmountProc.start("udisksctl", {"unmount", "-b", devicePath});
+                if (unmountProc.waitForFinished() && unmountProc.exitCode() == 0) {
+                    success = true;
+                } else {
+                    QProcess fallback;
+                    fallback.start("umount", {path});
+                    if (fallback.waitForFinished() && fallback.exitCode() == 0) {
+                        success = true;
+                    } else {
+                        errorMsg = unmountProc.readAllStandardError();
+                        if (errorMsg.isEmpty()) errorMsg = "udisksctl unmount failed.";
+                    }
+                }
+            } else {
+                QProcess proc;
+                if (path.startsWith("/run/user/") && path.contains("/gvfs/")) {
+                    proc.start("gio", {"mount", "-u", "-f", path});
+                } else {
+                    proc.start("fusermount", {"-u", "-z", path});
+                }
+                if (proc.waitForFinished() && proc.exitCode() == 0) {
+                    success = true;
+                } else {
+                    QProcess fallback;
+                    if (path.startsWith("/run/user/") && path.contains("/gvfs/")) {
+                        fallback.start("gio", {"mount", "-u", path});
+                    } else {
+                        fallback.start("fusermount", {"-u", path});
+                    }
+                    if (fallback.waitForFinished() && fallback.exitCode() == 0) {
+                        success = true;
+                    } else {
+                        QProcess fallbackUmount;
+                        fallbackUmount.start("umount", {"-l", path});
+                        if (fallbackUmount.waitForFinished() && fallbackUmount.exitCode() == 0) {
+                            success = true;
+                        } else {
+                            errorMsg = "gio mount -u -f / fusermount -u -z / umount -l failed.";
+                        }
+                    }
+                }
+            }
+
+            if (success) {
+                RemoteMountManager::removeActiveMount(path);
+
+                if (ejectMode && !devicePath.isEmpty()) {
+                    if (fsType == "iso9660" || fsType == "udf" || devicePath.startsWith("/dev/sr")) {
+                        QProcess::execute("eject", {devicePath});
+                    } else if (devicePath.startsWith("/dev/sd")) {
+                        QString parentDev = devicePath;
+                        if (!parentDev.isEmpty() && parentDev.at(parentDev.length() - 1).isDigit()) {
+                            parentDev.chop(1);
+                        }
+                        QProcess::execute("udisksctl", {"power-off", "-b", parentDev});
+                    }
+                }
+            }
+        }
+
+        if (success) {
+            QMessageBox::information(this, "Drive Action", ejectMode ? "Drive successfully unmounted and ejected." : "Drive successfully unmounted.");
+            updateDrivesList();
+            if (leftPanel()) leftPanel()->refresh();
+            if (rightPanel()) rightPanel()->refresh();
+        } else {
+            QMessageBox::critical(this, "Drive Action Error", QString("Failed to process drive action:\n%1").arg(errorMsg));
+        }
     }
 }
 
@@ -6726,6 +7407,16 @@ void MainWindow::onMainPlayerStateChanged(QMediaPlayer::PlaybackState state) {
     updateMiniPlayer();
     updateThemeMusic();
 
+    if (m_actPlaybackPlayPause) {
+        m_actPlaybackPlayPause->setText(state == QMediaPlayer::PlayingState ? "Pause" : "Play / Pause");
+    }
+    if (m_trayMenu) {
+        QList<QAction*> actions = m_trayMenu->actions();
+        if (actions.size() > 2) {
+            actions.at(2)->setText(state == QMediaPlayer::PlayingState ? "Pause" : "Play / Pause");
+        }
+    }
+
     QList<FilePanel*> panels;
     if (m_leftTabWidget) {
         for (int i = 0; i < m_leftTabWidget->count(); ++i) {
@@ -7077,5 +7768,3 @@ void MainWindow::handleToolbarDrop(const QString& sourceTbId, int sourceIdx, con
     settings.setValue("custom_toolbars_v1", QJsonDocument(arr).toJson(QJsonDocument::Compact));
     rebuildToolBars();
 }
-
-#include "mainwindow.moc"

@@ -15,6 +15,7 @@ class CloudMountDialog : public QDialog {
 public:
     explicit CloudMountDialog(QWidget* parent = nullptr);
     ~CloudMountDialog() override = default;
+    QString mountedPath() const { return m_mountedPath; }
 
 private slots:
     void refreshRemotes();
@@ -31,6 +32,7 @@ private:
     QComboBox* m_comboType = nullptr;
     QLineEdit* m_txtMountPath = nullptr;
     QLabel* m_lblStatus = nullptr;
+    QString m_mountedPath;
 };
 
 #endif // CLOUDMOUNTDIALOG_H

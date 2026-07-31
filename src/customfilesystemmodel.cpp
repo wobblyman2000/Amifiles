@@ -20,6 +20,17 @@
 #define M_PI 3.14159265358979323846
 #endif
 
+static bool isRemotePath(const QString& path) {
+    if (path.startsWith("/run/user/") && path.contains("/gvfs/")) {
+        return true;
+    }
+    QString home = QDir::homePath();
+    if (path.startsWith(home + "/CloudMounts/")) {
+        return true;
+    }
+    return false;
+}
+
 class ChecksumRunnable : public QRunnable {
 public:
     ChecksumRunnable(const QString& filePath, CustomFileSystemModel* model)
@@ -84,7 +95,15 @@ QVariant CustomFileSystemModel::data(const QModelIndex& index, int role) const {
         if (role == Qt::DecorationRole) {
             QIcon baseIcon = getRetroOrComicIcon(filePath);
             if (baseIcon.isNull()) {
-                baseIcon = QFileSystemModel::data(index, role).value<QIcon>();
+                if (isRemotePath(filePath)) {
+                    if (fileInfo(index).isDir()) {
+                        baseIcon = QIcon::fromTheme("folder");
+                    } else {
+                        baseIcon = QIcon::fromTheme("text-x-generic");
+                    }
+                } else {
+                    baseIcon = QFileSystemModel::data(index, role).value<QIcon>();
+                }
             }
             if (fileInfo(index).isDir()) {
                 QString dirName = fileInfo(index).fileName();
@@ -209,6 +228,9 @@ QVariant CustomFileSystemModel::data(const QModelIndex& index, int role) const {
                     if (m_checksumCache.contains(filePath)) {
                         return m_checksumCache[filePath];
                     }
+                    if (isRemotePath(filePath)) {
+                        return "N/A";
+                    }
                     if (!m_pendingChecksums.contains(filePath)) {
                         m_pendingChecksums.insert(filePath);
                         ChecksumRunnable* runnable = new ChecksumRunnable(filePath, const_cast<CustomFileSystemModel*>(this));
@@ -247,6 +269,9 @@ QVariant CustomFileSystemModel::data(const QModelIndex& index, int role) const {
                     if (m_checksumCache.contains(filePath)) {
                         return m_checksumCache[filePath];
                     }
+                    if (isRemotePath(filePath)) {
+                        return "N/A";
+                    }
                     if (!m_pendingChecksums.contains(filePath)) {
                         m_pendingChecksums.insert(filePath);
                         ChecksumRunnable* runnable = new ChecksumRunnable(filePath, const_cast<CustomFileSystemModel*>(this));
@@ -275,6 +300,11 @@ FileMetadata CustomFileSystemModel::getMetadata(const QString& filePath) const {
     if (it != m_metadataCache.end()) {
         return *it;
     }
+    if (isRemotePath(filePath)) {
+        FileMetadata emptyMeta;
+        m_metadataCache.insert(filePath, emptyMeta);
+        return emptyMeta;
+    }
     FileMetadata meta = MetadataExtractor::extract(filePath);
     m_metadataCache.insert(filePath, meta);
     return meta;
@@ -284,6 +314,11 @@ QIcon CustomFileSystemModel::getEmbeddedArtworkIcon(const QString& filePath) con
     static QHash<QString, QIcon> artworkCache;
     if (artworkCache.contains(filePath)) {
         return artworkCache[filePath];
+    }
+    
+    if (isRemotePath(filePath)) {
+        artworkCache[filePath] = QIcon();
+        return QIcon();
     }
     
     QFileInfo info(filePath);
@@ -565,10 +600,12 @@ QIcon CustomFileSystemModel::getRetroOrComicIcon(const QString& filePath) const 
             }
         }
 
-        if (!m_pendingThumbnails.contains(filePath)) {
-            m_pendingThumbnails.insert(filePath);
-            ComicThumbnailRunnable* task = new ComicThumbnailRunnable(filePath, cachedPath, const_cast<CustomFileSystemModel*>(this));
-            QThreadPool::globalInstance()->start(task);
+        if (!isRemotePath(filePath)) {
+            if (!m_pendingThumbnails.contains(filePath)) {
+                m_pendingThumbnails.insert(filePath);
+                ComicThumbnailRunnable* task = new ComicThumbnailRunnable(filePath, cachedPath, const_cast<CustomFileSystemModel*>(this));
+                QThreadPool::globalInstance()->start(task);
+            }
         }
 
         QIcon placeholder;
@@ -625,10 +662,12 @@ QIcon CustomFileSystemModel::getRetroOrComicIcon(const QString& filePath) const 
             }
         }
 
-        if (!m_pendingThumbnails.contains(filePath)) {
-            m_pendingThumbnails.insert(filePath);
-            ImageThumbnailRunnable* task = new ImageThumbnailRunnable(filePath, cachedPath, const_cast<CustomFileSystemModel*>(this));
-            QThreadPool::globalInstance()->start(task);
+        if (!isRemotePath(filePath)) {
+            if (!m_pendingThumbnails.contains(filePath)) {
+                m_pendingThumbnails.insert(filePath);
+                ImageThumbnailRunnable* task = new ImageThumbnailRunnable(filePath, cachedPath, const_cast<CustomFileSystemModel*>(this));
+                QThreadPool::globalInstance()->start(task);
+            }
         }
 
         return QIcon();

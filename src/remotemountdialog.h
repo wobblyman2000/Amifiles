@@ -14,6 +14,7 @@ class RemoteMountDialog : public QDialog {
 public:
     explicit RemoteMountDialog(QWidget* parent = nullptr);
     ~RemoteMountDialog() override = default;
+    QString mountedPath() const { return m_mountedPath; }
 
 private slots:
     void onTypeChanged(int index);
@@ -41,6 +42,7 @@ private:
 
     QPushButton* m_btnMount = nullptr;
     QPushButton* m_btnCancel = nullptr;
+    QString m_mountedPath;
 };
 
 #endif // REMOTEMOUNTDIALOG_H

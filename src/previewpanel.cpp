@@ -924,8 +924,15 @@ void FullscreenWidget::keyPressEvent(QKeyEvent* event) {
     QKeySequence shortcutNext(settings.value("shortcuts/player_next", "N").toString());
     QKeySequence shortcutMute(settings.value("shortcuts/player_mute", "M").toString());
     QKeySequence shortcutMenu(settings.value("shortcuts/player_menu", "C").toString());
+    QKeySequence shortcutNavigateBack(settings.value("shortcuts/navigate_back", "Alt+Left").toString());
+    QKeySequence shortcutNavigateUp(settings.value("shortcuts/navigate_up", "Backspace").toString());
 
-    if (event->key() == Qt::Key_Escape || event->key() == Qt::Key_F) {
+    if (event->key() == Qt::Key_Escape || 
+        event->key() == Qt::Key_F || 
+        event->key() == Qt::Key_Back || 
+        event->key() == Qt::Key_Backspace ||
+        pressed == shortcutNavigateBack || 
+        pressed == shortcutNavigateUp) {
         emit exitRequested();
     } else if (pressed == shortcutPlayPause) {
         emit playPauseRequested();
@@ -1616,6 +1623,9 @@ void PreviewPanel::setupUI() {
     connect(comboVisMode, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int idx) {
         if (m_visualizer) {
             m_visualizer->setVisualizerMode(static_cast<SpectrumVisualizerWidget::VisualizerMode>(idx));
+        }
+        if (m_fullscreenVisualizer) {
+            m_fullscreenVisualizer->setVisualizerMode(static_cast<SpectrumVisualizerWidget::VisualizerMode>(idx));
         }
     });
     visModeRow->addWidget(comboVisMode, 1);
@@ -3238,16 +3248,29 @@ void PreviewPanel::toggleFullscreen() {
         QString displayArtist = !meta.artist.isEmpty() ? meta.artist : "Unknown Artist";
         m_fullscreenTextLabel->setText(QString("%1\n%2").arg(displayTitle).arg(displayArtist));
 
+        m_fullscreenVisualizer = new SpectrumVisualizerWidget(m_fullscreenWidget);
+        m_fullscreenVisualizer->setPlayer(m_player);
+        m_fullscreenVisualizer->setAudioPath(activePath);
+        if (m_visualizer) {
+            m_fullscreenVisualizer->setVisualizerMode(m_visualizer->visualizerMode());
+            m_fullscreenVisualizer->setBoost(m_sliderBass->value() / 50.0, m_sliderMid->value() / 50.0, m_sliderTreble->value() / 50.0);
+        }
+        m_fullscreenVisualizer->setVisible(m_spectrumVisualizerEnabled);
+
         layout->addStretch();
         layout->addWidget(m_fullscreenAudioLabel);
         layout->addSpacing(10);
         layout->addWidget(m_fullscreenTextLabel);
+        layout->addSpacing(20);
+        layout->addWidget(m_fullscreenVisualizer);
         layout->addStretch();
 
         m_fullscreenAudioLabel->setMouseTracking(true);
         m_fullscreenTextLabel->setMouseTracking(true);
+        m_fullscreenVisualizer->setMouseTracking(true);
         m_fullscreenAudioLabel->installEventFilter(m_fullscreenWidget);
         m_fullscreenTextLabel->installEventFilter(m_fullscreenWidget);
+        m_fullscreenVisualizer->installEventFilter(m_fullscreenWidget);
     }
 
     layout->addWidget(m_fullscreenWidget->hudWidget());
@@ -3307,6 +3330,7 @@ void PreviewPanel::exitFullscreen() {
     m_fullscreenVideoWidget = nullptr;
     m_fullscreenAudioLabel = nullptr;
     m_fullscreenTextLabel = nullptr;
+    m_fullscreenVisualizer = nullptr;
 
     // Restore embedded/preview playlist state
     m_playlist = m_previewPlaylist;
@@ -3364,6 +3388,7 @@ void PreviewPanel::updateFullscreenTrack() {
     m_fullscreenVideoWidget = nullptr;
     m_fullscreenAudioLabel = nullptr;
     m_fullscreenTextLabel = nullptr;
+    m_fullscreenVisualizer = nullptr;
 
     if (isVideo) {
         m_fullscreenVideoWidget = new QVideoWidget(m_fullscreenWidget);
@@ -3426,16 +3451,29 @@ void PreviewPanel::updateFullscreenTrack() {
         QString displayArtist = !meta.artist.isEmpty() ? meta.artist : "Unknown Artist";
         m_fullscreenTextLabel->setText(QString("%1\n%2").arg(displayTitle).arg(displayArtist));
 
+        m_fullscreenVisualizer = new SpectrumVisualizerWidget(m_fullscreenWidget);
+        m_fullscreenVisualizer->setPlayer(m_player);
+        m_fullscreenVisualizer->setAudioPath(activePath);
+        if (m_visualizer) {
+            m_fullscreenVisualizer->setVisualizerMode(m_visualizer->visualizerMode());
+            m_fullscreenVisualizer->setBoost(m_sliderBass->value() / 50.0, m_sliderMid->value() / 50.0, m_sliderTreble->value() / 50.0);
+        }
+        m_fullscreenVisualizer->setVisible(m_spectrumVisualizerEnabled);
+
         layout->addStretch();
         layout->addWidget(m_fullscreenAudioLabel);
         layout->addSpacing(10);
         layout->addWidget(m_fullscreenTextLabel);
+        layout->addSpacing(20);
+        layout->addWidget(m_fullscreenVisualizer);
         layout->addStretch();
 
         m_fullscreenAudioLabel->setMouseTracking(true);
         m_fullscreenTextLabel->setMouseTracking(true);
+        m_fullscreenVisualizer->setMouseTracking(true);
         m_fullscreenAudioLabel->installEventFilter(m_fullscreenWidget);
         m_fullscreenTextLabel->installEventFilter(m_fullscreenWidget);
+        m_fullscreenVisualizer->installEventFilter(m_fullscreenWidget);
     }
 
     layout->addWidget(m_fullscreenWidget->hudWidget());
@@ -3792,6 +3830,9 @@ void PreviewPanel::onEqSlidersChanged() {
     if (m_visualizer) {
         m_visualizer->setBoost(bass, mid, treble);
     }
+    if (m_fullscreenVisualizer) {
+        m_fullscreenVisualizer->setBoost(bass, mid, treble);
+    }
 }
 
 void PreviewPanel::setSpectrumVisualizerVisible(bool visible) {
@@ -3809,6 +3850,9 @@ void PreviewPanel::setSpectrumVisualizerVisible(bool visible) {
     if (m_visualizer) {
         bool shouldBeVisible = visible && (m_stack->currentWidget() == m_mediaView) && !m_videoWidget->isVisible();
         m_visualizer->setVisible(shouldBeVisible);
+    }
+    if (m_fullscreenVisualizer) {
+        m_fullscreenVisualizer->setVisible(visible && !m_isVideo);
     }
 }
 

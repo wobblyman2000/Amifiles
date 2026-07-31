@@ -204,6 +204,7 @@ void CloudMountDialog::onMountRemote() {
 
     if (proc.exitCode() == 0) {
         RemoteMountManager::addActiveMount(remote, mountPath, "CLOUD");
+        m_mountedPath = mountPath;
         QMessageBox::information(this, "Success", QString("Cloud connection '%1' mounted successfully to:\n%2").arg(remote).arg(mountPath));
         m_lblStatus->setText("Status: Mount successful.");
         // Notify main window to reload drives (via updating QStorageInfo)
@@ -214,6 +215,7 @@ void CloudMountDialog::onMountRemote() {
         if (w) {
             QMetaObject::invokeMethod(w, "updateDrivesList");
         }
+        accept();
     } else {
         QString error = QString::fromLocal8Bit(proc.readAllStandardError());
         QMessageBox::critical(this, "Mount Failed", QString("Failed to mount cloud connection:\n%1").arg(error));

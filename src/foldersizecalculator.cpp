@@ -13,6 +13,20 @@ FolderSizeCalculator::FolderSizeCalculator(QObject* parent) : QObject(parent) {}
 qint64 FolderSizeCalculator::getFolderSize(const QString& path) {
     QMutexLocker locker(&m_mutex);
 
+    // Skip remote/network paths to prevent massive latency
+    bool isRemote = false;
+    if (path.startsWith("/run/user/") && path.contains("/gvfs/")) {
+        isRemote = true;
+    } else if (path.contains("CloudMounts") || path.startsWith(QDir::homePath() + "/CloudMounts")) {
+        isRemote = true;
+    } else if (path.startsWith("ftp://") || path.startsWith("sftp://") || path.startsWith("smb://")) {
+        isRemote = true;
+    }
+
+    if (isRemote) {
+        return 0;
+    }
+
     if (m_cache.contains(path)) {
         return m_cache.value(path);
     }

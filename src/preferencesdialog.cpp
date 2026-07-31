@@ -495,6 +495,18 @@ void PreferencesDialog::setupUI() {
     m_keyPlayerMenu->setToolTip("Shortcut to display the player context menu (chapters list, exit, controls).");
     formSec2->addRow("Open Player Menu:", m_keyPlayerMenu);
 
+    m_keyPlayFolder = new QKeySequenceEdit(this);
+    m_keyPlayFolder->setToolTip("Shortcut to play all media files in the current/selected folder.");
+    formSec2->addRow("Play Entire Folder:", m_keyPlayFolder);
+
+    m_keyQueueFolder = new QKeySequenceEdit(this);
+    m_keyQueueFolder->setToolTip("Shortcut to queue all media files in the folder to the playlist.");
+    formSec2->addRow("Queue Folder to Playlist:", m_keyQueueFolder);
+
+    m_keyPlayQueue = new QKeySequenceEdit(this);
+    m_keyPlayQueue->setToolTip("Shortcut to start playback of the playlist queue.");
+    formSec2->addRow("Play Playlist Queue:", m_keyPlayQueue);
+
     scrollLayout->addLayout(formSec2);
     scrollLayout->addStretch(1);
 
@@ -604,6 +616,9 @@ void PreferencesDialog::loadPreferences() {
     m_keyPlayerNext->setKeySequence(QKeySequence(settings.value("shortcuts/player_next", "N").toString()));
     m_keyPlayerMute->setKeySequence(QKeySequence(settings.value("shortcuts/player_mute", "M").toString()));
     m_keyPlayerMenu->setKeySequence(QKeySequence(settings.value("shortcuts/player_menu", "C").toString()));
+    m_keyPlayFolder->setKeySequence(QKeySequence(settings.value("shortcuts/play_folder", "Ctrl+Alt+F").toString()));
+    m_keyQueueFolder->setKeySequence(QKeySequence(settings.value("shortcuts/queue_folder", "Ctrl+Alt+Q").toString()));
+    m_keyPlayQueue->setKeySequence(QKeySequence(settings.value("shortcuts/play_queue", "Ctrl+Alt+Space").toString()));
 
     // Load Theme Studio
     populateThemePresets();
@@ -661,6 +676,9 @@ void PreferencesDialog::savePreferences() {
     settings.setValue("shortcuts/player_next", m_keyPlayerNext->keySequence().toString());
     settings.setValue("shortcuts/player_mute", m_keyPlayerMute->keySequence().toString());
     settings.setValue("shortcuts/player_menu", m_keyPlayerMenu->keySequence().toString());
+    settings.setValue("shortcuts/play_folder", m_keyPlayFolder->keySequence().toString());
+    settings.setValue("shortcuts/queue_folder", m_keyQueueFolder->keySequence().toString());
+    settings.setValue("shortcuts/play_queue", m_keyPlayQueue->keySequence().toString());
 
     // Save Theme Studio Settings
     settings.setValue("theme/preset", m_comboThemePreset->currentText());

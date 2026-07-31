@@ -63,167 +63,38 @@ public:
         LedMatrix = 2
     };
 
-    explicit AudioVisualizerWidget(QWidget* parent = nullptr) : QWidget(parent) {
-        setMinimumSize(130, 60);
-        
-        QSettings settings("Amifiles", "Amifiles");
-        m_style = static_cast<Style>(settings.value("preview/visualizer_style", VerticalBars).toInt());
-        
-        m_timer = new QTimer(this);
-        connect(m_timer, &QTimer::timeout, this, [this]() {
-            if (m_playing) {
-                m_phase += 0.25;
-                for (int i = 0; i < 15; ++i) {
-                    m_heights[i] = QRandomGenerator::global()->bounded(5, height() - 5);
-                }
-            } else {
-                m_phase += 0.05; // Gentle baseline idle float
-            }
-            update();
-        });
-        for (int i = 0; i < 15; ++i) m_heights[i] = 4;
-        m_timer->start(60); // Constant updates at ~16fps for smooth vector oscilloscope lines
-    }
+    explicit AudioVisualizerWidget(QWidget* parent = nullptr);
+    ~AudioVisualizerWidget() override;
 
-    void setPlaying(bool playing) {
-        m_playing = playing;
-        if (!m_playing) {
-            for (int i = 0; i < 15; ++i) m_heights[i] = 4;
-        }
-        update();
-    }
+    void setPlaying(bool playing);
     bool isPlaying() const { return m_playing; }
     
-    void setStyle(Style style) {
-        m_style = style;
-        QSettings settings("Amifiles", "Amifiles");
-        settings.setValue("preview/visualizer_style", static_cast<int>(m_style));
-        update();
-    }
+    void setStyle(Style style);
     Style style() const { return m_style; }
 
 protected:
-    void contextMenuEvent(QContextMenuEvent* event) override {
-        QMenu menu(this);
-        menu.setStyleSheet("QMenu { background-color: #1e1e2e; color: #cdd6f4; border: 1px solid #313244; } QMenu::item:selected { background-color: #313244; color: #f5c2e7; }");
-        
-        QAction* actBars = menu.addAction("Classic Spectrum Bars");
-        QAction* actCrt = menu.addAction("CRT Oscilloscope");
-        QAction* actLed = menu.addAction("Retro LED Matrix");
-        
-        actBars->setCheckable(true);
-        actCrt->setCheckable(true);
-        actLed->setCheckable(true);
-        
-        if (m_style == VerticalBars) actBars->setChecked(true);
-        else if (m_style == CrtOscilloscope) actCrt->setChecked(true);
-        else if (m_style == LedMatrix) actLed->setChecked(true);
-        
-        QAction* selected = menu.exec(event->globalPos());
-        if (selected == actBars) setStyle(VerticalBars);
-        else if (selected == actCrt) setStyle(CrtOscilloscope);
-        else if (selected == actLed) setStyle(LedMatrix);
-    }
+    void contextMenuEvent(QContextMenuEvent* event) override;
+    void paintEvent(QPaintEvent* event) override;
 
-    void paintEvent(QPaintEvent* event) override {
-        Q_UNUSED(event);
-        QPainter p(this);
-        p.setRenderHint(QPainter::Antialiasing);
-        
-        int w = width();
-        int h = height();
-        
-        if (m_style == VerticalBars) {
-            int numBars = 15;
-            double gap = 3.0;
-            double barW = (w - (numBars - 1) * gap) / numBars;
-            
-            QLinearGradient grad(0, h, 0, 0);
-            grad.setColorAt(0.0, QColor("#a6e3a1"));
-            grad.setColorAt(0.6, QColor("#89b4fa"));
-            grad.setColorAt(1.0, QColor("#f5c2e7"));
-            p.setBrush(grad);
-            p.setPen(Qt::NoPen);
-            
-            for (int i = 0; i < numBars; ++i) {
-                double barH = m_heights[i];
-                QRectF barRect(i * (barW + gap), h - barH, barW, barH);
-                p.drawRoundedRect(barRect, 2, 2);
-            }
-        } 
-        else if (m_style == CrtOscilloscope) {
-            int cy = h / 2;
-            p.setBrush(Qt::NoBrush);
-            
-            QPainterPath path;
-            path.moveTo(0, cy);
-            
-            double amp = m_playing ? (h * 0.35) : 2.0;
-            for (int x = 0; x < w; x += 2) {
-                double t = (double)x / w;
-                double y = cy;
-                if (m_playing) {
-                    y += qSin(t * 8.0 + m_phase) * amp * 0.65;
-                    y += qCos(t * 22.0 - m_phase * 1.3) * amp * 0.35;
-                } else {
-                    y += qSin(t * 12.0 + m_phase) * amp;
-                }
-                path.lineTo(x, y);
-            }
-            
-            // Draw CRT Glow
-            QPen penGlow(QColor(166, 227, 161, 70));
-            penGlow.setWidth(6);
-            p.setPen(penGlow);
-            p.drawPath(path);
-            
-            // Draw CRT Core Line
-            QPen penCore(QColor("#a6e3a1"));
-            penCore.setWidth(2);
-            p.setPen(penCore);
-            p.drawPath(path);
-        }
-        else if (m_style == LedMatrix) {
-            int numBars = 12;
-            double gap = 4.0;
-            double barW = (w - (numBars - 1) * gap) / numBars;
-            int segmentH = 4;
-            int segmentGap = 2;
-            int maxSegments = h / (segmentH + segmentGap);
-            
-            p.setPen(Qt::NoPen);
-            
-            for (int i = 0; i < numBars; ++i) {
-                double barH = m_heights[i % 15];
-                int activeSegments = (barH / h) * maxSegments;
-                if (activeSegments < 1 && m_playing) activeSegments = 1;
-                
-                for (int s = 0; s < maxSegments; ++s) {
-                    double t = (double)s / maxSegments;
-                    QColor col;
-                    if (t < 0.6) col = QColor("#a6e3a1");      // Green bottom
-                    else if (t < 0.85) col = QColor("#f9e2af"); // Yellow middle
-                    else col = QColor("#f38ba8");               // Red peak
-                    
-                    if (s >= activeSegments) {
-                        col.setAlpha(35); // Dim background LED grid cells
-                    }
-                    p.setBrush(col);
-                    
-                    double y = h - (s + 1) * (segmentH + segmentGap);
-                    QRectF segRect(i * (barW + gap), y, barW, segmentH);
-                    p.drawRect(segRect);
-                }
-            }
-        }
-    }
-    
+private slots:
+    void onAnimate();
+
 private:
+    void updateAudioPath();
+    void loadWavData(const QString& wavPath);
+
     QTimer* m_timer = nullptr;
-    int m_heights[15];
+    double m_heights[15];
     bool m_playing = false;
     Style m_style = VerticalBars;
     double m_phase = 0.0;
+
+    QString m_loadedAudioPath;
+    QByteArray m_audioData;
+    const int16_t* m_samples = nullptr;
+    int m_numSamples = 0;
+    int m_sampleRate = 22050;
+    int m_numChannels = 1;
 };
 
 class CasingRunnable : public QRunnable {
@@ -690,6 +561,21 @@ public:
             QFileSystemModel* fileModel = qobject_cast<QFileSystemModel*>(sourceModel());
             if (fileModel && fileModel->isDir(srcIndex)) {
                 QString path = fileModel->filePath(srcIndex);
+                
+                // Skip recursive size calculations for remote/network shares to prevent huge performance hits
+                bool isRemote = false;
+                if (path.startsWith("/run/user/") && path.contains("/gvfs/")) {
+                    isRemote = true;
+                } else if (path.contains("CloudMounts") || path.startsWith(QDir::homePath() + "/CloudMounts")) {
+                    isRemote = true;
+                } else if (path.startsWith("ftp://") || path.startsWith("sftp://") || path.startsWith("smb://")) {
+                    isRemote = true;
+                }
+                
+                if (isRemote) {
+                    return "";
+                }
+
                 qint64 size = FolderSizeCalculator::instance().getFolderSize(path);
                 if (size == -1) {
                     return "Calculating...";
@@ -880,7 +766,7 @@ protected:
             if (docExts.contains(ext)) return true;
         }
         if (m_filterTypes.contains(FilterArchive)) {
-            static const QStringList archiveExts = { "zip", "tar", "gz", "bz2", "xz", "rar", "7z", "tgz" };
+            static const QStringList archiveExts = { "zip", "tar", "gz", "bz2", "xz", "rar", "7z", "tgz", "adf", "adz", "d64", "d71", "d81", "g64", "iso", "img" };
             if (archiveExts.contains(ext)) return true;
         }
         if (m_filterTypes.contains(FilterThreeD)) {
@@ -1064,6 +950,9 @@ public slots:
     void onNavigateForward();
     void onViewModeChanged(int index);
     void onPlaybackStateChanged(int state);
+    void playCurrentOrSelectedFolder();
+    void queueCurrentOrSelectedFolder();
+    void playPlaylistQueue();
 
 private slots:
     void onPathEntered();
@@ -1264,9 +1153,9 @@ private:
 
     void promptHideExtensions();
     void updateHideSettings();
-    void focusFirstItemInActiveView();
 
 public:
+    void focusFirstItemInActiveView();
     void updateThemeMusic();
     void stopThemeMusic();
 };
