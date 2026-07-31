@@ -31,7 +31,14 @@ ActionHelperDialog::ActionHelperDialog(QWidget* parent) : QDialog(parent) {
         {"@internal:Shred", "Secure File Shredder", "Permanently overwrites and destroys selected files/folders beyond recovery."},
         {"@internal:SmartHome", "Go to Landing Page Home Screen", "Navigates the active panel immediately to the dashboard Home Screen landing page."},
         {"@internal:LoadProfile <ProfileName>", "Load Folder Profile Layout", "Loads and applies the specified folder layout profile / template to the active file panel."},
-        {"@internal:Go <path>", "Navigate to specific folder path", "Navigates the panel to a custom directory. Supports macro variables: ~ (home), {dir} (active directory), {dest} (sibling directory)."}
+        {"@internal:Go <path>", "Navigate to specific folder path", "Navigates the panel to a custom directory. Supports macro variables: ~ (home), {dir} (active directory), {dest} (sibling directory)."},
+        {"@internal:ToggleWatched", "Toggle Watched Status", "Toggles the Watched/Unwatched metadata status overlay on the selected file or directory."},
+        {"@internal:MediaInfoSheet", "Open Media Info Sheet", "Launches the movie/audio detail sheet showing genre, release date, runtime, and plot synopsis."},
+        {"@internal:ScrapeVideoMetadata", "Scrape Video Metadata", "Runs background online scrapers to fetch movie or TV episode tags, actors, and cover art."},
+        {"@internal:FetchAlbumMetadata", "Fetch Album Cover Art", "Scrapes MusicBrainz or local directories to fetch album tagging and art files."},
+        {"@internal:ApplyDvdCasing", "Apply DVD Video Casing", "Wraps the cover art of the selected file or directory inside a high-fidelity DVD case overlay."},
+        {"@internal:ApplyBluRayCasing", "Apply Blu-ray Casing", "Wraps the cover art of the selected file or directory inside a premium Blu-ray case overlay."},
+        {"@internal:PlayCollection", "Play Folder Collection", "Triggers folder-wide media playback for the active directory or highlights."}
     };
 
     setupUI();

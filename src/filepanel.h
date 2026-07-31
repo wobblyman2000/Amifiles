@@ -823,6 +823,7 @@ public:
     void scrapeVideoMetadata();
     void editAudioTags(bool autoFetch = false);
     void applyDvdCasing();
+    void applyBluRayCasing();
     void playCollection();
     void createArchive(bool secure);
     void extractArchive();

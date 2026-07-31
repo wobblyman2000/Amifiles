@@ -3905,7 +3905,9 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     QAction* actGroupMultiDisc = nullptr;
     QAction* actHideAuxiliaryFiles = nullptr;
     QAction* actToggleTracksDrawer = nullptr;
-    QAction* actCasingStyle = nullptr;
+    QAction* actCasingClear = nullptr;
+    QAction* actCasingBlack = nullptr;
+    QAction* actCasingVinyl = nullptr;
     QAction* actHiddenExtensions = nullptr;
 
     if (m_viewStack->currentWidget() == m_theaterListView || m_viewStack->currentWidget() == m_theaterContainer) {
@@ -3973,9 +3975,18 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
 
             if (idx == 6 || idx == 10) {
                 QString casingType = settings.value("music_showcase/casing_type", "cd").toString();
-                actCasingStyle = menu.addAction(casingType == "vinyl" ? "Switch Casing to: CD Jewel Case" : "Switch Casing to: Vinyl LP Record Sleeve");
-                actCasingStyle->setCheckable(true);
-                actCasingStyle->setChecked(casingType == "vinyl");
+                QMenu* casingMenu = menu.addMenu("Casing Style");
+                actCasingClear = casingMenu->addAction("Clear CD Jewel Case");
+                actCasingBlack = casingMenu->addAction("Black CD Jewel Case");
+                actCasingVinyl = casingMenu->addAction("Vinyl LP Record Sleeve");
+
+                actCasingClear->setCheckable(true);
+                actCasingBlack->setCheckable(true);
+                actCasingVinyl->setCheckable(true);
+
+                if (casingType == "cd_black") actCasingBlack->setChecked(true);
+                else if (casingType == "vinyl") actCasingVinyl->setChecked(true);
+                else actCasingClear->setChecked(true);
             }
         }
 
@@ -4238,7 +4249,11 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
             if (MainWindow* mw = qobject_cast<MainWindow*>(parentW)) {
                 mw->updateDrivesList();
             }
-            refresh();
+            if (!mountPath.isEmpty()) {
+                setPath(mountPath);
+            } else {
+                refresh();
+            }
         } else {
             QMessageBox::critical(this, "Mount ISO Error", QString("Failed to mount ISO:\n%1").arg(errorMsg));
         }
@@ -4268,7 +4283,11 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
             if (MainWindow* mw = qobject_cast<MainWindow*>(parentW)) {
                 mw->updateDrivesList();
             }
-            refresh();
+            if (!mountPath.isEmpty()) {
+                setPath(mountPath);
+            } else {
+                refresh();
+            }
         } else {
             QMessageBox::critical(this, "Mount VHD Error", QString("Failed to mount VHD:\n%1").arg(errorMsg));
         }
@@ -4447,10 +4466,11 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         } else {
             onSelectionChanged();
         }
-    } else if (selected && selected == actCasingStyle) {
+    } else if (selected && (selected == actCasingClear || selected == actCasingBlack || selected == actCasingVinyl)) {
         QSettings settings("Amifiles", "Amifiles");
-        QString casingType = settings.value("music_showcase/casing_type", "cd").toString();
-        QString newCasing = (casingType == "vinyl") ? "cd" : "vinyl";
+        QString newCasing = "cd";
+        if (selected == actCasingBlack) newCasing = "cd_black";
+        else if (selected == actCasingVinyl) newCasing = "vinyl";
         settings.setValue("music_showcase/casing_type", newCasing);
         if (m_proxyModel) {
             m_proxyModel->clearCasingCache();
@@ -4573,6 +4593,20 @@ void FilePanel::showAudioShowcaseContextMenu(const QPoint& pos) {
 
     QAction* actHideExtensions = menu.addAction("Hide File Extensions...");
 
+    QString casingType = settings.value("music_showcase/casing_type", "cd").toString();
+    QMenu* casingMenu = menu.addMenu("Casing Style");
+    QAction* actCasingClear = casingMenu->addAction("Clear CD Jewel Case");
+    QAction* actCasingBlack = casingMenu->addAction("Black CD Jewel Case");
+    QAction* actCasingVinyl = casingMenu->addAction("Vinyl LP Record Sleeve");
+
+    actCasingClear->setCheckable(true);
+    actCasingBlack->setCheckable(true);
+    actCasingVinyl->setCheckable(true);
+
+    if (casingType == "cd_black") actCasingBlack->setChecked(true);
+    else if (casingType == "vinyl") actCasingVinyl->setChecked(true);
+    else actCasingClear->setChecked(true);
+
     QAction* actConfigureFolderLayouts = menu.addAction("Configure Folder-Specific Layouts...");
 
     QAction* selected = menu.exec(QCursor::pos());
@@ -4621,6 +4655,15 @@ void FilePanel::showAudioShowcaseContextMenu(const QPoint& pos) {
         refresh();
     } else if (selected == actHideExtensions) {
         promptHideExtensions();
+    } else if (selected == actCasingClear || selected == actCasingBlack || selected == actCasingVinyl) {
+        QString newCasing = "cd";
+        if (selected == actCasingBlack) newCasing = "cd_black";
+        else if (selected == actCasingVinyl) newCasing = "vinyl";
+        settings.setValue("music_showcase/casing_type", newCasing);
+        if (m_proxyModel) {
+            m_proxyModel->clearCasingCache();
+        }
+        refresh();
     } else if (selected == actConfigureFolderLayouts) {
         emit configureFolderLayoutsRequested();
     }
@@ -4701,6 +4744,20 @@ void FilePanel::showMusicShowcaseContextMenu(const QPoint& pos) {
     actHideAuxiliaryFiles->setChecked(hideAuxiliary);
 
     QAction* actHideExtensions = menu.addAction("Hide File Extensions...");
+
+    QString casingType = settings.value("music_showcase/casing_type", "cd").toString();
+    QMenu* casingMenu = menu.addMenu("Casing Style");
+    QAction* actCasingClear = casingMenu->addAction("Clear CD Jewel Case");
+    QAction* actCasingBlack = casingMenu->addAction("Black CD Jewel Case");
+    QAction* actCasingVinyl = casingMenu->addAction("Vinyl LP Record Sleeve");
+
+    actCasingClear->setCheckable(true);
+    actCasingBlack->setCheckable(true);
+    actCasingVinyl->setCheckable(true);
+
+    if (casingType == "cd_black") actCasingBlack->setChecked(true);
+    else if (casingType == "vinyl") actCasingVinyl->setChecked(true);
+    else actCasingClear->setChecked(true);
 
     QAction* actConfigureFolderLayouts = menu.addAction("Configure Folder-Specific Layouts...");
 
@@ -4811,6 +4868,15 @@ void FilePanel::showMusicShowcaseContextMenu(const QPoint& pos) {
         refresh();
     } else if (selected == actHideExtensions) {
         promptHideExtensions();
+    } else if (selected == actCasingClear || selected == actCasingBlack || selected == actCasingVinyl) {
+        QString newCasing = "cd";
+        if (selected == actCasingBlack) newCasing = "cd_black";
+        else if (selected == actCasingVinyl) newCasing = "vinyl";
+        settings.setValue("music_showcase/casing_type", newCasing);
+        if (m_proxyModel) {
+            m_proxyModel->clearCasingCache();
+        }
+        refresh();
     } else if (selected == actConfigureFolderLayouts) {
         emit configureFolderLayoutsRequested();
     }
@@ -5137,7 +5203,11 @@ void FilePanel::applyDvdCasing() {
     if (!info.isDir()) {
         QString dirPath = info.absolutePath();
         QString baseName = info.completeBaseName();
-        QStringList genericImages = { "folder.jpg", "folder.jpeg", "folder.png", "poster.jpg", "poster.jpeg", "poster.png", "cover.jpg", "cover.jpeg", "cover.png" };
+        QStringList genericImages = { 
+            baseName + "_cover.jpg", baseName + "_cover.jpeg", baseName + "_cover.png",
+            baseName + "_bluray_cover.jpg", baseName + "_bluray_cover.jpeg", baseName + "_bluray_cover.png",
+            "folder.jpg", "folder.jpeg", "folder.png", "poster.jpg", "poster.jpeg", "poster.png", "cover.jpg", "cover.jpeg", "cover.png" 
+        };
         QString foundGeneric;
         for (const QString& name : genericImages) {
             QFileInfo fi(QDir(dirPath).filePath(name));
@@ -5148,11 +5218,85 @@ void FilePanel::applyDvdCasing() {
         }
         if (!foundGeneric.isEmpty()) {
             QString ext = QFileInfo(foundGeneric).suffix();
-            QString destPath = QDir(dirPath).filePath(baseName + "_cover." + ext);
-            if (QFile::rename(foundGeneric, destPath)) {
-                if (m_proxyModel) m_proxyModel->clearCasingCache();
-                refresh();
+            QString destPath = QDir(dirPath).filePath(baseName + "_dvd_cover." + ext);
+            if (foundGeneric != destPath) {
+                QFile::rename(foundGeneric, destPath);
             }
+            if (m_proxyModel) m_proxyModel->clearCasingCache();
+            refresh();
+        }
+    } else {
+        QString dirPath = selectedPath;
+        QStringList genericImages = { "folder.jpg", "folder.jpeg", "folder.png", "poster.jpg", "poster.jpeg", "poster.png", "cover.jpg", "cover.jpeg", "cover.png", "bluray_cover.jpg", "bluray_cover.jpeg", "bluray_cover.png" };
+        QString foundGeneric;
+        for (const QString& name : genericImages) {
+            QFileInfo fi(QDir(dirPath).filePath(name));
+            if (fi.exists()) {
+                foundGeneric = fi.absoluteFilePath();
+                break;
+            }
+        }
+        if (!foundGeneric.isEmpty()) {
+            QString ext = QFileInfo(foundGeneric).suffix();
+            QString destPath = QDir(dirPath).filePath("dvd_cover." + ext);
+            if (foundGeneric != destPath) {
+                QFile::rename(foundGeneric, destPath);
+            }
+            if (m_proxyModel) m_proxyModel->clearCasingCache();
+            refresh();
+        }
+    }
+}
+
+void FilePanel::applyBluRayCasing() {
+    QStringList curSelected = selectedPaths();
+    QString selectedPath = curSelected.isEmpty() ? "" : curSelected.first();
+    if (selectedPath.isEmpty()) return;
+    QFileInfo info(selectedPath);
+    if (!info.isDir()) {
+        QString dirPath = info.absolutePath();
+        QString baseName = info.completeBaseName();
+        QStringList genericImages = { 
+            baseName + "_cover.jpg", baseName + "_cover.jpeg", baseName + "_cover.png",
+            baseName + "_dvd_cover.jpg", baseName + "_dvd_cover.jpeg", baseName + "_dvd_cover.png",
+            "folder.jpg", "folder.jpeg", "folder.png", "poster.jpg", "poster.jpeg", "poster.png", "cover.jpg", "cover.jpeg", "cover.png" 
+        };
+        QString foundGeneric;
+        for (const QString& name : genericImages) {
+            QFileInfo fi(QDir(dirPath).filePath(name));
+            if (fi.exists()) {
+                foundGeneric = fi.absoluteFilePath();
+                break;
+            }
+        }
+        if (!foundGeneric.isEmpty()) {
+            QString ext = QFileInfo(foundGeneric).suffix();
+            QString destPath = QDir(dirPath).filePath(baseName + "_bluray_cover." + ext);
+            if (foundGeneric != destPath) {
+                QFile::rename(foundGeneric, destPath);
+            }
+            if (m_proxyModel) m_proxyModel->clearCasingCache();
+            refresh();
+        }
+    } else {
+        QString dirPath = selectedPath;
+        QStringList genericImages = { "folder.jpg", "folder.jpeg", "folder.png", "poster.jpg", "poster.jpeg", "poster.png", "cover.jpg", "cover.jpeg", "cover.png", "dvd_cover.jpg", "dvd_cover.jpeg", "dvd_cover.png" };
+        QString foundGeneric;
+        for (const QString& name : genericImages) {
+            QFileInfo fi(QDir(dirPath).filePath(name));
+            if (fi.exists()) {
+                foundGeneric = fi.absoluteFilePath();
+                break;
+            }
+        }
+        if (!foundGeneric.isEmpty()) {
+            QString ext = QFileInfo(foundGeneric).suffix();
+            QString destPath = QDir(dirPath).filePath("bluray_cover." + ext);
+            if (foundGeneric != destPath) {
+                QFile::rename(foundGeneric, destPath);
+            }
+            if (m_proxyModel) m_proxyModel->clearCasingCache();
+            refresh();
         }
     }
 }
@@ -6706,24 +6850,42 @@ void CasingRunnable::run() {
     
     if (!isDir) {
         // 1. Check file-specific cover art first
-        QStringList fileSpecificChecks = {
-            baseName + "_cover.jpg", baseName + "_cover.jpeg", baseName + "_cover.png",
-            baseName + ".jpg", baseName + ".jpeg", baseName + ".png"
+        QStringList bluraySpecific = {
+            baseName + "_bluray_cover.jpg", baseName + "_bluray_cover.jpeg", baseName + "_bluray_cover.png",
+            baseName + "_bluray.jpg", baseName + "_bluray.jpeg", baseName + "_bluray.png"
         };
-        artPath = findFirstCaseInsensitiveFile(dirPath, fileSpecificChecks);
-        
+        artPath = findFirstCaseInsensitiveFile(dirPath, bluraySpecific);
         if (!artPath.isEmpty()) {
-            QString ext = fileInfo.suffix().toLower();
-            QStringList videoExts = { "mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "m4v" };
-            if (videoExts.contains(ext)) {
-                QString lowerName = fileInfo.fileName().toLower();
-                if (lowerName.contains("bluray") || lowerName.contains("blu-ray")) {
-                    casingInt = 2; // CasingBluRay
-                } else {
-                    casingInt = 1; // CasingDVD
-                }
+            casingInt = 2; // CasingBluRay
+        } else {
+            QStringList dvdSpecific = {
+                baseName + "_dvd_cover.jpg", baseName + "_dvd_cover.jpeg", baseName + "_dvd_cover.png",
+                baseName + "_dvd.jpg", baseName + "_dvd.jpeg", baseName + "_dvd.png"
+            };
+            artPath = findFirstCaseInsensitiveFile(dirPath, dvdSpecific);
+            if (!artPath.isEmpty()) {
+                casingInt = 1; // CasingDVD
             } else {
-                casingInt = 0; // CasingCD
+                QStringList fileSpecificChecks = {
+                    baseName + "_cover.jpg", baseName + "_cover.jpeg", baseName + "_cover.png",
+                    baseName + ".jpg", baseName + ".jpeg", baseName + ".png"
+                };
+                artPath = findFirstCaseInsensitiveFile(dirPath, fileSpecificChecks);
+                
+                if (!artPath.isEmpty()) {
+                    QString ext = fileInfo.suffix().toLower();
+                    QStringList videoExts = { "mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "m4v" };
+                    if (videoExts.contains(ext)) {
+                        QString lowerName = fileInfo.fileName().toLower();
+                        if (lowerName.contains("bluray") || lowerName.contains("blu-ray")) {
+                            casingInt = 2; // CasingBluRay
+                        } else {
+                            casingInt = 1; // CasingDVD
+                        }
+                    } else {
+                        casingInt = 0; // CasingCD
+                    }
+                }
             }
         }
     }
@@ -6738,7 +6900,7 @@ void CasingRunnable::run() {
             }
         }
         if (checkBluRay) {
-            QStringList blurayChecks = { "bluray_cover.jpg", "bluray_cover.jpeg", "bluray_cover.png", "bluray.jpg", "bluray.jpeg", "bluray.png" };
+            QStringList blurayChecks = { "bluray_cover.jpg", "bluray_cover.jpeg", "bluray_cover.png", "bluray.jpg", "bluray.jpeg", "bluray.png", "blu-ray_cover.jpg", "blu-ray_cover.jpeg", "blu-ray_cover.png", "blu-ray.jpg", "blu-ray.jpeg", "blu-ray.png" };
             artPath = findFirstCaseInsensitiveFile(dirPath, blurayChecks);
             if (!artPath.isEmpty()) {
                 casingInt = 2; // CasingBluRay
@@ -7069,112 +7231,448 @@ void CasingRunnable::run() {
             painter.setPen(QPen(QColor(255, 255, 255, 45), qMax(1, qRound(1 * s))));
             painter.drawRoundedRect(qRound(2 * s), qRound(2 * s), sleeveW - qRound(4 * s), caseH - qRound(4 * s), qRound(2 * s), qRound(2 * s));
         } else {
-            painter.setBrush(QColor("#313244"));
-            painter.setPen(QPen(QColor("#45475a"), qMax(1, qRound(1 * s))));
-            painter.drawRoundedRect(qRound(2 * s), qRound(2 * s), caseW - qRound(4 * s), caseH - qRound(4 * s), qRound(3 * s), qRound(3 * s));
+            // High-fidelity 3D CD Jewel Case using template PNG with procedural fallback
+            QSettings settings("Amifiles", "Amifiles");
+            QString casingType = settings.value("music_showcase/casing_type", "cd").toString();
+            QString templatePath = "/home/dave/.gemini/antigravity/cd_case_overlay.png";
+            if (casingType == "cd_black") {
+                templatePath = "/home/dave/.gemini/antigravity/cd_case_overlay_black.png";
+            }
+            QImage templateImage(templatePath);
+            if (templateImage.isNull() && casingType == "cd_black") {
+                templateImage.load("/home/dave/.gemini/antigravity/cd_case_overlay.png");
+            }
+            if (!templateImage.isNull()) {
+                // Perform pixel-perfect blending overlay using user's template PNG
+                QImage scaledTemplate = templateImage.scaled(caseW, caseH, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+                
+                double scale = caseW / 1024.0;
+                int left, top, right, bottom;
+                if (casingType == "cd_black") {
+                    left = qRound(140.0 * scale);
+                    top = qRound(100.0 * scale);
+                    right = qRound(975.0 * scale);
+                    bottom = qRound(915.0 * scale);
+                } else {
+                    left = qRound(181.0 * scale);
+                    top = qRound(148.0 * scale);
+                    right = qRound(925.0 * scale);
+                    bottom = qRound(880.0 * scale);
+                }
+                
+                int coverW = right - left;
+                int coverH = bottom - top;
 
-            painter.setBrush(QColor("#11111b"));
-            painter.setPen(Qt::NoPen);
-            painter.drawRect(qRound(3 * s), qRound(3 * s), qRound(5 * s), caseH - qRound(6 * s));
+                QImage caseImage = scaledTemplate;
+                QImage scaledCover = cover.scaled(coverW, coverH, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
 
-            int coverX = qRound(10 * s);
-            int coverY = qRound(4 * s);
-            int coverW = caseW - qRound(14 * s);
-            int coverH = caseH - qRound(8 * s);
-            painter.drawImage(QRect(coverX, coverY, coverW, coverH), cover.scaled(coverW, coverH, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+                if (caseImage.format() != QImage::Format_ARGB32_Premultiplied && caseImage.format() != QImage::Format_ARGB32) {
+                    caseImage = caseImage.convertToFormat(QImage::Format_ARGB32);
+                }
+                if (scaledCover.format() != QImage::Format_ARGB32_Premultiplied && scaledCover.format() != QImage::Format_ARGB32) {
+                    scaledCover = scaledCover.convertToFormat(QImage::Format_ARGB32);
+                }
 
-            painter.setBrush(Qt::NoBrush);
-            painter.setPen(QPen(QColor(255, 255, 255, 60), qMax(1, qRound(1 * s))));
-            painter.drawRoundedRect(qRound(3 * s), qRound(3 * s), caseW - qRound(6 * s), caseH - qRound(6 * s), qRound(2 * s), qRound(2 * s));
+                double neutral = (casingType == "cd_black") ? 246.0 : 219.0;
 
-            QLinearGradient gradient(0, 0, caseW, caseH);
-            gradient.setColorAt(0.0, QColor(255, 255, 255, 80));
-            gradient.setColorAt(0.3, QColor(255, 255, 255, 120));
-            gradient.setColorAt(0.35, QColor(255, 255, 255, 0));
-            gradient.setColorAt(1.0, QColor(255, 255, 255, 0));
+                for (int y = top; y < bottom; ++y) {
+                    if (y < 0 || y >= caseImage.height()) continue;
+                    QRgb* caseLine = reinterpret_cast<QRgb*>(caseImage.scanLine(y));
+                    int cy = y - top;
+                    if (cy < 0 || cy >= scaledCover.height()) continue;
+                    const QRgb* coverLine = reinterpret_cast<const QRgb*>(scaledCover.constScanLine(cy));
 
-            painter.setBrush(gradient);
-            painter.setPen(Qt::NoPen);
-            QPolygon gloss;
-            gloss << QPoint(qRound(9 * s), qRound(4 * s))
-                  << QPoint(caseW - qRound(4 * s), qRound(4 * s))
-                  << QPoint(qRound(9 * s), caseH - qRound(4 * s));
-            painter.drawPolygon(gloss);
+                    for (int x = left; x < right; ++x) {
+                        if (x < 0 || x >= caseImage.width()) continue;
+                        int cx = x - left;
+                        if (cx < 0 || cx >= scaledCover.width()) continue;
+
+                        QRgb tc = caseLine[x];
+                        QRgb cc = coverLine[cx];
+
+                        int ta = qAlpha(tc);
+                        int tr = qRed(tc);
+                        int tg = qGreen(tc);
+                        int tb = qBlue(tc);
+
+                        int cr = qRed(cc);
+                        int cg = qGreen(cc);
+                        int cb = qBlue(cc);
+
+                        int r = qMin(255, qMax(0, int(cr * (tr / neutral))));
+                        int g = qMin(255, qMax(0, int(cg * (tg / neutral))));
+                        int b = qMin(255, qMax(0, int(cb * (tb / neutral))));
+
+                        caseLine[x] = qRgba(r, g, b, ta);
+                    }
+                }
+                painter.drawImage(0, 0, caseImage);
+            } else {
+                // Procedural Fallback
+                // 1. Drop Shadow (shifted right and down for realistic floating depth)
+                QPolygonF shadowQuad;
+                double shadowOff = 4.0 * s;
+                shadowQuad << QPointF(1.5 * s + shadowOff, 3.5 * s + shadowOff)
+                           << QPointF(43.5 * s + shadowOff, 7.5 * s + shadowOff)
+                           << QPointF(43.5 * s + shadowOff, 40.5 * s + shadowOff)
+                           << QPointF(1.5 * s + shadowOff, 44.5 * s + shadowOff);
+                painter.setBrush(QColor(0, 0, 0, 95));
+                painter.setPen(Qt::NoPen);
+                painter.drawPolygon(shadowQuad);
+
+                // 2. Left side thickness edge (for 3D plastic depth)
+                QPolygonF leftEdge;
+                leftEdge << QPointF(0.5 * s, 4.5 * s)
+                         << QPointF(1.5 * s, 3.5 * s)
+                         << QPointF(1.5 * s, 44.5 * s)
+                         << QPointF(0.5 * s, 45.5 * s);
+                QLinearGradient leftEdgeGrad(0.5 * s, 0, 1.5 * s, 0);
+                leftEdgeGrad.setColorAt(0.0, QColor(255, 255, 255, 75));
+                leftEdgeGrad.setColorAt(0.4, QColor(255, 255, 255, 20));
+                leftEdgeGrad.setColorAt(1.0, QColor(255, 255, 255, 85));
+                painter.setBrush(leftEdgeGrad);
+                painter.setPen(QPen(QColor(255, 255, 255, 95), 1.0));
+                painter.drawPolygon(leftEdge);
+
+                // 3. Bottom edge thickness (for 3D base depth)
+                QPolygonF bottomEdge;
+                bottomEdge << QPointF(1.5 * s, 44.5 * s)
+                           << QPointF(43.5 * s, 40.5 * s)
+                           << QPointF(42.5 * s, 41.5 * s)
+                           << QPointF(0.5 * s, 45.5 * s);
+                QLinearGradient bottomEdgeGrad(0, 40.5 * s, 0, 45.5 * s);
+                bottomEdgeGrad.setColorAt(0.0, QColor(255, 255, 255, 15));
+                bottomEdgeGrad.setColorAt(1.0, QColor(0, 0, 0, 80));
+                painter.setBrush(bottomEdgeGrad);
+                painter.setPen(QPen(QColor(255, 255, 255, 75), 1.0));
+                painter.drawPolygon(bottomEdge);
+
+                // 4. Ribbed Spine Hinge (Classic dark textured plastic with perspective ribs)
+                QPolygonF spineQuad;
+                spineQuad << QPointF(3.0 * s, 4.5 * s)
+                          << QPointF(10.0 * s, 5.5 * s)
+                          << QPointF(10.0 * s, 42.5 * s)
+                          << QPointF(3.0 * s, 43.5 * s);
+                QLinearGradient spineBgGrad(3.0 * s, 0, 10.0 * s, 0);
+                spineBgGrad.setColorAt(0.0, QColor("#111112"));
+                spineBgGrad.setColorAt(0.5, QColor("#2d2d31"));
+                spineBgGrad.setColorAt(1.0, QColor("#0d0d0e"));
+                painter.setBrush(spineBgGrad);
+                painter.setPen(Qt::NoPen);
+                painter.drawPolygon(spineQuad);
+
+                int numRibs = 15;
+                for (int i = 0; i <= numRibs; ++i) {
+                    double t = (double)i / numRibs;
+                    double rx_top = 3.0 + t * 7.0;
+                    double ry_top = 4.5 + t * 1.0;
+                    double rx_bot = 3.0 + t * 7.0;
+                    double ry_bot = 43.5 - t * 1.0;
+
+                    painter.setPen(QPen(QColor(0, 0, 0, 150), 1.0));
+                    painter.drawLine(QPointF(rx_top * s, ry_top * s), QPointF(rx_bot * s, ry_bot * s));
+                    painter.setPen(QPen(QColor(255, 255, 255, 35), 1.0));
+                    painter.drawLine(QPointF((rx_top + 0.15) * s, ry_top * s), QPointF((rx_bot + 0.15) * s, ry_bot * s));
+                }
+
+                // 5. Warp and draw the album art insert booklet using perspective transform
+                QPolygonF srcQuad;
+                srcQuad << QPointF(0, 0)
+                        << QPointF(cover.width(), 0)
+                        << QPointF(cover.width(), cover.height())
+                        << QPointF(0, cover.height());
+
+                QPolygonF dstQuad;
+                dstQuad << QPointF(10.0 * s, 5.5 * s)
+                        << QPointF(41.0 * s, 8.5 * s)
+                        << QPointF(41.0 * s, 39.5 * s)
+                        << QPointF(10.0 * s, 42.5 * s);
+
+                QTransform transform;
+                if (QTransform::quadToQuad(srcQuad, dstQuad, transform)) {
+                    painter.save();
+                    painter.setTransform(transform, true);
+                    painter.drawImage(0, 0, cover);
+                    painter.restore();
+                }
+
+                // Cover booklet border highlight
+                painter.setBrush(Qt::NoBrush);
+                painter.setPen(QPen(QColor(255, 255, 255, 30), 1.0));
+                painter.drawPolygon(dstQuad);
+
+                // 6. Draw outer transparent acrylic cover highlights
+                QPolygonF frontCover;
+                frontCover << QPointF(1.5 * s, 3.5 * s)
+                           << QPointF(43.5 * s, 7.5 * s)
+                           << QPointF(43.5 * s, 40.5 * s)
+                           << QPointF(1.5 * s, 44.5 * s);
+                painter.setPen(QPen(QColor(255, 255, 255, 90), 1.5));
+                painter.drawPolygon(frontCover);
+
+                // Double-layer inner plastic highlight
+                QPolygonF frontCoverInner;
+                frontCoverInner << QPointF(2.5 * s, 4.3 * s)
+                                << QPointF(42.5 * s, 8.1 * s)
+                                << QPointF(42.5 * s, 39.7 * s)
+                                << QPointF(2.5 * s, 43.7 * s);
+                painter.setPen(QPen(QColor(255, 255, 255, 35), 1.0));
+                painter.drawPolygon(frontCoverInner);
+
+                // 7. Glassy reflections and sheens
+                // Wide glossy band
+                QPolygonF gloss1;
+                gloss1 << QPointF(10.0 * s, 5.5 * s)
+                       << QPointF(25.0 * s, 6.9 * s)
+                       << QPointF(10.0 * s, 21.0 * s);
+                QLinearGradient gloss1Grad(10.0 * s, 5.5 * s, 20.0 * s, 15.0 * s);
+                gloss1Grad.setColorAt(0.0, QColor(255, 255, 255, 80));
+                gloss1Grad.setColorAt(0.5, QColor(255, 255, 255, 30));
+                gloss1Grad.setColorAt(1.0, QColor(255, 255, 255, 0));
+                painter.setBrush(gloss1Grad);
+                painter.setPen(Qt::NoPen);
+                painter.drawPolygon(gloss1);
+
+                // Sharp diagonal glare stripe
+                QPolygonF gloss2;
+                gloss2 << QPointF(28.0 * s, 7.2 * s)
+                       << QPointF(34.0 * s, 7.8 * s)
+                       << QPointF(10.0 * s, 31.8 * s)
+                       << QPointF(10.0 * s, 25.8 * s);
+                QLinearGradient gloss2Grad(28.0 * s, 7.2 * s, 15.0 * s, 20.0 * s);
+                gloss2Grad.setColorAt(0.0, QColor(255, 255, 255, 90));
+                gloss2Grad.setColorAt(0.2, QColor(255, 255, 255, 100));
+                gloss2Grad.setColorAt(0.35, QColor(255, 255, 255, 0));
+                gloss2Grad.setColorAt(0.75, QColor(255, 255, 255, 0));
+                gloss2Grad.setColorAt(0.85, QColor(255, 255, 255, 20));
+                gloss2Grad.setColorAt(1.0, QColor(255, 255, 255, 0));
+                painter.setBrush(gloss2Grad);
+                painter.setPen(Qt::NoPen);
+                painter.drawPolygon(gloss2);
+
+                // Soft glare top right
+                QPolygonF gloss3;
+                gloss3 << QPointF(38.0 * s, 8.2 * s)
+                       << QPointF(43.5 * s, 7.5 * s)
+                       << QPointF(43.5 * s, 25.0 * s)
+                       << QPointF(38.0 * s, 25.0 * s);
+                QLinearGradient gloss3Grad(43.5 * s, 7.5 * s, 38.0 * s, 20.0 * s);
+                gloss3Grad.setColorAt(0.0, QColor(255, 255, 255, 45));
+                gloss3Grad.setColorAt(1.0, QColor(255, 255, 255, 0));
+                painter.setBrush(gloss3Grad);
+                painter.setPen(Qt::NoPen);
+                painter.drawPolygon(gloss3);
+            }
         }
     }
     else if (casingInt == 1) { // CasingDVD
-        painter.setBrush(QColor("#1e1e2e"));
-        painter.setPen(QPen(QColor("#313244"), qMax(1, qRound(1.5 * s))));
-        painter.drawRoundedRect(qRound(2 * s), qRound(2 * s), caseW - qRound(4 * s), caseH - qRound(4 * s), qRound(4 * s), qRound(4 * s));
+        // 1. Draw outer case body with realistic rounded corners
+        QLinearGradient caseGrad(0, 0, 0, caseH);
+        caseGrad.setColorAt(0.0, QColor("#2b2b2b"));
+        caseGrad.setColorAt(0.5, QColor("#1e1e1e"));
+        caseGrad.setColorAt(1.0, QColor("#121212"));
+        painter.setBrush(caseGrad);
+        
+        QLinearGradient borderGrad(0, 0, 0, caseH);
+        borderGrad.setColorAt(0.0, QColor("#444444"));
+        borderGrad.setColorAt(1.0, QColor("#111111"));
+        painter.setPen(QPen(borderGrad, 1.0));
+        painter.drawRoundedRect(QRectF(0.5, 0.5, caseW - 1.0, caseH - 1.0), 10.0, 10.0);
 
-        int coverX = qRound(4 * s);
-        int coverY = qRound(4 * s);
-        int coverW = caseW - qRound(8 * s);
-        int coverH = caseH - qRound(8 * s);
-        painter.drawImage(QRect(coverX, coverY, coverW, coverH), cover.scaled(coverW, coverH, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+        // 2. Spine hinge lines on the left side
+        painter.setPen(QPen(QColor(255, 255, 255, 25), 1.0));
+        painter.drawLine(QPointF(5.5, 6.0), QPointF(5.5, caseH - 7.0));
+        painter.setPen(QPen(QColor(0, 0, 0, 90), 1.0));
+        painter.drawLine(QPointF(6.5, 6.0), QPointF(6.5, caseH - 7.0));
 
-        painter.setBrush(Qt::NoBrush);
-        painter.setPen(QPen(QColor(255, 255, 255, 40), qMax(1, qRound(1 * s))));
-        painter.drawRoundedRect(qRound(3 * s), qRound(3 * s), caseW - qRound(6 * s), caseH - qRound(6 * s), qRound(3 * s), qRound(3 * s));
+        // 3. Sleeve pocket layout
+        int coverX = 10;
+        int coverY = 6;
+        int coverW = caseW - 16; // 154
+        int coverH = caseH - 12; // 244
+        int headerH = 24;
 
-        QLinearGradient gradient(0, 0, caseW, caseH);
-        gradient.setColorAt(0.0, QColor(255, 255, 255, 60));
-        gradient.setColorAt(0.25, QColor(255, 255, 255, 100));
-        gradient.setColorAt(0.3, QColor(255, 255, 255, 0));
-        gradient.setColorAt(1.0, QColor(255, 255, 255, 0));
+        // Clip everything inside the sleeve pocket
+        painter.save();
+        QPainterPath sleevePath;
+        sleevePath.addRoundedRect(QRectF(coverX, coverY, coverW, coverH), 3.0, 3.0);
+        painter.setClipPath(sleevePath);
 
-        painter.setBrush(gradient);
+        // A. Draw the Opaque Header (Opaque Charcoal)
+        QLinearGradient headerGrad(coverX, coverY, coverX, coverY + headerH);
+        headerGrad.setColorAt(0.0, QColor("#222223"));
+        headerGrad.setColorAt(1.0, QColor("#141415"));
+        painter.setBrush(headerGrad);
         painter.setPen(Qt::NoPen);
-        QPolygon gloss;
-        gloss << QPoint(qRound(4 * s), qRound(4 * s))
-              << QPoint(caseW - qRound(4 * s), qRound(4 * s))
-              << QPoint(qRound(4 * s), caseH - qRound(4 * s));
-        painter.drawPolygon(gloss);
+        painter.drawRect(coverX, coverY, coverW, headerH);
+
+        // B. Draw the DVD Video logo inside the header
+        int centerX = coverX + coverW / 2;
+        int logoY = coverY + 7;
+        
+        // DVD oval ring
+        painter.setBrush(Qt::NoBrush);
+        painter.setPen(QPen(QColor(224, 224, 224), 1.0));
+        painter.drawEllipse(QRectF(centerX - 12, logoY - 3.5, 24, 7));
+
+        // DVD Text
+        QFont dvdFont("Arial");
+        dvdFont.setPixelSize(9);
+        dvdFont.setBold(true);
+        dvdFont.setItalic(true);
+        dvdFont.setStretch(125);
+        painter.setFont(dvdFont);
+        painter.setPen(QColor("#dddddd"));
+        painter.drawText(QRect(centerX - 14, logoY - 5, 28, 9), Qt::AlignCenter, "DVD");
+
+        // VIDEO Text
+        QFont videoFont("Arial");
+        videoFont.setPixelSize(6);
+        videoFont.setBold(true);
+        videoFont.setLetterSpacing(QFont::AbsoluteSpacing, 2);
+        painter.setFont(videoFont);
+        painter.setPen(QColor("#b3b3b3"));
+        painter.drawText(QRect(coverX, coverY + 13, coverW, 8), Qt::AlignCenter, "VIDEO");
+
+        // Header bottom divider line
+        painter.setPen(QPen(QColor(255, 255, 255, 30), 1.0));
+        painter.drawLine(coverX, coverY + headerH, coverX + coverW, coverY + headerH);
+
+        // C. Draw the cover image resized to fit in the remaining space below the header
+        int artY = coverY + headerH;
+        int artH = coverH - headerH; // 220
+        painter.drawImage(QRect(coverX, artY, coverW, artH), cover.scaled(coverW, artH, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+
+        // D. Draw inner pocket border reflection & shadow
+        painter.setBrush(Qt::NoBrush);
+        painter.setPen(QPen(QColor(255, 255, 255, 35), 1.0));
+        painter.drawRoundedRect(QRectF(coverX, coverY, coverW, coverH), 3.0, 3.0);
+
+        painter.setPen(QPen(QColor(0, 0, 0, 100), 1.0));
+        painter.drawLine(coverX, coverY, coverX + coverW, coverY);
+        painter.drawLine(coverX, coverY, coverX, coverY + coverH);
+
+        painter.restore();
+
+        // 10. Draw diagonal glossy overlay on top of the entire case (clipped to outer case shape)
+        painter.save();
+        QPainterPath outerPath;
+        outerPath.addRoundedRect(QRectF(0.5, 0.5, caseW - 1.0, caseH - 1.0), 10.0, 10.0);
+        painter.setClipPath(outerPath);
+
+        QLinearGradient gloss(caseW - 5, 5, 25, caseH - 25);
+        gloss.setColorAt(0.0, QColor(255, 255, 255, 110)); // Bright reflection
+        gloss.setColorAt(0.20, QColor(255, 255, 255, 120));
+        gloss.setColorAt(0.26, QColor(255, 255, 255, 0));  // Sharp highlight cutoff
+        gloss.setColorAt(0.60, QColor(255, 255, 255, 0));
+        gloss.setColorAt(0.70, QColor(255, 255, 255, 15));  // Soft secondary reflection
+        gloss.setColorAt(0.80, QColor(255, 255, 255, 0));
+        
+        painter.setBrush(gloss);
+        painter.setPen(Qt::NoPen);
+        painter.drawRect(0, 0, caseW, caseH);
+        painter.restore();
     }
     else if (casingInt == 2) { // CasingBluRay
-        painter.setBrush(QColor("#1e1e2e"));
-        painter.setPen(QPen(QColor("#313244"), qMax(1, qRound(1.5 * s))));
-        painter.drawRoundedRect(qRound(2 * s), qRound(2 * s), caseW - qRound(4 * s), caseH - qRound(4 * s), qRound(4 * s), qRound(4 * s));
-
-        int coverX = qRound(4 * s);
-        int coverY = qRound(9 * s);
-        int coverW = caseW - qRound(8 * s);
-        int coverH = caseH - qRound(13 * s);
-        painter.drawImage(QRect(coverX, coverY, coverW, coverH), cover.scaled(coverW, coverH, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
-
-        QLinearGradient blueGrad(0, 0, 0, coverY);
-        blueGrad.setColorAt(0.0, QColor(14, 165, 233, 220));
-        blueGrad.setColorAt(1.0, QColor(3, 105, 161, 180));
+        // 1. Draw outer case body with realistic rounded corners and blue plastic look
+        QLinearGradient caseGrad(0, 0, 0, caseH);
+        caseGrad.setColorAt(0.0, QColor("#1e3a8a"));
+        caseGrad.setColorAt(0.5, QColor("#172554"));
+        caseGrad.setColorAt(1.0, QColor("#0f172a"));
+        painter.setBrush(caseGrad);
         
-        painter.setBrush(blueGrad);
+        QLinearGradient borderGrad(0, 0, 0, caseH);
+        borderGrad.setColorAt(0.0, QColor("#3b82f6"));
+        borderGrad.setColorAt(1.0, QColor("#1e293b"));
+        painter.setPen(QPen(borderGrad, 1.0));
+        painter.drawRoundedRect(QRectF(0.5, 0.5, caseW - 1.0, caseH - 1.0), 10.0, 10.0);
+
+        // 2. Spine hinge lines on the left side
+        painter.setPen(QPen(QColor(96, 165, 250, 90), 1.0));
+        painter.drawLine(QPointF(5.5, 6.0), QPointF(5.5, caseH - 7.0));
+        painter.setPen(QPen(QColor(0, 0, 0, 90), 1.0));
+        painter.drawLine(QPointF(6.5, 6.0), QPointF(6.5, caseH - 7.0));
+
+        // 3. Sleeve pocket layout
+        int coverX = 10;
+        int coverY = 6;
+        int coverW = caseW - 16; // 164
+        int coverH = caseH - 12; // 244
+        int headerH = 24;
+
+        // Clip everything inside the sleeve pocket
+        painter.save();
+        QPainterPath sleevePath;
+        sleevePath.addRoundedRect(QRectF(coverX, coverY, coverW, coverH), 3.0, 3.0);
+        painter.setClipPath(sleevePath);
+
+        // A. Draw the Opaque Header (Opaque Blue)
+        QLinearGradient headerGrad(coverX, coverY, coverX, coverY + headerH);
+        headerGrad.setColorAt(0.0, QColor("#0284c7"));
+        headerGrad.setColorAt(1.0, QColor("#075985"));
+        painter.setBrush(headerGrad);
         painter.setPen(Qt::NoPen);
-        painter.drawRoundedRect(qRound(3 * s), qRound(3 * s), caseW - qRound(6 * s), qRound(7 * s), qRound(2 * s), qRound(2 * s));
+        painter.drawRect(coverX, coverY, coverW, headerH);
 
-        painter.setPen(QPen(QColor(255, 255, 255, 140), 1));
-        QFont logoFont = painter.font();
-        logoFont.setPointSize(qRound(2.2 * s));
-        logoFont.setBold(true);
-        logoFont.setLetterSpacing(QFont::AbsoluteSpacing, qRound(0.4 * s));
-        painter.setFont(logoFont);
-        painter.drawText(QRect(0, qRound(3 * s), caseW, qRound(6 * s)), Qt::AlignCenter, "BLU-RAY");
+        // B. Draw the Blu-ray logo inside the header
+        int centerX = coverX + coverW / 2;
+        
+        // Blu-ray Text
+        QFont brFont("Arial");
+        brFont.setPixelSize(9);
+        brFont.setBold(true);
+        brFont.setLetterSpacing(QFont::AbsoluteSpacing, 1);
+        painter.setFont(brFont);
+        painter.setPen(QColor("#ffffff"));
+        painter.drawText(QRect(coverX, coverY + 3, coverW, 9), Qt::AlignCenter, "BLU-RAY");
 
+        // VIDEO Text
+        QFont videoFont("Arial");
+        videoFont.setPixelSize(5);
+        videoFont.setBold(true);
+        videoFont.setLetterSpacing(QFont::AbsoluteSpacing, 2);
+        painter.setFont(videoFont);
+        painter.setPen(QColor("#bae6fd"));
+        painter.drawText(QRect(coverX, coverY + 13, coverW, 8), Qt::AlignCenter, "VIDEO");
+
+        // Header bottom divider line
+        painter.setPen(QPen(QColor(255, 255, 255, 40), 1.0));
+        painter.drawLine(coverX, coverY + headerH, coverX + coverW, coverY + headerH);
+
+        // C. Draw the cover image resized to fit in the remaining space below the header
+        int artY = coverY + headerH;
+        int artH = coverH - headerH; // 220
+        painter.drawImage(QRect(coverX, artY, coverW, artH), cover.scaled(coverW, artH, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+
+        // D. Draw inner pocket border reflection & shadow
         painter.setBrush(Qt::NoBrush);
-        painter.setPen(QPen(QColor(255, 255, 255, 45), qMax(1, qRound(1 * s))));
-        painter.drawRoundedRect(qRound(3 * s), qRound(3 * s), caseW - qRound(6 * s), caseH - qRound(6 * s), qRound(3 * s), qRound(3 * s));
+        painter.setPen(QPen(QColor(255, 255, 255, 45), 1.0));
+        painter.drawRoundedRect(QRectF(coverX, coverY, coverW, coverH), 3.0, 3.0);
 
-        QLinearGradient gradient(0, 0, caseW, caseH);
-        gradient.setColorAt(0.0, QColor(255, 255, 255, 60));
-        gradient.setColorAt(0.25, QColor(255, 255, 255, 90));
-        gradient.setColorAt(0.3, QColor(255, 255, 255, 0));
-        gradient.setColorAt(1.0, QColor(255, 255, 255, 0));
+        painter.setPen(QPen(QColor(0, 0, 0, 100), 1.0));
+        painter.drawLine(coverX, coverY, coverX + coverW, coverY);
+        painter.drawLine(coverX, coverY, coverX, coverY + coverH);
 
-        painter.setBrush(gradient);
+        painter.restore();
+
+        // 10. Draw diagonal glossy overlay on top of the entire case (clipped to outer case shape)
+        painter.save();
+        QPainterPath outerPath;
+        outerPath.addRoundedRect(QRectF(0.5, 0.5, caseW - 1.0, caseH - 1.0), 10.0, 10.0);
+        painter.setClipPath(outerPath);
+
+        QLinearGradient gloss(caseW - 5, 5, 25, caseH - 25);
+        gloss.setColorAt(0.0, QColor(255, 255, 255, 110)); // Bright reflection
+        gloss.setColorAt(0.20, QColor(255, 255, 255, 120));
+        gloss.setColorAt(0.26, QColor(255, 255, 255, 0));  // Sharp highlight cutoff
+        gloss.setColorAt(0.60, QColor(255, 255, 255, 0));
+        gloss.setColorAt(0.70, QColor(255, 255, 255, 15));  // Soft secondary reflection
+        gloss.setColorAt(0.80, QColor(255, 255, 255, 0));
+        
+        painter.setBrush(gloss);
         painter.setPen(Qt::NoPen);
-        QPolygon gloss;
-        gloss << QPoint(qRound(4 * s), qRound(4 * s))
-              << QPoint(caseW - qRound(4 * s), qRound(4 * s))
-              << QPoint(qRound(4 * s), caseH - qRound(4 * s));
-        painter.drawPolygon(gloss);
+        painter.drawRect(0, 0, caseW, caseH);
+        painter.restore();
     }
     
     painter.end();

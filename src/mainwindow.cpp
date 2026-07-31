@@ -6240,6 +6240,10 @@ void MainWindow::executeCustomCommand(const QString& commandOrPath) {
             if (m_activePanel) {
                 m_activePanel->applyDvdCasing();
             }
+        } else if (cmd == "ApplyBluRayCasing") {
+            if (m_activePanel) {
+                m_activePanel->applyBluRayCasing();
+            }
         } else if (cmd == "PlayCollection") {
             if (m_activePanel) {
                 m_activePanel->playCollection();
