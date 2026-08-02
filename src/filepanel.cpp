@@ -6608,22 +6608,27 @@ void CasingRunnable::run() {
         return;
     }
 
+    QPointer<FileFilterProxyModel> model = m_model;
+    if (!model) return;
+    int zoomSize = model->m_zoomIconSize;
+    double scaleFactor = (double)zoomSize / 32.0;
+    if (scaleFactor < 0.25) scaleFactor = 0.25;
+
     QImage cover;
     if (cover.load(artPath)) {
-        int targetW = 220;
-        int targetH = 220;
+        int targetW = qRound(220.0 * scaleFactor);
+        int targetH = qRound(220.0 * scaleFactor);
         if (casingInt == 1) { // DVD
-            targetW = 154;
-            targetH = 240;
+            targetW = qRound(154.0 * scaleFactor);
+            targetH = qRound(240.0 * scaleFactor);
         } else if (casingInt == 2) { // BluRay
-            targetW = 164;
-            targetH = 226;
+            targetW = qRound(164.0 * scaleFactor);
+            targetH = qRound(226.0 * scaleFactor);
         }
         cover = cover.scaled(QSize(targetW, targetH), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
     }
 
     if (cover.isNull()) {
-        QPointer<FileFilterProxyModel> model = m_model;
         QString path = m_path;
         QMetaObject::invokeMethod(model.data(), [model, path]() {
             if (model) {
@@ -6633,15 +6638,15 @@ void CasingRunnable::run() {
         return;
     }
 
-    int caseW = 256;
-    int caseH = 256;
+    int caseW = qRound(256.0 * scaleFactor);
+    int caseH = qRound(256.0 * scaleFactor);
     if (casingInt == 1) { // DVD
-        caseW = 170;
+        caseW = qRound(170.0 * scaleFactor);
     } else if (casingInt == 2) { // BluRay
-        caseW = 180;
+        caseW = qRound(180.0 * scaleFactor);
     }
 
-    double s = 256.0 / 48.0;
+    double s = (256.0 / 48.0) * scaleFactor;
 
     QImage caseImage(caseW, caseH, QImage::Format_ARGB32_Premultiplied);
     caseImage.fill(Qt::transparent);
@@ -6956,26 +6961,26 @@ void CasingRunnable::run() {
         QLinearGradient borderGrad(0, 0, 0, caseH);
         borderGrad.setColorAt(0.0, QColor("#444444"));
         borderGrad.setColorAt(1.0, QColor("#111111"));
-        painter.setPen(QPen(borderGrad, 1.0));
-        painter.drawRoundedRect(QRectF(0.5, 0.5, caseW - 1.0, caseH - 1.0), 10.0, 10.0);
+        painter.setPen(QPen(borderGrad, qMax(1.0, 1.0 * scaleFactor)));
+        painter.drawRoundedRect(QRectF(0.5 * scaleFactor, 0.5 * scaleFactor, caseW - 1.0 * scaleFactor, caseH - 1.0 * scaleFactor), 10.0 * scaleFactor, 10.0 * scaleFactor);
 
         // 2. Spine hinge lines on the left side
-        painter.setPen(QPen(QColor(255, 255, 255, 25), 1.0));
-        painter.drawLine(QPointF(5.5, 6.0), QPointF(5.5, caseH - 7.0));
-        painter.setPen(QPen(QColor(0, 0, 0, 90), 1.0));
-        painter.drawLine(QPointF(6.5, 6.0), QPointF(6.5, caseH - 7.0));
+        painter.setPen(QPen(QColor(255, 255, 255, 25), qMax(1.0, 1.0 * scaleFactor)));
+        painter.drawLine(QPointF(5.5 * scaleFactor, 6.0 * scaleFactor), QPointF(5.5 * scaleFactor, caseH - 7.0 * scaleFactor));
+        painter.setPen(QPen(QColor(0, 0, 0, 90), qMax(1.0, 1.0 * scaleFactor)));
+        painter.drawLine(QPointF(6.5 * scaleFactor, 6.0 * scaleFactor), QPointF(6.5 * scaleFactor, caseH - 7.0 * scaleFactor));
 
         // 3. Sleeve pocket layout
-        int coverX = 10;
-        int coverY = 6;
-        int coverW = caseW - 16; // 154
-        int coverH = caseH - 12; // 244
-        int headerH = 24;
+        int coverX = qRound(10.0 * scaleFactor);
+        int coverY = qRound(6.0 * scaleFactor);
+        int coverW = caseW - qRound(16.0 * scaleFactor);
+        int coverH = caseH - qRound(12.0 * scaleFactor);
+        int headerH = qRound(24.0 * scaleFactor);
 
         // Clip everything inside the sleeve pocket
         painter.save();
         QPainterPath sleevePath;
-        sleevePath.addRoundedRect(QRectF(coverX, coverY, coverW, coverH), 3.0, 3.0);
+        sleevePath.addRoundedRect(QRectF(coverX, coverY, coverW, coverH), 3.0 * scaleFactor, 3.0 * scaleFactor);
         painter.setClipPath(sleevePath);
 
         // A. Draw the Opaque Header (Opaque Charcoal)
@@ -6988,47 +6993,47 @@ void CasingRunnable::run() {
 
         // B. Draw the DVD Video logo inside the header
         int centerX = coverX + coverW / 2;
-        int logoY = coverY + 7;
+        int logoY = coverY + qRound(7.0 * scaleFactor);
         
         // DVD oval ring
         painter.setBrush(Qt::NoBrush);
-        painter.setPen(QPen(QColor(224, 224, 224), 1.0));
-        painter.drawEllipse(QRectF(centerX - 12, logoY - 3.5, 24, 7));
+        painter.setPen(QPen(QColor(224, 224, 224), qMax(1.0, 1.0 * scaleFactor)));
+        painter.drawEllipse(QRectF(centerX - qRound(12.0 * scaleFactor), logoY - qRound(3.5 * scaleFactor), qRound(24.0 * scaleFactor), qRound(7.0 * scaleFactor)));
 
         // DVD Text
         QFont dvdFont("Arial");
-        dvdFont.setPixelSize(9);
+        dvdFont.setPixelSize(qMax(6, qRound(9.0 * scaleFactor)));
         dvdFont.setBold(true);
         dvdFont.setItalic(true);
         dvdFont.setStretch(125);
         painter.setFont(dvdFont);
         painter.setPen(QColor("#dddddd"));
-        painter.drawText(QRect(centerX - 14, logoY - 5, 28, 9), Qt::AlignCenter, "DVD");
+        painter.drawText(QRect(centerX - qRound(14.0 * scaleFactor), logoY - qRound(5.0 * scaleFactor), qRound(28.0 * scaleFactor), qRound(9.0 * scaleFactor)), Qt::AlignCenter, "DVD");
 
         // VIDEO Text
         QFont videoFont("Arial");
-        videoFont.setPixelSize(6);
+        videoFont.setPixelSize(qMax(4, qRound(6.0 * scaleFactor)));
         videoFont.setBold(true);
-        videoFont.setLetterSpacing(QFont::AbsoluteSpacing, 2);
+        videoFont.setLetterSpacing(QFont::AbsoluteSpacing, qRound(2.0 * scaleFactor));
         painter.setFont(videoFont);
         painter.setPen(QColor("#b3b3b3"));
-        painter.drawText(QRect(coverX, coverY + 13, coverW, 8), Qt::AlignCenter, "VIDEO");
+        painter.drawText(QRect(coverX, coverY + qRound(13.0 * scaleFactor), coverW, qRound(8.0 * scaleFactor)), Qt::AlignCenter, "VIDEO");
 
         // Header bottom divider line
-        painter.setPen(QPen(QColor(255, 255, 255, 30), 1.0));
+        painter.setPen(QPen(QColor(255, 255, 255, 30), qMax(1.0, 1.0 * scaleFactor)));
         painter.drawLine(coverX, coverY + headerH, coverX + coverW, coverY + headerH);
 
         // C. Draw the cover image resized to fit in the remaining space below the header
         int artY = coverY + headerH;
-        int artH = coverH - headerH; // 220
+        int artH = coverH - headerH;
         painter.drawImage(QRect(coverX, artY, coverW, artH), cover.scaled(coverW, artH, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
 
         // D. Draw inner pocket border reflection & shadow
         painter.setBrush(Qt::NoBrush);
-        painter.setPen(QPen(QColor(255, 255, 255, 35), 1.0));
-        painter.drawRoundedRect(QRectF(coverX, coverY, coverW, coverH), 3.0, 3.0);
+        painter.setPen(QPen(QColor(255, 255, 255, 35), qMax(1.0, 1.0 * scaleFactor)));
+        painter.drawRoundedRect(QRectF(coverX, coverY, coverW, coverH), 3.0 * scaleFactor, 3.0 * scaleFactor);
 
-        painter.setPen(QPen(QColor(0, 0, 0, 100), 1.0));
+        painter.setPen(QPen(QColor(0, 0, 0, 100), qMax(1.0, 1.0 * scaleFactor)));
         painter.drawLine(coverX, coverY, coverX + coverW, coverY);
         painter.drawLine(coverX, coverY, coverX, coverY + coverH);
 
@@ -7037,10 +7042,10 @@ void CasingRunnable::run() {
         // 10. Draw diagonal glossy overlay on top of the entire case (clipped to outer case shape)
         painter.save();
         QPainterPath outerPath;
-        outerPath.addRoundedRect(QRectF(0.5, 0.5, caseW - 1.0, caseH - 1.0), 10.0, 10.0);
+        outerPath.addRoundedRect(QRectF(0.5 * scaleFactor, 0.5 * scaleFactor, caseW - 1.0 * scaleFactor, caseH - 1.0 * scaleFactor), 10.0 * scaleFactor, 10.0 * scaleFactor);
         painter.setClipPath(outerPath);
 
-        QLinearGradient gloss(caseW - 5, 5, 25, caseH - 25);
+        QLinearGradient gloss(caseW - qRound(5.0 * scaleFactor), qRound(5.0 * scaleFactor), qRound(25.0 * scaleFactor), caseH - qRound(25.0 * scaleFactor));
         gloss.setColorAt(0.0, QColor(255, 255, 255, 110)); // Bright reflection
         gloss.setColorAt(0.20, QColor(255, 255, 255, 120));
         gloss.setColorAt(0.26, QColor(255, 255, 255, 0));  // Sharp highlight cutoff
@@ -7064,26 +7069,26 @@ void CasingRunnable::run() {
         QLinearGradient borderGrad(0, 0, 0, caseH);
         borderGrad.setColorAt(0.0, QColor("#3b82f6"));
         borderGrad.setColorAt(1.0, QColor("#1e293b"));
-        painter.setPen(QPen(borderGrad, 1.0));
-        painter.drawRoundedRect(QRectF(0.5, 0.5, caseW - 1.0, caseH - 1.0), 10.0, 10.0);
+        painter.setPen(QPen(borderGrad, qMax(1.0, 1.0 * scaleFactor)));
+        painter.drawRoundedRect(QRectF(0.5 * scaleFactor, 0.5 * scaleFactor, caseW - 1.0 * scaleFactor, caseH - 1.0 * scaleFactor), 10.0 * scaleFactor, 10.0 * scaleFactor);
 
         // 2. Spine hinge lines on the left side
-        painter.setPen(QPen(QColor(96, 165, 250, 90), 1.0));
-        painter.drawLine(QPointF(5.5, 6.0), QPointF(5.5, caseH - 7.0));
-        painter.setPen(QPen(QColor(0, 0, 0, 90), 1.0));
-        painter.drawLine(QPointF(6.5, 6.0), QPointF(6.5, caseH - 7.0));
+        painter.setPen(QPen(QColor(96, 165, 250, 90), qMax(1.0, 1.0 * scaleFactor)));
+        painter.drawLine(QPointF(5.5 * scaleFactor, 6.0 * scaleFactor), QPointF(5.5 * scaleFactor, caseH - 7.0 * scaleFactor));
+        painter.setPen(QPen(QColor(0, 0, 0, 90), qMax(1.0, 1.0 * scaleFactor)));
+        painter.drawLine(QPointF(6.5 * scaleFactor, 6.0 * scaleFactor), QPointF(6.5 * scaleFactor, caseH - 7.0 * scaleFactor));
 
         // 3. Sleeve pocket layout
-        int coverX = 10;
-        int coverY = 6;
-        int coverW = caseW - 16; // 164
-        int coverH = caseH - 12; // 244
-        int headerH = 24;
+        int coverX = qRound(10.0 * scaleFactor);
+        int coverY = qRound(6.0 * scaleFactor);
+        int coverW = caseW - qRound(16.0 * scaleFactor);
+        int coverH = caseH - qRound(12.0 * scaleFactor);
+        int headerH = qRound(24.0 * scaleFactor);
 
         // Clip everything inside the sleeve pocket
         painter.save();
         QPainterPath sleevePath;
-        sleevePath.addRoundedRect(QRectF(coverX, coverY, coverW, coverH), 3.0, 3.0);
+        sleevePath.addRoundedRect(QRectF(coverX, coverY, coverW, coverH), 3.0 * scaleFactor, 3.0 * scaleFactor);
         painter.setClipPath(sleevePath);
 
         // A. Draw the Opaque Header (Opaque Blue)
@@ -7099,37 +7104,37 @@ void CasingRunnable::run() {
         
         // Blu-ray Text
         QFont brFont("Arial");
-        brFont.setPixelSize(9);
+        brFont.setPixelSize(qMax(6, qRound(9.0 * scaleFactor)));
         brFont.setBold(true);
-        brFont.setLetterSpacing(QFont::AbsoluteSpacing, 1);
+        brFont.setLetterSpacing(QFont::AbsoluteSpacing, qRound(1.0 * scaleFactor));
         painter.setFont(brFont);
         painter.setPen(QColor("#ffffff"));
-        painter.drawText(QRect(coverX, coverY + 3, coverW, 9), Qt::AlignCenter, "BLU-RAY");
+        painter.drawText(QRect(coverX, coverY + qRound(3.0 * scaleFactor), coverW, qRound(9.0 * scaleFactor)), Qt::AlignCenter, "BLU-RAY");
 
         // VIDEO Text
         QFont videoFont("Arial");
-        videoFont.setPixelSize(5);
+        videoFont.setPixelSize(qMax(4, qRound(5.0 * scaleFactor)));
         videoFont.setBold(true);
-        videoFont.setLetterSpacing(QFont::AbsoluteSpacing, 2);
+        videoFont.setLetterSpacing(QFont::AbsoluteSpacing, qRound(2.0 * scaleFactor));
         painter.setFont(videoFont);
         painter.setPen(QColor("#bae6fd"));
-        painter.drawText(QRect(coverX, coverY + 13, coverW, 8), Qt::AlignCenter, "VIDEO");
+        painter.drawText(QRect(coverX, coverY + qRound(13.0 * scaleFactor), coverW, qRound(8.0 * scaleFactor)), Qt::AlignCenter, "VIDEO");
 
         // Header bottom divider line
-        painter.setPen(QPen(QColor(255, 255, 255, 40), 1.0));
+        painter.setPen(QPen(QColor(255, 255, 255, 40), qMax(1.0, 1.0 * scaleFactor)));
         painter.drawLine(coverX, coverY + headerH, coverX + coverW, coverY + headerH);
 
         // C. Draw the cover image resized to fit in the remaining space below the header
         int artY = coverY + headerH;
-        int artH = coverH - headerH; // 220
+        int artH = coverH - headerH;
         painter.drawImage(QRect(coverX, artY, coverW, artH), cover.scaled(coverW, artH, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
 
         // D. Draw inner pocket border reflection & shadow
         painter.setBrush(Qt::NoBrush);
-        painter.setPen(QPen(QColor(255, 255, 255, 45), 1.0));
-        painter.drawRoundedRect(QRectF(coverX, coverY, coverW, coverH), 3.0, 3.0);
+        painter.setPen(QPen(QColor(255, 255, 255, 45), qMax(1.0, 1.0 * scaleFactor)));
+        painter.drawRoundedRect(QRectF(coverX, coverY, coverW, coverH), 3.0 * scaleFactor, 3.0 * scaleFactor);
 
-        painter.setPen(QPen(QColor(0, 0, 0, 100), 1.0));
+        painter.setPen(QPen(QColor(0, 0, 0, 100), qMax(1.0, 1.0 * scaleFactor)));
         painter.drawLine(coverX, coverY, coverX + coverW, coverY);
         painter.drawLine(coverX, coverY, coverX, coverY + coverH);
 
@@ -7138,10 +7143,10 @@ void CasingRunnable::run() {
         // 10. Draw diagonal glossy overlay on top of the entire case (clipped to outer case shape)
         painter.save();
         QPainterPath outerPath;
-        outerPath.addRoundedRect(QRectF(0.5, 0.5, caseW - 1.0, caseH - 1.0), 10.0, 10.0);
+        outerPath.addRoundedRect(QRectF(0.5 * scaleFactor, 0.5 * scaleFactor, caseW - 1.0 * scaleFactor, caseH - 1.0 * scaleFactor), 10.0 * scaleFactor, 10.0 * scaleFactor);
         painter.setClipPath(outerPath);
 
-        QLinearGradient gloss(caseW - 5, 5, 25, caseH - 25);
+        QLinearGradient gloss(caseW - qRound(5.0 * scaleFactor), qRound(5.0 * scaleFactor), qRound(25.0 * scaleFactor), caseH - qRound(25.0 * scaleFactor));
         gloss.setColorAt(0.0, QColor(255, 255, 255, 110)); // Bright reflection
         gloss.setColorAt(0.20, QColor(255, 255, 255, 120));
         gloss.setColorAt(0.26, QColor(255, 255, 255, 0));  // Sharp highlight cutoff
@@ -7157,7 +7162,6 @@ void CasingRunnable::run() {
     
     painter.end();
 
-    QPointer<FileFilterProxyModel> model = m_model;
     QString path = m_path;
     QMetaObject::invokeMethod(model.data(), [model, path, artPath, casingInt, caseImage]() {
         if (model) {
