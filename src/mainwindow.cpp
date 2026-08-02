@@ -2593,12 +2593,6 @@ void MainWindow::rebuildCustomToolBar() {
     if (!m_customToolBar) return;
     m_customToolBar->clear();
 
-    // Standard static action to add custom script buttons
-    QAction* actAdd = m_customToolBar->addAction("➕ Add Button");
-    actAdd->setToolTip("Create a new scriptable command button");
-    connect(actAdd, &QAction::triggered, this, &MainWindow::onAddCustomButton);
-    m_customToolBar->addSeparator();
-
     // Populate buttons loaded from settings
     for (int i = 0; i < m_customButtons.size(); ++i) {
         if (!m_activeToolbarFilter.isEmpty() && !m_activeToolbarFilter.contains(m_customButtons[i].name)) {
