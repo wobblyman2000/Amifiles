@@ -1803,6 +1803,20 @@ void FilePanel::setCustomBgColor(const QString& hexColor) {
     }
 }
 
+void FilePanel::setCustomBgImage(const QString& imagePath) {
+    if (m_customBgImage != imagePath) {
+        m_customBgImage = imagePath;
+        updateStyles();
+    }
+}
+
+void FilePanel::setCustomBgOpacity(double opacity) {
+    if (m_customBgOpacity != opacity) {
+        m_customBgOpacity = opacity;
+        updateStyles();
+    }
+}
+
 void FilePanel::setPath(const QString& path) {
     navigateTo(path, true);
 }
@@ -3387,8 +3401,10 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     if (grid) {
         QModelIndex index = grid->indexAt(pos);
         if (index.isValid()) {
-            grid->selectionModel()->select(index, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
-            grid->setCurrentIndex(index);
+            if (!grid->selectionModel()->isSelected(index)) {
+                grid->selectionModel()->select(index, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+                grid->setCurrentIndex(index);
+            }
         }
     }
 
@@ -3434,565 +3450,39 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         }
     }
     
+    // Dynamic context menu initialization
+
     QMenu menu(this);
     QStyle* style = QApplication::style();
     bool isTheater = (m_viewStack->currentWidget() == m_theaterListView || m_viewStack->currentWidget() == m_theaterContainer);
 
-    QAction* actOpen = menu.addAction(style->standardIcon(QStyle::SP_DialogOpenButton), "Open");
-    QAction* actPlayAlbum = menu.addAction(style->standardIcon(QStyle::SP_MediaPlay), "Open in Full Screen View");
-    menu.addSeparator();
-    
-    QAction* actCopy = nullptr;
-    QAction* actCut = nullptr;
-    QAction* actPaste = nullptr;
-    QAction* actCopyToSibling = nullptr;
-    QAction* actMoveToSibling = nullptr;
-    QAction* actDelete = nullptr;
-    QAction* actRename = nullptr;
-    QAction* actBulkRename = nullptr;
-    QAction* actNewFolder = nullptr;
-    QAction* actAdvancedNewFolder = nullptr;
-    QMenu* menuCopyToClipboard = nullptr;
-    QAction* actCopyFileName = nullptr;
-    QAction* actCopyPath = nullptr;
-    QAction* actCopyFolderContents = nullptr;
-
-    if (!isTheater) {
-        actCopy = menu.addAction(style->standardIcon(QStyle::SP_DialogSaveButton), "Copy");
-        actCopy->setShortcut(QKeySequence::Copy);
-        
-        actCut = menu.addAction("Cut");
-        actCut->setShortcut(QKeySequence::Cut);
-        
-        actPaste = menu.addAction("Paste");
-        actPaste->setShortcut(QKeySequence::Paste);
-
-        menuCopyToClipboard = menu.addMenu("Copy to Clipboard");
-        actCopyFileName = menuCopyToClipboard->addAction("Copy File Name(s)");
-        actCopyPath = menuCopyToClipboard->addAction("Copy Full Path(s)");
-        actCopyFolderContents = menuCopyToClipboard->addAction("Copy Folder Contents (Paths List)");
-
-        actCopyToSibling = menu.addAction("Copy to Sibling Panel");
-        actCopyToSibling->setShortcut(QKeySequence(Qt::Key_F5));
-
-        actMoveToSibling = menu.addAction("Move to Sibling Panel");
-        actMoveToSibling->setShortcut(QKeySequence(Qt::Key_F6));
-        
-        actDelete = menu.addAction(style->standardIcon(QStyle::SP_TrashIcon), "Delete");
-        actDelete->setShortcut(QKeySequence::Delete);
-        
-        actRename = menu.addAction("Rename");
-        actBulkRename = menu.addAction("Bulk Rename...");
-        menu.addSeparator();
-        
-        actNewFolder = menu.addAction(style->standardIcon(QStyle::SP_FileDialogNewFolder), "New Folder");
-        actAdvancedNewFolder = menu.addAction("Advanced New Folder...");
-        if (m_archiveViewActive && actAdvancedNewFolder) {
-            actAdvancedNewFolder->setEnabled(false);
-        }
-        menu.addSeparator();
-    }
-    menu.addSeparator();
-    
     QStringList curSelected = selectedPaths();
     QString selectedPath;
     bool isFolder = false;
     bool isFavorite = false;
+    if (!curSelected.isEmpty()) {
+        selectedPath = curSelected.first();
+        QFileInfo fi(selectedPath);
+        isFolder = fi.isDir();
+        isFavorite = FavoritesManager::instance().isFavorite(selectedPath);
+    }
 
     QWidget* activeViewWidget = m_viewStack->currentWidget();
     bool isNewView = (activeViewWidget == m_millerView || activeViewWidget == m_timelineView || activeViewWidget == m_filmstripView || activeViewWidget == m_theaterListView || activeViewWidget == m_theaterContainer);
 
-    if (isNewView) {
-        if (!curSelected.isEmpty()) {
-            selectedPath = curSelected.first();
-            QFileInfo info(selectedPath);
-            isFolder = info.isDir();
-            isFavorite = FavoritesManager::instance().isFavorite(selectedPath);
-        }
+    QSettings settings("Amifiles", "Amifiles");
+    QString jsonStr = settings.value("custom_context_menu_v2").toString();
+    QJsonArray arr;
+    if (jsonStr.isEmpty()) {
+        arr = getDefaultContextMenuJson();
     } else {
-        if (index.isValid()) {
-            if (m_archiveViewActive) {
-                selectedPath = m_archiveModel->entryPath(index);
-                isFolder = m_archiveModel->isDir(index);
-            } else if (m_flatViewEnabled) {
-                QModelIndex srcIndex = m_flatProxyModel->mapToSource(index);
-                selectedPath = m_flatModel->filePath(srcIndex);
-            } else {
-                QModelIndex srcIndex = m_proxyModel->mapToSource(index);
-                selectedPath = m_fileModel->filePath(srcIndex);
-            }
-            QFileInfo info(selectedPath);
-            if (info.isDir()) {
-                isFolder = true;
-                isFavorite = FavoritesManager::instance().isFavorite(selectedPath);
-            }
-        }
+        QJsonDocument doc = QJsonDocument::fromJson(jsonStr.toUtf8());
+        arr = doc.array();
     }
 
-    QAction* actFav = nullptr;
-    QAction* actPinHome = nullptr;
-    if (!isTheater) {
-        if (isFolder) {
-            if (isFavorite) {
-                actFav = menu.addAction(style->standardIcon(QStyle::SP_DialogCancelButton), "Remove from Favorites");
-            } else {
-                actFav = menu.addAction(style->standardIcon(QStyle::SP_DialogYesButton), "Add to Favorites");
-            }
-            
-            QSettings settings("Amifiles", "Amifiles");
-            QStringList pinned = settings.value("dashboard/pinned_folders").toStringList();
-            bool isPinned = false;
-            for (const QString& item : pinned) {
-                if (item.startsWith(selectedPath + ";")) {
-                    isPinned = true;
-                    break;
-                }
-            }
-            if (isPinned) {
-                actPinHome = menu.addAction("📌 Unpin from Home Screen");
-            } else {
-                actPinHome = menu.addAction("📌 Pin to Home Screen");
-            }
-        } else {
-            bool isCurrentFavorite = FavoritesManager::instance().isFavorite(m_currentPath);
-            if (isCurrentFavorite) {
-                actFav = menu.addAction(style->standardIcon(QStyle::SP_DialogCancelButton), "Remove Current from Favorites");
-            } else {
-                actFav = menu.addAction(style->standardIcon(QStyle::SP_DialogYesButton), "Add Current to Favorites");
-            }
-        }
-    }
-    // Scan selected folder recursively, or current folder non-recursively, for playable audio & video files
-    QString folderToCheck = isFolder ? selectedPath : m_currentPath;
-    QStringList playlistPaths;
-    if (!folderToCheck.isEmpty()) {
-        if (isFolder) {
-            QSettings settings("Amifiles", "Amifiles");
-            bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool() && (m_viewStack->currentWidget() == m_theaterContainer);
-            if (groupMultiDisc) {
-                QFileInfo folderInfo(folderToCheck);
-                QString parentDir = folderInfo.absolutePath();
-                QDir dir(parentDir);
-                QStringList subDirs = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
-                QString currentCleaned = FileFilterProxyModel::cleanAlbumFolderName(folderInfo.fileName());
-                for (const QString& subDirName : subDirs) {
-                    if (FileFilterProxyModel::cleanAlbumFolderName(subDirName) == currentCleaned) {
-                        scanMediaFilesRecursively(dir.filePath(subDirName), playlistPaths, 1);
-                    }
-                }
-            } else {
-                scanMediaFilesRecursively(folderToCheck, playlistPaths, 1);
-            }
-        } else {
-            QDir dir(folderToCheck);
-            QStringList mediaExts = { "mp3", "wav", "flac", "ogg", "m4a", "mp4", "avi", "mkv", "mov", "webm", "mpeg", "mpg", "mod", "sid", "s3m", "xm", "it" };
-            QFileInfoList files = dir.entryInfoList(QDir::Files, QDir::Name);
-            for (const QFileInfo& fInfo : files) {
-                if (mediaExts.contains(fInfo.suffix().toLower())) {
-                    playlistPaths.append(fInfo.absoluteFilePath());
-                }
-            }
-        }
-    }
-
-    QAction* actPlayPlaylist = nullptr;
-    QAction* actPlayFullscreen = nullptr;
-    if (!playlistPaths.isEmpty()) {
-        actPlayPlaylist = menu.addAction(style->standardIcon(QStyle::SP_MediaPlay), "Play Folder/Album in Preview");
-        actPlayFullscreen = menu.addAction(style->standardIcon(QStyle::SP_MediaPlay), "Play Folder/Album in Fullscreen");
-    }
-    QAction* actCompareSelected = nullptr;
-    QAction* actCompareSibling = nullptr;
-    if (!isTheater) {
-        menu.addSeparator();
-        actCompareSelected = menu.addAction("Compare Selected Files");
-        actCompareSibling = menu.addAction("Compare with Sibling Pane File");
-    }
-
-    menu.addSeparator();
-    QAction* actMediaInfoSheet = menu.addAction(style->standardIcon(QStyle::SP_MessageBoxInformation), "🎬 Media Info Sheet... (ℹ)");
-    QAction* actToggleWatch = menu.addAction("✔ Toggle Watch Status (Watched/Unwatched)");
-    menu.addSeparator();
-    QAction* actEditTags = menu.addAction("Edit Audio Tags...");
-    QAction* actFetchMusicBrainz = menu.addAction(style->standardIcon(QStyle::SP_ComputerIcon), "Fetch MusicBrainz Album Info...");
-    QAction* actScrapeVideo = menu.addAction(style->standardIcon(QStyle::SP_ComputerIcon), "Scrape Video Metadata...");
-    QAction* actFetchFolderArt = menu.addAction(style->standardIcon(QStyle::SP_ComputerIcon), "Fetch Cover Art & Wallpaper...");
-    
-    QMenu* menuColorLabel = nullptr;
-    QAction* actNone = nullptr;
-    QAction* actRed = nullptr;
-    QAction* actOrange = nullptr;
-    QAction* actYellow = nullptr;
-    QAction* actGreen = nullptr;
-    QAction* actBlue = nullptr;
-    QAction* actPurple = nullptr;
-    QAction* actCustomOverlay = nullptr;
-    QAction* actClearOverlay = nullptr;
-
-    if (!isTheater) {
-        menu.addSeparator();
-        menuColorLabel = menu.addMenu("Color Label");
-        actNone = menuColorLabel->addAction("None");
-        actRed = menuColorLabel->addAction("Red");
-        actOrange = menuColorLabel->addAction("Orange");
-        actYellow = menuColorLabel->addAction("Yellow");
-        actGreen = menuColorLabel->addAction("Green");
-        actBlue = menuColorLabel->addAction("Blue");
-        actPurple = menuColorLabel->addAction("Purple");
-        menuColorLabel->addSeparator();
-        actCustomOverlay = menuColorLabel->addAction("Custom Icon Overlay...");
-        actClearOverlay = menuColorLabel->addAction("Clear Icon Overlay");
-    }
-
-    menu.addSeparator();
-    QAction* actFileTags = menu.addAction("File Tags...");
-
-    QAction* actEncryptVault = nullptr;
-    QAction* actDecryptVault = nullptr;
-    QAction* actCreateArchive = nullptr;
-    QAction* actCreateSecureArchive = nullptr;
-    QAction* actExtractArchive = nullptr;
-    QAction* actCalculateChecksum = nullptr;
-    QAction* actSecureShred = nullptr;
-    QAction* actImageConvert = nullptr;
-    QAction* actMountIso = nullptr;
-    QAction* actUnmountIso = nullptr;
-    QAction* actMountVhd = nullptr;
-    QAction* actUnmountVhd = nullptr;
-
-    if (!isTheater) {
-        menu.addSeparator();
-        if (index.isValid()) {
-            QString selectedExt = QFileInfo(selectedPath).suffix().toLower();
-            if (selectedExt == "vault") {
-                actDecryptVault = menu.addAction("Decrypt Secure Vault...");
-            } else {
-                actEncryptVault = menu.addAction("Encrypt into Secure Vault...");
-            }
-
-            if (selectedExt == "iso") {
-                QString dummy;
-                if (RemoteMountManager::isIsoMounted(selectedPath, dummy)) {
-                    actUnmountIso = menu.addAction(style->standardIcon(QStyle::SP_DriveCDIcon), "Unmount ISO Virtual Drive");
-                } else {
-                    actMountIso = menu.addAction(style->standardIcon(QStyle::SP_DriveCDIcon), "Mount ISO as Virtual Drive");
-                }
-            }
-
-            if (selectedExt == "vhd" || selectedExt == "vhdx") {
-                QString dummy;
-                if (RemoteMountManager::isVhdMounted(selectedPath, dummy)) {
-                    actUnmountVhd = menu.addAction(style->standardIcon(QStyle::SP_DriveHDIcon), "Unmount VHD Virtual Drive");
-                } else {
-                    actMountVhd = menu.addAction(style->standardIcon(QStyle::SP_DriveHDIcon), "Mount VHD as Virtual Drive");
-                }
-            }
-        }
-
-        actCreateArchive = menu.addAction("Create Archive...");
-        actCreateSecureArchive = menu.addAction("Create Secure Archive (AES-256)...");
-        actExtractArchive = menu.addAction("Extract Archive...");
-        menu.addSeparator();
-        actCalculateChecksum = menu.addAction("Calculate Checksum Hash...");
-        actSecureShred = menu.addAction(style->standardIcon(QStyle::SP_TrashIcon), "Secure Shred (Delete Permanently)...");
-        
-        QStringList imageExts = { "jpg", "jpeg", "png", "webp", "bmp" };
-        QStringList selectedImages;
-        for (const QString& sPath : curSelected) {
-            if (imageExts.contains(QFileInfo(sPath).suffix().toLower())) {
-                selectedImages.append(sPath);
-            }
-        }
-        if (!selectedImages.isEmpty()) {
-            actImageConvert = menu.addAction("Batch Convert/Resize Images...");
-        }
-    }
-
-    menu.addSeparator();
-    QAction* actConfigureFolderLayouts = menu.addAction("Folder Profiles & Layouts...");
-    QAction* actSaveFolderProfile = menu.addAction("Save Current Layout as Folder Profile...");
-    QAction* actSaveDefaultProfile = menu.addAction("Save Current Layout as Default Profile");
-    QAction* actLoadDefaultProfile = menu.addAction("Load Default Profile");
-
-    QWidget* parentW = parentWidget();
-    while (parentW && !parentW->inherits("MainWindow")) {
-        parentW = parentW->parentWidget();
-    }
-    MainWindow* mw = qobject_cast<MainWindow*>(parentW);
-    if (mw) {
-        QMenu* menuApplyProfile = menu.addMenu("Apply Profile Layout to Current Folder");
-        for (const auto& r : mw->folderRules()) {
-            if (!r.name.isEmpty()) {
-                QString profileName = r.name;
-                QAction* act = menuApplyProfile->addAction(profileName);
-                connect(act, &QAction::triggered, this, [mw, profileName]() {
-                    mw->onApplyProfileToCurrentFolder(profileName);
-                });
-            }
-        }
-    }
-
-    // Build and insert Custom Actions Submenu
-    if (mw) {
-        QSettings settings("Amifiles", "Amifiles");
-        QString jsonStr = settings.value("custom_menus_v2").toString();
-        QJsonArray arr;
-        if (jsonStr.isEmpty()) {
-            arr = mw->getDefaultCustomMenus();
-        } else {
-            QJsonDocument doc = QJsonDocument::fromJson(jsonStr.toUtf8());
-            arr = doc.array();
-        }
-        
-        if (!arr.isEmpty()) {
-            menu.addSeparator();
-            QMenu* customSubMenu = menu.addMenu("⚡ Custom Actions");
-            customSubMenu->setStyleSheet(
-                "QMenu { background-color: #1e1e2e; color: #cdd6f4; border: 1px solid #45475a; }"
-                "QMenu::item:selected { background-color: #313244; color: #f5c2e7; }"
-            );
-            
-            // Recursive population function definition as a lambda
-            std::function<void(QMenu*, const QJsonArray&)> populateCustomMenu = [&](QMenu* subMenu, const QJsonArray& itemsArray) {
-                for (int i = 0; i < itemsArray.size(); ++i) {
-                    QJsonObject obj = itemsArray[i].toObject();
-                    QString type = obj["type"].toString();
-                    
-                    if (type == "separator") {
-                        subMenu->addSeparator();
-                    } else if (type == "menu") {
-                        QString title = obj["title"].toString();
-                        QMenu* sub = subMenu->addMenu(title);
-                        
-                        QString iconPath = obj["icon"].toString();
-                        if (!iconPath.isEmpty()) {
-                            QIcon icon;
-                            if (QFileInfo(iconPath).exists()) icon = QIcon(iconPath);
-                            else icon = QIcon::fromTheme(iconPath);
-                            if (!icon.isNull()) sub->setIcon(icon);
-                        }
-                        
-                        populateCustomMenu(sub, obj["children"].toArray());
-                    } else if (type == "action") {
-                        QString title = obj["title"].toString();
-                        QString command = obj["command"].toString();
-                        QString iconPath = obj["icon"].toString();
-                        QString colorStr = obj["color"].toString();
-                        QString mode = obj["mode"].toString("Normal");
-                        
-                        QIcon icon;
-                        if (!iconPath.isEmpty()) {
-                            if (QFileInfo(iconPath).exists()) icon = QIcon(iconPath);
-                            else icon = QIcon::fromTheme(iconPath);
-                        }
-                        
-                        QWidgetAction* act = new QWidgetAction(subMenu);
-                        CustomMenuActionWidget* w = new CustomMenuActionWidget(icon, title, colorStr, mode, subMenu);
-                        act->setDefaultWidget(w);
-                        
-                        connect(w, &CustomMenuActionWidget::clicked, this, [mw, act, command, subMenu]() {
-                            // Close parent menus recursively
-                            QMenu* p = subMenu;
-                            while (p) {
-                                p->close();
-                                p = qobject_cast<QMenu*>(p->parentWidget());
-                            }
-                            mw->executeCustomCommand(command);
-                        });
-                        subMenu->addAction(act);
-                    }
-                }
-            };
-            
-            populateCustomMenu(customSubMenu, arr);
-        }
-    }
-
-    menu.addSeparator();
-
-    QAction* actProp = menu.addAction(style->standardIcon(QStyle::SP_MessageBoxInformation), "Properties");
-
-    bool hasSelection = index.isValid();
-    actOpen->setEnabled(hasSelection);
-    actPlayAlbum->setEnabled(hasSelection && isFolder);
-    actPlayAlbum->setVisible(isFolder);
-    if (actFileTags) actFileTags->setEnabled(hasSelection);
-    if (!isTheater) {
-        actCopy->setEnabled(hasSelection);
-        actCut->setEnabled(hasSelection);
-        actDelete->setEnabled(hasSelection);
-        actCalculateChecksum->setEnabled(hasSelection && QFileInfo(selectedPath).isFile());
-        actSecureShred->setEnabled(hasSelection);
-        actRename->setEnabled(hasSelection);
-        actBulkRename->setEnabled(hasSelection);
-        menuColorLabel->setEnabled(hasSelection);
-        menuCopyToClipboard->setEnabled(hasSelection || !m_currentPath.isEmpty());
-        actCopyFileName->setEnabled(hasSelection);
-        actCopyPath->setEnabled(hasSelection || !m_currentPath.isEmpty());
-        actCopyFolderContents->setEnabled(hasSelection || !m_currentPath.isEmpty());
-
-        bool canCompareSelected = (curSelected.size() == 2 && QFileInfo(curSelected[0]).isFile() && QFileInfo(curSelected[1]).isFile());
-        actCompareSelected->setEnabled(canCompareSelected);
-
-        bool canCompareSibling = false;
-        QString sibSelectedPath;
-        if (m_siblingPanel && m_siblingPanel->isVisible() && curSelected.size() == 1 && QFileInfo(curSelected[0]).isFile()) {
-            QStringList sibSelected = m_siblingPanel->selectedPaths();
-            if (sibSelected.size() == 1 && QFileInfo(sibSelected[0]).isFile()) {
-                canCompareSibling = true;
-                sibSelectedPath = sibSelected[0];
-            }
-        }
-        actCompareSibling->setEnabled(canCompareSibling);
-    }
-    bool hasAudioFiles = false;
-    for (const QString& sPath : curSelected) {
-        QFileInfo info(sPath);
-        if (info.isDir()) {
-            if (hasAudioFilesRecursively(sPath, 0)) {
-                hasAudioFiles = true;
-            }
-        } else if (info.isFile()) {
-            QString ext = info.suffix().toLower();
-            if (ext == "mp3" || ext == "flac" || ext == "wav" || ext == "ogg" || ext == "m4a" || ext == "aac" || ext == "wma" || ext == "mod" || ext == "sid" || ext == "s3m" || ext == "xm" || ext == "it") {
-                hasAudioFiles = true;
-            }
-        }
-        if (hasAudioFiles) break;
-    }
-    actEditTags->setEnabled(hasSelection && hasAudioFiles);
-    actFetchMusicBrainz->setEnabled(hasSelection && hasAudioFiles);
-
-    bool hasVideoFilesOrDirs = false;
-    QStringList videoExts = { "mp4", "mkv", "avi", "mov", "webm", "mpeg", "mpg" };
-    for (const QString& sPath : curSelected) {
-        QFileInfo info(sPath);
-        if (info.isDir()) {
-            hasVideoFilesOrDirs = true;
-            break;
-        } else if (info.isFile()) {
-            QString ext = info.suffix().toLower();
-            if (videoExts.contains(ext)) {
-                hasVideoFilesOrDirs = true;
-                break;
-            }
-        }
-    }
-    actScrapeVideo->setEnabled(hasSelection && hasVideoFilesOrDirs);
-    actFetchFolderArt->setEnabled(isFolder || !m_currentPath.isEmpty());
-
-    if (!isTheater) {
-        bool isArchive = false;
-        if (curSelected.size() == 1) {
-            QString ext = QFileInfo(curSelected.first()).suffix().toLower();
-            isArchive = (ext == "zip" || ext == "tar" || ext == "gz" || ext == "xz" || ext == "bz2" || ext == "tgz" || ext == "7z" || ext == "rar" || ext == "adf" || ext == "d64" || ext == "iso" || ext == "img");
-        }
-        actCreateArchive->setEnabled(!curSelected.isEmpty());
-        actExtractArchive->setEnabled(isArchive);
-
-        bool hasSibling = m_siblingPanel && m_siblingPanel->isVisible();
-        actCopyToSibling->setEnabled(hasSelection && hasSibling);
-        actMoveToSibling->setEnabled(hasSelection && hasSibling);
-
-        QClipboard* clipboard = QApplication::clipboard();
-        const QMimeData* mimeData = clipboard->mimeData();
-        actPaste->setEnabled(mimeData && mimeData->hasUrls());
-    }
-
-    QAction* actToggleZen = nullptr;
-    QAction* actToggleDoubleclick = nullptr;
-    QAction* actToggleDoubleclickQueue = nullptr;
-    QAction* actGroupMultiDisc = nullptr;
-    QAction* actHideAuxiliaryFiles = nullptr;
-    QAction* actToggleTracksDrawer = nullptr;
-    QAction* actCasingClear = nullptr;
-    QAction* actCasingBlack = nullptr;
-    QAction* actCasingVinyl = nullptr;
-    QAction* actHiddenExtensions = nullptr;
-
-    if (m_viewStack->currentWidget() == m_theaterListView || m_viewStack->currentWidget() == m_theaterContainer) {
-        menu.addSeparator();
-
-        QSettings settings("Amifiles", "Amifiles");
-        bool zenActive = settings.value("preferences/zen_mode", false).toBool();
-        bool builtinDoubleclick = settings.value("preferences/builtin_player_doubleclick", false).toBool();
-        bool doubleclickQueue = settings.value("preferences/doubleclick_adds_to_queue", false).toBool();
-        bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool();
-        bool hideAuxiliary = true;
-        int idx = viewModeIndex();
-        if (idx == 6) {
-            hideAuxiliary = settings.value("audio_showcase/hide_active", true).toBool();
-        } else if (idx == 7) {
-            hideAuxiliary = settings.value("video_showcase/hide_active", true).toBool();
-        } else if (idx == 8) {
-            hideAuxiliary = settings.value("movie_showcase/hide_active", true).toBool();
-        } else if (idx == 9) {
-            hideAuxiliary = settings.value("tv_showcase/hide_active", true).toBool();
-        } else if (idx == 10) {
-            hideAuxiliary = settings.value("music_showcase/hide_active", true).toBool();
-        } else {
-            hideAuxiliary = settings.value("theater/hide_auxiliary_files", true).toBool();
-        }
-        bool showInfoPanel = true;
-        if (idx == 6) {
-            showInfoPanel = settings.value("audio_showcase/show_info_panel", true).toBool();
-        } else if (idx == 7) {
-            showInfoPanel = settings.value("video_showcase/show_info_panel", true).toBool();
-        } else if (idx == 8) {
-            showInfoPanel = settings.value("movie_showcase/show_info_panel", true).toBool();
-        } else if (idx == 9) {
-            showInfoPanel = settings.value("tv_showcase/show_info_panel", true).toBool();
-        } else if (idx == 10) {
-            showInfoPanel = settings.value("music_showcase/show_info_panel", true).toBool();
-        } else {
-            showInfoPanel = settings.value("theater/show_tracks_drawer", true).toBool();
-        }
-
-        actToggleZen = menu.addAction("Clean Interface Mode (Zen Mode)");
-        actToggleZen->setCheckable(true);
-        actToggleZen->setChecked(zenActive);
-
-        actToggleDoubleclick = menu.addAction("Double-click Plays Media in Built-in Fullscreen Player");
-        actToggleDoubleclick->setCheckable(true);
-        actToggleDoubleclick->setChecked(builtinDoubleclick);
-
-        actToggleDoubleclickQueue = menu.addAction("Double-click Adds Media to Playlist Queue");
-        actToggleDoubleclickQueue->setCheckable(true);
-        actToggleDoubleclickQueue->setChecked(doubleclickQueue);
-
-        if (idx == 6 || idx == 10) {
-            actGroupMultiDisc = menu.addAction("Group Multi-Disc Albums");
-            actGroupMultiDisc->setCheckable(true);
-            actGroupMultiDisc->setChecked(groupMultiDisc);
-        }
-
-        if (idx >= 6 && idx <= 10) {
-            actToggleTracksDrawer = menu.addAction("Show Media Information Panel");
-            actToggleTracksDrawer->setCheckable(true);
-            actToggleTracksDrawer->setChecked(showInfoPanel);
-
-            actHiddenExtensions = menu.addAction("Hide File Extensions...");
-
-            if (idx == 6 || idx == 10) {
-                QString casingType = settings.value("music_showcase/casing_type", "cd").toString();
-                QMenu* casingMenu = menu.addMenu("Casing Style");
-                actCasingClear = casingMenu->addAction("Clear CD Jewel Case");
-                actCasingBlack = casingMenu->addAction("Black CD Jewel Case");
-                actCasingVinyl = casingMenu->addAction("Vinyl LP Record Sleeve");
-
-                actCasingClear->setCheckable(true);
-                actCasingBlack->setCheckable(true);
-                actCasingVinyl->setCheckable(true);
-
-                if (casingType == "cd_black") actCasingBlack->setChecked(true);
-                else if (casingType == "vinyl") actCasingVinyl->setChecked(true);
-                else actCasingClear->setChecked(true);
-            }
-        }
-
-        actHideAuxiliaryFiles = menu.addAction("Hide Auxiliary / Artwork Files");
-        actHideAuxiliaryFiles->setCheckable(true);
-        actHideAuxiliaryFiles->setChecked(hideAuxiliary);
+    QMap<QAction*, QString> actionCommands;
+    for (int i = 0; i < arr.size(); ++i) {
+        createContextMenuAction(&menu, arr[i].toObject(), curSelected, index, actionCommands);
     }
 
     // Execute menu on the active view layout widget
@@ -4000,21 +3490,23 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     QAction* selected = menu.exec(globalPos);
     if (!selected) return;
 
-    if (selected == actConfigureFolderLayouts) {
-        emit configureFolderLayoutsRequested();
-        return;
-    } else if (selected == actSaveFolderProfile) {
-        emit saveFolderProfileRequested();
-        return;
-    } else if (selected == actSaveDefaultProfile) {
-        emit saveDefaultProfileRequested();
-        return;
-    } else if (selected == actLoadDefaultProfile) {
-        emit loadDefaultProfileRequested();
+    QString command = actionCommands.value(selected);
+    if (command.isEmpty()) return;
+
+    if (command.startsWith("app.apply_profile:")) {
+        QString profileName = command.mid(QString("app.apply_profile:").length());
+        QWidget* parentW = parentWidget();
+        while (parentW && !parentW->inherits("MainWindow")) {
+            parentW = parentW->parentWidget();
+        }
+        MainWindow* mw = qobject_cast<MainWindow*>(parentW);
+        if (mw) {
+            mw->onApplyProfileToCurrentFolder(profileName);
+        }
         return;
     }
 
-    if (selected == actOpen) {
+    if (command == "app.open") {
         if (isNewView) {
             if (!selectedPath.isEmpty()) {
                 QFileInfo fi(selectedPath);
@@ -4027,7 +3519,7 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         } else {
             onDoubleClicked(index);
         }
-    } else if (selected == actPlayAlbum) {
+    } else if (command == "app.open_fullscreen") {
         if (!selectedPath.isEmpty()) {
             int targetViewMode = 10; // Default to Music Full Screen (Showcase v2)
             bool containsVideo = false;
@@ -4053,14 +3545,19 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
             m_comboViewMode->setCurrentIndex(targetViewMode);
             navigateTo(selectedPath, true);
         }
-        return;
-    } else if (selected == actCopy) {
+    } else if (command == "app.copy") {
         onCopy();
-    } else if (selected == actCut) {
+    } else if (command == "app.cut") {
         onCut();
-    } else if (selected == actPaste) {
+    } else if (command == "app.paste") {
         onPaste();
-    } else if (selected == actCopyToSibling) {
+    } else if (command == "app.copy_filename") {
+        onCopyFileName();
+    } else if (command == "app.copy_path") {
+        onCopyPath();
+    } else if (command == "app.copy_folder_contents") {
+        onCopyFolderContents();
+    } else if (command == "app.copy_sibling") {
         QWidget* p = parentWidget();
         while (p && !p->inherits("MainWindow")) {
             p = p->parentWidget();
@@ -4068,7 +3565,7 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         if (p) {
             QMetaObject::invokeMethod(p, "onCopyToSiblingAction");
         }
-    } else if (selected == actMoveToSibling) {
+    } else if (command == "app.move_sibling") {
         QWidget* p = parentWidget();
         while (p && !p->inherits("MainWindow")) {
             p = p->parentWidget();
@@ -4076,9 +3573,9 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         if (p) {
             QMetaObject::invokeMethod(p, "onMoveToSiblingAction");
         }
-    } else if (selected == actDelete) {
+    } else if (command == "app.delete") {
         onDelete();
-    } else if (selected == actRename) {
+    } else if (command == "app.rename") {
         QStringList paths = selectedPaths();
         if (paths.size() > 1) {
             BulkRenameDialog dlg(paths, this);
@@ -4088,7 +3585,7 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         } else {
             onRename();
         }
-    } else if (selected == actBulkRename) {
+    } else if (command == "app.bulk_rename") {
         QStringList paths = selectedPaths();
         if (!paths.isEmpty()) {
             BulkRenameDialog dlg(paths, this);
@@ -4096,21 +3593,77 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
                 refresh();
             }
         }
-    } else if (selected == actNewFolder) {
+    } else if (command == "app.new_folder") {
         onNewFolder();
-    } else if (selected == actAdvancedNewFolder) {
+    } else if (command == "app.advanced_new_folder") {
         onAdvancedNewFolder();
-    } else if (selected == actCopyFileName) {
-        onCopyFileName();
-    } else if (selected == actCopyPath) {
-        onCopyPath();
-    } else if (selected == actCopyFolderContents) {
-        onCopyFolderContents();
-    } else if (selected == actPlayPlaylist) {
+    } else if (command == "app.play_preview") {
+        QString folderToCheck = isFolder ? selectedPath : m_currentPath;
+        QStringList playlistPaths;
+        if (!folderToCheck.isEmpty()) {
+            if (isFolder) {
+                QSettings settings("Amifiles", "Amifiles");
+                bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool() && (m_viewStack->currentWidget() == m_theaterContainer);
+                if (groupMultiDisc) {
+                    QFileInfo folderInfo(folderToCheck);
+                    QString parentDir = folderInfo.absolutePath();
+                    QDir dir(parentDir);
+                    QStringList subDirs = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+                    QString currentCleaned = FileFilterProxyModel::cleanAlbumFolderName(folderInfo.fileName());
+                    for (const QString& subDirName : subDirs) {
+                        if (FileFilterProxyModel::cleanAlbumFolderName(subDirName) == currentCleaned) {
+                            scanMediaFilesRecursively(dir.filePath(subDirName), playlistPaths, 1);
+                        }
+                    }
+                } else {
+                    scanMediaFilesRecursively(folderToCheck, playlistPaths, 1);
+                }
+            } else {
+                QDir dir(folderToCheck);
+                QStringList mediaExts = { "mp3", "wav", "flac", "ogg", "m4a", "mp4", "avi", "mkv", "mov", "webm", "mpeg", "mpg", "mod", "sid", "s3m", "xm", "it" };
+                QFileInfoList files = dir.entryInfoList(QDir::Files, QDir::Name);
+                for (const QFileInfo& fInfo : files) {
+                    if (mediaExts.contains(fInfo.suffix().toLower())) {
+                        playlistPaths.append(fInfo.absoluteFilePath());
+                    }
+                }
+            }
+        }
         emit playlistPlayRequested(playlistPaths);
-    } else if (selected == actPlayFullscreen) {
+    } else if (command == "app.play_fullscreen_playlist") {
+        QString folderToCheck = isFolder ? selectedPath : m_currentPath;
+        QStringList playlistPaths;
+        if (!folderToCheck.isEmpty()) {
+            if (isFolder) {
+                QSettings settings("Amifiles", "Amifiles");
+                bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool() && (m_viewStack->currentWidget() == m_theaterContainer);
+                if (groupMultiDisc) {
+                    QFileInfo folderInfo(folderToCheck);
+                    QString parentDir = folderInfo.absolutePath();
+                    QDir dir(parentDir);
+                    QStringList subDirs = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+                    QString currentCleaned = FileFilterProxyModel::cleanAlbumFolderName(folderInfo.fileName());
+                    for (const QString& subDirName : subDirs) {
+                        if (FileFilterProxyModel::cleanAlbumFolderName(subDirName) == currentCleaned) {
+                            scanMediaFilesRecursively(dir.filePath(subDirName), playlistPaths, 1);
+                        }
+                    }
+                } else {
+                    scanMediaFilesRecursively(folderToCheck, playlistPaths, 1);
+                }
+            } else {
+                QDir dir(folderToCheck);
+                QStringList mediaExts = { "mp3", "wav", "flac", "ogg", "m4a", "mp4", "avi", "mkv", "mov", "webm", "mpeg", "mpg", "mod", "sid", "s3m", "xm", "it" };
+                QFileInfoList files = dir.entryInfoList(QDir::Files, QDir::Name);
+                for (const QFileInfo& fInfo : files) {
+                    if (mediaExts.contains(fInfo.suffix().toLower())) {
+                        playlistPaths.append(fInfo.absoluteFilePath());
+                    }
+                }
+            }
+        }
         emit playMediaBuiltinRequested(playlistPaths);
-    } else if (selected == actFav) {
+    } else if (command == "app.favorites") {
         if (isFolder && !selectedPath.isEmpty()) {
             FavoritesManager& fm = FavoritesManager::instance();
             if (isFavorite) {
@@ -4122,7 +3675,7 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         } else {
             onFavoriteClicked();
         }
-    } else if (selected == actPinHome) {
+    } else if (command == "app.pin_home") {
         if (!selectedPath.isEmpty()) {
             QSettings settings("Amifiles", "Amifiles");
             QStringList pinned = settings.value("dashboard/pinned_folders").toStringList();
@@ -4147,10 +3700,10 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
                 m_homeDashboardWidget->refreshDashboard();
             }
         }
-    } else if (selected == actCompareSelected) {
+    } else if (command == "app.compare_selected") {
         VisualDiffDialog dlg(curSelected[0], curSelected[1], this);
         dlg.exec();
-    } else if (selected == actCompareSibling) {
+    } else if (command == "app.compare_sibling") {
         QString sibSelectedPath;
         if (m_siblingPanel) {
             QStringList sibSelected = m_siblingPanel->selectedPaths();
@@ -4160,65 +3713,58 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         }
         VisualDiffDialog dlg(curSelected[0], sibSelectedPath, this);
         dlg.exec();
-    } else if (selected == actEditTags) {
+    } else if (command == "app.media_info_sheet") {
+        ShowcaseInfoDialog infoDlg(selectedPath, this);
+        connect(&infoDlg, &ShowcaseInfoDialog::playRequested, this, [this](const QString& path) {
+            emit playMediaBuiltinRequested({path});
+        });
+        connect(&infoDlg, &ShowcaseInfoDialog::openFolderRequested, this, [this](const QString& path) {
+            navigateTo(path, true);
+        });
+        connect(&infoDlg, &ShowcaseInfoDialog::watchStatusChanged, this, [this](const QString& p, bool) {
+            notifyPathDataChanged(p);
+        });
+        infoDlg.exec();
+    } else if (command == "app.toggle_watch") {
+        QSettings settings("Amifiles", "Amifiles");
+        bool isWatched = settings.value("watched/" + selectedPath, false).toBool();
+        settings.setValue("watched/" + selectedPath, !isWatched);
+        notifyPathDataChanged(selectedPath);
+    } else if (command == "app.edit_tags") {
         TagEditorDialog dlg(curSelected, this);
         if (dlg.exec() == QDialog::Accepted) {
             refresh();
         }
-    } else if (selected == actFetchMusicBrainz) {
+    } else if (command == "app.fetch_musicbrainz") {
         TagEditorDialog dlg(curSelected, this, true);
         if (dlg.exec() == QDialog::Accepted) {
             refresh();
         }
-    } else if (selected == actScrapeVideo) {
+    } else if (command == "app.scrape_video") {
         VideoScraperDialog dlg(curSelected, this);
         if (dlg.exec() == QDialog::Accepted) {
             refresh();
         }
-    } else if (selected == actFetchFolderArt) {
+    } else if (command == "app.fetch_folder_art") {
         QString folderPath = isFolder ? selectedPath : m_currentPath;
         if (!folderPath.isEmpty()) {
             FolderArtScraperDialog dlg(folderPath, this);
             dlg.exec();
             refresh();
         }
-    } else if (selected == actCreateArchive) {
-        ArchiveDialog* dlg = new ArchiveDialog(ArchiveDialog::ModeCreate, curSelected, m_currentPath, false, this);
-        dlg->setAttribute(Qt::WA_DeleteOnClose);
-        connect(dlg, &QDialog::accepted, this, [this]() {
+    } else if (command == "app.file_tags") {
+        FileTagsDialog dlg(curSelected, this);
+        if (dlg.exec() == QDialog::Accepted) {
             refresh();
-            if (m_siblingPanel) m_siblingPanel->refresh();
-            QTimer::singleShot(500, this, [this]() {
-                refresh();
-                if (m_siblingPanel) m_siblingPanel->refresh();
-            });
-        });
-        dlg->show();
-    } else if (selected == actCreateSecureArchive) {
-        ArchiveDialog* dlg = new ArchiveDialog(ArchiveDialog::ModeCreate, curSelected, m_currentPath, true, this);
-        dlg->setAttribute(Qt::WA_DeleteOnClose);
-        connect(dlg, &QDialog::accepted, this, [this]() {
-            refresh();
-            if (m_siblingPanel) m_siblingPanel->refresh();
-            QTimer::singleShot(500, this, [this]() {
-                refresh();
-                if (m_siblingPanel) m_siblingPanel->refresh();
-            });
-        });
-        dlg->show();
-    } else if (selected == actExtractArchive) {
-        ArchiveDialog* dlg = new ArchiveDialog(ArchiveDialog::ModeExtract, curSelected.first(), m_currentPath, this);
-        dlg->setAttribute(Qt::WA_DeleteOnClose);
-        connect(dlg, &QDialog::accepted, this, [this]() {
-            refresh();
-            if (m_siblingPanel) m_siblingPanel->refresh();
-            QTimer::singleShot(500, this, [this]() {
-                refresh();
-                if (m_siblingPanel) m_siblingPanel->refresh();
-            });
-        });
-        dlg->show();
-    } else if (selected == actEncryptVault) {
+            QWidget* p = parentWidget();
+            while (p && !p->inherits("MainWindow")) {
+                p = p->parentWidget();
+            }
+            if (p) {
+                QMetaObject::invokeMethod(p, "refreshTagsSidebar");
+            }
+        }
+    } else if (command == "app.encrypt_vault") {
         VaultDialog dlg(true, selectedPath, this);
         if (dlg.exec() == QDialog::Accepted) {
             refresh();
@@ -4228,7 +3774,7 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
                 if (m_siblingPanel) m_siblingPanel->refresh();
             });
         }
-    } else if (selected == actDecryptVault) {
+    } else if (command == "app.decrypt_vault") {
         VaultDialog dlg(false, selectedPath, this);
         if (dlg.exec() == QDialog::Accepted) {
             refresh();
@@ -4238,7 +3784,7 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
                 if (m_siblingPanel) m_siblingPanel->refresh();
             });
         }
-    } else if (selected == actMountIso) {
+    } else if (command == "app.mount_iso") {
         QString errorMsg, mountPath;
         if (RemoteMountManager::mountIso(selectedPath, errorMsg, mountPath)) {
             QMessageBox::information(this, "Mount ISO", QString("ISO mounted successfully at:\n%1").arg(mountPath));
@@ -4257,7 +3803,7 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         } else {
             QMessageBox::critical(this, "Mount ISO Error", QString("Failed to mount ISO:\n%1").arg(errorMsg));
         }
-    } else if (selected == actUnmountIso) {
+    } else if (command == "app.unmount_iso") {
         QString errorMsg;
         if (RemoteMountManager::unmountIso(selectedPath, errorMsg)) {
             QMessageBox::information(this, "Unmount ISO", "ISO unmounted successfully.");
@@ -4272,7 +3818,7 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         } else {
             QMessageBox::critical(this, "Unmount ISO Error", QString("Failed to unmount ISO:\n%1").arg(errorMsg));
         }
-    } else if (selected == actMountVhd) {
+    } else if (command == "app.mount_vhd") {
         QString errorMsg, mountPath;
         if (RemoteMountManager::mountVhd(selectedPath, errorMsg, mountPath)) {
             QMessageBox::information(this, "Mount VHD", QString("VHD mounted successfully at:\n%1").arg(mountPath));
@@ -4291,7 +3837,7 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         } else {
             QMessageBox::critical(this, "Mount VHD Error", QString("Failed to mount VHD:\n%1").arg(errorMsg));
         }
-    } else if (selected == actUnmountVhd) {
+    } else if (command == "app.unmount_vhd") {
         QString errorMsg;
         if (RemoteMountManager::unmountVhd(selectedPath, errorMsg)) {
             QMessageBox::information(this, "Unmount VHD", "VHD unmounted successfully.");
@@ -4306,15 +3852,51 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         } else {
             QMessageBox::critical(this, "Unmount VHD Error", QString("Failed to unmount VHD:\n%1").arg(errorMsg));
         }
-    } else if (selected == actCalculateChecksum) {
+    } else if (command == "app.create_archive") {
+        ArchiveDialog* dlg = new ArchiveDialog(ArchiveDialog::ModeCreate, curSelected, m_currentPath, false, this);
+        dlg->setAttribute(Qt::WA_DeleteOnClose);
+        connect(dlg, &QDialog::accepted, this, [this]() {
+            refresh();
+            if (m_siblingPanel) m_siblingPanel->refresh();
+            QTimer::singleShot(500, this, [this]() {
+                refresh();
+                if (m_siblingPanel) m_siblingPanel->refresh();
+            });
+        });
+        dlg->show();
+    } else if (command == "app.create_secure_archive") {
+        ArchiveDialog* dlg = new ArchiveDialog(ArchiveDialog::ModeCreate, curSelected, m_currentPath, true, this);
+        dlg->setAttribute(Qt::WA_DeleteOnClose);
+        connect(dlg, &QDialog::accepted, this, [this]() {
+            refresh();
+            if (m_siblingPanel) m_siblingPanel->refresh();
+            QTimer::singleShot(500, this, [this]() {
+                refresh();
+                if (m_siblingPanel) m_siblingPanel->refresh();
+            });
+        });
+        dlg->show();
+    } else if (command == "app.extract_archive") {
+        ArchiveDialog* dlg = new ArchiveDialog(ArchiveDialog::ModeExtract, curSelected.first(), m_currentPath, this);
+        dlg->setAttribute(Qt::WA_DeleteOnClose);
+        connect(dlg, &QDialog::accepted, this, [this]() {
+            refresh();
+            if (m_siblingPanel) m_siblingPanel->refresh();
+            QTimer::singleShot(500, this, [this]() {
+                refresh();
+                if (m_siblingPanel) m_siblingPanel->refresh();
+            });
+        });
+        dlg->show();
+    } else if (command == "app.calculate_checksum") {
         ChecksumDialog dlg(selectedPath, this);
         dlg.exec();
-    } else if (selected == actSecureShred) {
+    } else if (command == "app.secure_shred") {
         ShredDialog dlg(curSelected, this);
         if (dlg.exec() == QDialog::Accepted) {
             refresh();
         }
-    } else if (selected == actImageConvert) {
+    } else if (command == "app.image_convert") {
         QStringList imageExts = { "jpg", "jpeg", "png", "webp", "bmp" };
         QStringList selectedImages;
         for (const QString& sPath : curSelected) {
@@ -4326,28 +3908,28 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         if (dlg.exec() == QDialog::Accepted) {
             refresh();
         }
-    } else if (selected == actNone) {
+    } else if (command == "app.color_none") {
         for (const QString& path : curSelected) TagManager::instance().setFileColor(path, "");
         refresh();
-    } else if (selected == actRed) {
+    } else if (command == "app.color_red") {
         for (const QString& path : curSelected) TagManager::instance().setFileColor(path, "red");
         refresh();
-    } else if (selected == actOrange) {
+    } else if (command == "app.color_orange") {
         for (const QString& path : curSelected) TagManager::instance().setFileColor(path, "orange");
         refresh();
-    } else if (selected == actYellow) {
+    } else if (command == "app.color_yellow") {
         for (const QString& path : curSelected) TagManager::instance().setFileColor(path, "yellow");
         refresh();
-    } else if (selected == actGreen) {
+    } else if (command == "app.color_green") {
         for (const QString& path : curSelected) TagManager::instance().setFileColor(path, "green");
         refresh();
-    } else if (selected == actBlue) {
+    } else if (command == "app.color_blue") {
         for (const QString& path : curSelected) TagManager::instance().setFileColor(path, "blue");
         refresh();
-    } else if (selected == actPurple) {
+    } else if (command == "app.color_purple") {
         for (const QString& path : curSelected) TagManager::instance().setFileColor(path, "purple");
         refresh();
-    } else if (selected == actCustomOverlay) {
+    } else if (command == "app.color_custom_overlay") {
         IconPickerDialog dlg(this);
         if (dlg.exec() == QDialog::Accepted) {
             QString iconName = dlg.selectedIconName();
@@ -4358,143 +3940,19 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
                 refresh();
             }
         }
-    } else if (selected == actClearOverlay) {
+    } else if (command == "app.color_clear_overlay") {
         for (const QString& path : curSelected) {
             TagManager::instance().setFileOverlayIcon(path, "");
         }
         refresh();
-    } else if (selected == actFileTags) {
-        FileTagsDialog dlg(curSelected, this);
-        if (dlg.exec() == QDialog::Accepted) {
-            refresh();
-            QWidget* p = parentWidget();
-            while (p && !p->inherits("MainWindow")) {
-                p = p->parentWidget();
-            }
-            if (p) {
-                QMetaObject::invokeMethod(p, "refreshTagsSidebar");
-            }
-        }
-    } else if (selected == actProp) {
+    } else if (command == "app.toggle_executable") {
+        toggleSelectedExecutable();
+    } else if (command == "app.change_permissions") {
+        changeSelectedPermissions();
+    } else if (command == "app.remove_green_screen") {
+        removeSelectedGreenScreen();
+    } else if (command == "app.properties") {
         onShowProperties();
-    } else if (selected && selected == actToggleZen) {
-        QSettings settings("Amifiles", "Amifiles");
-        bool current = settings.value("preferences/zen_mode", false).toBool();
-        settings.setValue("preferences/zen_mode", !current);
-        emit zenModeToggled(!current);
-    } else if (selected && selected == actToggleDoubleclick) {
-        QWidget* p = parentWidget();
-        while (p && !p->inherits("MainWindow")) {
-            p = p->parentWidget();
-        }
-        if (p) {
-            bool current = false;
-            QMetaObject::invokeMethod(p, "isBuiltinPlayerDoubleclickActive", Q_RETURN_ARG(bool, current));
-            QMetaObject::invokeMethod(p, "setBuiltinPlayerDoubleclickActive", Q_ARG(bool, !current));
-            if (!current) {
-                QSettings settings("Amifiles", "Amifiles");
-                settings.setValue("preferences/doubleclick_adds_to_queue", false);
-            }
-        }
-    } else if (selected && selected == actToggleDoubleclickQueue) {
-        QSettings settings("Amifiles", "Amifiles");
-        bool current = settings.value("preferences/doubleclick_adds_to_queue", false).toBool();
-        settings.setValue("preferences/doubleclick_adds_to_queue", !current);
-        if (!current) {
-            settings.setValue("preferences/builtin_player_doubleclick", false);
-            QWidget* p = parentWidget();
-            while (p && !p->inherits("MainWindow")) {
-                p = p->parentWidget();
-            }
-            if (p) {
-                QMetaObject::invokeMethod(p, "setBuiltinPlayerDoubleclickActive", Q_ARG(bool, false));
-            }
-        }
-    } else if (selected && selected == actGroupMultiDisc) {
-        QSettings settings("Amifiles", "Amifiles");
-        bool current = settings.value("theater/group_multi_disc", true).toBool();
-        settings.setValue("theater/group_multi_disc", !current);
-        if (m_proxyModel) {
-            m_proxyModel->setGroupMultiDiscActive(!current && (viewModeIndex() == 6 || viewModeIndex() == 10));
-        }
-        refresh();
-        if (m_groupProxy && m_groupProxy->isGroupingActive() && m_viewStack->currentWidget() == m_theaterContainer) {
-            queueRebuildTheaterGroups();
-        }
-    } else if (selected && selected == actHideAuxiliaryFiles) {
-        QSettings settings("Amifiles", "Amifiles");
-        int idx = viewModeIndex();
-        if (idx == 6) {
-            bool current = settings.value("audio_showcase/hide_active", true).toBool();
-            settings.setValue("audio_showcase/hide_active", !current);
-        } else if (idx == 7) {
-            bool current = settings.value("video_showcase/hide_active", true).toBool();
-            settings.setValue("video_showcase/hide_active", !current);
-        } else if (idx == 8) {
-            bool current = settings.value("movie_showcase/hide_active", true).toBool();
-            settings.setValue("movie_showcase/hide_active", !current);
-        } else if (idx == 9) {
-            bool current = settings.value("tv_showcase/hide_active", true).toBool();
-            settings.setValue("tv_showcase/hide_active", !current);
-        } else if (idx == 10) {
-            bool current = settings.value("music_showcase/hide_active", true).toBool();
-            settings.setValue("music_showcase/hide_active", !current);
-        } else {
-            bool current = settings.value("theater/hide_auxiliary_files", true).toBool();
-            settings.setValue("theater/hide_auxiliary_files", !current);
-        }
-        updateHideSettings();
-        refresh();
-        if (m_groupProxy && m_groupProxy->isGroupingActive() && m_viewStack->currentWidget() == m_theaterContainer) {
-            queueRebuildTheaterGroups();
-        }
-    } else if (selected && selected == actToggleTracksDrawer) {
-        QSettings settings("Amifiles", "Amifiles");
-        int idx = viewModeIndex();
-        QString key;
-        if (idx == 6) key = "audio_showcase/show_info_panel";
-        else if (idx == 7) key = "video_showcase/show_info_panel";
-        else if (idx == 8) key = "movie_showcase/show_info_panel";
-        else if (idx == 9) key = "tv_showcase/show_info_panel";
-        else if (idx == 10) key = "music_showcase/show_info_panel";
-        else key = "theater/show_tracks_drawer";
-
-        bool current = settings.value(key, true).toBool();
-        settings.setValue(key, !current);
-        if (current) {
-            m_bottomInfoPanel->setVisible(false);
-        } else {
-            onSelectionChanged();
-        }
-    } else if (selected && (selected == actCasingClear || selected == actCasingBlack || selected == actCasingVinyl)) {
-        QSettings settings("Amifiles", "Amifiles");
-        QString newCasing = "cd";
-        if (selected == actCasingBlack) newCasing = "cd_black";
-        else if (selected == actCasingVinyl) newCasing = "vinyl";
-        settings.setValue("music_showcase/casing_type", newCasing);
-        if (m_proxyModel) {
-            m_proxyModel->clearCasingCache();
-        }
-        refresh();
-    } else if (selected && selected == actHiddenExtensions) {
-        promptHideExtensions();
-    } else if (selected && selected == actMediaInfoSheet) {
-        ShowcaseInfoDialog infoDlg(selectedPath, this);
-        connect(&infoDlg, &ShowcaseInfoDialog::playRequested, this, [this](const QString& path) {
-            emit playMediaBuiltinRequested({path});
-        });
-        connect(&infoDlg, &ShowcaseInfoDialog::openFolderRequested, this, [this](const QString& path) {
-            navigateTo(path, true);
-        });
-        connect(&infoDlg, &ShowcaseInfoDialog::watchStatusChanged, this, [this](const QString& p, bool) {
-            notifyPathDataChanged(p);
-        });
-        infoDlg.exec();
-    } else if (selected && selected == actToggleWatch) {
-        QSettings settings("Amifiles", "Amifiles");
-        bool isWatched = settings.value("watched/" + selectedPath, false).toBool();
-        settings.setValue("watched/" + selectedPath, !isWatched);
-        notifyPathDataChanged(selectedPath);
     }
 }
 
@@ -5782,18 +5240,30 @@ void FilePanel::updateStyles() {
     int fontSize = baseFontSize + (m_zoomLevel - 2) * 2;
     if (fontSize < 8) fontSize = 8;
 
+    QString bgStyle;
+    QString stackBgStyle;
+    bool hasBgImage = (!m_customBgImage.isEmpty() && QFile::exists(m_customBgImage));
+
     if (preset == "System Theme") {
-        QString bgStyle = m_customBgColor.isEmpty() ? "" : QString("background-color: %1;").arg(m_customBgColor);
-        m_viewStack->setStyleSheet(m_customBgColor.isEmpty() ? "" : QString("QStackedWidget { background-color: %1; }").arg(m_customBgColor));
+        if (hasBgImage) {
+            stackBgStyle = QString("border-image: url(\"%1\") 0 0 0 0 stretch stretch;").arg(m_customBgImage);
+            int dimAlpha = static_cast<int>((1.0 - m_customBgOpacity) * 255.0);
+            bgStyle = QString("background-color: rgba(255, 255, 255, %1);").arg(dimAlpha);
+        } else {
+            stackBgStyle = m_customBgColor.isEmpty() ? "" : QString("background-color: %1;").arg(m_customBgColor);
+            bgStyle = m_customBgColor.isEmpty() ? "" : QString("background-color: %1;").arg(m_customBgColor);
+        }
+
+        m_viewStack->setStyleSheet(stackBgStyle.isEmpty() ? "" : QString("QStackedWidget { %1 }").arg(stackBgStyle));
         m_treeView->setStyleSheet(QString("QTreeView { border: none; %1 font-size: %2px; }").arg(bgStyle).arg(fontSize));
         m_listView->setStyleSheet(QString("QListView { border: none; %1 font-size: %2px; }").arg(bgStyle).arg(fontSize));
-        m_theaterListView->setStyleSheet(QString("QListView { background: transparent; border: none; font-size: %1px; }"
+        m_theaterListView->setStyleSheet(QString("QListView { border: none; %1 font-size: %2px; }"
                                                  "QListView::item { border: none; }"
                                                  "QListView::item:hover { background: transparent; }"
-                                                 "QListView::item:selected { background: transparent; }").arg(fontSize));
-        m_millerView->setStyleSheet(m_customBgColor.isEmpty() ? "" : QString("MillerColumnsView { %1 }").arg(bgStyle));
+                                                 "QListView::item:selected { background: transparent; }").arg(bgStyle).arg(fontSize));
+        m_millerView->setStyleSheet(QString("MillerColumnsView { border: none; %1 }").arg(bgStyle));
         m_timelineView->setStyleSheet(QString("QTreeWidget { border: none; %1 font-size: %2px; }").arg(bgStyle).arg(fontSize));
-        m_filmstripView->setStyleSheet(m_customBgColor.isEmpty() ? "" : QString("FilmstripView { %1 }").arg(bgStyle));
+        m_filmstripView->setStyleSheet(QString("FilmstripView { border: none; %1 }").arg(bgStyle));
         if (m_searchResultsView) {
             m_searchResultsView->setStyleSheet(QString("QListView { %1 font-size: %2px; }").arg(bgStyle).arg(fontSize));
         }
@@ -5806,20 +5276,30 @@ void FilePanel::updateStyles() {
         
         QString borderColor = m_isActive ? accent : border;
 
-        m_viewStack->setStyleSheet(QString("QStackedWidget { border: 2px solid %1; border-radius: 4px; background-color: %2; }").arg(borderColor).arg(bg));
+        if (hasBgImage) {
+            stackBgStyle = QString("border-image: url(\"%1\") 0 0 0 0 stretch stretch;").arg(m_customBgImage);
+            int dimAlpha = static_cast<int>((1.0 - m_customBgOpacity) * 255.0);
+            QColor c(bg);
+            bgStyle = QString("background-color: rgba(%1, %2, %3, %4);").arg(c.red()).arg(c.green()).arg(c.blue()).arg(dimAlpha);
+        } else {
+            stackBgStyle = QString("background-color: %1;").arg(bg);
+            bgStyle = QString("background-color: %1;").arg(bg);
+        }
 
-        m_treeView->setStyleSheet(QString("QTreeView { border: none; background-color: %1; font-size: %2px; }").arg(bg).arg(fontSize));
-        m_listView->setStyleSheet(QString("QListView { border: none; background-color: %1; font-size: %2px; }").arg(bg).arg(fontSize));
-        m_theaterListView->setStyleSheet(QString("QListView { background: transparent; color: %1; border: none; font-size: %2px; }"
+        m_viewStack->setStyleSheet(QString("QStackedWidget { border: 2px solid %1; border-radius: 4px; %2 }").arg(borderColor).arg(stackBgStyle));
+
+        m_treeView->setStyleSheet(QString("QTreeView { border: none; %1 font-size: %2px; }").arg(bgStyle).arg(fontSize));
+        m_listView->setStyleSheet(QString("QListView { border: none; %1 font-size: %2px; }").arg(bgStyle).arg(fontSize));
+        m_theaterListView->setStyleSheet(QString("QListView { border: none; %1 color: %2; font-size: %3px; }"
                                                  "QListView::item { border: none; }"
                                                  "QListView::item:hover { background: transparent; }"
-                                                 "QListView::item:selected { background: transparent; }").arg(text).arg(fontSize));
-        m_millerView->setStyleSheet(QString("MillerColumnsView { border: none; background-color: %1; }").arg(bg));
-        m_timelineView->setStyleSheet(QString("QTreeWidget { border: none; background-color: %1; font-size: %2px; }").arg(bg).arg(fontSize));
-        m_filmstripView->setStyleSheet(QString("FilmstripView { border: none; background-color: %1; }").arg(bg));
+                                                 "QListView::item:selected { background: transparent; }").arg(bgStyle).arg(text).arg(fontSize));
+        m_millerView->setStyleSheet(QString("MillerColumnsView { border: none; %1 }").arg(bgStyle));
+        m_timelineView->setStyleSheet(QString("QTreeWidget { border: none; %1 font-size: %2px; }").arg(bgStyle).arg(fontSize));
+        m_filmstripView->setStyleSheet(QString("FilmstripView { border: none; %1 }").arg(bgStyle));
 
         if (m_searchResultsView) {
-            m_searchResultsView->setStyleSheet(QString("QListView { border: 2px solid %1; background-color: %2; color: %3; font-size: %4px; }").arg(borderColor).arg(bg).arg(text).arg(fontSize));
+            m_searchResultsView->setStyleSheet(QString("QListView { border: 2px solid %1; %2 color: %3; font-size: %4px; }").arg(borderColor).arg(bgStyle).arg(text).arg(fontSize));
         }
     }
 }
@@ -8588,4 +8068,688 @@ void FilePanel::queueCurrentOrSelectedFolder() {
 
 void FilePanel::playPlaylistQueue() {
     emit playQueueFullscreenRequested();
+}
+
+#include <QDialogButtonBox>
+#include <QCheckBox>
+#include <QInputDialog>
+#include <QMessageBox>
+
+class FilePermissionsDialog : public QDialog {
+public:
+    FilePermissionsDialog(const QString& filePath, QWidget* parent = nullptr) : QDialog(parent) {
+        setWindowTitle("Change File Permissions");
+        resize(350, 250);
+        setStyleSheet(
+            "QDialog { background-color: #1e1e2e; color: #cdd6f4; }"
+            "QLabel { color: #cdd6f4; }"
+            "QCheckBox { color: #cdd6f4; }"
+            "QPushButton { background-color: #313244; color: #cdd6f4; border-radius: 4px; padding: 6px 12px; }"
+            "QPushButton:hover { background-color: #45475a; }"
+        );
+        
+        QVBoxLayout* mainLayout = new QVBoxLayout(this);
+        mainLayout->setContentsMargins(12, 12, 12, 12);
+        mainLayout->setSpacing(10);
+        
+        QLabel* titleLabel = new QLabel(QString("Permissions for: %1").arg(QFileInfo(filePath).fileName()), this);
+        titleLabel->setStyleSheet("font-weight: bold; font-size: 13px; color: #89b4fa;");
+        mainLayout->addWidget(titleLabel);
+        
+        QGridLayout* grid = new QGridLayout();
+        grid->setSpacing(8);
+        
+        grid->addWidget(new QLabel("Read", this), 0, 1);
+        grid->addWidget(new QLabel("Write", this), 0, 2);
+        grid->addWidget(new QLabel("Execute", this), 0, 3);
+        
+        grid->addWidget(new QLabel("Owner:", this), 1, 0);
+        m_ownerR = new QCheckBox(this); grid->addWidget(m_ownerR, 1, 1);
+        m_ownerW = new QCheckBox(this); grid->addWidget(m_ownerW, 1, 2);
+        m_ownerX = new QCheckBox(this); grid->addWidget(m_ownerX, 1, 3);
+        
+        grid->addWidget(new QLabel("Group:", this), 2, 0);
+        m_groupR = new QCheckBox(this); grid->addWidget(m_groupR, 2, 1);
+        m_groupW = new QCheckBox(this); grid->addWidget(m_groupW, 2, 2);
+        m_groupX = new QCheckBox(this); grid->addWidget(m_groupX, 2, 3);
+        
+        grid->addWidget(new QLabel("Others:", this), 3, 0);
+        m_otherR = new QCheckBox(this); grid->addWidget(m_otherR, 3, 1);
+        m_otherW = new QCheckBox(this); grid->addWidget(m_otherW, 3, 2);
+        m_otherX = new QCheckBox(this); grid->addWidget(m_otherX, 3, 3);
+        
+        mainLayout->addLayout(grid);
+        
+        // Load current permissions
+        QFile file(filePath);
+        QFile::Permissions p = file.permissions();
+        m_ownerR->setChecked(p & QFile::ReadOwner);
+        m_ownerW->setChecked(p & QFile::WriteOwner);
+        m_ownerX->setChecked(p & QFile::ExeOwner);
+        
+        m_groupR->setChecked(p & QFile::ReadGroup);
+        m_groupW->setChecked(p & QFile::WriteGroup);
+        m_groupX->setChecked(p & QFile::ExeGroup);
+        
+        m_otherR->setChecked(p & QFile::ReadOther);
+        m_otherW->setChecked(p & QFile::WriteOther);
+        m_otherX->setChecked(p & QFile::ExeOther);
+        
+        QDialogButtonBox* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
+        connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
+        connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+        mainLayout->addWidget(buttons);
+    }
+    
+    QFile::Permissions permissions() const {
+        QFile::Permissions p = {};
+        if (m_ownerR->isChecked()) p |= QFile::ReadOwner;
+        if (m_ownerW->isChecked()) p |= QFile::WriteOwner;
+        if (m_ownerX->isChecked()) p |= QFile::ExeOwner;
+        
+        if (m_groupR->isChecked()) p |= QFile::ReadGroup;
+        if (m_groupW->isChecked()) p |= QFile::WriteGroup;
+        if (m_groupX->isChecked()) p |= QFile::ExeGroup;
+        
+        if (m_otherR->isChecked()) p |= QFile::ReadOther;
+        if (m_otherW->isChecked()) p |= QFile::WriteOther;
+        if (m_otherX->isChecked()) p |= QFile::ExeOther;
+        return p;
+    }
+    
+private:
+    QCheckBox* m_ownerR;
+    QCheckBox* m_ownerW;
+    QCheckBox* m_ownerX;
+    QCheckBox* m_groupR;
+    QCheckBox* m_groupW;
+    QCheckBox* m_groupX;
+    QCheckBox* m_otherR;
+    QCheckBox* m_otherW;
+    QCheckBox* m_otherX;
+};
+
+void FilePanel::createNewFileTemplate(const QString& ext) {
+    QString defaultName = "New Document." + ext;
+    if (ext == "png") defaultName = "New Image.png";
+    else if (ext == "py") defaultName = "script.py";
+    
+    bool ok;
+    QString name = QInputDialog::getText(this, "Create New File", "File Name:", QLineEdit::Normal, defaultName, &ok);
+    if (!ok || name.isEmpty()) return;
+    
+    QString filePath = QDir(m_currentPath).filePath(name);
+    QFile file(filePath);
+    if (file.open(QIODevice::WriteOnly)) {
+        if (ext == "png") {
+            QImage img(1, 1, QImage::Format_ARGB32);
+            img.fill(Qt::transparent);
+            img.save(&file, "PNG");
+        } else if (ext == "html") {
+            file.write("<!DOCTYPE html>\n<html>\n<head>\n<title></title>\n</head>\n<body>\n</body>\n</html>");
+        } else if (ext == "md") {
+            file.write("# New Document\n");
+        } else if (ext == "py") {
+            file.write("#!/usr/bin/env python3\n\nprint(\"Hello, World!\")\n");
+        } else {
+            file.write("");
+        }
+        file.close();
+        refresh();
+    } else {
+        QMessageBox::critical(this, "Error", "Could not create file: " + file.errorString());
+    }
+}
+
+void FilePanel::toggleSelectedExecutable() {
+    QStringList paths = selectedPaths();
+    if (paths.isEmpty()) return;
+    
+    for (const QString& path : paths) {
+        QFile file(path);
+        QFile::Permissions perms = file.permissions();
+        if (perms & QFile::ExeOwner) {
+            perms &= ~(QFile::ExeOwner | QFile::ExeGroup | QFile::ExeOther);
+        } else {
+            perms |= (QFile::ExeOwner | QFile::ExeGroup | QFile::ExeOther);
+        }
+        file.setPermissions(perms);
+    }
+    refresh();
+}
+
+void FilePanel::changeSelectedPermissions() {
+    QStringList paths = selectedPaths();
+    if (paths.isEmpty()) return;
+    QString path = paths.first();
+    
+    FilePermissionsDialog dlg(path, this);
+    if (dlg.exec() == QDialog::Accepted) {
+        QFile file(path);
+        file.setPermissions(dlg.permissions());
+        refresh();
+    }
+}
+
+void FilePanel::removeSelectedGreenScreen() {
+    QStringList paths = selectedPaths();
+    if (paths.isEmpty()) return;
+    
+    QStringList savedFiles;
+    for (const QString& path : paths) {
+        QImage img(path);
+        if (img.isNull()) continue;
+        
+        img = img.convertToFormat(QImage::Format_ARGB32);
+        for (int y = 0; y < img.height(); ++y) {
+            QRgb* row = (QRgb*)img.scanLine(y);
+            for (int x = 0; x < img.width(); ++x) {
+                QRgb pixel = row[x];
+                int r = qRed(pixel);
+                int g = qGreen(pixel);
+                int b = qBlue(pixel);
+                double sum = r + g + b;
+                if (sum > 0) {
+                    double g_norm = (double)g / sum;
+                    if (g_norm > 0.40 && g > 60 && g > r * 1.15 && g > b * 1.15) {
+                        row[x] = qRgba(0, 0, 0, 0);
+                    }
+                }
+            }
+        }
+        
+        QFileInfo fi(path);
+        QString outPath = fi.absolutePath() + "/" + fi.completeBaseName() + "_chromakey.png";
+        if (img.save(outPath, "PNG")) {
+            savedFiles.append(fi.completeBaseName() + "_chromakey.png");
+        }
+    }
+    
+    if (!savedFiles.isEmpty()) {
+        QMessageBox::information(this, "Green Screen Removed", 
+            QString("Successfully removed green screen from selected image(s).\n\nCreated:\n%1").arg(savedFiles.join("\n")));
+    } else {
+        QMessageBox::warning(this, "Green Screen Removal Failed", "No images were processed successfully. Ensure the selected files are valid images with green backgrounds.");
+    }
+    refresh();
+}
+
+QIcon FilePanel::getIconForPathOrTheme(const QString& pathOrTheme) {
+    if (pathOrTheme.isEmpty()) return QIcon();
+    if (QFileInfo(pathOrTheme).exists()) return QIcon(pathOrTheme);
+    return QIcon::fromTheme(pathOrTheme);
+}
+
+QJsonArray FilePanel::getDefaultContextMenuJson() const {
+    QJsonArray arr;
+    struct CmdItem {
+        QString type;
+        QString title;
+        QString command;
+        QString icon;
+    };
+    
+    QList<CmdItem> items = {
+        {"action", "Open", "app.open", "document-open"},
+        {"action", "Open in Full Screen View", "app.open_fullscreen", "media-playback-start"},
+        {"separator", "", "", ""},
+        {"action", "Cut", "app.cut", "edit-cut"},
+        {"action", "Copy", "app.copy", "edit-copy"},
+        {"action", "Paste", "app.paste", "edit-paste"},
+        {"action", "Copy to Sibling Panel", "app.copy_sibling", "go-next"},
+        {"action", "Move to Sibling Panel", "app.move_sibling", "go-jump"},
+        {"action", "Delete", "app.delete", "user-trash"},
+        {"action", "Rename", "app.rename", "edit-rename"},
+        {"action", "Bulk Rename...", "app.bulk_rename", ""},
+        {"separator", "", "", ""},
+        {"action", "New Folder", "app.new_folder", "folder-new"},
+        {"action", "Advanced New Folder...", "app.advanced_new_folder", ""},
+        {"separator", "", "", ""},
+        {"action", "Toggle Executable Status", "app.toggle_executable", ""},
+        {"action", "Change File Permissions (chmod)...", "app.change_permissions", ""},
+        {"action", "Remove Green Screen 🟢", "app.remove_green_screen", ""},
+        {"separator", "", "", ""},
+        {"action", "Add/Remove Favorites", "app.favorites", ""},
+        {"action", "Pin/Unpin Home Screen", "app.pin_home", ""},
+        {"separator", "", "", ""},
+        {"action", "Play Folder/Album in Preview", "app.play_preview", "media-playback-start"},
+        {"action", "Play Folder/Album in Fullscreen", "app.play_fullscreen_playlist", "media-playback-start"},
+        {"separator", "", "", ""},
+        {"action", "Compare Selected Files", "app.compare_selected", ""},
+        {"action", "Compare with Sibling Pane File", "app.compare_sibling", ""},
+        {"separator", "", "", ""},
+        {"action", "🎬 Media Info Sheet... (ℹ)", "app.media_info_sheet", "dialog-information"},
+        {"action", "✔ Toggle Watch Status (Watched/Unwatched)", "app.toggle_watch", ""},
+        {"separator", "", "", ""},
+        {"action", "Edit Audio Tags...", "app.edit_tags", ""},
+        {"action", "Fetch MusicBrainz Album Info...", "app.fetch_musicbrainz", ""},
+        {"action", "Scrape Video Metadata...", "app.scrape_video", ""},
+        {"action", "Fetch Cover Art & Wallpaper...", "app.fetch_folder_art", ""},
+        {"separator", "", "", ""},
+        {"action", "File Tags...", "app.file_tags", ""},
+        {"separator", "", "", ""},
+        {"action", "Vault Encryption/Decryption", "app.vault_toggle", ""},
+        {"action", "ISO Virtual Drive", "app.iso_toggle", ""},
+        {"action", "VHD Virtual Drive", "app.vhd_toggle", ""},
+        {"action", "Create Archive...", "app.create_archive", ""},
+        {"action", "Create Secure Archive (AES-256)...", "app.create_secure_archive", ""},
+        {"action", "Extract Archive...", "app.extract_archive", ""},
+        {"separator", "", "", ""},
+        {"action", "Calculate Checksum Hash...", "app.calculate_checksum", ""},
+        {"action", "Secure Shred (Delete Permanently)...", "app.secure_shred", "user-trash"},
+        {"action", "Batch Convert/Resize Images...", "app.image_convert", ""},
+        {"separator", "", "", ""},
+        {"action", "Folder Profiles & Layouts...", "app.folder_layouts", ""},
+        {"action", "Save Current Layout as Folder Profile...", "app.save_folder_profile", ""},
+        {"action", "Save Current Layout as Default Profile", "app.save_default_profile", ""},
+        {"action", "Load Default Profile", "app.load_default_profile", ""}
+    };
+
+    for (const auto& item : items) {
+        QJsonObject obj;
+        obj["type"] = item.type;
+        if (item.type != "separator") {
+            obj["title"] = item.title;
+            obj["command"] = item.command;
+            obj["icon"] = item.icon;
+            obj["color"] = "";
+            obj["mode"] = "Normal";
+        }
+        arr.append(obj);
+    }
+
+    // Add Copy to Clipboard Submenu
+    QJsonObject cSub;
+    cSub["type"] = "menu";
+    cSub["title"] = "Copy to Clipboard";
+    cSub["icon"] = "";
+    QJsonArray cKids;
+    QJsonObject ck1; ck1["type"] = "action"; ck1["title"] = "Copy File Name(s)"; ck1["command"] = "app.copy_filename"; cKids.append(ck1);
+    QJsonObject ck2; ck2["type"] = "action"; ck2["title"] = "Copy Full Path(s)"; ck2["command"] = "app.copy_path"; cKids.append(ck2);
+    QJsonObject ck3; ck3["type"] = "action"; ck3["title"] = "Copy Folder Contents (Paths List)"; ck3["command"] = "app.copy_folder_contents"; cKids.append(ck3);
+    cSub["children"] = cKids;
+    arr.append(cSub);
+
+    // Add New File Submenu
+    QJsonObject fSub;
+    fSub["type"] = "menu";
+    fSub["title"] = "New File";
+    fSub["icon"] = "document-new";
+    QJsonArray fKids;
+    QJsonObject fk1; fk1["type"] = "action"; fk1["title"] = "Text Document (.txt)"; fk1["command"] = "app.new_file_txt"; fKids.append(fk1);
+    QJsonObject fk2; fk2["type"] = "action"; fk2["title"] = "Markdown Document (.md)"; fk2["command"] = "app.new_file_md"; fKids.append(fk2);
+    QJsonObject fk3; fk3["type"] = "action"; fk3["title"] = "HTML Document (.html)"; fk3["command"] = "app.new_file_html"; fKids.append(fk3);
+    QJsonObject fk4; fk4["type"] = "action"; fk4["title"] = "Python Script (.py)"; fk4["command"] = "app.new_file_py"; fKids.append(fk4);
+    QJsonObject fk5; fk5["type"] = "action"; fk5["title"] = "Blank PNG Image (.png)"; fk5["command"] = "app.new_file_png"; fKids.append(fk5);
+    fSub["children"] = fKids;
+    arr.append(fSub);
+
+    // Add Color Label Submenu
+    QJsonObject colSub;
+    colSub["type"] = "menu";
+    colSub["title"] = "Color Label";
+    QJsonArray colKids;
+    QJsonObject colNone; colNone["type"] = "action"; colNone["title"] = "None"; colNone["command"] = "app.color_none"; colKids.append(colNone);
+    QJsonObject colRed; colRed["type"] = "action"; colRed["title"] = "Red"; colRed["command"] = "app.color_red"; colKids.append(colRed);
+    QJsonObject colOrange; colOrange["type"] = "action"; colOrange["title"] = "Orange"; colOrange["command"] = "app.color_orange"; colKids.append(colOrange);
+    QJsonObject colYellow; colYellow["type"] = "action"; colYellow["title"] = "Yellow"; colYellow["command"] = "app.color_yellow"; colKids.append(colYellow);
+    QJsonObject colGreen; colGreen["type"] = "action"; colGreen["title"] = "Green"; colGreen["command"] = "app.color_green"; colKids.append(colGreen);
+    QJsonObject colBlue; colBlue["type"] = "action"; colBlue["title"] = "Blue"; colBlue["command"] = "app.color_blue"; colKids.append(colBlue);
+    QJsonObject colPurple; colPurple["type"] = "action"; colPurple["title"] = "Purple"; colPurple["command"] = "app.color_purple"; colKids.append(colPurple);
+    QJsonObject colSep; colSep["type"] = "separator"; colKids.append(colSep);
+    QJsonObject colCust; colCust["type"] = "action"; colCust["title"] = "Custom Icon Overlay..."; colCust["command"] = "app.color_custom_overlay"; colKids.append(colCust);
+    QJsonObject colClr; colClr["type"] = "action"; colClr["title"] = "Clear Icon Overlay"; colClr["command"] = "app.color_clear_overlay"; colKids.append(colClr);
+    colSub["children"] = colKids;
+    arr.append(colSub);
+
+    // Add Apply Profile Submenu
+    QJsonObject profSub;
+    profSub["type"] = "menu";
+    profSub["title"] = "Apply Profile Layout to Current Folder";
+    profSub["command"] = "app.apply_profile_submenu";
+    arr.append(profSub);
+
+    return arr;
+}
+
+QAction* FilePanel::createContextMenuAction(QMenu* parentMenu, const QJsonObject& obj, const QStringList& selected, const QModelIndex& index, QMap<QAction*, QString>& actionCommands) {
+    QString type = obj["type"].toString();
+    if (type == "separator") {
+        parentMenu->addSeparator();
+        return nullptr;
+    }
+    
+    QStyle* style = QApplication::style();
+    
+    if (type == "menu") {
+        QString title = obj["title"].toString();
+        QJsonArray children = obj["children"].toArray();
+        QString command = obj["command"].toString();
+        
+        QMenu* sub = nullptr;
+        if (command == "app.apply_profile_submenu") {
+            sub = parentMenu->addMenu("Apply Profile Layout to Current Folder");
+            QWidget* parentW = parentWidget();
+            while (parentW && !parentW->inherits("MainWindow")) {
+                parentW = parentW->parentWidget();
+            }
+            MainWindow* mw = qobject_cast<MainWindow*>(parentW);
+            if (mw) {
+                for (const auto& r : mw->folderRules()) {
+                    if (!r.name.isEmpty()) {
+                        QString profileName = r.name;
+                        QAction* act = sub->addAction(profileName);
+                        actionCommands[act] = "app.apply_profile:" + profileName;
+                    }
+                }
+            }
+        } else {
+            sub = parentMenu->addMenu(title);
+            QString iconPath = obj["icon"].toString();
+            if (!iconPath.isEmpty()) {
+                QIcon icon = getIconForPathOrTheme(iconPath);
+                if (!icon.isNull()) sub->setIcon(icon);
+            }
+            for (int i = 0; i < children.size(); ++i) {
+                createContextMenuAction(sub, children[i].toObject(), selected, index, actionCommands);
+            }
+        }
+        return nullptr;
+    }
+    
+    QString title = obj["title"].toString();
+    QString command = obj["command"].toString();
+    QString iconPath = obj["icon"].toString();
+    
+    QIcon icon;
+    if (!iconPath.isEmpty()) {
+        icon = getIconForPathOrTheme(iconPath);
+    }
+    
+    QAction* act = nullptr;
+    
+    bool isFolder = false;
+    QString selectedPath;
+    if (!selected.isEmpty()) {
+        selectedPath = selected.first();
+        isFolder = QFileInfo(selectedPath).isDir();
+    }
+    
+    bool isTheater = (m_viewStack->currentWidget() == m_theaterListView || m_viewStack->currentWidget() == m_theaterContainer);
+    
+    if (isTheater) {
+        if (command == "app.copy" || command == "app.cut" || command == "app.paste" ||
+            command == "app.copy_sibling" || command == "app.move_sibling" ||
+            command == "app.delete" || command == "app.rename" || command == "app.bulk_rename" ||
+            command == "app.new_folder" || command == "app.advanced_new_folder" ||
+            command == "app.favorites" || command == "app.pin_home" ||
+            command == "app.compare_selected" || command == "app.compare_sibling" ||
+            command == "app.encrypt_vault" || command == "app.decrypt_vault" || command == "app.vault_toggle" ||
+            command == "app.iso_toggle" || command == "app.vhd_toggle" ||
+            command == "app.create_archive" || command == "app.create_secure_archive" || command == "app.extract_archive" ||
+            command == "app.calculate_checksum" || command == "app.secure_shred" || command == "app.image_convert" ||
+            command == "app.folder_layouts" || command == "app.save_folder_profile" ||
+            command == "app.save_default_profile" || command == "app.load_default_profile" ||
+            command == "app.toggle_executable" || command == "app.change_permissions" ||
+            command == "app.remove_green_screen") {
+            return nullptr;
+        }
+    }
+    
+    if (command == "app.open") {
+        act = parentMenu->addAction(style->standardIcon(QStyle::SP_DialogOpenButton), "Open");
+    } else if (command == "app.open_fullscreen") {
+        act = parentMenu->addAction(style->standardIcon(QStyle::SP_MediaPlay), "Open in Full Screen View");
+    } else if (command == "app.copy") {
+        act = parentMenu->addAction(icon.isNull() ? QIcon::fromTheme("edit-copy") : icon, "Copy");
+        act->setShortcut(QKeySequence::Copy);
+    } else if (command == "app.cut") {
+        act = parentMenu->addAction(icon.isNull() ? QIcon::fromTheme("edit-cut") : icon, "Cut");
+        act->setShortcut(QKeySequence::Cut);
+    } else if (command == "app.paste") {
+        act = parentMenu->addAction(icon.isNull() ? QIcon::fromTheme("edit-paste") : icon, "Paste");
+        act->setShortcut(QKeySequence::Paste);
+    } else if (command == "app.copy_filename") {
+        act = parentMenu->addAction(icon, "Copy File Name(s)");
+    } else if (command == "app.copy_path") {
+        act = parentMenu->addAction(icon, "Copy Full Path(s)");
+    } else if (command == "app.copy_folder_contents") {
+        act = parentMenu->addAction(icon, "Copy Folder Contents (Paths List)");
+    } else if (command == "app.copy_sibling") {
+        act = parentMenu->addAction(icon.isNull() ? QIcon::fromTheme("go-next") : icon, "Copy to Sibling Panel");
+        act->setShortcut(QKeySequence(Qt::Key_F5));
+    } else if (command == "app.move_sibling") {
+        act = parentMenu->addAction(icon.isNull() ? QIcon::fromTheme("go-jump") : icon, "Move to Sibling Panel");
+        act->setShortcut(QKeySequence(Qt::Key_F6));
+    } else if (command == "app.delete") {
+        act = parentMenu->addAction(style->standardIcon(QStyle::SP_TrashIcon), "Delete");
+        act->setShortcut(QKeySequence::Delete);
+    } else if (command == "app.rename") {
+        act = parentMenu->addAction(icon.isNull() ? QIcon::fromTheme("edit-rename") : icon, "Rename");
+    } else if (command == "app.bulk_rename") {
+        act = parentMenu->addAction(icon, "Bulk Rename...");
+    } else if (command == "app.new_folder") {
+        act = parentMenu->addAction(style->standardIcon(QStyle::SP_FileDialogNewFolder), "New Folder");
+    } else if (command == "app.advanced_new_folder") {
+        act = parentMenu->addAction(icon, "Advanced New Folder...");
+        if (m_archiveViewActive && act) act->setEnabled(false);
+    } else if (command == "app.favorites") {
+        if (isFolder) {
+            bool isFavorite = FavoritesManager::instance().isFavorite(selectedPath);
+            if (isFavorite) {
+                act = parentMenu->addAction(style->standardIcon(QStyle::SP_DialogCancelButton), "Remove from Favorites");
+            } else {
+                act = parentMenu->addAction(style->standardIcon(QStyle::SP_DialogYesButton), "Add to Favorites");
+            }
+        } else {
+            bool isCurrentFavorite = FavoritesManager::instance().isFavorite(m_currentPath);
+            if (isCurrentFavorite) {
+                act = parentMenu->addAction(style->standardIcon(QStyle::SP_DialogCancelButton), "Remove Current from Favorites");
+            } else {
+                act = parentMenu->addAction(style->standardIcon(QStyle::SP_DialogYesButton), "Add Current to Favorites");
+            }
+        }
+    } else if (command == "app.pin_home") {
+        if (isFolder) {
+            QSettings settings("Amifiles", "Amifiles");
+            QStringList pinned = settings.value("dashboard/pinned_folders").toStringList();
+            bool isPinned = false;
+            for (const QString& item : pinned) {
+                if (item.startsWith(selectedPath + ";")) {
+                    isPinned = true;
+                    break;
+                }
+            }
+            if (isPinned) {
+                act = parentMenu->addAction(icon, "📌 Unpin from Home Screen");
+            } else {
+                act = parentMenu->addAction(icon, "📌 Pin to Home Screen");
+            }
+        }
+    } else if (command == "app.play_preview" || command == "app.play_fullscreen_playlist") {
+        QString folderToCheck = isFolder ? selectedPath : m_currentPath;
+        QStringList playlistPaths;
+        if (!folderToCheck.isEmpty()) {
+            if (isFolder) {
+                QSettings settings("Amifiles", "Amifiles");
+                bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool() && (m_viewStack->currentWidget() == m_theaterContainer);
+                if (groupMultiDisc) {
+                    QFileInfo folderInfo(folderToCheck);
+                    QString parentDir = folderInfo.absolutePath();
+                    QDir dir(parentDir);
+                    QStringList subDirs = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+                    QString currentCleaned = FileFilterProxyModel::cleanAlbumFolderName(folderInfo.fileName());
+                    for (const QString& subDirName : subDirs) {
+                        if (FileFilterProxyModel::cleanAlbumFolderName(subDirName) == currentCleaned) {
+                            scanMediaFilesRecursively(dir.filePath(subDirName), playlistPaths, 1);
+                        }
+                    }
+                } else {
+                    scanMediaFilesRecursively(folderToCheck, playlistPaths, 1);
+                }
+            } else {
+                QDir dir(folderToCheck);
+                QStringList mediaExts = { "mp3", "wav", "flac", "ogg", "m4a", "mp4", "avi", "mkv", "mov", "webm", "mpeg", "mpg", "mod", "sid", "s3m", "xm", "it" };
+                QFileInfoList files = dir.entryInfoList(QDir::Files, QDir::Name);
+                for (const QFileInfo& fInfo : files) {
+                    if (mediaExts.contains(fInfo.suffix().toLower())) {
+                        playlistPaths.append(fInfo.absoluteFilePath());
+                    }
+                }
+            }
+        }
+        if (!playlistPaths.isEmpty()) {
+            if (command == "app.play_preview") {
+                act = parentMenu->addAction(style->standardIcon(QStyle::SP_MediaPlay), "Play Folder/Album in Preview");
+            } else {
+                act = parentMenu->addAction(style->standardIcon(QStyle::SP_MediaPlay), "Play Folder/Album in Fullscreen");
+            }
+        } else {
+            return nullptr;
+        }
+    } else if (command == "app.compare_selected") {
+        act = parentMenu->addAction(icon, "Compare Selected Files");
+    } else if (command == "app.compare_sibling") {
+        act = parentMenu->addAction(icon, "Compare with Sibling Pane File");
+    } else if (command == "app.media_info_sheet") {
+        act = parentMenu->addAction(style->standardIcon(QStyle::SP_MessageBoxInformation), "🎬 Media Info Sheet... (ℹ)");
+    } else if (command == "app.toggle_watch") {
+        act = parentMenu->addAction(icon, "✔ Toggle Watch Status (Watched/Unwatched)");
+    } else if (command == "app.edit_tags") {
+        act = parentMenu->addAction(icon, "Edit Audio Tags...");
+    } else if (command == "app.fetch_musicbrainz") {
+        act = parentMenu->addAction(style->standardIcon(QStyle::SP_ComputerIcon), "Fetch MusicBrainz Album Info...");
+    } else if (command == "app.scrape_video") {
+        act = parentMenu->addAction(style->standardIcon(QStyle::SP_ComputerIcon), "Scrape Video Metadata...");
+    } else if (command == "app.fetch_folder_art") {
+        act = parentMenu->addAction(style->standardIcon(QStyle::SP_ComputerIcon), "Fetch Cover Art & Wallpaper...");
+    } else if (command == "app.color_none") {
+        act = parentMenu->addAction(icon, "None");
+    } else if (command == "app.color_red") {
+        act = parentMenu->addAction(icon, "Red");
+    } else if (command == "app.color_orange") {
+        act = parentMenu->addAction(icon, "Orange");
+    } else if (command == "app.color_yellow") {
+        act = parentMenu->addAction(icon, "Yellow");
+    } else if (command == "app.color_green") {
+        act = parentMenu->addAction(icon, "Green");
+    } else if (command == "app.color_blue") {
+        act = parentMenu->addAction(icon, "Blue");
+    } else if (command == "app.color_purple") {
+        act = parentMenu->addAction(icon, "Purple");
+    } else if (command == "app.color_custom_overlay") {
+        act = parentMenu->addAction(icon, "Custom Icon Overlay...");
+    } else if (command == "app.color_clear_overlay") {
+        act = parentMenu->addAction(icon, "Clear Icon Overlay");
+    } else if (command == "app.file_tags") {
+        act = parentMenu->addAction(icon, "File Tags...");
+    } else if (command == "app.vault_toggle") {
+        if (index.isValid()) {
+            QString selectedExt = QFileInfo(selectedPath).suffix().toLower();
+            if (selectedExt == "vault") {
+                act = parentMenu->addAction(icon.isNull() ? QIcon::fromTheme("object-unlocked") : icon, "Decrypt Secure Vault...");
+                actionCommands[act] = "app.decrypt_vault";
+            } else {
+                act = parentMenu->addAction(icon.isNull() ? QIcon::fromTheme("object-locked") : icon, "Encrypt into Secure Vault...");
+                actionCommands[act] = "app.encrypt_vault";
+            }
+        }
+    } else if (command == "app.iso_toggle") {
+        if (index.isValid()) {
+            QString selectedExt = QFileInfo(selectedPath).suffix().toLower();
+            if (selectedExt == "iso") {
+                QString dummy;
+                if (RemoteMountManager::isIsoMounted(selectedPath, dummy)) {
+                    act = parentMenu->addAction(style->standardIcon(QStyle::SP_DriveCDIcon), "Unmount ISO Virtual Drive");
+                    actionCommands[act] = "app.unmount_iso";
+                } else {
+                    act = parentMenu->addAction(style->standardIcon(QStyle::SP_DriveCDIcon), "Mount ISO as Virtual Drive");
+                    actionCommands[act] = "app.mount_iso";
+                }
+            }
+        }
+    } else if (command == "app.vhd_toggle") {
+        if (index.isValid()) {
+            QString selectedExt = QFileInfo(selectedPath).suffix().toLower();
+            if (selectedExt == "vhd" || selectedExt == "vhdx") {
+                QString dummy;
+                if (RemoteMountManager::isVhdMounted(selectedPath, dummy)) {
+                    act = parentMenu->addAction(style->standardIcon(QStyle::SP_DriveHDIcon), "Unmount VHD Virtual Drive");
+                    actionCommands[act] = "app.unmount_vhd";
+                } else {
+                    act = parentMenu->addAction(style->standardIcon(QStyle::SP_DriveHDIcon), "Mount VHD as Virtual Drive");
+                    actionCommands[act] = "app.mount_vhd";
+                }
+            }
+        }
+    } else if (command == "app.create_archive") {
+        act = parentMenu->addAction(icon, "Create Archive...");
+    } else if (command == "app.create_secure_archive") {
+        act = parentMenu->addAction(icon, "Create Secure Archive (AES-256)...");
+    } else if (command == "app.extract_archive") {
+        act = parentMenu->addAction(icon, "Extract Archive...");
+    } else if (command == "app.calculate_checksum") {
+        act = parentMenu->addAction(icon, "Calculate Checksum Hash...");
+    } else if (command == "app.secure_shred") {
+        act = parentMenu->addAction(style->standardIcon(QStyle::SP_TrashIcon), "Secure Shred (Delete Permanently)...");
+    } else if (command == "app.image_convert") {
+        QStringList imageExts = { "jpg", "jpeg", "png", "webp", "bmp" };
+        QStringList selectedImages;
+        for (const QString& sPath : selected) {
+            if (imageExts.contains(QFileInfo(sPath).suffix().toLower())) {
+                selectedImages.append(sPath);
+            }
+        }
+        if (!selectedImages.isEmpty()) {
+            act = parentMenu->addAction(icon, "Batch Convert/Resize Images...");
+        }
+    } else if (command == "app.folder_layouts") {
+        act = parentMenu->addAction(icon, "Folder Profiles & Layouts...");
+    } else if (command == "app.save_folder_profile") {
+        act = parentMenu->addAction(icon, "Save Current Layout as Folder Profile...");
+    } else if (command == "app.save_default_profile") {
+        act = parentMenu->addAction(icon, "Save Current Layout as Default Profile");
+    } else if (command == "app.load_default_profile") {
+        act = parentMenu->addAction(icon, "Load Default Profile");
+    } else if (command == "app.new_file_txt") {
+        act = parentMenu->addAction(icon, "Text Document (.txt)");
+    } else if (command == "app.new_file_md") {
+        act = parentMenu->addAction(icon, "Markdown Document (.md)");
+    } else if (command == "app.new_file_html") {
+        act = parentMenu->addAction(icon, "HTML Document (.html)");
+    } else if (command == "app.new_file_py") {
+        act = parentMenu->addAction(icon, "Python Script (.py)");
+    } else if (command == "app.new_file_png") {
+        act = parentMenu->addAction(icon, "Blank PNG Image (.png)");
+    } else if (command == "app.toggle_executable") {
+        if (!selected.isEmpty() && !isFolder) {
+            act = parentMenu->addAction(icon, "Toggle Executable Status");
+        }
+    } else if (command == "app.change_permissions") {
+        if (!selected.isEmpty()) {
+            act = parentMenu->addAction(icon, "Change File Permissions (chmod)...");
+        }
+    } else if (command == "app.remove_green_screen") {
+        QStringList imageExts = { "jpg", "jpeg", "png", "webp", "bmp" };
+        bool hasImage = false;
+        for (const QString& sPath : selected) {
+            if (imageExts.contains(QFileInfo(sPath).suffix().toLower())) {
+                hasImage = true;
+                break;
+            }
+        }
+        if (hasImage) {
+            act = parentMenu->addAction(icon, "Remove Green Screen 🟢");
+        }
+    } else {
+        act = parentMenu->addAction(icon, title);
+    }
+    
+    if (act) {
+        if (!actionCommands.contains(act)) {
+            actionCommands[act] = command;
+        }
+    }
+    
+    return act;
 }

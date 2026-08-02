@@ -495,6 +495,10 @@ void PreferencesDialog::setupUI() {
     m_keyPlayerMenu->setToolTip("Shortcut to display the player context menu (chapters list, exit, controls).");
     formSec2->addRow("Open Player Menu:", m_keyPlayerMenu);
 
+    m_keyPlayerPlaylist = new QKeySequenceEdit(this);
+    m_keyPlayerPlaylist->setToolTip("Shortcut to toggle the playlist view in fullscreen mode.");
+    formSec2->addRow("Toggle Fullscreen Playlist:", m_keyPlayerPlaylist);
+
     m_keyPlayFolder = new QKeySequenceEdit(this);
     m_keyPlayFolder->setToolTip("Shortcut to play all media files in the current/selected folder.");
     formSec2->addRow("Play Entire Folder:", m_keyPlayFolder);
@@ -616,6 +620,7 @@ void PreferencesDialog::loadPreferences() {
     m_keyPlayerNext->setKeySequence(QKeySequence(settings.value("shortcuts/player_next", "N").toString()));
     m_keyPlayerMute->setKeySequence(QKeySequence(settings.value("shortcuts/player_mute", "M").toString()));
     m_keyPlayerMenu->setKeySequence(QKeySequence(settings.value("shortcuts/player_menu", "C").toString()));
+    m_keyPlayerPlaylist->setKeySequence(QKeySequence(settings.value("shortcuts/player_playlist", "L").toString()));
     m_keyPlayFolder->setKeySequence(QKeySequence(settings.value("shortcuts/play_folder", "Ctrl+Alt+F").toString()));
     m_keyQueueFolder->setKeySequence(QKeySequence(settings.value("shortcuts/queue_folder", "Ctrl+Alt+Q").toString()));
     m_keyPlayQueue->setKeySequence(QKeySequence(settings.value("shortcuts/play_queue", "Ctrl+Alt+Space").toString()));
@@ -676,6 +681,7 @@ void PreferencesDialog::savePreferences() {
     settings.setValue("shortcuts/player_next", m_keyPlayerNext->keySequence().toString());
     settings.setValue("shortcuts/player_mute", m_keyPlayerMute->keySequence().toString());
     settings.setValue("shortcuts/player_menu", m_keyPlayerMenu->keySequence().toString());
+    settings.setValue("shortcuts/player_playlist", m_keyPlayerPlaylist->keySequence().toString());
     settings.setValue("shortcuts/play_folder", m_keyPlayFolder->keySequence().toString());
     settings.setValue("shortcuts/queue_folder", m_keyQueueFolder->keySequence().toString());
     settings.setValue("shortcuts/play_queue", m_keyPlayQueue->keySequence().toString());

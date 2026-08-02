@@ -7,6 +7,8 @@
 #include <QStringListModel>
 #include <QTimer>
 #include <QThread>
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QFileSystemModel>
 #include <QSortFilterProxyModel>
 #include "tagmanager.h"
@@ -817,6 +819,10 @@ public:
     void syncPlaylist(const QStringList& playlistPaths, int currentIndex);
     void setCustomBgColor(const QString& hexColor);
     QString customBgColor() const { return m_customBgColor; }
+    void setCustomBgImage(const QString& imagePath);
+    QString customBgImage() const { return m_customBgImage; }
+    void setCustomBgOpacity(double opacity);
+    double customBgOpacity() const { return m_customBgOpacity; }
     void setPath(const QString& path);
     void focusActiveView();
     void toggleWatchStatus(const QString& path);
@@ -994,6 +1000,14 @@ private slots:
     void zoomOut();
 
 private:
+    QJsonArray getDefaultContextMenuJson() const;
+    QIcon getIconForPathOrTheme(const QString& pathOrTheme);
+    QAction* createContextMenuAction(QMenu* parentMenu, const QJsonObject& obj, const QStringList& selected, const QModelIndex& index, QMap<QAction*, QString>& actionCommands);
+    void createNewFileTemplate(const QString& ext);
+    void toggleSelectedExecutable();
+    void changeSelectedPermissions();
+    void removeSelectedGreenScreen();
+
     void updateDrawerVisibility();
     QIcon getTrackArtworkIcon(const QString& trackPath);
     QString formatDuration(qint64 ms) const;
@@ -1016,6 +1030,8 @@ private:
     bool m_filterTextBarVisible = true;
     QString m_currentPath;
     QString m_customBgColor;
+    QString m_customBgImage;
+    double m_customBgOpacity = 1.0;
     QStringList m_history;
     int m_historyIndex = -1;
 

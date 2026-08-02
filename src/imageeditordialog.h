@@ -19,6 +19,8 @@ public:
     void setTool(Tool tool);
     void setColor(const QColor& color);
     void rotateImage(bool clockwise);
+    void removeGreenScreen();
+    void removeGreenScreen(double threshold);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -35,6 +37,7 @@ private:
     };
 
     QImage m_baseImage;
+    QImage m_originalBaseImage;
     QPixmap m_displayPixmap;
     Tool m_currentTool = ToolPen;
     QColor m_currentColor = Qt::red;
@@ -54,6 +57,8 @@ private slots:
     void onSave();
     void onRotateCW();
     void onRotateCCW();
+    void onRemoveGreenScreen();
+    void onChromaThresholdChanged(int value);
     void onToolChanged(int index);
     void onColorChanged(int index);
 
@@ -64,6 +69,8 @@ private:
     ImageEditorCanvas* m_canvas = nullptr;
     class QComboBox* m_comboTool = nullptr;
     class QComboBox* m_comboColor = nullptr;
+    class QSlider* m_sliderChroma = nullptr;
+    class QLabel* m_lblChroma = nullptr;
 };
 
 #endif // IMAGEEDITORDIALOG_H

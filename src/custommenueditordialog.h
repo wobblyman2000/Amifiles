@@ -12,6 +12,7 @@ class CustomMenuEditorDialog : public QDialog {
     Q_OBJECT
 public:
     explicit CustomMenuEditorDialog(QWidget* parent = nullptr);
+    CustomMenuEditorDialog(const QString& settingsKey, QWidget* parent = nullptr);
     ~CustomMenuEditorDialog() override = default;
 
     QJsonArray getMenuStructure() const;
@@ -29,14 +30,17 @@ private slots:
     void onBrowseIcon();
     void onPickColor();
     void onSave();
+    void onResetToDefaults();
 
 private:
     void setupUI();
     void loadMenuStructure();
+    QJsonArray getDefaultContextMenuJson() const;
     void populateTree(QTreeWidgetItem* parentItem, const QJsonArray& arr);
     QJsonArray getTreeJson(QTreeWidgetItem* parentItem = nullptr) const;
 
     QTreeWidget* m_tree = nullptr;
+    QString m_settingsKey;
 
     // Properties Editor Widgets
     QComboBox* m_comboType = nullptr;

@@ -15,6 +15,7 @@ ImageEditorCanvas::ImageEditorCanvas(QWidget* parent) : QWidget(parent) {
 
 void ImageEditorCanvas::setImage(const QImage& img) {
     m_baseImage = img;
+    m_originalBaseImage = img;
     m_annotations.clear();
     update();
 }
@@ -62,6 +63,32 @@ void ImageEditorCanvas::rotateImage(bool clockwise) {
     transform.rotate(clockwise ? 90 : -90);
     m_baseImage = m_baseImage.transformed(transform);
     m_annotations.clear(); // Clear markup on rotation to prevent coordinate mismatch
+    update();
+}
+
+void ImageEditorCanvas::removeGreenScreen() {
+    removeGreenScreen(0.40);
+}
+
+void ImageEditorCanvas::removeGreenScreen(double threshold) {
+    if (m_originalBaseImage.isNull()) return;
+    m_baseImage = m_originalBaseImage.convertToFormat(QImage::Format_ARGB32);
+    for (int y = 0; y < m_baseImage.height(); ++y) {
+        QRgb* row = (QRgb*)m_baseImage.scanLine(y);
+        for (int x = 0; x < m_baseImage.width(); ++x) {
+            QRgb pixel = row[x];
+            int r = qRed(pixel);
+            int g = qGreen(pixel);
+            int b = qBlue(pixel);
+            double sum = r + g + b;
+            if (sum > 0) {
+                double g_norm = (double)g / sum;
+                if (g_norm > threshold && g > 60 && g > r * 1.15 && g > b * 1.15) {
+                    row[x] = qRgba(0, 0, 0, 0);
+                }
+            }
+        }
+    }
     update();
 }
 
@@ -183,7 +210,7 @@ ImageEditorDialog::ImageEditorDialog(const QString& imagePath, QWidget* parent)
 
 void ImageEditorDialog::setupUI() {
     setWindowTitle("Interactive Image Editor & Annotator");
-    resize(720, 540);
+    resize(1000, 650);
     setStyleSheet(
         "QDialog { background-color: #1e1e2e; color: #cdd6f4; }"
         "QLabel { color: #cdd6f4; }"
@@ -219,6 +246,30 @@ void ImageEditorDialog::setupUI() {
     btnCCW->setStyleSheet(btnCW->styleSheet());
     connect(btnCCW, &QPushButton::clicked, this, &ImageEditorDialog::onRotateCCW);
     toolbar->addWidget(btnCCW);
+
+    QPushButton* btnChroma = new QPushButton("Remove Green Screen 🟢", this);
+    btnChroma->setStyleSheet(btnCW->styleSheet());
+    connect(btnChroma, &QPushButton::clicked, this, &ImageEditorDialog::onRemoveGreenScreen);
+    toolbar->addWidget(btnChroma);
+
+    toolbar->addWidget(new QLabel("Sensitivity:", this));
+    m_sliderChroma = new QSlider(Qt::Horizontal, this);
+    m_sliderChroma->setRange(10, 90);
+    m_sliderChroma->setValue(40);
+    m_sliderChroma->setFixedWidth(100);
+    m_sliderChroma->setStyleSheet(
+        "QSlider::groove:horizontal { border: 1px solid #313244; height: 6px; background: #181825; border-radius: 3px; }"
+        "QSlider::handle:horizontal { background: #b4befe; width: 12px; margin: -3px 0; border-radius: 6px; }"
+    );
+    m_sliderChroma->setEnabled(false);
+    toolbar->addWidget(m_sliderChroma);
+
+    m_lblChroma = new QLabel("40%", this);
+    m_lblChroma->setFixedWidth(30);
+    m_lblChroma->setEnabled(false);
+    toolbar->addWidget(m_lblChroma);
+
+    connect(m_sliderChroma, &QSlider::valueChanged, this, &ImageEditorDialog::onChromaThresholdChanged);
 
     toolbar->addStretch();
     mainLayout->addLayout(toolbar);
@@ -271,6 +322,23 @@ void ImageEditorDialog::onRotateCW() {
 
 void ImageEditorDialog::onRotateCCW() {
     m_canvas->rotateImage(false);
+}
+
+void ImageEditorDialog::onRemoveGreenScreen() {
+    if (m_sliderChroma && m_lblChroma) {
+        m_sliderChroma->setEnabled(true);
+        m_lblChroma->setEnabled(true);
+        m_canvas->removeGreenScreen(m_sliderChroma->value() / 100.0);
+    } else {
+        m_canvas->removeGreenScreen();
+    }
+}
+
+void ImageEditorDialog::onChromaThresholdChanged(int value) {
+    if (m_lblChroma) {
+        m_lblChroma->setText(QString("%1%").arg(value));
+    }
+    m_canvas->removeGreenScreen(value / 100.0);
 }
 
 void ImageEditorDialog::onSave() {

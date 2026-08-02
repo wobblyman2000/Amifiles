@@ -146,6 +146,9 @@ public:
     void setTrackNames(const QString& currentPath, const QString& nextPath);
     class QWidget* hudWidget() const { return (class QWidget*)m_hudWidget; }
 
+    void setPlaylist(const QStringList& playlist, int currentIndex);
+    void togglePlaylistDrawer();
+
 signals:
     void exitRequested();
     void prevRequested();
@@ -155,9 +158,11 @@ signals:
     void shuffleToggled();
     void repeatRequested();
     void builtinPlayerDoubleclickToggled(bool active);
+    void playlistItemSelected(int index);
 
 public slots:
     void setBuiltinPlayerDoubleclickActive(bool active);
+    void onHudPlaylist();
 
 protected:
     void keyPressEvent(class QKeyEvent* event) override;
@@ -198,10 +203,15 @@ private:
     class QAudioOutput* m_audioOutput = nullptr;
     QString m_currentTrackPath;
     class QMenu* m_activeMenu = nullptr;
+    bool m_menuCanceled = false;
     class QLabel* m_lblCurrentPlaying = nullptr;
     class QLabel* m_lblNextPlaying = nullptr;
     class QLabel* m_lblCurrentArtwork = nullptr;
     class QLabel* m_lblNextArtwork = nullptr;
+
+    class QPushButton* m_btnTogglePlaylist = nullptr;
+    QStringList m_playlistItems;
+    int m_playlistCurrentIndex = -1;
 public:
     QPushButton* hudShuffleButton() const { return m_btnShuffle; }
     QPushButton* hudRepeatButton() const { return m_btnRepeat; }
@@ -367,13 +377,7 @@ private:
     QStringList m_videoPlaylist;
     int m_videoPlaylistIndex = -1;
 
-    // Independent playlists
-    QStringList m_previewPlaylist;
-    int m_previewPlaylistIndex = -1;
-    QStringList m_fullscreenAudioPlaylist;
-    int m_fullscreenAudioPlaylistIndex = -1;
-    QStringList m_fullscreenVideoPlaylist;
-    int m_fullscreenVideoPlaylistIndex = -1;
+
     bool m_shuffleEnabled = false;
     int m_repeatMode = 0; // 0 = Off, 1 = Repeat One, 2 = Repeat All
     qint64 m_lastProgressSaveTime = 0;

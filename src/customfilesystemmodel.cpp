@@ -186,10 +186,15 @@ QVariant CustomFileSystemModel::data(const QModelIndex& index, int role) const {
             return baseIcon;
         } else if (role == Qt::DisplayRole) {
             QString baseName = QFileSystemModel::data(index, role).toString();
+            QFileInfo fi(filePath);
+            if (fi.isFile() && fi.isExecutable()) {
+                baseName = "[>_] " + baseName;
+            }
             QStringList tags = TagManager::instance().getFileTags(filePath);
             if (!tags.isEmpty()) {
                 return QString("%1 [%2]").arg(baseName).arg(tags.join(", "));
             }
+            return baseName;
         }
     }
 

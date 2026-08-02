@@ -129,6 +129,7 @@ private slots:
     void onSelectToolbars();
     void onSelectMenus();
     void onSelectBgColor();
+    void onSelectBgImage();
     void onCaptureUI();
     void onApplyNow();
     void onCaptureTabs();
@@ -207,6 +208,14 @@ private:
     QAbstractButton* m_useBgColor = nullptr;
     QPushButton* m_btnSelectBgColor = nullptr;
     QString m_selectedBgColor;
+
+    // Appearance Image Styling
+    QAbstractButton* m_useBgImage = nullptr;
+    QPushButton* m_btnSelectBgImage = nullptr;
+    QLabel* m_lblBgImagePath = nullptr;
+    QString m_selectedBgImage;
+    class QSlider* m_sliderBgOpacity = nullptr;
+    QLabel* m_lblBgOpacityValue = nullptr;
 
     // Tab Snapshots
     QAbstractButton* m_hasTabsSnapshot = nullptr;

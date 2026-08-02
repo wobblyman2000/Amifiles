@@ -354,6 +354,10 @@ void MainWindow::setupCentralWidget() {
     );
     connect(m_favoritesSidebar, &QListWidget::itemDoubleClicked, this, &MainWindow::onFavoritesSidebarDoubleClicked);
 
+    m_recentsSidebar = new QListWidget(m_sidebarTabWidget);
+    m_recentsSidebar->setStyleSheet(m_favoritesSidebar->styleSheet());
+    connect(m_recentsSidebar, &QListWidget::itemDoubleClicked, this, &MainWindow::onFavoritesSidebarDoubleClicked);
+
     m_filtersSidebar = new QListWidget(m_sidebarTabWidget);
     m_filtersSidebar->setStyleSheet(m_favoritesSidebar->styleSheet());
 
@@ -372,6 +376,7 @@ void MainWindow::setupCentralWidget() {
     connect(m_tagsSidebar, &QListWidget::itemClicked, this, &MainWindow::onTagsSidebarClicked);
 
     m_sidebarTabWidget->addTab(m_favoritesSidebar, "Bookmarks");
+    m_sidebarTabWidget->addTab(m_recentsSidebar, "Recents");
     m_sidebarTabWidget->addTab(m_filtersSidebar, "Filters");
     m_sidebarTabWidget->addTab(m_tagsSidebar, "Tags");
 
@@ -532,6 +537,7 @@ void MainWindow::setupCentralWidget() {
     setCentralWidget(mainVSplitter);
 
     refreshFavoritesSidebar();
+    refreshRecentsSidebar();
 
     // Connect tab change and close signals
     connect(m_leftTabWidget, &QTabWidget::currentChanged, this, &MainWindow::onLeftTabChanged);
@@ -855,6 +861,11 @@ void MainWindow::setupActions() {
     m_actConfigureCustomMenus->setToolTip("Create custom top-level menus, submenus, separators, and app launchers");
     m_actConfigureCustomMenus->setStatusTip("Create custom top-level menus, submenus, separators, and app launchers");
     connect(m_actConfigureCustomMenus, &QAction::triggered, this, &MainWindow::onConfigureCustomMenus);
+
+    m_actConfigureContextMenu = new QAction(style->standardIcon(QStyle::SP_CustomBase), "Configure Context Menu...", this);
+    m_actConfigureContextMenu->setToolTip("Fully customize the right-click file context menus");
+    m_actConfigureContextMenu->setStatusTip("Fully customize the right-click file context menus");
+    connect(m_actConfigureContextMenu, &QAction::triggered, this, &MainWindow::onConfigureContextMenu);
 
     m_actConfigureToolbars = new QAction(style->standardIcon(QStyle::SP_CustomBase), "Configure Toolbars...", this);
     m_actConfigureToolbars->setToolTip("Add, remove, or customize multiple floating/dockable toolbars");
@@ -1229,6 +1240,7 @@ void MainWindow::setupMenus() {
     QMenu* menuControlSettings = m_menuSettings->addMenu("Toolbars & Hotkeys");
     menuControlSettings->addAction(m_actConfigureToolbars);
     menuControlSettings->addAction(m_actConfigureCustomMenus);
+    menuControlSettings->addAction(m_actConfigureContextMenu);
     menuControlSettings->addAction(m_actKeybindings);
 
     // Settings -> Automations & Mounts
@@ -1523,6 +1535,7 @@ void MainWindow::onPathChanged(const QString& path) {
     if (m_activePanel) {
         m_activePanel->updateThemeMusic();
     }
+    addToRecentFolders(path);
 }
 
 void MainWindow::onToggleDualPane(bool checked) {
@@ -3208,6 +3221,54 @@ void MainWindow::onFavoritesSidebarDoubleClicked(QListWidgetItem* item) {
     }
 }
 
+void MainWindow::refreshRecentsSidebar() {
+    if (!m_recentsSidebar) return;
+    m_recentsSidebar->clear();
+
+    QSettings settings("Amifiles", "Amifiles");
+    QStringList recents = settings.value("recents/folders").toStringList();
+    for (const QString& path : recents) {
+        QFileInfo info(path);
+        QString folderName = info.fileName();
+        if (folderName.isEmpty()) {
+            folderName = path;
+        }
+
+        QListWidgetItem* item = new QListWidgetItem(m_recentsSidebar);
+        item->setText(folderName);
+        item->setToolTip(path);
+        item->setData(Qt::UserRole, path);
+        item->setIcon(QApplication::style()->standardIcon(QStyle::SP_DirIcon));
+        m_recentsSidebar->addItem(item);
+    }
+}
+
+void MainWindow::addToRecentFolders(const QString& path) {
+    if (path.isEmpty()) return;
+    
+    if (path.startsWith("search://") || path.startsWith("archive://") || path.startsWith("smart://")) {
+        return;
+    }
+    
+    QDir dir(path);
+    if (!dir.exists()) return;
+    
+    QString cleanPath = QDir::cleanPath(path);
+    
+    QSettings settings("Amifiles", "Amifiles");
+    QStringList recents = settings.value("recents/folders").toStringList();
+    
+    recents.removeAll(cleanPath);
+    recents.prepend(cleanPath);
+    
+    while (recents.size() > 15) {
+        recents.removeLast();
+    }
+    
+    settings.setValue("recents/folders", recents);
+    refreshRecentsSidebar();
+}
+
 void MainWindow::refreshFavoritesSidebar() {
     if (!m_favoritesSidebar) return;
     m_favoritesSidebar->clear();
@@ -3928,6 +3989,9 @@ QJsonObject MainWindow::ruleToJson(const FolderLayoutRule& r) {
     
     obj["useBgColor"] = r.useBgColor;
     obj["bgColor"] = r.bgColor;
+    obj["useBgImage"] = r.useBgImage;
+    obj["bgImage"] = r.bgImage;
+    obj["bgOpacity"] = r.bgOpacity;
     obj["windowState"] = QString::fromLatin1(r.windowState.toBase64());
     
     obj["hasTabsSnapshot"] = r.hasTabsSnapshot;
@@ -3991,6 +4055,9 @@ FolderLayoutRule MainWindow::jsonToRule(const QJsonObject& obj) {
     
     r.useBgColor = obj["useBgColor"].toBool(false);
     r.bgColor = obj["bgColor"].toString();
+    r.useBgImage = obj["useBgImage"].toBool(false);
+    r.bgImage = obj["bgImage"].toString();
+    r.bgOpacity = obj["bgOpacity"].toDouble(1.0);
     r.windowState = QByteArray::fromBase64(obj["windowState"].toString().toLatin1());
     
     r.hasTabsSnapshot = obj["hasTabsSnapshot"].toBool(false);
@@ -4387,6 +4454,14 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
         targetPanel->setCustomBgColor(r.bgColor);
     } else {
         targetPanel->setCustomBgColor("");
+    }
+
+    if (r.useBgImage) {
+        targetPanel->setCustomBgImage(r.bgImage);
+        targetPanel->setCustomBgOpacity(r.bgOpacity);
+    } else {
+        targetPanel->setCustomBgImage("");
+        targetPanel->setCustomBgOpacity(1.0);
     }
 
     // 4b. Visualizer override
@@ -6152,10 +6227,15 @@ void MainWindow::rebuildCustomMenus() {
 }
 
 void MainWindow::onConfigureCustomMenus() {
-    CustomMenuEditorDialog dlg(this);
+    CustomMenuEditorDialog dlg("custom_menus_v2", this);
     if (dlg.exec() == QDialog::Accepted) {
         rebuildCustomMenus();
     }
+}
+
+void MainWindow::onConfigureContextMenu() {
+    CustomMenuEditorDialog dlg("custom_context_menu_v2", this);
+    dlg.exec();
 }
 
 void MainWindow::executeCustomCommand(const QString& commandOrPath) {

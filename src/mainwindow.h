@@ -133,6 +133,9 @@ struct FolderLayoutRule {
     // Appearance
     bool useBgColor = false;
     QString bgColor; // Hex value
+    bool useBgImage = false;
+    QString bgImage; // Path to image file
+    double bgOpacity = 1.0; // 0.0 to 1.0 (opacity overlay dimming)
 
     // Tab Snapshot
     bool hasTabsSnapshot = false;
@@ -261,6 +264,8 @@ private slots:
     void onToggleFavoritesSidebar(bool checked);
     void onFavoritesSidebarDoubleClicked(class QListWidgetItem* item);
     void refreshFavoritesSidebar();
+    void refreshRecentsSidebar();
+    void addToRecentFolders(const QString& path);
     void onMutePreview(bool checked);
     void onToggleArchiveNav(bool checked);
     void onToggleArchiveWrite(bool checked);
@@ -369,6 +374,7 @@ private:
     QSplitter* m_dualSplitter = nullptr;
     QTabWidget* m_sidebarTabWidget = nullptr;
     QListWidget* m_favoritesSidebar = nullptr;
+    QListWidget* m_recentsSidebar = nullptr;
     QListWidget* m_filtersSidebar = nullptr;
     QListWidget* m_tagsSidebar = nullptr;
     QTabWidget* m_leftTabWidget = nullptr;
@@ -533,9 +539,11 @@ private:
     // Custom Dynamic Menu System
     void rebuildCustomMenus();
     void onConfigureCustomMenus();
+    void onConfigureContextMenu();
     void buildMenuTree(QMenu* menu, const QJsonArray& itemsArray);
     QList<QMenu*> m_customMenus;
     QAction* m_actConfigureCustomMenus = nullptr;
+    QAction* m_actConfigureContextMenu = nullptr;
 
     // Custom Dynamic Toolbar System
     void rebuildToolBars();

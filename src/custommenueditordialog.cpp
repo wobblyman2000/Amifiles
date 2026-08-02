@@ -13,8 +13,16 @@
 #include <QMessageBox>
 #include <QHeaderView>
 
-CustomMenuEditorDialog::CustomMenuEditorDialog(QWidget* parent) : QDialog(parent) {
-    setWindowTitle("Custom Menu Configuration Center");
+CustomMenuEditorDialog::CustomMenuEditorDialog(QWidget* parent)
+    : CustomMenuEditorDialog("custom_menus_v2", parent) {}
+
+CustomMenuEditorDialog::CustomMenuEditorDialog(const QString& settingsKey, QWidget* parent) 
+    : QDialog(parent), m_settingsKey(settingsKey) {
+    if (m_settingsKey == "custom_context_menu_v2") {
+        setWindowTitle("Custom Context Menu Configuration Center");
+    } else {
+        setWindowTitle("Custom Menu Configuration Center");
+    }
     resize(850, 550);
     setupUI();
     loadMenuStructure();
@@ -120,9 +128,12 @@ void CustomMenuEditorDialog::setupUI() {
 
     // Save & Cancel Actions at bottom of Editor
     QHBoxLayout* dlgButtons = new QHBoxLayout();
+    QPushButton* btnReset = new QPushButton("Reset to Defaults 🔄", this);
+    btnReset->setStyleSheet("QPushButton { background-color: #f38ba8; color: #11111b; font-weight: bold; border-radius: 4px; padding: 6px 12px; } QPushButton:hover { background-color: #eba0ac; }");
     QPushButton* btnSave = new QPushButton("Apply & Save changes", this);
     btnSave->setObjectName("btnSave");
     QPushButton* btnCancel = new QPushButton("Cancel", this);
+    dlgButtons->addWidget(btnReset);
     dlgButtons->addStretch();
     dlgButtons->addWidget(btnSave);
     dlgButtons->addWidget(btnCancel);
@@ -152,6 +163,7 @@ void CustomMenuEditorDialog::setupUI() {
     connect(m_btnBrowseIcon, &QPushButton::clicked, this, &CustomMenuEditorDialog::onBrowseIcon);
     connect(m_btnPickColor, &QPushButton::clicked, this, &CustomMenuEditorDialog::onPickColor);
 
+    connect(btnReset, &QPushButton::clicked, this, &CustomMenuEditorDialog::onResetToDefaults);
     connect(btnSave, &QPushButton::clicked, this, &CustomMenuEditorDialog::onSave);
     connect(btnCancel, &QPushButton::clicked, this, &QDialog::reject);
 }
@@ -160,13 +172,16 @@ void CustomMenuEditorDialog::loadMenuStructure() {
     m_tree->clear();
     
     QSettings settings("Amifiles", "Amifiles");
-    QString jsonStr = settings.value("custom_menus_v2").toString();
+    QString jsonStr = settings.value(m_settingsKey).toString();
     QJsonArray arr;
     
     if (jsonStr.isEmpty()) {
-        // Fallback default structure
-        QJsonObject m1;
-        m1["type"] = "menu";
+        if (m_settingsKey == "custom_context_menu_v2") {
+            arr = getDefaultContextMenuJson();
+        } else {
+            // Fallback default structure
+            QJsonObject m1;
+            m1["type"] = "menu";
         m1["title"] = "🚀 Quick Launch";
         
         QJsonArray c1;
@@ -209,6 +224,7 @@ void CustomMenuEditorDialog::loadMenuStructure() {
         
         m1["children"] = c1;
         arr.append(m1);
+        }
     } else {
         QJsonDocument doc = QJsonDocument::fromJson(jsonStr.toUtf8());
         arr = doc.array();
@@ -469,8 +485,140 @@ void CustomMenuEditorDialog::onSave() {
     QString jsonStr = QString::fromUtf8(doc.toJson(QJsonDocument::Compact));
 
     QSettings settings("Amifiles", "Amifiles");
-    settings.setValue("custom_menus_v2", jsonStr);
+    settings.setValue(m_settingsKey, jsonStr);
     accept();
+}
+
+QJsonArray CustomMenuEditorDialog::getDefaultContextMenuJson() const {
+    QJsonArray arr;
+    struct CmdItem {
+        QString type;
+        QString title;
+        QString command;
+        QString icon;
+    };
+    
+    QList<CmdItem> items = {
+        {"action", "Open", "app.open", "document-open"},
+        {"action", "Open in Full Screen View", "app.open_fullscreen", "media-playback-start"},
+        {"separator", "", "", ""},
+        {"action", "Cut", "app.cut", "edit-cut"},
+        {"action", "Copy", "app.copy", "edit-copy"},
+        {"action", "Paste", "app.paste", "edit-paste"},
+        {"action", "Copy to Sibling Panel", "app.copy_sibling", "go-next"},
+        {"action", "Move to Sibling Panel", "app.move_sibling", "go-jump"},
+        {"action", "Delete", "app.delete", "user-trash"},
+        {"action", "Rename", "app.rename", "edit-rename"},
+        {"action", "Bulk Rename...", "app.bulk_rename", ""},
+        {"separator", "", "", ""},
+        {"action", "New Folder", "app.new_folder", "folder-new"},
+        {"action", "Advanced New Folder...", "app.advanced_new_folder", ""},
+        {"separator", "", "", ""},
+        {"action", "Toggle Executable Status", "app.toggle_executable", ""},
+        {"action", "Change File Permissions (chmod)...", "app.change_permissions", ""},
+        {"action", "Remove Green Screen 🟢", "app.remove_green_screen", ""},
+        {"separator", "", "", ""},
+        {"action", "Add/Remove Favorites", "app.favorites", ""},
+        {"action", "Pin/Unpin Home Screen", "app.pin_home", ""},
+        {"separator", "", "", ""},
+        {"action", "Play Folder/Album in Preview", "app.play_preview", "media-playback-start"},
+        {"action", "Play Folder/Album in Fullscreen", "app.play_fullscreen_playlist", "media-playback-start"},
+        {"separator", "", "", ""},
+        {"action", "Compare Selected Files", "app.compare_selected", ""},
+        {"action", "Compare with Sibling Pane File", "app.compare_sibling", ""},
+        {"separator", "", "", ""},
+        {"action", "🎬 Media Info Sheet... (ℹ)", "app.media_info_sheet", "dialog-information"},
+        {"action", "✔ Toggle Watch Status (Watched/Unwatched)", "app.toggle_watch", ""},
+        {"separator", "", "", ""},
+        {"action", "Edit Audio Tags...", "app.edit_tags", ""},
+        {"action", "Fetch MusicBrainz Album Info...", "app.fetch_musicbrainz", ""},
+        {"action", "Scrape Video Metadata...", "app.scrape_video", ""},
+        {"action", "Fetch Cover Art & Wallpaper...", "app.fetch_folder_art", ""},
+        {"separator", "", "", ""},
+        {"action", "File Tags...", "app.file_tags", ""},
+        {"separator", "", "", ""},
+        {"action", "Vault Encryption/Decryption", "app.vault_toggle", ""},
+        {"action", "ISO Virtual Drive", "app.iso_toggle", ""},
+        {"action", "VHD Virtual Drive", "app.vhd_toggle", ""},
+        {"action", "Create Archive...", "app.create_archive", ""},
+        {"action", "Create Secure Archive (AES-256)...", "app.create_secure_archive", ""},
+        {"action", "Extract Archive...", "app.extract_archive", ""},
+        {"separator", "", "", ""},
+        {"action", "Calculate Checksum Hash...", "app.calculate_checksum", ""},
+        {"action", "Secure Shred (Delete Permanently)...", "app.secure_shred", "user-trash"},
+        {"action", "Batch Convert/Resize Images...", "app.image_convert", ""},
+        {"separator", "", "", ""},
+        {"action", "Folder Profiles & Layouts...", "app.folder_layouts", ""},
+        {"action", "Save Current Layout as Folder Profile...", "app.save_folder_profile", ""},
+        {"action", "Save Current Layout as Default Profile", "app.save_default_profile", ""},
+        {"action", "Load Default Profile", "app.load_default_profile", ""}
+    };
+
+    for (const auto& item : items) {
+        QJsonObject obj;
+        obj["type"] = item.type;
+        if (item.type != "separator") {
+            obj["title"] = item.title;
+            obj["command"] = item.command;
+            obj["icon"] = item.icon;
+            obj["color"] = "";
+            obj["mode"] = "Normal";
+        }
+        arr.append(obj);
+    }
+
+    // Add Copy to Clipboard Submenu
+    QJsonObject cSub;
+    cSub["type"] = "menu";
+    cSub["title"] = "Copy to Clipboard";
+    cSub["icon"] = "";
+    QJsonArray cKids;
+    QJsonObject ck1; ck1["type"] = "action"; ck1["title"] = "Copy File Name(s)"; ck1["command"] = "app.copy_filename"; cKids.append(ck1);
+    QJsonObject ck2; ck2["type"] = "action"; ck2["title"] = "Copy Full Path(s)"; ck2["command"] = "app.copy_path"; cKids.append(ck2);
+    QJsonObject ck3; ck3["type"] = "action"; ck3["title"] = "Copy Folder Contents (Paths List)"; ck3["command"] = "app.copy_folder_contents"; cKids.append(ck3);
+    cSub["children"] = cKids;
+    arr.append(cSub);
+
+    // Add New File Submenu
+    QJsonObject fSub;
+    fSub["type"] = "menu";
+    fSub["title"] = "New File";
+    fSub["icon"] = "document-new";
+    QJsonArray fKids;
+    QJsonObject fk1; fk1["type"] = "action"; fk1["title"] = "Text Document (.txt)"; fk1["command"] = "app.new_file_txt"; fKids.append(fk1);
+    QJsonObject fk2; fk2["type"] = "action"; fk2["title"] = "Markdown Document (.md)"; fk2["command"] = "app.new_file_md"; fKids.append(fk2);
+    QJsonObject fk3; fk3["type"] = "action"; fk3["title"] = "HTML Document (.html)"; fk3["command"] = "app.new_file_html"; fKids.append(fk3);
+    QJsonObject fk4; fk4["type"] = "action"; fk4["title"] = "Python Script (.py)"; fk4["command"] = "app.new_file_py"; fKids.append(fk4);
+    QJsonObject fk5; fk5["type"] = "action"; fk5["title"] = "Blank PNG Image (.png)"; fk5["command"] = "app.new_file_png"; fKids.append(fk5);
+    fSub["children"] = fKids;
+    arr.append(fSub);
+
+    // Add Color Label Submenu
+    QJsonObject colSub;
+    colSub["type"] = "menu";
+    colSub["title"] = "Color Label";
+    QJsonArray colKids;
+    QJsonObject colNone; colNone["type"] = "action"; colNone["title"] = "None"; colNone["command"] = "app.color_none"; colKids.append(colNone);
+    QJsonObject colRed; colRed["type"] = "action"; colRed["title"] = "Red"; colRed["command"] = "app.color_red"; colKids.append(colRed);
+    QJsonObject colOrange; colOrange["type"] = "action"; colOrange["title"] = "Orange"; colOrange["command"] = "app.color_orange"; colKids.append(colOrange);
+    QJsonObject colYellow; colYellow["type"] = "action"; colYellow["title"] = "Yellow"; colYellow["command"] = "app.color_yellow"; colKids.append(colYellow);
+    QJsonObject colGreen; colGreen["type"] = "action"; colGreen["title"] = "Green"; colGreen["command"] = "app.color_green"; colKids.append(colGreen);
+    QJsonObject colBlue; colBlue["type"] = "action"; colBlue["title"] = "Blue"; colBlue["command"] = "app.color_blue"; colKids.append(colBlue);
+    QJsonObject colPurple; colPurple["type"] = "action"; colPurple["title"] = "Purple"; colPurple["command"] = "app.color_purple"; colKids.append(colPurple);
+    QJsonObject colSep; colSep["type"] = "separator"; colKids.append(colSep);
+    QJsonObject colCust; colCust["type"] = "action"; colCust["title"] = "Custom Icon Overlay..."; colCust["command"] = "app.color_custom_overlay"; colKids.append(colCust);
+    QJsonObject colClr; colClr["type"] = "action"; colClr["title"] = "Clear Icon Overlay"; colClr["command"] = "app.color_clear_overlay"; colKids.append(colClr);
+    colSub["children"] = colKids;
+    arr.append(colSub);
+
+    // Add Apply Profile Submenu
+    QJsonObject profSub;
+    profSub["type"] = "menu";
+    profSub["title"] = "Apply Profile Layout to Current Folder";
+    profSub["command"] = "app.apply_profile_submenu";
+    arr.append(profSub);
+
+    return arr;
 }
 
 #include <QDragEnterEvent>
@@ -551,4 +699,15 @@ bool CustomMenuEditorDialog::eventFilter(QObject* watched, QEvent* event) {
         }
     }
     return QDialog::eventFilter(watched, event);
+}
+
+void CustomMenuEditorDialog::onResetToDefaults() {
+    if (QMessageBox::question(this, "Reset to Defaults", 
+                              "Are you sure you want to discard all customizations and reset this menu to its default layout?",
+                              QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes) {
+        QSettings settings("Amifiles", "Amifiles");
+        settings.remove(m_settingsKey);
+        loadMenuStructure();
+        QMessageBox::information(this, "Reset Complete", "Menu configuration successfully reset to default layout.");
+    }
 }

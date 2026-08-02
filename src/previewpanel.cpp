@@ -47,6 +47,7 @@
 #include <QTabWidget>
 #include <QTabBar>
 #include <QListWidget>
+#include <QFrame>
 #include <QMenu>
 #include <QContextMenuEvent>
 #include <QAction>
@@ -450,6 +451,14 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(nullptr, Qt::Windo
     connect(m_btnChapters, &QPushButton::clicked, this, &FullscreenWidget::onHudChapters);
     m_btnChapters->setVisible(false);
 
+    m_btnTogglePlaylist = new QPushButton(m_hudWidget);
+    m_btnTogglePlaylist->setText("📋");
+    m_btnTogglePlaylist->setToolTip("Toggle Fullscreen Playlist");
+    m_btnTogglePlaylist->setFocusPolicy(Qt::NoFocus);
+    m_btnTogglePlaylist->setFixedSize(btnSize, btnSize);
+    m_btnTogglePlaylist->setStyleSheet("QPushButton { color: #cdd6f4; font-size: 16px; background-color: transparent; border: none; } QPushButton:hover { color: #89b4fa; }");
+    connect(m_btnTogglePlaylist, &QPushButton::clicked, this, &FullscreenWidget::onHudPlaylist);
+
     QPushButton* btnExit = new QPushButton(m_hudWidget);
     btnExit->setIcon(style->standardIcon(QStyle::SP_TitleBarNormalButton));
     btnExit->setToolTip("Exit Fullscreen");
@@ -520,6 +529,7 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(nullptr, Qt::Windo
     row2Layout->addWidget(m_btnRepeat);
     row2Layout->addWidget(m_btnSubtitles);
     row2Layout->addWidget(m_btnChapters);
+    row2Layout->addWidget(m_btnTogglePlaylist);
     
     row2Layout->addStretch(1);
 
@@ -582,6 +592,64 @@ void FullscreenWidget::resizeEvent(QResizeEvent* event) {
 
 void FullscreenWidget::updateHudGeometry() {
     // Layout manager handles size and geometry automatically
+}
+
+void FullscreenWidget::setPlaylist(const QStringList& playlist, int currentIndex) {
+    m_playlistItems = playlist;
+    m_playlistCurrentIndex = currentIndex;
+}
+
+void FullscreenWidget::togglePlaylistDrawer() {
+    if (m_playlistItems.isEmpty()) return;
+
+    QMenu menu(this);
+    m_activeMenu = &menu;
+    m_menuCanceled = false;
+    menu.installEventFilter(this);
+    menu.setStyleSheet(
+        "QMenu { background-color: #1e1e2e; color: #cdd6f4; border: 1px solid #45475a; border-radius: 6px; padding: 4px; }"
+        "QMenu::item { padding: 6px 20px 6px 20px; border-radius: 4px; }"
+        "QMenu::item:selected { background-color: #89b4fa; color: #11111b; }"
+    );
+
+    QAction* titleAct = menu.addAction("Active Playlist");
+    titleAct->setEnabled(false);
+    menu.addSeparator();
+
+    for (int i = 0; i < m_playlistItems.size(); ++i) {
+        QFileInfo fi(m_playlistItems[i]);
+        QString name = fi.completeBaseName();
+        if (i == m_playlistCurrentIndex) {
+            name = "▶  " + name;
+        } else {
+            name = "    " + name;
+        }
+
+        QAction* act = menu.addAction(name);
+        if (i == m_playlistCurrentIndex) {
+            QFont f = act->font();
+            f.setBold(true);
+            act->setFont(f);
+        }
+        connect(act, &QAction::triggered, this, [this, i]() {
+            emit playlistItemSelected(i);
+        });
+    }
+
+    QPoint popupPos;
+    if (m_btnTogglePlaylist && m_btnTogglePlaylist->underMouse()) {
+        popupPos = m_btnTogglePlaylist->mapToGlobal(QPoint(0, -menu.sizeHint().height()));
+    } else {
+        QPoint center = rect().center();
+        popupPos = mapToGlobal(center) - QPoint(menu.sizeHint().width() / 2, menu.sizeHint().height() / 2);
+    }
+    menu.exec(popupPos);
+
+    m_activeMenu = nullptr;
+}
+
+void FullscreenWidget::onHudPlaylist() {
+    togglePlaylistDrawer();
 }
 
 void FullscreenWidget::setMediaState(bool isVideo, QMediaPlayer* player, QAudioOutput* audioOutput) {
@@ -917,8 +985,14 @@ bool FullscreenWidget::eventFilter(QObject* watched, QEvent* event) {
             }
             QSettings settings("Amifiles", "Amifiles");
             QKeySequence shortcutMenu(settings.value("shortcuts/player_menu", "C").toString());
+            QKeySequence shortcutPlaylist(settings.value("shortcuts/player_playlist", "L").toString());
             QKeySequence pressed(keyEvent->modifiers() | keyEvent->key());
             if (pressed == shortcutMenu || keyEvent->key() == Qt::Key_Menu) {
+                m_menuCanceled = true;
+                m_activeMenu->close();
+                return true;
+            }
+            if (pressed == shortcutPlaylist) {
                 m_activeMenu->close();
                 return true;
             }
@@ -928,6 +1002,10 @@ bool FullscreenWidget::eventFilter(QObject* watched, QEvent* event) {
 }
 
 void FullscreenWidget::keyPressEvent(QKeyEvent* event) {
+    if (m_activeMenu) {
+        event->accept();
+        return;
+    }
     showHud();
     
     QSettings settings("Amifiles", "Amifiles");
@@ -941,6 +1019,26 @@ void FullscreenWidget::keyPressEvent(QKeyEvent* event) {
     QKeySequence shortcutMenu(settings.value("shortcuts/player_menu", "C").toString());
     QKeySequence shortcutNavigateBack(settings.value("shortcuts/navigate_back", "Alt+Left").toString());
     QKeySequence shortcutNavigateUp(settings.value("shortcuts/navigate_up", "Backspace").toString());
+    QKeySequence shortcutPlaylist(settings.value("shortcuts/player_playlist", "L").toString());
+
+    {
+        QFile logFile("/home/dave/cpp_projects/Amifiles/menu_debug.log");
+        if (logFile.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+            QTextStream out(&logFile);
+            out << "FS KeyPress: key=" << event->key()
+                << " modifiers=" << (int)event->modifiers()
+                << " pressed=" << pressed.toString()
+                << " shortcutNext=" << shortcutNext.toString()
+                << " shortcutPrev=" << shortcutPrev.toString()
+                << "\n";
+        }
+    }
+
+    if (pressed == shortcutPlaylist) {
+        togglePlaylistDrawer();
+        event->accept();
+        return;
+    }
 
     if (event->key() == Qt::Key_Escape || 
         event->key() == Qt::Key_F || 
@@ -1011,6 +1109,7 @@ void FullscreenWidget::mouseDoubleClickEvent(QMouseEvent* event) {
 void FullscreenWidget::contextMenuEvent(QContextMenuEvent* event) {
     QMenu menu(this);
     m_activeMenu = &menu;
+    m_menuCanceled = false;
     menu.installEventFilter(this);
     menu.setStyleSheet(
         "QMenu { background-color: #1e1e2e; color: #cdd6f4; border: 1px solid #45475a; border-radius: 6px; padding: 4px; }"
@@ -1085,62 +1184,76 @@ void FullscreenWidget::contextMenuEvent(QContextMenuEvent* event) {
     QAction* selected = menu.exec(event->globalPos());
     m_activeMenu = nullptr;
 
-    if (selected == actExit) {
-        emit exitRequested();
-    } else if (selected == actResume) {
-        if (m_player) {
-            m_player->setPosition(savedPos);
-            m_player->play();
+    if (m_menuCanceled) {
+        selected = nullptr;
+    }
+
+    {
+        QFile logFile("/home/dave/cpp_projects/Amifiles/menu_debug.log");
+        if (logFile.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+            QTextStream out(&logFile);
+            out << "Selected action: " << (selected ? selected->text() : "nullptr") << " (m_menuCanceled=" << m_menuCanceled << ")\n";
         }
-    } else if (selected == actRestart) {
-        if (m_player) {
-            m_player->setPosition(0);
-            m_player->play();
-        }
-    } else if (selected == actPlayPause) {
-        emit playPauseRequested();
-    } else if (selected == actStop) {
-        emit stopRequested();
-    } else if (selected == actPrev) {
-        emit prevRequested();
-    } else if (selected == actNext) {
-        emit nextRequested();
-    } else if (selected == actPrevChapter) {
-        if (m_player) {
-            qint64 currentPos = m_player->position();
-            int prevIdx = -1;
-            for (int i = 0; i < chapters.size(); ++i) {
-                if (chapters[i].startMs < currentPos - 2000) {
-                    prevIdx = i;
-                } else {
-                    break;
-                }
+    }
+
+    if (selected) {
+        if (selected == actExit) {
+            emit exitRequested();
+        } else if (selected == actResume) {
+            if (m_player) {
+                m_player->setPosition(savedPos);
+                m_player->play();
             }
-            if (prevIdx != -1) {
-                m_player->setPosition(chapters[prevIdx].startMs);
-            } else {
+        } else if (selected == actRestart) {
+            if (m_player) {
                 m_player->setPosition(0);
+                m_player->play();
             }
-        }
-    } else if (selected == actNextChapter) {
-        if (m_player) {
-            qint64 currentPos = m_player->position();
-            int nextIdx = -1;
-            for (int i = 0; i < chapters.size(); ++i) {
-                if (chapters[i].startMs > currentPos + 1000) {
-                    nextIdx = i;
-                    break;
+        } else if (selected == actPlayPause) {
+            emit playPauseRequested();
+        } else if (selected == actStop) {
+            emit stopRequested();
+        } else if (selected == actPrev) {
+            emit prevRequested();
+        } else if (selected == actNext) {
+            emit nextRequested();
+        } else if (selected == actPrevChapter) {
+            if (m_player) {
+                qint64 currentPos = m_player->position();
+                int prevIdx = -1;
+                for (int i = 0; i < chapters.size(); ++i) {
+                    if (chapters[i].startMs < currentPos - 2000) {
+                        prevIdx = i;
+                    } else {
+                        break;
+                    }
+                }
+                if (prevIdx != -1) {
+                    m_player->setPosition(chapters[prevIdx].startMs);
+                } else {
+                    m_player->setPosition(0);
                 }
             }
-            if (nextIdx != -1) {
-                m_player->setPosition(chapters[nextIdx].startMs);
+        } else if (selected == actNextChapter) {
+            if (m_player) {
+                qint64 currentPos = m_player->position();
+                int nextIdx = -1;
+                for (int i = 0; i < chapters.size(); ++i) {
+                    if (chapters[i].startMs > currentPos + 1000) {
+                        nextIdx = i;
+                        break;
+                    }
+                }
+                if (nextIdx != -1) {
+                    m_player->setPosition(chapters[nextIdx].startMs);
+                }
             }
-        }
-    } else if (selected == actAutoQueue) {
-        settings.setValue("preview/auto_queue_sibling_files", actAutoQueue->isChecked());
-        PreviewPanel* pPanel = qobject_cast<PreviewPanel*>(parentWidget());
-        if (pPanel) {
-            pPanel->loadPreferences();
+        } else if (selected == actAutoQueue) {
+            settings.setValue("preview/auto_queue_sibling_files", actAutoQueue->isChecked());
+            PreviewPanel* pPanel = qobject_cast<PreviewPanel*>(parentWidget());
+            if (pPanel) {
+                pPanel->loadPreferences();
+            }
         }
     }
 }
@@ -2695,11 +2808,7 @@ void PreviewPanel::playPlaylist(const QStringList& filePaths) {
 }
 
 void PreviewPanel::prepareForFullscreenPlayback(const QStringList& filePaths) {
-    // 1. Save current preview playlist state if we are not currently in fullscreen
-    if (!this->isFullscreen()) {
-        m_previewPlaylist = m_playlist;
-        m_previewPlaylistIndex = m_playlistIndex;
-    }
+
     
     // 2. Clear preview to stop current playing media
     clearPreview();
@@ -2821,6 +2930,13 @@ void PreviewPanel::onPrevTrack() {
 }
 
 void PreviewPanel::onNextTrack() {
+    {
+        QFile logFile("/home/dave/cpp_projects/Amifiles/menu_debug.log");
+        if (logFile.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+            QTextStream out(&logFile);
+            out << "onNextTrack called: size=" << m_playlist.size() << " index=" << m_playlistIndex << "\n";
+        }
+    }
     if (m_playlist.isEmpty()) return;
     if (m_shuffleEnabled) {
         if (m_playlist.size() > 1) {
@@ -3197,17 +3313,7 @@ void PreviewPanel::toggleFullscreen() {
     bool isVideo = videoExts.contains(ext);
     m_isVideo = isVideo;
 
-    // Save embedded preview playlist state and load the correct fullscreen one
-    m_previewPlaylist = m_playlist;
-    m_previewPlaylistIndex = m_playlistIndex;
 
-    if (m_isVideo) {
-        m_playlist = m_fullscreenVideoPlaylist.isEmpty() ? m_previewPlaylist : m_fullscreenVideoPlaylist;
-        m_playlistIndex = m_fullscreenVideoPlaylist.isEmpty() ? m_previewPlaylistIndex : m_fullscreenVideoPlaylistIndex;
-    } else {
-        m_playlist = m_fullscreenAudioPlaylist.isEmpty() ? m_previewPlaylist : m_fullscreenAudioPlaylist;
-        m_playlistIndex = m_fullscreenAudioPlaylist.isEmpty() ? m_previewPlaylistIndex : m_fullscreenAudioPlaylistIndex;
-    }
 
     if (m_playlistList) {
         refreshPlaylistUI();
@@ -3223,6 +3329,7 @@ void PreviewPanel::toggleFullscreen() {
     connect(m_fullscreenWidget, &FullscreenWidget::shuffleToggled, this, &PreviewPanel::onShuffleToggled);
     connect(m_fullscreenWidget, &FullscreenWidget::repeatRequested, this, &PreviewPanel::onRepeatClicked);
     connect(m_fullscreenWidget, &FullscreenWidget::builtinPlayerDoubleclickToggled, this, &PreviewPanel::builtinPlayerDoubleclickToggled);
+    connect(m_fullscreenWidget, &FullscreenWidget::playlistItemSelected, this, &PreviewPanel::playPlaylistIndex);
 
     // Synchronize initial Auto-FS toggle state to HUD
     bool autoFS = false;
@@ -3237,6 +3344,7 @@ void PreviewPanel::toggleFullscreen() {
         autoFS = settings.value("preferences/builtin_player_doubleclick", false).toBool();
     }
     m_fullscreenWidget->setBuiltinPlayerDoubleclickActive(autoFS);
+    m_fullscreenWidget->setPlaylist(m_playlist, m_playlistIndex);
 
     // Synchronize initial styles to HUD buttons
     if (m_fullscreenWidget->hudShuffleButton()) {
@@ -3260,6 +3368,8 @@ void PreviewPanel::toggleFullscreen() {
         m_player->setVideoOutput(m_fullscreenVideoWidget);
         m_fullscreenVideoWidget->setMouseTracking(true);
         m_fullscreenVideoWidget->installEventFilter(m_fullscreenWidget);
+
+
     } else {
         m_fullscreenAudioLabel = new QLabel(m_fullscreenWidget);
         m_fullscreenAudioLabel->setAlignment(Qt::AlignCenter);
@@ -3339,6 +3449,8 @@ void PreviewPanel::toggleFullscreen() {
         m_fullscreenVisualizer->installEventFilter(m_fullscreenWidget);
     }
 
+
+
     layout->addWidget(m_fullscreenWidget->hudWidget());
 
     m_fullscreenWidget->setMediaState(isVideo, m_player, m_audioOutput);
@@ -3362,14 +3474,6 @@ void PreviewPanel::toggleFullscreen() {
 void PreviewPanel::exitFullscreen() {
     if (!m_fullscreenWidget) return;
 
-    // Save current fullscreen playlist state
-    if (m_isVideo) {
-        m_fullscreenVideoPlaylist = m_playlist;
-        m_fullscreenVideoPlaylistIndex = m_playlistIndex;
-    } else {
-        m_fullscreenAudioPlaylist = m_playlist;
-        m_fullscreenAudioPlaylistIndex = m_playlistIndex;
-    }
 
     if (m_player) {
         bool previewDockVisible = false;
@@ -3398,9 +3502,6 @@ void PreviewPanel::exitFullscreen() {
     m_fullscreenTextLabel = nullptr;
     m_fullscreenVisualizer = nullptr;
 
-    // Restore embedded/preview playlist state
-    m_playlist = m_previewPlaylist;
-    m_playlistIndex = m_previewPlaylistIndex;
     if (m_playlistList) {
         refreshPlaylistUI();
     }
@@ -3542,6 +3643,8 @@ void PreviewPanel::updateFullscreenTrack() {
         m_fullscreenVisualizer->installEventFilter(m_fullscreenWidget);
     }
 
+
+
     layout->addWidget(m_fullscreenWidget->hudWidget());
 
     m_fullscreenWidget->setMediaState(isVideo, m_player, m_audioOutput);
@@ -3557,6 +3660,7 @@ void PreviewPanel::updateFullscreenTrack() {
         }
     }
     m_fullscreenWidget->setTrackNames(currentPath, nextPath);
+    m_fullscreenWidget->setPlaylist(m_playlist, m_playlistIndex);
 }
 
 #include <QRandomGenerator>

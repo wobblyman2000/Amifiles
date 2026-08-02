@@ -1,0 +1,145 @@
+Selected action: nullptr (m_menuCanceled=1)
+Selected action: nullptr (m_menuCanceled=1)
+Selected action: nullptr (m_menuCanceled=1)
+Selected action: ⏭ Jump to Next Chapter (m_menuCanceled=0)
+Selected action: nullptr (m_menuCanceled=1)
+Selected action: nullptr (m_menuCanceled=1)
+Selected action: nullptr (m_menuCanceled=1)
+Selected action: ⏭ Jump to Next Chapter (m_menuCanceled=0)
+Selected action: nullptr (m_menuCanceled=0)
+Selected action: nullptr (m_menuCanceled=1)
+Selected action: nullptr (m_menuCanceled=1)
+Selected action: nullptr (m_menuCanceled=1)
+Selected action: nullptr (m_menuCanceled=1)
+Selected action: nullptr (m_menuCanceled=1)
+Selected action: nullptr (m_menuCanceled=1)
+Selected action: nullptr (m_menuCanceled=1)
+Selected action: nullptr (m_menuCanceled=1)
+FS KeyPress: key=78 modifiers=0 pressed=N shortcutNext=N shortcutPrev=P
+onNextTrack called: size=51 index=0
+FS KeyPress: key=78 modifiers=0 pressed=N shortcutNext=N shortcutPrev=P
+onNextTrack called: size=51 index=1
+FS KeyPress: key=78 modifiers=0 pressed=N shortcutNext=N shortcutPrev=P
+onNextTrack called: size=51 index=2
+FS KeyPress: key=67 modifiers=0 pressed=C shortcutNext=N shortcutPrev=P
+Selected action: ⏭ Jump to Next Chapter (m_menuCanceled=0)
+FS KeyPress: key=16777220 modifiers=0 pressed=Return shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777235 modifiers=0 pressed=Up shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777237 modifiers=0 pressed=Down shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777236 modifiers=0 pressed=Right shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777237 modifiers=0 pressed=Down shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777237 modifiers=0 pressed=Down shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777249 modifiers=67108864 pressed=Ctrl+Control shortcutNext=N shortcutPrev=P
+FS KeyPress: key=80 modifiers=67108864 pressed=Ctrl+P shortcutNext=N shortcutPrev=P
+FS KeyPress: key=78 modifiers=0 pressed=N shortcutNext=N shortcutPrev=P
+onNextTrack called: size=51 index=3
+FS KeyPress: key=16777220 modifiers=0 pressed=Return shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777219 modifiers=0 pressed=Backspace shortcutNext=N shortcutPrev=P
+FS KeyPress: key=78 modifiers=0 pressed=N shortcutNext=N shortcutPrev=P
+onNextTrack called: size=51 index=4
+FS KeyPress: key=16777220 modifiers=0 pressed=Return shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777235 modifiers=0 pressed=Up shortcutNext=N shortcutPrev=P
+onNextTrack called: size=51 index=5
+FS KeyPress: key=16777216 modifiers=0 pressed=Esc shortcutNext=N shortcutPrev=P
+FS KeyPress: key=78 modifiers=0 pressed=N shortcutNext=N shortcutPrev=P
+onNextTrack called: size=51 index=6
+FS KeyPress: key=16777219 modifiers=0 pressed=Backspace shortcutNext=N shortcutPrev=P
+FS KeyPress: key=78 modifiers=0 pressed=N shortcutNext=N shortcutPrev=P
+onNextTrack called: size=51 index=7
+FS KeyPress: key=16777219 modifiers=0 pressed=Backspace shortcutNext=N shortcutPrev=P
+onNextTrack called: size=51 index=8
+FS KeyPress: key=16777216 modifiers=0 pressed=Esc shortcutNext=N shortcutPrev=P
+FS KeyPress: key=78 modifiers=0 pressed=N shortcutNext=N shortcutPrev=P
+onNextTrack called: size=51 index=9
+FS KeyPress: key=78 modifiers=0 pressed=N shortcutNext=N shortcutPrev=P
+onNextTrack called: size=51 index=10
+FS KeyPress: key=78 modifiers=0 pressed=N shortcutNext=N shortcutPrev=P
+onNextTrack called: size=51 index=11
+FS KeyPress: key=16777216 modifiers=0 pressed=Esc shortcutNext=N shortcutPrev=P
+onNextTrack called: size=104 index=0
+onNextTrack called: size=104 index=1
+FS KeyPress: key=16777216 modifiers=0 pressed=Esc shortcutNext=N shortcutPrev=P
+FS KeyPress: key=78 modifiers=0 pressed=N shortcutNext=N shortcutPrev=P
+onNextTrack called: size=104 index=0
+FS KeyPress: key=78 modifiers=0 pressed=N shortcutNext=N shortcutPrev=P
+onNextTrack called: size=104 index=1
+FS KeyPress: key=16777216 modifiers=0 pressed=Esc shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777216 modifiers=0 pressed=Esc shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777216 modifiers=0 pressed=Esc shortcutNext=N shortcutPrev=P
+FS KeyPress: key=67 modifiers=0 pressed=C shortcutNext=N shortcutPrev=P
+Selected action: nullptr (m_menuCanceled=1)
+FS KeyPress: key=67 modifiers=0 pressed=C shortcutNext=N shortcutPrev=P
+Selected action: nullptr (m_menuCanceled=1)
+FS KeyPress: key=67 modifiers=0 pressed=C shortcutNext=N shortcutPrev=P
+Selected action: nullptr (m_menuCanceled=1)
+FS KeyPress: key=16777219 modifiers=0 pressed=Backspace shortcutNext=N shortcutPrev=P
+onNextTrack called: size=104 index=0
+FS KeyPress: key=16777216 modifiers=0 pressed=Esc shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777236 modifiers=0 pressed=Right shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777236 modifiers=0 pressed=Right shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777236 modifiers=0 pressed=Right shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777216 modifiers=0 pressed=Esc shortcutNext=N shortcutPrev=P
+FS KeyPress: key=76 modifiers=0 pressed=L shortcutNext=N shortcutPrev=P
+FS KeyPress: key=76 modifiers=0 pressed=L shortcutNext=N shortcutPrev=P
+FS KeyPress: key=76 modifiers=0 pressed=L shortcutNext=N shortcutPrev=P
+FS KeyPress: key=76 modifiers=0 pressed=L shortcutNext=N shortcutPrev=P
+FS KeyPress: key=76 modifiers=0 pressed=L shortcutNext=N shortcutPrev=P
+FS KeyPress: key=76 modifiers=0 pressed=L shortcutNext=N shortcutPrev=P
+FS KeyPress: key=76 modifiers=0 pressed=L shortcutNext=N shortcutPrev=P
+FS KeyPress: key=76 modifiers=0 pressed=L shortcutNext=N shortcutPrev=P
+FS KeyPress: key=76 modifiers=0 pressed=L shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777251 modifiers=134217728 pressed=Alt+Alt shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777251 modifiers=134217728 pressed=Alt+Alt shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777251 modifiers=134217728 pressed=Alt+Alt shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777216 modifiers=0 pressed=Esc shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777251 modifiers=134217728 pressed=Alt+Alt shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777250 modifiers=268435456 pressed=Meta+Meta shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777250 modifiers=268435456 pressed=Meta+Meta shortcutNext=N shortcutPrev=P
+FS KeyPress: key=67 modifiers=0 pressed=C shortcutNext=N shortcutPrev=P
+Selected action: nullptr (m_menuCanceled=1)
+FS KeyPress: key=67 modifiers=0 pressed=C shortcutNext=N shortcutPrev=P
+Selected action: nullptr (m_menuCanceled=1)
+FS KeyPress: key=86 modifiers=0 pressed=V shortcutNext=N shortcutPrev=P
+FS KeyPress: key=67 modifiers=0 pressed=C shortcutNext=N shortcutPrev=P
+Selected action: nullptr (m_menuCanceled=1)
+FS KeyPress: key=67 modifiers=0 pressed=C shortcutNext=N shortcutPrev=P
+Selected action: nullptr (m_menuCanceled=1)
+FS KeyPress: key=76 modifiers=0 pressed=L shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777249 modifiers=67108864 pressed=Ctrl+Control shortcutNext=N shortcutPrev=P
+FS KeyPress: key=49 modifiers=67108864 pressed=Ctrl+1 shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777249 modifiers=67108864 pressed=Ctrl+Control shortcutNext=N shortcutPrev=P
+FS KeyPress: key=49 modifiers=67108864 pressed=Ctrl+1 shortcutNext=N shortcutPrev=P
+FS KeyPress: key=67 modifiers=0 pressed=C shortcutNext=N shortcutPrev=P
+Selected action: nullptr (m_menuCanceled=1)
+FS KeyPress: key=16777220 modifiers=0 pressed=Return shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777219 modifiers=0 pressed=Backspace shortcutNext=N shortcutPrev=P
+FS KeyPress: key=76 modifiers=0 pressed=L shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777216 modifiers=0 pressed=Esc shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777216 modifiers=0 pressed=Esc shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777216 modifiers=0 pressed=Esc shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777216 modifiers=0 pressed=Esc shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777216 modifiers=0 pressed=Esc shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777216 modifiers=0 pressed=Esc shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777220 modifiers=0 pressed=Return shortcutNext=N shortcutPrev=P
+FS KeyPress: key=78 modifiers=0 pressed=N shortcutNext=N shortcutPrev=P
+onNextTrack called: size=8 index=0
+FS KeyPress: key=78 modifiers=0 pressed=N shortcutNext=N shortcutPrev=P
+onNextTrack called: size=8 index=1
+FS KeyPress: key=78 modifiers=0 pressed=N shortcutNext=N shortcutPrev=P
+onNextTrack called: size=8 index=2
+FS KeyPress: key=76 modifiers=0 pressed=L shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777219 modifiers=0 pressed=Backspace shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777236 modifiers=0 pressed=Right shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777236 modifiers=0 pressed=Right shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777249 modifiers=67108864 pressed=Ctrl+Control shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777217 modifiers=67108864 pressed=Ctrl+Tab shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777249 modifiers=67108864 pressed=Ctrl+Control shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777217 modifiers=67108864 pressed=Ctrl+Tab shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777249 modifiers=67108864 pressed=Ctrl+Control shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777217 modifiers=67108864 pressed=Ctrl+Tab shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777249 modifiers=67108864 pressed=Ctrl+Control shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777217 modifiers=67108864 pressed=Ctrl+Tab shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777216 modifiers=0 pressed=Esc shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777216 modifiers=0 pressed=Esc shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777216 modifiers=0 pressed=Esc shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777216 modifiers=0 pressed=Esc shortcutNext=N shortcutPrev=P

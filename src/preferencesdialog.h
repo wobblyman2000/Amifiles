@@ -88,6 +88,7 @@ private:
     class QKeySequenceEdit* m_keyPlayerNext = nullptr;
     class QKeySequenceEdit* m_keyPlayerMute = nullptr;
     class QKeySequenceEdit* m_keyPlayerMenu = nullptr;
+    class QKeySequenceEdit* m_keyPlayerPlaylist = nullptr;
     class QKeySequenceEdit* m_keyPlayFolder = nullptr;
     class QKeySequenceEdit* m_keyQueueFolder = nullptr;
     class QKeySequenceEdit* m_keyPlayQueue = nullptr;

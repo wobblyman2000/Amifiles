@@ -511,18 +511,64 @@ void FolderLayoutDialog::setupUI() {
 
     scrollLayout->addWidget(m_visGroup);
 
-    // 4. Styling (Custom Background Color)
+    // 4. Styling (Custom Background Color & Image)
     m_styleGroup = new QGroupBox("4. Look & Feel Custom Background", this);
-    QHBoxLayout* styleLayout = new QHBoxLayout(m_styleGroup);
+    QVBoxLayout* styleLayout = new QVBoxLayout(m_styleGroup);
+    styleLayout->setSpacing(8);
+
+    QHBoxLayout* colorRow = new QHBoxLayout();
     m_useBgColor = new ToggleSwitch(this);
     m_btnSelectBgColor = new QPushButton("Select Color...", this);
     connect(m_btnSelectBgColor, &QPushButton::clicked, this, &FolderLayoutDialog::onSelectBgColor);
     connect(m_useBgColor, &ToggleSwitch::toggled, m_btnSelectBgColor, &QPushButton::setEnabled);
-    
-    styleLayout->addWidget(m_useBgColor);
-    styleLayout->addWidget(new QLabel("Use Custom Background Color", this));
-    styleLayout->addWidget(m_btnSelectBgColor);
-    styleLayout->addStretch();
+    colorRow->addWidget(m_useBgColor);
+    colorRow->addWidget(new QLabel("Use Custom Background Color", this));
+    colorRow->addWidget(m_btnSelectBgColor);
+    colorRow->addStretch();
+    styleLayout->addLayout(colorRow);
+
+    QHBoxLayout* imageRow = new QHBoxLayout();
+    m_useBgImage = new ToggleSwitch(this);
+    m_btnSelectBgImage = new QPushButton("Select Image...", this);
+    m_lblBgImagePath = new QLabel("", this);
+    m_lblBgImagePath->setStyleSheet("color: #a6adc8; font-size: 11px;");
+    connect(m_btnSelectBgImage, &QPushButton::clicked, this, &FolderLayoutDialog::onSelectBgImage);
+    connect(m_useBgImage, &ToggleSwitch::toggled, m_btnSelectBgImage, &QPushButton::setEnabled);
+    imageRow->addWidget(m_useBgImage);
+    imageRow->addWidget(new QLabel("Use Custom Background Image", this));
+    imageRow->addWidget(m_btnSelectBgImage);
+    imageRow->addWidget(m_lblBgImagePath);
+    imageRow->addStretch();
+    styleLayout->addLayout(imageRow);
+
+    QHBoxLayout* opacityRow = new QHBoxLayout();
+    opacityRow->setContentsMargins(40, 0, 0, 0); // Indent to align with the toggle switch
+    m_sliderBgOpacity = new QSlider(Qt::Horizontal, this);
+    m_sliderBgOpacity->setRange(0, 100);
+    m_sliderBgOpacity->setValue(100);
+    m_sliderBgOpacity->setFixedWidth(150);
+    m_sliderBgOpacity->setEnabled(false);
+    m_sliderBgOpacity->setStyleSheet(
+        "QSlider::groove:horizontal { border: 1px solid #313244; height: 6px; background: #181825; border-radius: 3px; }"
+        "QSlider::handle:horizontal { background: #b4befe; width: 12px; margin: -3px 0; border-radius: 6px; }"
+    );
+
+    m_lblBgOpacityValue = new QLabel("100%", this);
+    m_lblBgOpacityValue->setFixedWidth(40);
+    m_lblBgOpacityValue->setEnabled(false);
+
+    connect(m_sliderBgOpacity, &QSlider::valueChanged, this, [this](int val) {
+        m_lblBgOpacityValue->setText(QString("%1%").arg(val));
+    });
+    connect(m_useBgImage, &ToggleSwitch::toggled, m_sliderBgOpacity, &QSlider::setEnabled);
+    connect(m_useBgImage, &ToggleSwitch::toggled, m_lblBgOpacityValue, &QLabel::setEnabled);
+
+    opacityRow->addWidget(new QLabel("Wallpaper Opacity:", this));
+    opacityRow->addWidget(m_sliderBgOpacity);
+    opacityRow->addWidget(m_lblBgOpacityValue);
+    opacityRow->addStretch();
+    styleLayout->addLayout(opacityRow);
+
     scrollLayout->addWidget(m_styleGroup);
 
     // 5. Session Tab Snapshots
@@ -816,6 +862,19 @@ void FolderLayoutDialog::populateFields(const FolderLayoutRule& r) {
         m_btnSelectBgColor->setStyleSheet("");
     }
 
+    m_useBgImage->setChecked(r.useBgImage);
+    m_selectedBgImage = r.bgImage;
+    m_btnSelectBgImage->setEnabled(r.useBgImage);
+    m_lblBgImagePath->setText(r.bgImage.isEmpty() ? "No image selected" : QFileInfo(r.bgImage).fileName());
+    m_lblBgImagePath->setToolTip(r.bgImage);
+    if (m_sliderBgOpacity && m_lblBgOpacityValue) {
+        int val = static_cast<int>(r.bgOpacity * 100.0);
+        m_sliderBgOpacity->setValue(val);
+        m_sliderBgOpacity->setEnabled(r.useBgImage);
+        m_lblBgOpacityValue->setText(QString("%1%").arg(val));
+        m_lblBgOpacityValue->setEnabled(r.useBgImage);
+    }
+
     // Tabs Snapshot
     m_hasTabsSnapshot->setChecked(r.hasTabsSnapshot);
     updateTabsLabel(r);
@@ -881,6 +940,12 @@ void FolderLayoutDialog::harvestCurrentProfile(int index) {
 
     r.useBgColor = m_useBgColor->isChecked();
     r.bgColor = m_selectedBgColor;
+
+    r.useBgImage = m_useBgImage->isChecked();
+    r.bgImage = m_selectedBgImage;
+    if (m_sliderBgOpacity) {
+        r.bgOpacity = m_sliderBgOpacity->value() / 100.0;
+    }
 
     r.hasTabsSnapshot = m_hasTabsSnapshot->isChecked();
     r.windowState = m_capturedWindowState;
@@ -1224,6 +1289,15 @@ void FolderLayoutDialog::onSelectBgColor() {
         m_selectedBgColor = col.name();
         m_btnSelectBgColor->setText(m_selectedBgColor);
         m_btnSelectBgColor->setStyleSheet(QString("background-color: %1; color: #11111b;").arg(m_selectedBgColor));
+    }
+}
+
+void FolderLayoutDialog::onSelectBgImage() {
+    QString path = QFileDialog::getOpenFileName(this, "Select Background Image", "", "Images (*.png *.jpg *.jpeg *.webp *.bmp)");
+    if (!path.isEmpty()) {
+        m_selectedBgImage = path;
+        m_lblBgImagePath->setText(QFileInfo(path).fileName());
+        m_lblBgImagePath->setToolTip(path);
     }
 }
 
