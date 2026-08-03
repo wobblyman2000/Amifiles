@@ -37,6 +37,7 @@ private slots:
     void onTrackNumberWizard();
     void onCaseConversion();
     void onOnlineScrape();
+    void onQuickActionTriggered();
     void onApplyClicked();
     void onSaveClicked();
 

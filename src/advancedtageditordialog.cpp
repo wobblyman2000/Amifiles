@@ -23,6 +23,8 @@
 #include <QMimeData>
 #include <QBuffer>
 #include <QUrl>
+#include <QToolButton>
+#include <QMenu>
 
 AdvancedTagEditorDialog::AdvancedTagEditorDialog(const QStringList& filePaths, QWidget* parent)
     : QDialog(parent)
@@ -65,6 +67,35 @@ void AdvancedTagEditorDialog::setupUI() {
     QAction* actTrackWizard = toolbar->addAction("Auto-Number Tracks");
     QAction* actCase = toolbar->addAction("Case Converter");
     QAction* actScrape = toolbar->addAction("Fetch Online (MusicBrainz)");
+
+    QToolButton* btnQuickActions = new QToolButton(this);
+    btnQuickActions->setText("Quick Actions");
+    btnQuickActions->setPopupMode(QToolButton::InstantPopup);
+    btnQuickActions->setStyleSheet("QToolButton { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 4px; padding: 4px 8px; font-weight: bold; }"
+                                   "QToolButton:hover { background-color: #45475a; }");
+    QMenu* menuQuick = new QMenu(btnQuickActions);
+    menuQuick->setStyleSheet("QMenu { background-color: #1e1e2e; color: #cdd6f4; border: 1px solid #313244; }"
+                             "QMenu::item:selected { background-color: #313244; color: #89b4fa; }");
+    
+    QAction* actVarious = menuQuick->addAction("Set Album Artist to 'Various Artists'");
+    actVarious->setData("various_artists");
+    QAction* actSwap = menuQuick->addAction("Swap Artist <-> Title");
+    actSwap->setData("swap_artist_title");
+    QAction* actStripNum = menuQuick->addAction("Remove track number prefixes from Title");
+    actStripNum->setData("strip_track_numbers");
+    QAction* actCopyAA = menuQuick->addAction("Copy Artist to Album Artist");
+    actCopyAA->setData("copy_artist_albumartist");
+    QAction* actTrim = menuQuick->addAction("Trim whitespaces from all tags");
+    actTrim->setData("trim_whitespaces");
+
+    btnQuickActions->setMenu(menuQuick);
+    toolbar->addWidget(btnQuickActions);
+
+    connect(actVarious, &QAction::triggered, this, &AdvancedTagEditorDialog::onQuickActionTriggered);
+    connect(actSwap, &QAction::triggered, this, &AdvancedTagEditorDialog::onQuickActionTriggered);
+    connect(actStripNum, &QAction::triggered, this, &AdvancedTagEditorDialog::onQuickActionTriggered);
+    connect(actCopyAA, &QAction::triggered, this, &AdvancedTagEditorDialog::onQuickActionTriggered);
+    connect(actTrim, &QAction::triggered, this, &AdvancedTagEditorDialog::onQuickActionTriggered);
 
     mainLayout->addWidget(toolbar);
 
@@ -643,7 +674,9 @@ void AdvancedTagEditorDialog::onAutoTagFromFilename() {
         "%track% - %artist% - %title%",
         "%track% - %title%",
         "%artist% - %title%",
-        "%artist% - %album% - %track% - %title%"
+        "%artist% - %album% - %track% - %title%",
+        "Disc %disc%/%track% - %title%",
+        "%artist% - %album% - Disc %disc% - %track% - %title%"
     });
     lay->addWidget(combo);
     
@@ -663,8 +696,6 @@ void AdvancedTagEditorDialog::onAutoTagFromFilename() {
     if (pattern.isEmpty()) return;
 
     // Convert pattern to regular expression
-    // E.g., "%track% - %artist% - %title%"
-    // Replace tokens with capture groups
     QString regexStr = pattern;
     regexStr = QRegularExpression::escape(regexStr);
     
@@ -675,6 +706,7 @@ void AdvancedTagEditorDialog::onAutoTagFromFilename() {
     regexStr.replace(QRegularExpression::escape("%track%"), "(?<track>\\d+)");
     regexStr.replace(QRegularExpression::escape("%year%"), "(?<year>\\d{4})");
     regexStr.replace(QRegularExpression::escape("%genre%"), "(?<genre>.+?)");
+    regexStr.replace(QRegularExpression::escape("%disc%"), "(?<disc>\\d+)");
     
     // Match whole string or support extensions
     regexStr = "^" + regexStr + "(?:\\.[a-zA-Z0-9]+)?$";
@@ -686,9 +718,16 @@ void AdvancedTagEditorDialog::onAutoTagFromFilename() {
     for (int row : selectedRows) {
         TrackEditInfo& track = m_tracks[row];
         QFileInfo info(track.currentPath);
-        QString filename = info.fileName();
         
-        QRegularExpressionMatch match = re.match(filename);
+        QString matchStr;
+        if (pattern.contains("/")) {
+            // Match against parent folder name + file name (e.g. "Disc 2/01 - Time.mp3")
+            matchStr = info.dir().dirName() + "/" + info.fileName();
+        } else {
+            matchStr = info.fileName();
+        }
+        
+        QRegularExpressionMatch match = re.match(matchStr);
         if (match.hasMatch()) {
             matchedCount++;
             track.isModified = true;
@@ -699,6 +738,7 @@ void AdvancedTagEditorDialog::onAutoTagFromFilename() {
             if (match.capturedTexts().contains("track")) track.metadata.track = match.captured("track").trimmed();
             if (match.capturedTexts().contains("year")) track.metadata.year = match.captured("year").trimmed();
             if (match.capturedTexts().contains("genre")) track.metadata.genre = match.captured("genre").trimmed();
+            if (match.capturedTexts().contains("disc")) track.metadata.discNumber = match.captured("disc").trimmed();
         }
     }
     
@@ -734,7 +774,9 @@ void AdvancedTagEditorDialog::onRenameFromTags() {
     combo->addItems({
         "%track% - %title%",
         "%artist% - %title%",
-        "%artist% - %album% - %track% - %title%"
+        "%artist% - %album% - %track% - %title%",
+        "%artist%/%album%/%track% - %title%",
+        "%artist%/%album% (CD %disc%)/%track% - %title%"
     });
     lay->addWidget(combo);
     
@@ -791,12 +833,28 @@ void AdvancedTagEditorDialog::onRenameFromTags() {
         newName.replace("%year%", track.metadata.year.isEmpty() ? "0000" : track.metadata.year);
         newName.replace("%genre%", track.metadata.genre.isEmpty() ? "Genre" : track.metadata.genre);
         
-        // Remove illegal characters
-        newName.remove(QRegularExpression("[\\\\/:*?\"<>|]"));
+        if (track.metadata.discNumber.isEmpty()) {
+            newName.replace("(CD %disc%)", "");
+            newName.replace("(Disc %disc%)", "");
+            newName.replace("CD %disc%", "");
+            newName.replace("Disc %disc%", "");
+            newName.replace("%disc%", "");
+        } else {
+            newName.replace("%disc%", track.metadata.discNumber);
+        }
         
-        newName = newName.trimmed() + "." + ext;
+        // Remove illegal characters but preserve forward slash for directories
+        newName.replace("\\", "/");
+        newName.remove(QRegularExpression("[\\:*?\"<>|]"));
         
-        QString newPath = info.absoluteDir().filePath(newName);
+        newName.replace(QRegularExpression("/+"), "/");
+        newName = newName.trimmed();
+        if (newName.startsWith("/")) newName = newName.mid(1);
+        if (newName.endsWith("/")) newName = newName.left(newName.length() - 1);
+        
+        newName = newName + "." + ext;
+        
+        QString newPath = QDir::cleanPath(info.absoluteDir().absoluteFilePath(newName));
         
         previewTable->insertRow(rowIdx);
         previewTable->setItem(rowIdx, 0, new QTableWidgetItem(info.fileName()));
@@ -826,6 +884,11 @@ void AdvancedTagEditorDialog::onRenameFromTags() {
     int renameSuccess = 0;
     for (const RenameMap& rm : renames) {
         if (rm.oldPath == rm.newPath) continue;
+        
+        // Recursively create directory structure for target path
+        QFileInfo targetFileInfo(rm.newPath);
+        QDir().mkpath(targetFileInfo.absolutePath());
+        
         if (QFile::rename(rm.oldPath, rm.newPath)) {
             m_tracks[rm.index].currentPath = rm.newPath;
             m_tracks[rm.index].isModified = true;
@@ -1106,4 +1169,59 @@ void AdvancedTagEditorDialog::saveTagsToDisk() {
     if (successCount > 0) {
         QMessageBox::information(this, "Tags Saved", QString("Successfully saved metadata for %1 file(s) on disk.").arg(successCount));
     }
+}
+
+void AdvancedTagEditorDialog::onQuickActionTriggered() {
+    QAction* act = qobject_cast<QAction*>(sender());
+    if (!act) return;
+    
+    QList<QTableWidgetItem*> selectedItems = m_tableFiles->selectedItems();
+    QSet<int> selectedRows;
+    for (QTableWidgetItem* item : selectedItems) {
+        selectedRows.insert(item->row());
+    }
+    
+    if (selectedRows.isEmpty()) {
+        QMessageBox::warning(this, "No Selection", "Please select one or more tracks in the list to apply transformations.");
+        return;
+    }
+    
+    QString command = act->data().toString();
+    
+    for (int row : selectedRows) {
+        TrackEditInfo& track = m_tracks[row];
+        bool changed = false;
+        
+        if (command == "various_artists") {
+            track.metadata.albumArtist = "Various Artists";
+            changed = true;
+        } else if (command == "swap_artist_title") {
+            QString temp = track.metadata.artist;
+            track.metadata.artist = track.metadata.title;
+            track.metadata.title = temp;
+            changed = true;
+        } else if (command == "strip_track_numbers") {
+            QRegularExpression re("^\\d+\\s*(?:-|\\.)?\\s*");
+            track.metadata.title.remove(re);
+            changed = true;
+        } else if (command == "copy_artist_albumartist") {
+            track.metadata.albumArtist = track.metadata.artist;
+            changed = true;
+        } else if (command == "trim_whitespaces") {
+            track.metadata.title = track.metadata.title.trimmed();
+            track.metadata.artist = track.metadata.artist.trimmed();
+            track.metadata.album = track.metadata.album.trimmed();
+            track.metadata.genre = track.metadata.genre.trimmed();
+            track.metadata.year = track.metadata.year.trimmed();
+            track.metadata.albumArtist = track.metadata.albumArtist.trimmed();
+            track.metadata.composer = track.metadata.composer.trimmed();
+            track.metadata.comment = track.metadata.comment.trimmed();
+            changed = true;
+        }
+        
+        if (changed) track.isModified = true;
+    }
+    
+    populateTable();
+    updateFormFromSelection();
 }
