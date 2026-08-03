@@ -2852,27 +2852,8 @@ void MainWindow::onCustomButtonClicked() {
 }
 
 void MainWindow::onCustomToolBarContextMenu(const QPoint& pos) {
-    if (m_toolbarEditMode) return;
-    if (!m_customToolBar) return;
-
-    QMenu menu(this);
-    menu.setStyleSheet(
-        "QMenu { background-color: #11111b; color: #cdd6f4; border: 1px solid #313244; border-radius: 4px; padding: 4px; }"
-        "QMenu::item { padding: 4px 20px 4px 20px; border-radius: 2px; }"
-        "QMenu::item:selected { background-color: #313244; color: #a6e3a1; }"
-    );
-
-    QAction* actImport = menu.addAction("Import Custom Buttons...");
-    QAction* actExport = menu.addAction("Export Custom Buttons...");
-
-    QAction* selected = menu.exec(m_customToolBar->mapToGlobal(pos));
-    if (!selected) return;
-
-    if (selected == actImport) {
-        onImportCustomButtons();
-    } else if (selected == actExport) {
-        onExportCustomButtons();
-    }
+    Q_UNUSED(pos);
+    // Context menu is disabled when Edit Mode is OFF
 }
 
 void MainWindow::onSaveSearchPreset() {
@@ -7611,6 +7592,14 @@ void MainWindow::showToolbarContextMenu(QToolBar* tb, const QPoint& pos) {
     QAction* pasteAct = menu.addAction("📋 Paste Button");
     pasteAct->setEnabled(!m_copiedToolbarItem.isEmpty());
 
+    QAction* importAct = nullptr;
+    QAction* exportAct = nullptr;
+    if (tb == m_customToolBar) {
+        menu.addSeparator();
+        importAct = menu.addAction("📥 Import Custom Buttons...");
+        exportAct = menu.addAction("📤 Export Custom Buttons...");
+    }
+
     QAction* selected = menu.exec(tb->mapToGlobal(pos));
     if (selected == addAct) {
         CustomButtonDialog dlg("", "", "", this);
@@ -7636,6 +7625,10 @@ void MainWindow::showToolbarContextMenu(QToolBar* tb, const QPoint& pos) {
         bool isDynamicDrive = m_copiedToolbarItem["is_dynamic_drive"].toBool();
         
         handleToolbarDrop("", -1, tb->objectName(), targetIdx, type, actId, name, icon, command, isDynamicDrive);
+    } else if (selected && selected == importAct) {
+        onImportCustomButtons();
+    } else if (selected && selected == exportAct) {
+        onExportCustomButtons();
     }
 }
 
