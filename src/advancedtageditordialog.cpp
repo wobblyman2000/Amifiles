@@ -1421,6 +1421,13 @@ void AdvancedTagEditorDialog::onQuickActionTriggered() {
     updateFormFromSelection();
 }
 
+static QString cleanQueryString(const QString& input) {
+    QString res = input;
+    res.remove(QRegularExpression("\\s*\\([^)]*(?:feat|remaster|explicit|deluxe|version)[^)]*\\)", QRegularExpression::CaseInsensitiveOption));
+    res.remove(QRegularExpression("\\s*\\[[^]]*(?:feat|remaster|explicit|deluxe|version)[^]]*\\]", QRegularExpression::CaseInsensitiveOption));
+    return res.trimmed();
+}
+
 void AdvancedTagEditorDialog::onFetchLyricsClicked() {
     QList<QTableWidgetItem*> selectedItems = m_tableFiles->selectedItems();
     QSet<int> selectedRows;
@@ -1433,28 +1440,46 @@ void AdvancedTagEditorDialog::onFetchLyricsClicked() {
         return;
     }
     
-    m_lblStatus->setText("Fetching lyrics from online databases...");
+    int queryCount = 0;
+    for (int row : selectedRows) {
+        TrackEditInfo& track = m_tracks[row];
+        if (!track.metadata.artist.trimmed().isEmpty() && !track.metadata.title.trimmed().isEmpty()) {
+            queryCount++;
+        }
+    }
+    
+    if (queryCount == 0) {
+        m_lblStatus->setText("No tracks with valid Artist and Title selected.");
+        return;
+    }
+    
+    m_activeLyricsQueries = queryCount;
+    m_lblStatus->setText(QString("Fetching lyrics for %1 track(s)...").arg(queryCount));
     
     for (int row : selectedRows) {
-        fetchLyricsForTrack(row);
+        TrackEditInfo& track = m_tracks[row];
+        if (!track.metadata.artist.trimmed().isEmpty() && !track.metadata.title.trimmed().isEmpty()) {
+            fetchLyricsForTrack(row);
+        }
     }
 }
 
 void AdvancedTagEditorDialog::fetchLyricsForTrack(int idx) {
     TrackEditInfo& track = m_tracks[idx];
-    QString artist = track.metadata.artist.trimmed();
-    QString title = track.metadata.title.trimmed();
+    QString artist = cleanQueryString(track.metadata.artist);
+    QString title = cleanQueryString(track.metadata.title);
     if (artist.isEmpty() || title.isEmpty()) {
+        m_activeLyricsQueries--;
+        if (m_activeLyricsQueries <= 0) {
+            m_lblStatus->setText("Lyrics fetch completed.");
+        }
         return;
     }
     
     QUrl url("https://lrclib.net/api/get");
     QUrlQuery query;
-    query.addQueryItem("artist", artist);
-    query.addQueryItem("track", title);
-    if (!track.metadata.album.isEmpty()) {
-        query.addQueryItem("album", track.metadata.album);
-    }
+    query.addQueryItem("artist_name", artist);
+    query.addQueryItem("track_name", title);
     url.setQuery(query);
     
     QNetworkRequest req(url);
@@ -1476,6 +1501,11 @@ void AdvancedTagEditorDialog::fetchLyricsForTrack(int idx) {
             m_tracks[idx].metadata.lyrics = lyrics;
             m_tracks[idx].isModified = true;
             updateUIIfSelected(idx);
+            
+            m_activeLyricsQueries--;
+            if (m_activeLyricsQueries <= 0) {
+                m_lblStatus->setText("Lyrics fetch completed.");
+            }
         } else {
             fetchLyricsOvh(idx);
         }
@@ -1484,9 +1514,13 @@ void AdvancedTagEditorDialog::fetchLyricsForTrack(int idx) {
 
 void AdvancedTagEditorDialog::fetchLyricsOvh(int idx) {
     TrackEditInfo& track = m_tracks[idx];
-    QString artist = track.metadata.artist.trimmed();
-    QString title = track.metadata.title.trimmed();
+    QString artist = cleanQueryString(track.metadata.artist);
+    QString title = cleanQueryString(track.metadata.title);
     if (artist.isEmpty() || title.isEmpty()) {
+        m_activeLyricsQueries--;
+        if (m_activeLyricsQueries <= 0) {
+            m_lblStatus->setText("Lyrics fetch completed.");
+        }
         return;
     }
     
@@ -1510,6 +1544,11 @@ void AdvancedTagEditorDialog::fetchLyricsOvh(int idx) {
                 m_tracks[idx].isModified = true;
                 updateUIIfSelected(idx);
             }
+        }
+        
+        m_activeLyricsQueries--;
+        if (m_activeLyricsQueries <= 0) {
+            m_lblStatus->setText("Lyrics fetch completed.");
         }
     });
 }

@@ -110,6 +110,7 @@ private:
 
     // Network manager and online lyrics helpers
     class QNetworkAccessManager* m_networkManager = nullptr;
+    int m_activeLyricsQueries = 0;
     void fetchLyricsForTrack(int idx);
     void fetchLyricsOvh(int idx);
     void updateUIIfSelected(int idx);
