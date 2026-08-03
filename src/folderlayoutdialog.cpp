@@ -138,7 +138,7 @@ FolderLayoutDialog::FolderLayoutDialog(const QList<FolderLayoutRule>& existingRu
     }
 
     setWindowTitle("Folder Profiles & Layouts");
-    resize(920, 600);
+    resize(1020, 640);
     setStyleSheet("QDialog { background-color: #1e1e2e; color: #cdd6f4; }"
                   "QLabel { color: #cdd6f4; font-size: 12px; }"
                   "QGroupBox { font-weight: bold; border: 1px solid #313244; border-radius: 6px; margin-top: 12px; padding-top: 16px; color: #f5c2e7; }"
@@ -174,19 +174,19 @@ void FolderLayoutDialog::setupUI() {
     leftLayout->addWidget(listLabel);
 
     m_listWidget = new QListWidget(this);
-    m_listWidget->setFixedWidth(220);
+    m_listWidget->setFixedWidth(290);
     m_listWidget->setToolTip("List of active folder profiles and layout templates. Green switch = Active (Enabled), Gray = Inactive (Disabled).");
     leftLayout->addWidget(m_listWidget);
 
     QHBoxLayout* addButtonsLayout = new QHBoxLayout();
     m_btnAdd = new QPushButton("+ Add Profile", this);
-    m_btnAdd->setStyleSheet("QPushButton { background-color: #313244; color: #a6e3a1; border: 1px solid #45475a; }"
+    m_btnAdd->setStyleSheet("QPushButton { background-color: #313244; color: #a6e3a1; border: 1px solid #45475a; padding: 6px 8px; }"
                             "QPushButton:hover { background-color: #a6e3a1; color: #11111b; }");
     m_btnAdd->setToolTip("Create a new Folder Profile mapping a specific path to a Layout Template.");
     connect(m_btnAdd, &QPushButton::clicked, this, &FolderLayoutDialog::onAddProfile);
     
     m_btnAddTemplate = new QPushButton("+ Add Template", this);
-    m_btnAddTemplate->setStyleSheet("QPushButton { background-color: #313244; color: #89b4fa; border: 1px solid #45475a; }"
+    m_btnAddTemplate->setStyleSheet("QPushButton { background-color: #313244; color: #89b4fa; border: 1px solid #45475a; padding: 6px 8px; }"
                                     "QPushButton:hover { background-color: #89b4fa; color: #11111b; }");
     m_btnAddTemplate->setToolTip("Create a new standalone Layout Template preset (view mode, toolbars, visualizer settings).");
     connect(m_btnAddTemplate, &QPushButton::clicked, this, &FolderLayoutDialog::onAddTemplate);
@@ -241,13 +241,13 @@ void FolderLayoutDialog::setupUI() {
 
     QHBoxLayout* shortcutButtons = new QHBoxLayout();
     QPushButton* btnEditToolbars = new QPushButton("Edit Toolbars...", this);
-    btnEditToolbars->setStyleSheet("QPushButton { background-color: #313244; color: #a6e3a1; border: 1px solid #45475a; }"
+    btnEditToolbars->setStyleSheet("QPushButton { background-color: #313244; color: #a6e3a1; border: 1px solid #45475a; padding: 6px 8px; }"
                                    "QPushButton:hover { background-color: #a6e3a1; color: #11111b; }");
     btnEditToolbars->setToolTip("Configure custom toolbar button definitions, icons, and shell/action commands.");
     connect(btnEditToolbars, &QPushButton::clicked, this, &FolderLayoutDialog::onEditToolbarsShortcut);
 
     QPushButton* btnEditMenus = new QPushButton("Edit Menus...", this);
-    btnEditMenus->setStyleSheet("QPushButton { background-color: #313244; color: #cba6f7; border: 1px solid #45475a; }"
+    btnEditMenus->setStyleSheet("QPushButton { background-color: #313244; color: #cba6f7; border: 1px solid #45475a; padding: 6px 8px; }"
                                 "QPushButton:hover { background-color: #cba6f7; color: #11111b; }");
     btnEditMenus->setToolTip("Configure custom right-click context menu actions and commands.");
     connect(btnEditMenus, &QPushButton::clicked, this, &FolderLayoutDialog::onEditMenusShortcut);
@@ -1141,6 +1141,7 @@ void FolderLayoutDialog::onMoveUpProfile() {
 
     if (m_rules[prevRealIndex].name.toLower() == "default") return;
 
+    m_currentIndex = -1;
     m_rules.swapItemsAt(realIndex, prevRealIndex);
     populateList();
 
@@ -1180,6 +1181,7 @@ void FolderLayoutDialog::onMoveDownProfile() {
     int nextRealIndex = nextItem->data(Qt::UserRole).toInt();
     if (nextRealIndex < 0 || nextRealIndex >= m_rules.size()) return;
 
+    m_currentIndex = -1;
     m_rules.swapItemsAt(realIndex, nextRealIndex);
     populateList();
 
