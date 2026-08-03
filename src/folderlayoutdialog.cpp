@@ -1544,20 +1544,19 @@ void FolderLayoutDialog::onRestoreProfiles() {
 
 void FolderLayoutDialog::onEditToolbarsShortcut() {
     MainWindow* mainWin = qobject_cast<MainWindow*>(parentWidget());
-    if (mainWin) {
-        ToolbarEditorDialog dlg(mainWin);
-        if (dlg.exec() == QDialog::Accepted) {
+    ToolbarEditorDialog dlg(this);
+    if (dlg.exec() == QDialog::Accepted) {
+        if (mainWin) {
             mainWin->rebuildToolBars();
-            // Re-harvest current profile layout if they wish
         }
     }
 }
-
+ 
 void FolderLayoutDialog::onEditMenusShortcut() {
     MainWindow* mainWin = qobject_cast<MainWindow*>(parentWidget());
-    if (mainWin) {
-        CustomMenuEditorDialog dlg(mainWin);
-        if (dlg.exec() == QDialog::Accepted) {
+    CustomMenuEditorDialog dlg(this);
+    if (dlg.exec() == QDialog::Accepted) {
+        if (mainWin) {
             mainWin->rebuildCustomMenus();
         }
     }
