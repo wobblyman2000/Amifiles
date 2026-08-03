@@ -10,6 +10,8 @@
 #include <QMap>
 #include "metadataextractor.h"
 
+#include <QSet>
+
 struct TrackEditInfo {
     QString originalPath;
     QString currentPath;
@@ -21,6 +23,9 @@ struct TrackEditInfo {
 };
 
 #include <QPlainTextEdit>
+
+#include <QComboBox>
+#include <QTableWidget>
 
 class AdvancedTagEditorDialog : public QDialog {
     Q_OBJECT
@@ -41,6 +46,10 @@ private slots:
     void onOnlineScrape();
     void onQuickActionTriggered();
     void onFetchLyricsClicked();
+    void onExtractArtwork();
+    void onAddCustomTag();
+    void onRemoveCustomTag();
+    void onCustomTagCellChanged();
     void onApplyClicked();
     void onSaveClicked();
 
@@ -54,6 +63,7 @@ private:
     
     // Helpers
     QPixmap loadArtworkPixmap(const QByteArray& data, const QString& mimeType);
+    void populateCustomTagsTable(const QSet<int>& selectedRows);
 
     QStringList m_initialPaths;
     QList<TrackEditInfo> m_tracks;
@@ -67,7 +77,7 @@ private:
     QLineEdit* m_editTitle = nullptr;
     QLineEdit* m_editArtist = nullptr;
     QLineEdit* m_editAlbum = nullptr;
-    QLineEdit* m_editGenre = nullptr;
+    QComboBox* m_editGenre = nullptr;
     QLineEdit* m_editYear = nullptr;
     QLineEdit* m_editTrack = nullptr;
     QLineEdit* m_editTrackTotal = nullptr;
@@ -77,6 +87,9 @@ private:
     QLineEdit* m_editComposer = nullptr;
     QLineEdit* m_editBpm = nullptr;
     QLineEdit* m_editComment = nullptr;
+    QTableWidget* m_tableCustomTags = nullptr;
+    QPushButton* m_btnAddCustomTag = nullptr;
+    QPushButton* m_btnRemoveCustomTag = nullptr;
     QPlainTextEdit* m_editLyrics = nullptr;
     QCheckBox* m_chkCompilation = nullptr;
 

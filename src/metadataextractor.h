@@ -3,6 +3,7 @@
 
 #include <QString>
 #include <QSize>
+#include <QMap>
 
 struct FileMetadata {
     QString path;
@@ -40,6 +41,7 @@ struct FileMetadata {
     bool compilation = false;
     bool hasEmbeddedArtwork = false;
     QString codec;
+    QMap<QString, QString> customTags;
 };
 
 class MetadataExtractor {

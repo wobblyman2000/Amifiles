@@ -456,7 +456,8 @@ bool TagEditorDialog::writeMp3Tags(const QString& filePath, const QString& title
                                    const QString& trackNumber, const QString& trackTotal,
                                    const QString& discTotal, const QString& composer,
                                    const QString& bpm, const QString& comment,
-                                   const QString& lyrics) {
+                                   const QString& lyrics,
+                                   const QMap<QString, QString>& customTags) {
     QFile file(filePath);
     if (!file.open(QIODevice::ReadOnly)) return false;
 
@@ -612,7 +613,7 @@ bool TagEditorDialog::writeMp3Tags(const QString& filePath, const QString& title
                 frameId == "TCON" || frameId == "TYER" || frameId == "TDRC" ||
                 frameId == "TPE2" || frameId == "TPOS" || frameId == "TCMP" ||
                 frameId == "TRCK" || frameId == "TCOM" || frameId == "TBPM" ||
-                frameId == "COMM" || frameId == "USLT") {
+                frameId == "COMM" || frameId == "USLT" || frameId == "TXXX") {
                 shouldPreserve = false;
             }
 
@@ -627,6 +628,34 @@ bool TagEditorDialog::writeMp3Tags(const QString& filePath, const QString& title
 
             offset += 10 + frameSize;
         }
+    }
+
+    // TXXX (User defined text information frames)
+    for (auto it = customTags.constBegin(); it != customTags.constEnd(); ++it) {
+        QString key = it.key().trimmed().toUpper();
+        QString val = it.value().trimmed();
+        if (key.isEmpty()) continue;
+
+        QByteArray payload;
+        payload.append((char)3); // UTF-8 text encoding
+        payload.append(key.toUtf8());
+        payload.append((char)0); // Null-terminated description (key)
+        payload.append(val.toUtf8()); // Value
+
+        QByteArray frame;
+        frame.append("TXXX", 4);
+
+        int size = payload.size();
+        frame.append((size >> 24) & 0xFF);
+        frame.append((size >> 16) & 0xFF);
+        frame.append((size >> 8) & 0xFF);
+        frame.append(size & 0xFF);
+
+        frame.append((char)0); // Flags
+        frame.append((char)0);
+
+        frame.append(payload);
+        frames.append(frame);
     }
 
     // Append new artwork if provided
@@ -719,7 +748,8 @@ bool TagEditorDialog::writeFlacTags(const QString& filePath, const QString& titl
                                     const QString& trackNumber, const QString& trackTotal,
                                     const QString& discTotal, const QString& composer,
                                     const QString& bpm, const QString& comment,
-                                    const QString& lyrics) {
+                                    const QString& lyrics,
+                                    const QMap<QString, QString>& customTags) {
     QProcess proc;
     QStringList args;
     args << "--remove-tag=TITLE" << "--remove-tag=ARTIST" << "--remove-tag=ALBUM" << "--remove-tag=GENRE" << "--remove-tag=DATE"
@@ -727,6 +757,11 @@ bool TagEditorDialog::writeFlacTags(const QString& filePath, const QString& titl
          << "--remove-tag=TRACKNUMBER" << "--remove-tag=TRACKTOTAL"
          << "--remove-tag=DISCTOTAL" << "--remove-tag=COMPOSER" << "--remove-tag=BPM" << "--remove-tag=COMMENT" << "--remove-tag=DESCRIPTION"
          << "--remove-tag=LYRICS" << "--remove-tag=UNSYNCEDLYRICS";
+
+    for (auto it = customTags.constBegin(); it != customTags.constEnd(); ++it) {
+        args << QString("--remove-tag=%1").arg(it.key().trimmed().toUpper());
+    }
+
     if (!title.isEmpty()) args << QString("--set-tag=TITLE=%1").arg(title);
     if (!artist.isEmpty()) args << QString("--set-tag=ARTIST=%1").arg(artist);
     if (!album.isEmpty()) args << QString("--set-tag=ALBUM=%1").arg(album);
@@ -747,6 +782,15 @@ bool TagEditorDialog::writeFlacTags(const QString& filePath, const QString& titl
         args << QString("--set-tag=LYRICS=%1").arg(lyrics);
         args << QString("--set-tag=UNSYNCEDLYRICS=%1").arg(lyrics);
     }
+
+    for (auto it = customTags.constBegin(); it != customTags.constEnd(); ++it) {
+        QString key = it.key().trimmed().toUpper();
+        QString val = it.value().trimmed();
+        if (!key.isEmpty() && !val.isEmpty()) {
+            args << QString("--set-tag=%1=%2").arg(key).arg(val);
+        }
+    }
+
     args << QString("--set-tag=COMPILATION=%1").arg(compilation ? "1" : "0");
     args << filePath;
 
@@ -784,6 +828,18 @@ bool TagEditorDialog::writeFlacTags(const QString& filePath, const QString& titl
         args2 << QString("-Lyrics=%1").arg(lyrics);
         args2 << QString("-Unsyncedlyrics=%1").arg(lyrics);
     }
+
+    for (auto it = customTags.constBegin(); it != customTags.constEnd(); ++it) {
+        QString key = it.key().trimmed().toUpper();
+        QString val = it.value().trimmed();
+        if (key.isEmpty()) continue;
+        if (val.isEmpty()) {
+            args2 << QString("-%1=").arg(key);
+        } else {
+            args2 << QString("-%1=%2").arg(key).arg(val);
+        }
+    }
+
     args2 << QString("-Compilation=%1").arg(compilation ? "1" : "0");
     args2 << filePath;
 

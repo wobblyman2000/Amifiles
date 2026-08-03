@@ -174,7 +174,27 @@ void AdvancedTagEditorDialog::setupUI() {
     addFieldRow("Title:", m_editTitle, m_chkWTitle);
     addFieldRow("Artist:", m_editArtist, m_chkWArtist);
     addFieldRow("Album:", m_editAlbum, m_chkWAlbum);
-    addFieldRow("Genre:", m_editGenre, m_chkWGenre);
+
+    // Genre combobox layout
+    m_editGenre = new QComboBox(rightContainer);
+    m_editGenre->setEditable(true);
+    m_editGenre->addItems({"Alternative", "Ambient", "Blues", "Classical", "Comedy", "Country", "Dance", "Disco", "Electronic", "Folk", "Hip-Hop", "House", "Indie", "Industrial", "Jazz", "Metal", "New Age", "Other", "Pop", "Punk", "R&B", "Rap", "Reggae", "Rock", "Soul", "Soundtrack", "Spoken Word", "Techno", "Trance", "Vocal"});
+    m_chkWGenre = new QCheckBox(rightContainer);
+    m_chkWGenre->setToolTip("Write in bulk to all selected files");
+    QHBoxLayout* genreLay = new QHBoxLayout();
+    genreLay->setSpacing(6);
+    genreLay->addWidget(m_editGenre, 1);
+    genreLay->addWidget(m_chkWGenre);
+    form->addRow("Genre:", genreLay);
+    connect(m_editGenre->lineEdit(), &QLineEdit::textEdited, this, [=]() {
+        m_chkWGenre->setChecked(true);
+        onFieldEdited();
+    });
+    connect(m_editGenre, &QComboBox::activated, this, [=]() {
+        m_chkWGenre->setChecked(true);
+        onFieldEdited();
+    });
+
     addFieldRow("Year:", m_editYear, m_chkWYear);
 
     // Track layout
@@ -268,17 +288,44 @@ void AdvancedTagEditorDialog::setupUI() {
     QHBoxLayout* artBtns = new QHBoxLayout();
     m_btnBrowseArtwork = new QPushButton("Browse...", artGroup);
     m_btnPasteArtwork = new QPushButton("Paste", artGroup);
+    QPushButton* btnExtractArtwork = new QPushButton("Extract", artGroup);
+    btnExtractArtwork->setToolTip("Extract embedded artwork to file");
+    connect(btnExtractArtwork, &QPushButton::clicked, this, &AdvancedTagEditorDialog::onExtractArtwork);
     m_btnDeleteArtwork = new QPushButton("Clear", artGroup);
     m_chkWArtwork = new QCheckBox(artGroup);
     m_chkWArtwork->setToolTip("Apply artwork to all selected tracks");
 
     artBtns->addWidget(m_btnBrowseArtwork);
     artBtns->addWidget(m_btnPasteArtwork);
+    artBtns->addWidget(btnExtractArtwork);
     artBtns->addWidget(m_btnDeleteArtwork);
     artBtns->addWidget(m_chkWArtwork);
     artLayout->addLayout(artBtns);
 
     rightLayout->addWidget(artGroup);
+
+    // Group 4: Custom Tags Box
+    QGroupBox* customGroup = new QGroupBox("Custom Tags", rightContainer);
+    QVBoxLayout* customLayout = new QVBoxLayout(customGroup);
+    customLayout->setSpacing(6);
+
+    m_tableCustomTags = new QTableWidget(customGroup);
+    m_tableCustomTags->setColumnCount(2);
+    m_tableCustomTags->setHorizontalHeaderLabels({"Tag Name", "Value"});
+    m_tableCustomTags->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    m_tableCustomTags->setStyleSheet("QTableWidget { background-color: #11111b; border: 1px solid #313244; color: #cdd6f4; gridline-color: #313244; }"
+                                     "QHeaderView::section { background-color: #181825; color: #cdd6f4; border: 1px solid #313244; }");
+    m_tableCustomTags->setFixedHeight(150);
+    customLayout->addWidget(m_tableCustomTags);
+
+    QHBoxLayout* customBtns = new QHBoxLayout();
+    m_btnAddCustomTag = new QPushButton("+ Add Tag", customGroup);
+    m_btnRemoveCustomTag = new QPushButton("- Remove Tag", customGroup);
+    customBtns->addWidget(m_btnAddCustomTag);
+    customBtns->addWidget(m_btnRemoveCustomTag);
+    customLayout->addLayout(customBtns);
+
+    rightLayout->addWidget(customGroup);
     rightLayout->addStretch();
 
     scrollArea->setWidget(rightContainer);
@@ -312,6 +359,9 @@ void AdvancedTagEditorDialog::setupUI() {
     connect(m_btnBrowseArtwork, &QPushButton::clicked, this, &AdvancedTagEditorDialog::onBrowseArtwork);
     connect(m_btnPasteArtwork, &QPushButton::clicked, this, &AdvancedTagEditorDialog::onPasteArtwork);
     connect(m_btnDeleteArtwork, &QPushButton::clicked, this, &AdvancedTagEditorDialog::onDeleteArtwork);
+    connect(m_btnAddCustomTag, &QPushButton::clicked, this, &AdvancedTagEditorDialog::onAddCustomTag);
+    connect(m_btnRemoveCustomTag, &QPushButton::clicked, this, &AdvancedTagEditorDialog::onRemoveCustomTag);
+    connect(m_tableCustomTags, &QTableWidget::itemChanged, this, &AdvancedTagEditorDialog::onCustomTagCellChanged);
 
     connect(actAutoTag, &QAction::triggered, this, &AdvancedTagEditorDialog::onAutoTagFromFilename);
     connect(actRename, &QAction::triggered, this, &AdvancedTagEditorDialog::onRenameFromTags);
@@ -455,7 +505,7 @@ void AdvancedTagEditorDialog::updateFormFromSelection() {
         m_editTitle->clear();
         m_editArtist->clear();
         m_editAlbum->clear();
-        m_editGenre->clear();
+        m_editGenre->setCurrentText("");
         m_editYear->clear();
         m_editTrack->clear();
         m_editTrackTotal->clear();
@@ -481,7 +531,7 @@ void AdvancedTagEditorDialog::updateFormFromSelection() {
         m_editTitle->setText(track.metadata.title);
         m_editArtist->setText(track.metadata.artist);
         m_editAlbum->setText(track.metadata.album);
-        m_editGenre->setText(track.metadata.genre);
+        m_editGenre->setCurrentText(track.metadata.genre);
         m_editYear->setText(track.metadata.year);
         m_editTrack->setText(track.metadata.track);
         m_editTrackTotal->setText(track.metadata.trackTotal);
@@ -587,7 +637,7 @@ void AdvancedTagEditorDialog::updateFormFromSelection() {
         m_editTitle->setText(title);
         m_editArtist->setText(artist);
         m_editAlbum->setText(album);
-        m_editGenre->setText(genre);
+        m_editGenre->setCurrentText(genre);
         m_editYear->setText(year);
         m_editTrack->setText(trackNum);
         m_editTrackTotal->setText(trackTotal);
@@ -603,7 +653,7 @@ void AdvancedTagEditorDialog::updateFormFromSelection() {
         m_editTitle->setPlaceholderText(title.isEmpty() ? "<Multiple Values>" : "");
         m_editArtist->setPlaceholderText(artist.isEmpty() ? "<Multiple Values>" : "");
         m_editAlbum->setPlaceholderText(album.isEmpty() ? "<Multiple Values>" : "");
-        m_editGenre->setPlaceholderText(genre.isEmpty() ? "<Multiple Values>" : "");
+        m_editGenre->lineEdit()->setPlaceholderText(genre.isEmpty() ? "<Multiple Values>" : "");
         m_editYear->setPlaceholderText(year.isEmpty() ? "<Multiple Values>" : "");
         m_editTrack->setPlaceholderText(trackNum.isEmpty() ? "<Multiple Values>" : "");
         m_editTrackTotal->setPlaceholderText(trackTotal.isEmpty() ? "<Multiple Values>" : "");
@@ -628,6 +678,7 @@ void AdvancedTagEditorDialog::updateFormFromSelection() {
         }
     }
 
+    populateCustomTagsTable(selectedRows);
     m_blockFormUpdates = false;
 }
 
@@ -646,7 +697,15 @@ QPixmap AdvancedTagEditorDialog::loadArtworkPixmap(const QByteArray& data, const
 }
 
 void AdvancedTagEditorDialog::onBrowseArtwork() {
-    QString fileName = QFileDialog::getOpenFileName(this, "Select Cover Image File", QDir::homePath(), "Images (*.png *.jpg *.jpeg *.bmp)");
+    QString startDir = QDir::homePath();
+    QList<QTableWidgetItem*> selectedItems = m_tableFiles->selectedItems();
+    if (!selectedItems.isEmpty()) {
+        int idx = selectedItems.first()->row();
+        if (idx >= 0 && idx < m_tracks.size()) {
+            startDir = QFileInfo(m_tracks[idx].currentPath).absolutePath();
+        }
+    }
+    QString fileName = QFileDialog::getOpenFileName(this, "Select Cover Image File", startDir, "Images (*.png *.jpg *.jpeg *.bmp)");
     if (!fileName.isEmpty()) {
         QFile file(fileName);
         if (file.open(QIODevice::ReadOnly)) {
@@ -1274,6 +1333,10 @@ void AdvancedTagEditorDialog::onApplyClicked() {
 }
 
 void AdvancedTagEditorDialog::applyFieldsToSelection() {
+    if (m_tableCustomTags) {
+        m_tableCustomTags->setCurrentItem(nullptr);
+    }
+
     QList<QTableWidgetItem*> selectedItems = m_tableFiles->selectedItems();
     QSet<int> selectedRows;
     for (QTableWidgetItem* item : selectedItems) {
@@ -1290,7 +1353,7 @@ void AdvancedTagEditorDialog::applyFieldsToSelection() {
         if (m_chkWTitle->isChecked()) { track.metadata.title = m_editTitle->text(); changed = true; }
         if (m_chkWArtist->isChecked()) { track.metadata.artist = m_editArtist->text(); changed = true; }
         if (m_chkWAlbum->isChecked()) { track.metadata.album = m_editAlbum->text(); changed = true; }
-        if (m_chkWGenre->isChecked()) { track.metadata.genre = m_editGenre->text(); changed = true; }
+        if (m_chkWGenre->isChecked()) { track.metadata.genre = m_editGenre->currentText(); changed = true; }
         if (m_chkWYear->isChecked()) { track.metadata.year = m_editYear->text(); changed = true; }
         if (m_chkWTrack->isChecked()) { track.metadata.track = m_editTrack->text(); changed = true; }
         if (m_chkWTrackTotal->isChecked()) { track.metadata.trackTotal = m_editTrackTotal->text(); changed = true; }
@@ -1338,7 +1401,7 @@ void AdvancedTagEditorDialog::saveTagsToDisk() {
                 track.coverChanged && track.coverData.isEmpty(), track.coverData, track.coverMimeType,
                 track.metadata.track, track.metadata.trackTotal, track.metadata.discTotal,
                 track.metadata.composer, track.metadata.bpm, track.metadata.comment,
-                track.metadata.lyrics
+                track.metadata.lyrics, track.metadata.customTags
             );
         } else if (ext == "flac") {
             success = TagEditorDialog::writeFlacTags(
@@ -1347,7 +1410,7 @@ void AdvancedTagEditorDialog::saveTagsToDisk() {
                 track.metadata.discNumber, track.metadata.compilation,
                 track.metadata.track, track.metadata.trackTotal, track.metadata.discTotal,
                 track.metadata.composer, track.metadata.bpm, track.metadata.comment,
-                track.metadata.lyrics
+                track.metadata.lyrics, track.metadata.customTags
             );
             if (success && track.coverChanged) {
                 if (track.coverData.isEmpty()) {
@@ -1563,4 +1626,159 @@ void AdvancedTagEditorDialog::updateUIIfSelected(int idx) {
         populateTable();
         updateFormFromSelection();
     }
+}
+
+void AdvancedTagEditorDialog::onExtractArtwork() {
+    if (m_currentArtworkData.isEmpty()) {
+        QMessageBox::warning(this, "No Artwork", "There is no artwork to extract.");
+        return;
+    }
+    
+    QString startDir = QDir::homePath();
+    QList<QTableWidgetItem*> selectedItems = m_tableFiles->selectedItems();
+    if (!selectedItems.isEmpty()) {
+        int idx = selectedItems.first()->row();
+        if (idx >= 0 && idx < m_tracks.size()) {
+            startDir = QFileInfo(m_tracks[idx].currentPath).absolutePath();
+        }
+    }
+    
+    QString defaultExt = (m_currentArtworkMimeType == "image/png") ? ".png" : ".jpg";
+    QString defaultPath = QDir(startDir).filePath("cover" + defaultExt);
+    
+    QString fileName = QFileDialog::getSaveFileName(this, "Extract/Save Cover Artwork", defaultPath, "Images (*.jpg *.jpeg *.png)");
+    if (!fileName.isEmpty()) {
+        QFile file(fileName);
+        if (file.open(QIODevice::WriteOnly)) {
+            file.write(m_currentArtworkData);
+            QMessageBox::information(this, "Artwork Saved", "Successfully saved cover artwork to file.");
+        } else {
+            QMessageBox::warning(this, "Error", "Failed to save the artwork file.");
+        }
+    }
+}
+
+void AdvancedTagEditorDialog::onAddCustomTag() {
+    bool ok;
+    QString tagName = QInputDialog::getText(this, "Add Custom Tag", "Tag Name (e.g. RECORDLABEL, MOOD, CATALOGNUMBER):", QLineEdit::Normal, "", &ok).trimmed().toUpper();
+    if (!ok || tagName.isEmpty()) return;
+
+    // Check if tag already exists in the table
+    for (int r = 0; r < m_tableCustomTags->rowCount(); ++r) {
+        QTableWidgetItem* item = m_tableCustomTags->item(r, 0);
+        if (item && item->text() == tagName) {
+            QMessageBox::warning(this, "Tag Exists", "This custom tag is already in the list.");
+            return;
+        }
+    }
+
+    m_tableCustomTags->blockSignals(true);
+    int r = m_tableCustomTags->rowCount();
+    m_tableCustomTags->insertRow(r);
+    m_tableCustomTags->setItem(r, 0, new QTableWidgetItem(tagName));
+    m_tableCustomTags->setItem(r, 1, new QTableWidgetItem(""));
+    m_tableCustomTags->blockSignals(false);
+
+    onCustomTagCellChanged();
+}
+
+void AdvancedTagEditorDialog::onRemoveCustomTag() {
+    int currRow = m_tableCustomTags->currentRow();
+    if (currRow < 0) {
+        QMessageBox::warning(this, "No Selection", "Please select a custom tag row in the table to remove.");
+        return;
+    }
+    m_tableCustomTags->removeRow(currRow);
+    onCustomTagCellChanged();
+}
+
+void AdvancedTagEditorDialog::onCustomTagCellChanged() {
+    // Flag changes to selected tracks
+    QList<QTableWidgetItem*> selectedItems = m_tableFiles->selectedItems();
+    QSet<int> selectedRows;
+    for (QTableWidgetItem* item : selectedItems) {
+        selectedRows.insert(item->row());
+    }
+    if (selectedRows.isEmpty()) return;
+
+    // Read custom tags from table
+    QMap<QString, QString> tableCustomTags;
+    for (int r = 0; r < m_tableCustomTags->rowCount(); ++r) {
+        QTableWidgetItem* keyItem = m_tableCustomTags->item(r, 0);
+        QTableWidgetItem* valItem = m_tableCustomTags->item(r, 1);
+        if (keyItem && !keyItem->text().trimmed().isEmpty()) {
+            QString val = valItem ? valItem->text() : "";
+            tableCustomTags[keyItem->text().trimmed().toUpper()] = val;
+        }
+    }
+
+    // Apply to selected tracks
+    for (int row : selectedRows) {
+        TrackEditInfo& track = m_tracks[row];
+        QMap<QString, QString> merged = track.metadata.customTags;
+        
+        // Remove tags not in table
+        for (auto it = merged.begin(); it != merged.end(); ) {
+            if (!tableCustomTags.contains(it.key())) {
+                it = merged.erase(it);
+                track.isModified = true;
+            } else {
+                ++it;
+            }
+        }
+        
+        // Add or update tags from table
+        for (auto it = tableCustomTags.constBegin(); it != tableCustomTags.constEnd(); ++it) {
+            QString key = it.key();
+            QString val = it.value();
+            if (!val.isEmpty() || selectedRows.size() == 1) {
+                if (merged[key] != val) {
+                    merged[key] = val;
+                    track.isModified = true;
+                }
+            }
+        }
+        track.metadata.customTags = merged;
+    }
+
+    populateTable(); // Redraw main list to show modified state indicators
+}
+
+void AdvancedTagEditorDialog::populateCustomTagsTable(const QSet<int>& selectedRows) {
+    m_tableCustomTags->blockSignals(true);
+    m_tableCustomTags->setRowCount(0);
+
+    if (selectedRows.isEmpty()) {
+        m_tableCustomTags->blockSignals(false);
+        return;
+    }
+
+    // Map tag key -> set of values
+    QMap<QString, QSet<QString>> allCustomTags;
+    for (int idx : selectedRows) {
+        const TrackEditInfo& track = m_tracks[idx];
+        for (auto it = track.metadata.customTags.constBegin(); it != track.metadata.customTags.constEnd(); ++it) {
+            allCustomTags[it.key().trimmed().toUpper()].insert(it.value().trimmed());
+        }
+    }
+
+    int r = 0;
+    for (auto it = allCustomTags.constBegin(); it != allCustomTags.constEnd(); ++it) {
+        m_tableCustomTags->insertRow(r);
+        
+        QTableWidgetItem* keyItem = new QTableWidgetItem(it.key());
+        m_tableCustomTags->setItem(r, 0, keyItem);
+        
+        QTableWidgetItem* valItem = new QTableWidgetItem();
+        if (it.value().size() == 1) {
+            valItem->setText(*it.value().begin());
+        } else {
+            valItem->setText("");
+            valItem->setToolTip(QString("Multiple values: %1").arg(it.value().values().join(", ")));
+        }
+        m_tableCustomTags->setItem(r, 1, valItem);
+        
+        r++;
+    }
+    m_tableCustomTags->blockSignals(false);
 }

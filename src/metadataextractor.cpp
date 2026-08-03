@@ -457,6 +457,11 @@ static void parseFlacMetadata(const QString& filePath, FileMetadata& meta) {
                     else if (key == "COMMENT" || key == "DESCRIPTION") meta.comment = val;
                     else if (key == "LYRICS" || key == "UNSYNCEDLYRICS") meta.lyrics = val;
                     else if (key == "COMPILATION") meta.compilation = (val == "1");
+                    else {
+                        if (!key.isEmpty()) {
+                            meta.customTags[key] = val;
+                        }
+                    }
                 }
             }
         } else if (blockType == 6) {
@@ -607,6 +612,40 @@ void MetadataExtractor::extractAudioInfo(const QString& filePath, FileMetadata& 
                 } else if (frameId == "TCMP") {
                     QString val = decodeID3v2Text(frameData);
                     meta.compilation = (val == "1");
+                } else if (frameId == "TXXX") {
+                    if (frameData.size() > 1) {
+                        char enc = frameData.at(0);
+                        int descStart = 1;
+                        int valStart = descStart;
+                        if (enc == 0x00 || enc == 0x03) {
+                            int nullIdx = frameData.indexOf('\0', descStart);
+                            if (nullIdx != -1) {
+                                valStart = nullIdx + 1;
+                            }
+                        } else {
+                            for (int idx = descStart; idx < frameData.size() - 1; idx += 2) {
+                                if (frameData.at(idx) == 0 && frameData.at(idx + 1) == 0) {
+                                    valStart = idx + 2;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        QByteArray descBytes = frameData.mid(descStart, valStart - descStart);
+                        if (!descBytes.isEmpty() && descBytes.endsWith('\0')) {
+                            descBytes.chop(1);
+                        }
+                        descBytes.prepend(enc);
+                        QString key = decodeID3v2Text(descBytes).trimmed().toUpper();
+                        
+                        QByteArray valBytes = frameData.mid(valStart);
+                        valBytes.prepend(enc);
+                        QString val = decodeID3v2Text(valBytes).trimmed();
+                        
+                        if (!key.isEmpty()) {
+                            meta.customTags[key] = val;
+                        }
+                    }
                 } else if (frameId == "APIC") {
                     meta.hasEmbeddedArtwork = true;
                 }
