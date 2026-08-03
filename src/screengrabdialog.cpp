@@ -20,6 +20,7 @@ ScreenshotOverlay::ScreenshotOverlay(const QPixmap& screenPixmap, QWidget* paren
     setWindowState(Qt::WindowFullScreen);
     setCursor(Qt::CrossCursor);
     setMouseTracking(true);
+    setFocusPolicy(Qt::StrongFocus);
 }
 
 void ScreenshotOverlay::paintEvent(QPaintEvent* event) {
@@ -193,11 +194,13 @@ void ScreenGrabDialog::performCapture() {
             fullScreen = screen->grabWindow(0);
         }
         
-        ScreenshotOverlay* overlay = new ScreenshotOverlay(fullScreen, this);
+        ScreenshotOverlay* overlay = new ScreenshotOverlay(fullScreen, nullptr);
         QEventLoop overlayLoop;
         connect(overlay, &ScreenshotOverlay::selectionCaptured, this, &ScreenGrabDialog::onSelectionCaptured);
         connect(overlay, &QWidget::destroyed, &overlayLoop, &QEventLoop::quit);
         overlay->show();
+        overlay->activateWindow();
+        overlay->setFocus();
         overlayLoop.exec();
         
         captured = m_capturedPixmap;
