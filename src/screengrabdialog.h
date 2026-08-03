@@ -42,6 +42,8 @@ private slots:
     void onCaptureClicked();
     void onSaveClicked();
     void onSelectionCaptured(const QPixmap& pixmap);
+    void executeCapture();
+    void onOverlayClosed();
 
 private:
     void performCapture();

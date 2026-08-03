@@ -154,22 +154,12 @@ void ScreenGrabDialog::onCaptureClicked() {
 }
 
 void ScreenGrabDialog::performCapture() {
-    // 1. Process Delay if requested
-    if (m_checkDelay->isChecked()) {
-        int seconds = m_spinDelay->value();
-        hide();
-        
-        QEventLoop loop;
-        QTimer::singleShot(seconds * 1000, &loop, &QEventLoop::quit);
-        loop.exec();
-    } else {
-        hide();
-        // Give the OS 150ms to animate window hide completely
-        QEventLoop loop;
-        QTimer::singleShot(150, &loop, &QEventLoop::quit);
-        loop.exec();
-    }
+    int delayMs = m_checkDelay->isChecked() ? m_spinDelay->value() * 1000 : 150;
+    hide();
+    QTimer::singleShot(delayMs, this, &ScreenGrabDialog::executeCapture);
+}
 
+void ScreenGrabDialog::executeCapture() {
     QPixmap captured;
     if (m_radioFullScreen->isChecked()) {
         QScreen* screen = QGuiApplication::primaryScreen();
@@ -194,21 +184,30 @@ void ScreenGrabDialog::performCapture() {
             fullScreen = screen->grabWindow(0);
         }
         
+        m_capturedPixmap = QPixmap(); // Clear previous
         ScreenshotOverlay* overlay = new ScreenshotOverlay(fullScreen, nullptr);
-        QEventLoop overlayLoop;
         connect(overlay, &ScreenshotOverlay::selectionCaptured, this, &ScreenGrabDialog::onSelectionCaptured);
-        connect(overlay, &QWidget::destroyed, &overlayLoop, &QEventLoop::quit);
+        connect(overlay, &QWidget::destroyed, this, &ScreenGrabDialog::onOverlayClosed);
+        
+        if (screen) {
+            overlay->setGeometry(screen->geometry());
+        }
         overlay->show();
+        overlay->raise();
         overlay->activateWindow();
         overlay->setFocus();
-        overlayLoop.exec();
-        
-        captured = m_capturedPixmap;
+        return; // Dialog will show up when overlay is closed
     }
 
-    show();
     if (!captured.isNull()) {
         m_capturedPixmap = captured;
+    }
+    onOverlayClosed();
+}
+
+void ScreenGrabDialog::onOverlayClosed() {
+    show();
+    if (!m_capturedPixmap.isNull()) {
         m_previewLabel->setPixmap(m_capturedPixmap.scaled(m_previewLabel->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
         m_previewLabel->setStyleSheet("background-color: #11111b; border: 1px solid #a6e3a1; border-radius: 4px; min-height: 200px;");
         m_btnSave->setEnabled(true);
