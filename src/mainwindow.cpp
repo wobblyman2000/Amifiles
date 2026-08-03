@@ -2854,59 +2854,24 @@ void MainWindow::onCustomButtonClicked() {
 void MainWindow::onCustomToolBarContextMenu(const QPoint& pos) {
     if (m_toolbarEditMode) return;
     if (!m_customToolBar) return;
-    QAction* action = m_customToolBar->actionAt(pos);
+
     QMenu menu(this);
+    menu.setStyleSheet(
+        "QMenu { background-color: #11111b; color: #cdd6f4; border: 1px solid #313244; border-radius: 4px; padding: 4px; }"
+        "QMenu::item { padding: 4px 20px 4px 20px; border-radius: 2px; }"
+        "QMenu::item:selected { background-color: #313244; color: #a6e3a1; }"
+    );
 
-    if (action && action->property("isCustom").toBool()) {
-        int idx = action->property("index").toInt();
-        
-        QAction* actEdit = menu.addAction("Edit Button...");
-        QAction* actDelete = menu.addAction("Delete Button");
+    QAction* actImport = menu.addAction("Import Custom Buttons...");
+    QAction* actExport = menu.addAction("Export Custom Buttons...");
 
-        QAction* selected = menu.exec(m_customToolBar->mapToGlobal(pos));
-        if (!selected) return;
+    QAction* selected = menu.exec(m_customToolBar->mapToGlobal(pos));
+    if (!selected) return;
 
-        if (selected == actEdit) {
-            CustomButtonDialog dlg(m_customButtons[idx].name, m_customButtons[idx].script, m_customButtons[idx].icon, this);
-            if (dlg.exec() == QDialog::Accepted) {
-                QString name = dlg.buttonName();
-                QString script = dlg.script();
-                QString icon = dlg.iconPath();
-                if (!name.isEmpty() && !script.isEmpty()) {
-                    m_customButtons[idx] = {name, script, icon};
-                    saveCustomButtons();
-                    rebuildCustomToolBar();
-                    statusBar()->showMessage("Custom button updated.", 3000);
-                }
-            }
-        } else if (selected == actDelete) {
-            auto answer = QMessageBox::question(this, "Delete Button", 
-                                                QString("Are you sure you want to delete the button '%1'?")
-                                                .arg(m_customButtons[idx].name),
-                                                QMessageBox::Yes | QMessageBox::No);
-            if (answer == QMessageBox::Yes) {
-                m_customButtons.removeAt(idx);
-                saveCustomButtons();
-                rebuildCustomToolBar();
-                statusBar()->showMessage("Custom button deleted.", 3000);
-            }
-        }
-    } else {
-        QAction* actAdd = menu.addAction("Add Custom Button...");
-        menu.addSeparator();
-        QAction* actImport = menu.addAction("Import Custom Buttons...");
-        QAction* actExport = menu.addAction("Export Custom Buttons...");
-
-        QAction* selected = menu.exec(m_customToolBar->mapToGlobal(pos));
-        if (!selected) return;
-
-        if (selected == actAdd) {
-            onAddCustomButton();
-        } else if (selected == actImport) {
-            onImportCustomButtons();
-        } else if (selected == actExport) {
-            onExportCustomButtons();
-        }
+    if (selected == actImport) {
+        onImportCustomButtons();
+    } else if (selected == actExport) {
+        onExportCustomButtons();
     }
 }
 
