@@ -19,6 +19,7 @@
 #include "searchdialog.h"
 #include "remotemountdialog.h"
 #include "screengrabdialog.h"
+#include "advancedtageditordialog.h"
 #include "cloudmountdialog.h"
 #include "imageconverterdialog.h"
 #include "agestylingdialog.h"
@@ -729,6 +730,12 @@ void MainWindow::setupActions() {
     m_actScreenGrab->setStatusTip("Capture full screen, active window, or customized region snippet");
     connect(m_actScreenGrab, &QAction::triggered, this, &MainWindow::onScreenGrabAction);
 
+    m_actAdvancedTagEditor = new QAction("Advanced Music Tag Editor...", this);
+    m_actAdvancedTagEditor->setShortcut(QKeySequence("Ctrl+Alt+T"));
+    m_actAdvancedTagEditor->setToolTip("Open advanced built-in music metadata editor and bulk tagger");
+    m_actAdvancedTagEditor->setStatusTip("Open advanced built-in music metadata editor and bulk tagger");
+    connect(m_actAdvancedTagEditor, &QAction::triggered, this, &MainWindow::onAdvancedTagEditorAction);
+
     m_actMutePreview = new QAction("Mute Preview Audio", this);
     m_actMutePreview->setCheckable(true);
     m_actMutePreview->setChecked(false);
@@ -1304,6 +1311,7 @@ void MainWindow::setupMenus() {
     m_menuTools = menuBar()->addMenu("Tools");
     m_menuTools->addAction(m_actCommandPalette);
     m_menuTools->addAction(m_actScreenGrab);
+    m_menuTools->addAction(m_actAdvancedTagEditor);
     m_menuTools->addSeparator();
     m_menuTools->addAction(m_actCompareSync);
     m_menuTools->addAction(m_actDuplicateFinder);
@@ -7916,4 +7924,21 @@ void MainWindow::handleToolbarDrop(const QString& sourceTbId, int sourceIdx, con
 void MainWindow::onScreenGrabAction() {
     ScreenGrabDialog dlg(this);
     dlg.exec();
+}
+
+void MainWindow::onAdvancedTagEditorAction() {
+    QStringList paths;
+    if (m_activePanel) {
+        paths = m_activePanel->selectedPaths();
+        if (paths.isEmpty()) {
+            paths.append(m_activePanel->currentPath());
+        }
+    }
+    
+    AdvancedTagEditorDialog dlg(paths, this);
+    if (dlg.exec() == QDialog::Accepted) {
+        if (m_activePanel) {
+            m_activePanel->refresh();
+        }
+    }
 }

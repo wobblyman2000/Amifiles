@@ -25,6 +25,9 @@ public:
                               const QString& discTotal = QString(), const QString& composer = QString(),
                               const QString& bpm = QString(), const QString& comment = QString());
 
+    static bool stripFlacArtwork(const QString& filePath);
+    static bool writeFlacArtwork(const QString& filePath, const QByteArray& imgData, const QString& mimeType = "image/jpeg");
+
 private slots:
     void onSaveClicked();
     void onPasteArtwork();
@@ -42,8 +45,6 @@ private:
     QStringList getEmbeddedArtworkTags(const QString& filePath);
     class QPixmap loadEmbeddedArtwork(const QString& filePath);
     class QPixmap loadEmbeddedArtworkAtIndex(const QString& filePath, const QString& tag);
-    bool stripFlacArtwork(const QString& filePath);
-    bool writeFlacArtwork(const QString& filePath, const QByteArray& imgData, const QString& mimeType = "image/jpeg");
     bool writeExifTags(const QString& filePath, const QString& camera, const QString& dateTaken);
 
     QStringList m_filePaths;

@@ -25,6 +25,7 @@
 #include "bulkrename.h"
 #include "diffdialog.h"
 #include "tageditordialog.h"
+#include "advancedtageditordialog.h"
 #include "filetagsdialog.h"
 #include "iconpickerdialog.h"
 #include "theaterviewdelegate.h"
@@ -3758,6 +3759,11 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         notifyPathDataChanged(selectedPath);
     } else if (command == "app.edit_tags") {
         TagEditorDialog dlg(curSelected, this);
+        if (dlg.exec() == QDialog::Accepted) {
+            refresh();
+        }
+    } else if (command == "app.advanced_tag_editor") {
+        AdvancedTagEditorDialog dlg(curSelected, this);
         if (dlg.exec() == QDialog::Accepted) {
             refresh();
         }
@@ -8428,6 +8434,7 @@ QJsonArray FilePanel::getDefaultContextMenuJson() const {
         {"action", "✔ Toggle Watch Status (Watched/Unwatched)", "app.toggle_watch", ""},
         {"separator", "", "", ""},
         {"action", "Edit Audio Tags...", "app.edit_tags", ""},
+        {"action", "Advanced Tag Editor...", "app.advanced_tag_editor", ""},
         {"action", "Fetch MusicBrainz Album Info...", "app.fetch_musicbrainz", ""},
         {"action", "Scrape Video Metadata...", "app.scrape_video", ""},
         {"action", "Fetch Cover Art & Wallpaper...", "app.fetch_folder_art", ""},
@@ -8723,6 +8730,8 @@ QAction* FilePanel::createContextMenuAction(QMenu* parentMenu, const QJsonObject
         act = parentMenu->addAction(icon, "✔ Toggle Watch Status (Watched/Unwatched)");
     } else if (command == "app.edit_tags") {
         act = parentMenu->addAction(icon, "Edit Audio Tags...");
+    } else if (command == "app.advanced_tag_editor") {
+        act = parentMenu->addAction(icon, "Advanced Tag Editor...");
     } else if (command == "app.fetch_musicbrainz") {
         act = parentMenu->addAction(style->standardIcon(QStyle::SP_ComputerIcon), "Fetch MusicBrainz Album Info...");
     } else if (command == "app.scrape_video") {
