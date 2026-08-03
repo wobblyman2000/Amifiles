@@ -460,6 +460,34 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(nullptr, Qt::Windo
     m_btnTogglePlaylist->setStyleSheet("QPushButton { color: #cdd6f4; font-size: 16px; background-color: transparent; border: none; } QPushButton:hover { color: #89b4fa; }");
     connect(m_btnTogglePlaylist, &QPushButton::clicked, this, &FullscreenWidget::onHudPlaylist);
 
+    m_btnToggleLyrics = new QPushButton(m_hudWidget);
+    m_btnToggleLyrics->setText("LRC");
+    m_btnToggleLyrics->setToolTip("Toggle Fullscreen Lyrics Overlay");
+    m_btnToggleLyrics->setFocusPolicy(Qt::NoFocus);
+    m_btnToggleLyrics->setFixedSize(btnSize, btnSize);
+    {
+        bool lyricsEnabled = QSettings("Amifiles", "Amifiles").value("preview/show_lyrics", true).toBool();
+        if (lyricsEnabled) {
+            m_btnToggleLyrics->setStyleSheet("QPushButton { font-weight: bold; color: #a6e3a1; font-family: 'Outfit'; font-size: 11px; background-color: transparent; border: none; } QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); }");
+        } else {
+            m_btnToggleLyrics->setStyleSheet("QPushButton { font-weight: bold; color: #cdd6f4; font-family: 'Outfit'; font-size: 11px; background-color: transparent; border: none; } QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); }");
+        }
+    }
+    connect(m_btnToggleLyrics, &QPushButton::clicked, this, [this]() {
+        QSettings settings("Amifiles", "Amifiles");
+        bool lyricsEnabled = settings.value("preview/show_lyrics", true).toBool();
+        lyricsEnabled = !lyricsEnabled;
+        settings.setValue("preview/show_lyrics", lyricsEnabled);
+        
+        if (lyricsEnabled) {
+            m_btnToggleLyrics->setStyleSheet("QPushButton { font-weight: bold; color: #a6e3a1; font-family: 'Outfit'; font-size: 11px; background-color: transparent; border: none; } QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); }");
+        } else {
+            m_btnToggleLyrics->setStyleSheet("QPushButton { font-weight: bold; color: #cdd6f4; font-family: 'Outfit'; font-size: 11px; background-color: transparent; border: none; } QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); }");
+        }
+        
+        emit lyricsToggled(lyricsEnabled);
+    });
+
     QPushButton* btnExit = new QPushButton(m_hudWidget);
     btnExit->setIcon(style->standardIcon(QStyle::SP_TitleBarNormalButton));
     btnExit->setToolTip("Exit Fullscreen");
@@ -531,6 +559,7 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(nullptr, Qt::Windo
     row2Layout->addWidget(m_btnSubtitles);
     row2Layout->addWidget(m_btnChapters);
     row2Layout->addWidget(m_btnTogglePlaylist);
+    row2Layout->addWidget(m_btnToggleLyrics);
     
     row2Layout->addStretch(1);
 
@@ -3397,6 +3426,11 @@ void PreviewPanel::toggleFullscreen() {
     connect(m_fullscreenWidget, &FullscreenWidget::repeatRequested, this, &PreviewPanel::onRepeatClicked);
     connect(m_fullscreenWidget, &FullscreenWidget::builtinPlayerDoubleclickToggled, this, &PreviewPanel::builtinPlayerDoubleclickToggled);
     connect(m_fullscreenWidget, &FullscreenWidget::playlistItemSelected, this, &PreviewPanel::playPlaylistIndex);
+    connect(m_fullscreenWidget, &FullscreenWidget::lyricsToggled, this, [this](bool visible) {
+        if (m_fullscreenLyricsScroll) {
+            m_fullscreenLyricsScroll->setVisible(visible);
+        }
+    });
 
     // Synchronize initial Auto-FS toggle state to HUD
     bool autoFS = false;
@@ -3427,96 +3461,7 @@ void PreviewPanel::toggleFullscreen() {
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
-    if (isVideo) {
-        m_fullscreenVideoWidget = new QVideoWidget(m_fullscreenWidget);
-        m_fullscreenVideoWidget->setStyleSheet("background-color: #000000;");
-        layout->addWidget(m_fullscreenVideoWidget);
-
-        m_player->setVideoOutput(m_fullscreenVideoWidget);
-        m_fullscreenVideoWidget->setMouseTracking(true);
-        m_fullscreenVideoWidget->installEventFilter(m_fullscreenWidget);
-
-
-    } else {
-        m_fullscreenAudioLabel = new QLabel(m_fullscreenWidget);
-        m_fullscreenAudioLabel->setAlignment(Qt::AlignCenter);
-
-        // Load and render cover art in large format
-        QPixmap cover;
-        QProcess proc;
-        proc.start("exiftool", {"-Picture", "-b", activePath});
-        if (proc.waitForFinished(5000)) {
-            QByteArray imgData = proc.readAllStandardOutput();
-            if (!imgData.isEmpty()) {
-                cover.loadFromData(imgData);
-            }
-        }
-        
-        if (cover.isNull()) {
-            QDir dir(QFileInfo(activePath).absolutePath());
-            QStringList coverNames = {"folder.jpg", "folder.png", "cover.jpg", "cover.png", "album.jpg", "album.png"};
-            for (const QString& name : coverNames) {
-                QString path = dir.filePath(name);
-                if (QFile::exists(path)) {
-                    cover.load(path);
-                    break;
-                }
-            }
-        }
-
-        if (cover.isNull()) {
-            cover = QPixmap(512, 512);
-            cover.fill(QColor("#11111b"));
-            QPainter painter(&cover);
-            painter.setRenderHint(QPainter::Antialiasing);
-            painter.setBrush(QBrush(QColor("#313244")));
-            painter.setPen(Qt::NoPen);
-            painter.drawRoundedRect(16, 16, 480, 480, 64, 64);
-            painter.setPen(QPen(QColor("#cdd6f4"), 4));
-            QFont font("Outfit", 90, QFont::Bold);
-            painter.setFont(font);
-            painter.drawText(QRect(16, 16, 480, 480), Qt::AlignCenter, "🎵");
-        }
-
-        int screenH = QGuiApplication::primaryScreen()->geometry().height();
-        int size = qMin(600, screenH - 250);
-        m_fullscreenAudioLabel->setPixmap(cover.scaled(size, size, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-
-        m_fullscreenTextLabel = new QLabel(m_fullscreenWidget);
-        m_fullscreenTextLabel->setAlignment(Qt::AlignCenter);
-        m_fullscreenTextLabel->setStyleSheet("color: #cdd6f4; font-size: 24px; font-weight: bold; padding: 20px;");
-        
-        FileMetadata meta = MetadataExtractor::extract(activePath);
-        QString displayTitle = !meta.title.isEmpty() ? meta.title : QFileInfo(activePath).completeBaseName();
-        QString displayArtist = !meta.artist.isEmpty() ? meta.artist : "Unknown Artist";
-        m_fullscreenTextLabel->setText(QString("%1\n%2").arg(displayTitle).arg(displayArtist));
-
-        m_fullscreenVisualizer = new SpectrumVisualizerWidget(m_fullscreenWidget);
-        m_fullscreenVisualizer->setPlayer(m_player);
-        m_fullscreenVisualizer->setAudioPath(activePath);
-        if (m_visualizer) {
-            m_fullscreenVisualizer->setVisualizerMode(m_visualizer->visualizerMode());
-            m_fullscreenVisualizer->setBoost(m_sliderBass->value() / 50.0, m_sliderMid->value() / 50.0, m_sliderTreble->value() / 50.0);
-        }
-        m_fullscreenVisualizer->setVisible(m_spectrumVisualizerEnabled);
-
-        layout->addStretch();
-        layout->addWidget(m_fullscreenAudioLabel);
-        layout->addSpacing(10);
-        layout->addWidget(m_fullscreenTextLabel);
-        layout->addSpacing(20);
-        layout->addWidget(m_fullscreenVisualizer);
-        layout->addStretch();
-
-        m_fullscreenAudioLabel->setMouseTracking(true);
-        m_fullscreenTextLabel->setMouseTracking(true);
-        m_fullscreenVisualizer->setMouseTracking(true);
-        m_fullscreenAudioLabel->installEventFilter(m_fullscreenWidget);
-        m_fullscreenTextLabel->installEventFilter(m_fullscreenWidget);
-        m_fullscreenVisualizer->installEventFilter(m_fullscreenWidget);
-    }
-
-
+    buildFullscreenContent(isVideo, activePath, layout);
 
     layout->addWidget(m_fullscreenWidget->hudWidget());
 
@@ -3568,6 +3513,8 @@ void PreviewPanel::exitFullscreen() {
     m_fullscreenAudioLabel = nullptr;
     m_fullscreenTextLabel = nullptr;
     m_fullscreenVisualizer = nullptr;
+    m_fullscreenLyricsScroll = nullptr;
+    m_fullscreenLyricsLabel = nullptr;
 
     if (m_playlistList) {
         refreshPlaylistUI();
@@ -3595,39 +3542,18 @@ static void clearLayoutOfFullscreen(QLayout* layout, QWidget* hudWidget) {
     }
 }
 
-void PreviewPanel::updateFullscreenTrack() {
-    if (!m_fullscreenWidget) return;
-
-    QString activePath = m_player ? m_player->source().toLocalFile() : "";
-    if (activePath.isEmpty()) {
-        activePath = !m_currentAudioPath.isEmpty() ? m_currentAudioPath : m_previewedFilePath;
-    }
-    if (activePath.isEmpty()) return;
-
-    QFileInfo fileInfo(activePath);
-    QString ext = fileInfo.suffix().toLower();
-    static const QStringList videoExts = { "mp4", "avi", "mkv", "mov", "webm", "flv", "wmv", "m4v", "mpg", "mpeg" };
-    bool isVideo = videoExts.contains(ext);
-
-    QVBoxLayout* layout = qobject_cast<QVBoxLayout*>(m_fullscreenWidget->layout());
-    if (layout) {
-        clearLayoutOfFullscreen(layout, m_fullscreenWidget->hudWidget());
-        layout->setSpacing(0);
-    } else {
-        layout = new QVBoxLayout(m_fullscreenWidget);
-        layout->setContentsMargins(0, 0, 0, 0);
-        layout->setSpacing(0);
-    }
-
+void PreviewPanel::buildFullscreenContent(bool isVideo, const QString& activePath, QVBoxLayout* mainLayout) {
     m_fullscreenVideoWidget = nullptr;
     m_fullscreenAudioLabel = nullptr;
     m_fullscreenTextLabel = nullptr;
     m_fullscreenVisualizer = nullptr;
+    m_fullscreenLyricsScroll = nullptr;
+    m_fullscreenLyricsLabel = nullptr;
 
     if (isVideo) {
         m_fullscreenVideoWidget = new QVideoWidget(m_fullscreenWidget);
         m_fullscreenVideoWidget->setStyleSheet("background-color: #000000;");
-        layout->addWidget(m_fullscreenVideoWidget);
+        mainLayout->addWidget(m_fullscreenVideoWidget);
 
         m_player->setVideoOutput(m_fullscreenVideoWidget);
         m_fullscreenVideoWidget->setMouseTracking(true);
@@ -3694,13 +3620,47 @@ void PreviewPanel::updateFullscreenTrack() {
         }
         m_fullscreenVisualizer->setVisible(m_spectrumVisualizerEnabled);
 
-        layout->addStretch();
-        layout->addWidget(m_fullscreenAudioLabel);
-        layout->addSpacing(10);
-        layout->addWidget(m_fullscreenTextLabel);
-        layout->addSpacing(20);
-        layout->addWidget(m_fullscreenVisualizer);
-        layout->addStretch();
+        // Build split content layout: Left (art, text, viz) and Right (lyrics)
+        QHBoxLayout* contentHorizontal = new QHBoxLayout();
+        contentHorizontal->setContentsMargins(40, 20, 40, 10);
+        contentHorizontal->setSpacing(40);
+
+        QWidget* leftPanel = new QWidget(m_fullscreenWidget);
+        QVBoxLayout* leftLayout = new QVBoxLayout(leftPanel);
+        leftLayout->setContentsMargins(0, 0, 0, 0);
+        leftLayout->addStretch();
+        leftLayout->addWidget(m_fullscreenAudioLabel);
+        leftLayout->addSpacing(10);
+        leftLayout->addWidget(m_fullscreenTextLabel);
+        leftLayout->addSpacing(20);
+        leftLayout->addWidget(m_fullscreenVisualizer);
+        leftLayout->addStretch();
+        contentHorizontal->addWidget(leftPanel, 1);
+
+        m_fullscreenLyricsScroll = new QScrollArea(m_fullscreenWidget);
+        m_fullscreenLyricsScroll->setWidgetResizable(true);
+        m_fullscreenLyricsScroll->setStyleSheet("QScrollArea { background: transparent; border: none; }");
+        
+        m_fullscreenLyricsLabel = new QLabel(m_fullscreenLyricsScroll);
+        m_fullscreenLyricsLabel->setWordWrap(true);
+        m_fullscreenLyricsLabel->setStyleSheet("QLabel { color: #cdd6f4; font-size: 26px; font-family: 'Outfit'; font-weight: 500; line-height: 1.5; padding: 20px; background: transparent; }");
+
+        if (meta.lyrics.trimmed().isEmpty()) {
+            m_fullscreenLyricsLabel->setText("No lyrics available.");
+            m_fullscreenLyricsLabel->setAlignment(Qt::AlignCenter);
+        } else {
+            m_fullscreenLyricsLabel->setText(meta.lyrics);
+            m_fullscreenLyricsLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+        }
+
+        m_fullscreenLyricsScroll->setWidget(m_fullscreenLyricsLabel);
+        contentHorizontal->addWidget(m_fullscreenLyricsScroll, 1);
+
+        // Set initial visibility from settings
+        bool lyricsEnabled = QSettings("Amifiles", "Amifiles").value("preview/show_lyrics", true).toBool();
+        m_fullscreenLyricsScroll->setVisible(lyricsEnabled);
+
+        mainLayout->addLayout(contentHorizontal);
 
         m_fullscreenAudioLabel->setMouseTracking(true);
         m_fullscreenTextLabel->setMouseTracking(true);
@@ -3709,8 +3669,33 @@ void PreviewPanel::updateFullscreenTrack() {
         m_fullscreenTextLabel->installEventFilter(m_fullscreenWidget);
         m_fullscreenVisualizer->installEventFilter(m_fullscreenWidget);
     }
+}
 
+void PreviewPanel::updateFullscreenTrack() {
+    if (!m_fullscreenWidget) return;
 
+    QString activePath = m_player ? m_player->source().toLocalFile() : "";
+    if (activePath.isEmpty()) {
+        activePath = !m_currentAudioPath.isEmpty() ? m_currentAudioPath : m_previewedFilePath;
+    }
+    if (activePath.isEmpty()) return;
+
+    QFileInfo fileInfo(activePath);
+    QString ext = fileInfo.suffix().toLower();
+    static const QStringList videoExts = { "mp4", "avi", "mkv", "mov", "webm", "flv", "wmv", "m4v", "mpg", "mpeg" };
+    bool isVideo = videoExts.contains(ext);
+
+    QVBoxLayout* layout = qobject_cast<QVBoxLayout*>(m_fullscreenWidget->layout());
+    if (layout) {
+        clearLayoutOfFullscreen(layout, m_fullscreenWidget->hudWidget());
+        layout->setSpacing(0);
+    } else {
+        layout = new QVBoxLayout(m_fullscreenWidget);
+        layout->setContentsMargins(0, 0, 0, 0);
+        layout->setSpacing(0);
+    }
+
+    buildFullscreenContent(isVideo, activePath, layout);
 
     layout->addWidget(m_fullscreenWidget->hudWidget());
 

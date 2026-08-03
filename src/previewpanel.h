@@ -159,6 +159,7 @@ signals:
     void repeatRequested();
     void builtinPlayerDoubleclickToggled(bool active);
     void playlistItemSelected(int index);
+    void lyricsToggled(bool visible);
 
 public slots:
     void setBuiltinPlayerDoubleclickActive(bool active);
@@ -210,6 +211,7 @@ private:
     class QLabel* m_lblNextArtwork = nullptr;
 
     class QPushButton* m_btnTogglePlaylist = nullptr;
+    class QPushButton* m_btnToggleLyrics = nullptr;
     QStringList m_playlistItems;
     int m_playlistCurrentIndex = -1;
 public:
@@ -471,6 +473,10 @@ private:
     QLabel* m_fullscreenAudioLabel = nullptr;
     QLabel* m_fullscreenTextLabel = nullptr;
     SpectrumVisualizerWidget* m_fullscreenVisualizer = nullptr;
+    QScrollArea* m_fullscreenLyricsScroll = nullptr;
+    QLabel* m_fullscreenLyricsLabel = nullptr;
+
+    void buildFullscreenContent(bool isVideo, const QString& activePath, class QVBoxLayout* mainLayout);
 
     QIcon getTrackArtworkIcon(const QString& trackPath);
     void refreshPlaylistUI();
