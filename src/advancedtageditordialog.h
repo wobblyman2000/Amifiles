@@ -136,6 +136,7 @@ private:
     QPushButton* m_btnBrowseArtwork = nullptr;
     QPushButton* m_btnPasteArtwork = nullptr;
     QPushButton* m_btnDeleteArtwork = nullptr;
+    QPushButton* m_btnOptimizeArtwork = nullptr;
     
     QByteArray m_currentArtworkData;
     QString m_currentArtworkMimeType;
@@ -147,4 +148,29 @@ private:
     void fetchLyricsForTrack(int idx);
     void fetchLyricsOvh(int idx);
     void updateUIIfSelected(int idx);
+
+    // Undo/Redo System
+    struct UndoState {
+        QList<TrackEditInfo> tracks;
+    };
+    QList<UndoState> m_undoStack;
+    QList<UndoState> m_redoStack;
+    void pushUndoState();
+
+    // Copied Tags Clipboard
+    FileMetadata m_copiedMetadata;
+    QByteArray m_copiedCoverData;
+    QString m_copiedCoverMime;
+    QMap<QString, QString> m_copiedCustomTags;
+    bool m_hasCopiedTags = false;
+
+private slots:
+    void onUndo();
+    void onRedo();
+    void onCopyTags();
+    void onPasteTags();
+    void onOptimizeArtwork();
+    void onScanReplayGain();
+    void onAcoustIdScan();
+    void onTableContextMenuRequested(const QPoint& pos);
 };

@@ -27,6 +27,7 @@
 #include <QMenu>
 #include <QDirIterator>
 #include <QSettings>
+#include <QShortcut>
 #include <QNetworkAccessManager>
 #include <QNetworkRequest>
 #include <QNetworkReply>
@@ -34,6 +35,9 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QProgressDialog>
+#include <QEventLoop>
+#include <cmath>
 
 AdvancedTagEditorDialog::AdvancedTagEditorDialog(const QStringList& filePaths, QWidget* parent)
     : QDialog(parent)
@@ -78,6 +82,18 @@ void AdvancedTagEditorDialog::setupUI() {
     QAction* actTrackWizard = toolbar->addAction("Auto-Number Tracks");
     QAction* actCase = toolbar->addAction("Case Converter");
     QAction* actScrape = toolbar->addAction("Fetch Online (MusicBrainz)");
+
+    toolbar->addSeparator();
+    QAction* actUndo = toolbar->addAction("↩️ Undo");
+    QAction* actRedo = toolbar->addAction("↪️ Redo");
+
+    connect(actUndo, &QAction::triggered, this, &AdvancedTagEditorDialog::onUndo);
+    connect(actRedo, &QAction::triggered, this, &AdvancedTagEditorDialog::onRedo);
+
+    QShortcut* shortcutUndo = new QShortcut(QKeySequence::Undo, this);
+    QShortcut* shortcutRedo = new QShortcut(QKeySequence::Redo, this);
+    connect(shortcutUndo, &QShortcut::activated, this, &AdvancedTagEditorDialog::onUndo);
+    connect(shortcutRedo, &QShortcut::activated, this, &AdvancedTagEditorDialog::onRedo);
 
     QToolButton* btnQuickActions = new QToolButton(this);
     btnQuickActions->setText("Quick Actions");
@@ -435,6 +451,11 @@ void AdvancedTagEditorDialog::setupUI() {
     QPushButton* btnExtractArtwork = new QPushButton("Extract", artGroup);
     btnExtractArtwork->setToolTip("Extract embedded artwork to file");
     connect(btnExtractArtwork, &QPushButton::clicked, this, &AdvancedTagEditorDialog::onExtractArtwork);
+    
+    m_btnOptimizeArtwork = new QPushButton("Optimize", artGroup);
+    m_btnOptimizeArtwork->setToolTip("Optimize cover artwork size & format");
+    connect(m_btnOptimizeArtwork, &QPushButton::clicked, this, &AdvancedTagEditorDialog::onOptimizeArtwork);
+    
     m_btnDeleteArtwork = new QPushButton("Clear", artGroup);
     
     m_lockArtwork = new QToolButton(artGroup);
@@ -449,6 +470,7 @@ void AdvancedTagEditorDialog::setupUI() {
     artBtns->addWidget(m_btnBrowseArtwork);
     artBtns->addWidget(m_btnPasteArtwork);
     artBtns->addWidget(btnExtractArtwork);
+    artBtns->addWidget(m_btnOptimizeArtwork);
     artBtns->addWidget(m_btnDeleteArtwork);
     artBtns->addWidget(m_lockArtwork);
     artBtns->addWidget(m_chkWArtwork);
@@ -458,6 +480,7 @@ void AdvancedTagEditorDialog::setupUI() {
         m_lockArtwork->setText(checked ? "🔒" : "🔓");
         m_btnBrowseArtwork->setEnabled(!checked);
         m_btnPasteArtwork->setEnabled(!checked);
+        m_btnOptimizeArtwork->setEnabled(!checked);
         m_btnDeleteArtwork->setEnabled(!checked);
         QList<QTableWidgetItem*> selectedItems = m_tableFiles->selectedItems();
         for (QTableWidgetItem* item : selectedItems) {
@@ -518,6 +541,8 @@ void AdvancedTagEditorDialog::setupUI() {
     mainLayout->addLayout(bottomLayout);
 
     // Connections
+    m_tableFiles->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_tableFiles, &QTableWidget::customContextMenuRequested, this, &AdvancedTagEditorDialog::onTableContextMenuRequested);
     connect(m_tableFiles, &QTableWidget::itemSelectionChanged, this, &AdvancedTagEditorDialog::onTableSelectionChanged);
     
     connect(m_btnBrowseArtwork, &QPushButton::clicked, this, &AdvancedTagEditorDialog::onBrowseArtwork);
@@ -705,6 +730,7 @@ void AdvancedTagEditorDialog::updateFormFromSelection() {
         }
         if (m_btnBrowseArtwork) m_btnBrowseArtwork->setEnabled(!artworkLocked);
         if (m_btnPasteArtwork) m_btnPasteArtwork->setEnabled(!artworkLocked);
+        if (m_btnOptimizeArtwork) m_btnOptimizeArtwork->setEnabled(!artworkLocked);
         if (m_btnDeleteArtwork) m_btnDeleteArtwork->setEnabled(!artworkLocked);
     }
 
@@ -935,6 +961,7 @@ void AdvancedTagEditorDialog::onBrowseArtwork() {
     if (!fileName.isEmpty()) {
         QFile file(fileName);
         if (file.open(QIODevice::ReadOnly)) {
+            pushUndoState();
             m_currentArtworkData = file.readAll();
             m_currentArtworkMimeType = fileName.endsWith(".png", Qt::CaseInsensitive) ? "image/png" : "image/jpeg";
             m_currentArtworkChanged = true;
@@ -952,6 +979,7 @@ void AdvancedTagEditorDialog::onPasteArtwork() {
     if (mimeData->hasImage()) {
         QImage img = qvariant_cast<QImage>(mimeData->imageData());
         if (!img.isNull()) {
+            pushUndoState();
             QBuffer buffer(&m_currentArtworkData);
             buffer.open(QIODevice::WriteOnly);
             img.save(&buffer, "JPG");
@@ -968,6 +996,7 @@ void AdvancedTagEditorDialog::onPasteArtwork() {
             QString path = urls.first().toLocalFile();
             QFile file(path);
             if (file.open(QIODevice::ReadOnly)) {
+                pushUndoState();
                 m_currentArtworkData = file.readAll();
                 m_currentArtworkMimeType = path.endsWith(".png", Qt::CaseInsensitive) ? "image/png" : "image/jpeg";
                 m_currentArtworkChanged = true;
@@ -981,6 +1010,7 @@ void AdvancedTagEditorDialog::onPasteArtwork() {
 }
 
 void AdvancedTagEditorDialog::onDeleteArtwork() {
+    pushUndoState();
     m_currentArtworkData.clear();
     m_currentArtworkMimeType.clear();
     m_currentArtworkChanged = true;
@@ -1083,6 +1113,8 @@ void AdvancedTagEditorDialog::onAutoTagFromFilename() {
     connect(btnCan, &QPushButton::clicked, &dlgPattern, &QDialog::reject);
     
     if (dlgPattern.exec() != QDialog::Accepted) return;
+    
+    pushUndoState();
     
     QString pattern = combo->currentText();
     if (pattern.isEmpty()) return;
@@ -1357,6 +1389,8 @@ void AdvancedTagEditorDialog::onRenameFromTags() {
 
     if (dlgPreview.exec() != QDialog::Accepted) return;
 
+    pushUndoState();
+
     // Apply renames
     int renameSuccess = 0;
     for (const RenameMap& rm : renames) {
@@ -1529,6 +1563,7 @@ void AdvancedTagEditorDialog::onOnlineScrape() {
 
     MetadataFetcherDialog fetcher(paths, this);
     if (fetcher.exec() == QDialog::Accepted) {
+        pushUndoState();
         auto fetchedResults = fetcher.getResults();
         QByteArray fetchedArtwork = fetcher.getArtworkData();
         QString artworkMime = fetcher.getArtworkMimeType();
@@ -1565,6 +1600,7 @@ void AdvancedTagEditorDialog::onOnlineScrape() {
 }
 
 void AdvancedTagEditorDialog::onApplyClicked() {
+    pushUndoState();
     applyFieldsToSelection();
     populateTable();
     updateFormFromSelection();
@@ -1681,6 +1717,8 @@ void AdvancedTagEditorDialog::onQuickActionTriggered() {
         QMessageBox::warning(this, "No Selection", "Please select one or more tracks in the list to apply transformations.");
         return;
     }
+
+    pushUndoState();
     
     QString command = act->data().toString();
     
@@ -1763,6 +1801,8 @@ void AdvancedTagEditorDialog::onFetchLyricsClicked() {
     
     m_activeLyricsQueries = queryCount;
     m_lblStatus->setText(QString("Fetching lyrics for %1 track(s)...").arg(queryCount));
+
+    pushUndoState();
     
     for (int row : selectedRows) {
         TrackEditInfo& track = m_tracks[row];
@@ -1946,6 +1986,8 @@ void AdvancedTagEditorDialog::onCustomTagCellChanged() {
     }
     if (selectedRows.isEmpty()) return;
 
+    pushUndoState();
+
     // Read custom tags from table
     QMap<QString, QString> tableCustomTags;
     for (int r = 0; r < m_tableCustomTags->rowCount(); ++r) {
@@ -2026,4 +2068,470 @@ void AdvancedTagEditorDialog::populateCustomTagsTable(const QSet<int>& selectedR
         r++;
     }
     m_tableCustomTags->blockSignals(false);
+}
+
+void AdvancedTagEditorDialog::pushUndoState() {
+    UndoState state;
+    state.tracks = m_tracks;
+    m_undoStack.append(state);
+    
+    if (m_undoStack.size() > 50) {
+        m_undoStack.removeFirst();
+    }
+    m_redoStack.clear();
+}
+
+void AdvancedTagEditorDialog::onUndo() {
+    if (m_undoStack.isEmpty()) {
+        m_lblStatus->setText("Nothing to undo.");
+        return;
+    }
+    
+    UndoState nextRedo;
+    nextRedo.tracks = m_tracks;
+    m_redoStack.append(nextRedo);
+    
+    UndoState prev = m_undoStack.takeLast();
+    m_tracks = prev.tracks;
+    
+    populateTable();
+    updateFormFromSelection();
+    m_lblStatus->setText("Undone last operation.");
+}
+
+void AdvancedTagEditorDialog::onRedo() {
+    if (m_redoStack.isEmpty()) {
+        m_lblStatus->setText("Nothing to redo.");
+        return;
+    }
+    
+    UndoState nextUndo;
+    nextUndo.tracks = m_tracks;
+    m_undoStack.append(nextUndo);
+    
+    UndoState next = m_redoStack.takeLast();
+    m_tracks = next.tracks;
+    
+    populateTable();
+    updateFormFromSelection();
+    m_lblStatus->setText("Redone last operation.");
+}
+
+void AdvancedTagEditorDialog::onCopyTags() {
+    QList<QTableWidgetItem*> selectedItems = m_tableFiles->selectedItems();
+    QSet<int> selectedRows;
+    for (QTableWidgetItem* item : selectedItems) {
+        selectedRows.insert(item->row());
+    }
+    if (selectedRows.size() != 1) {
+        QMessageBox::warning(this, "Copy Tags", "Please select exactly one track to copy tags from.");
+        return;
+    }
+    int idx = *selectedRows.begin();
+    const TrackEditInfo& track = m_tracks[idx];
+    m_copiedMetadata = track.metadata;
+    m_copiedCoverData = track.coverData;
+    m_copiedCoverMime = track.coverMimeType;
+    m_copiedCustomTags = track.metadata.customTags;
+    m_hasCopiedTags = true;
+    m_lblStatus->setText("Tags copied to clipboard.");
+}
+
+void AdvancedTagEditorDialog::onPasteTags() {
+    if (!m_hasCopiedTags) {
+        QMessageBox::warning(this, "Paste Tags", "No tags have been copied yet.");
+        return;
+    }
+    QList<QTableWidgetItem*> selectedItems = m_tableFiles->selectedItems();
+    QSet<int> selectedRows;
+    for (QTableWidgetItem* item : selectedItems) {
+        selectedRows.insert(item->row());
+    }
+    if (selectedRows.isEmpty()) {
+        QMessageBox::warning(this, "Paste Tags", "Please select one or more tracks to paste tags to.");
+        return;
+    }
+    
+    pushUndoState();
+    
+    for (int idx : selectedRows) {
+        TrackEditInfo& track = m_tracks[idx];
+        bool changed = false;
+        
+        if (!track.lockedFields.contains("title")) { track.metadata.title = m_copiedMetadata.title; changed = true; }
+        if (!track.lockedFields.contains("artist")) { track.metadata.artist = m_copiedMetadata.artist; changed = true; }
+        if (!track.lockedFields.contains("album")) { track.metadata.album = m_copiedMetadata.album; changed = true; }
+        if (!track.lockedFields.contains("genre")) { track.metadata.genre = m_copiedMetadata.genre; changed = true; }
+        if (!track.lockedFields.contains("year")) { track.metadata.year = m_copiedMetadata.year; changed = true; }
+        if (!track.lockedFields.contains("track")) { track.metadata.track = m_copiedMetadata.track; changed = true; }
+        if (!track.lockedFields.contains("trackTotal")) { track.metadata.trackTotal = m_copiedMetadata.trackTotal; changed = true; }
+        if (!track.lockedFields.contains("albumArtist")) { track.metadata.albumArtist = m_copiedMetadata.albumArtist; changed = true; }
+        if (!track.lockedFields.contains("disc")) { track.metadata.discNumber = m_copiedMetadata.discNumber; changed = true; }
+        if (!track.lockedFields.contains("discTotal")) { track.metadata.discTotal = m_copiedMetadata.discTotal; changed = true; }
+        if (!track.lockedFields.contains("composer")) { track.metadata.composer = m_copiedMetadata.composer; changed = true; }
+        if (!track.lockedFields.contains("bpm")) { track.metadata.bpm = m_copiedMetadata.bpm; changed = true; }
+        if (!track.lockedFields.contains("comment")) { track.metadata.comment = m_copiedMetadata.comment; changed = true; }
+        if (!track.lockedFields.contains("lyrics")) { track.metadata.lyrics = m_copiedMetadata.lyrics; changed = true; }
+        if (!track.lockedFields.contains("compilation")) { track.metadata.compilation = m_copiedMetadata.compilation; changed = true; }
+        
+        if (!track.lockedFields.contains("artwork")) {
+            track.coverData = m_copiedCoverData;
+            track.coverMimeType = m_copiedCoverMime;
+            track.coverChanged = true;
+            changed = true;
+        }
+        
+        // Custom tags paste
+        for (auto it = m_copiedCustomTags.constBegin(); it != m_copiedCustomTags.constEnd(); ++it) {
+            if (track.metadata.customTags[it.key()] != it.value()) {
+                track.metadata.customTags[it.key()] = it.value();
+                changed = true;
+            }
+        }
+        
+        if (changed) {
+            track.isModified = true;
+        }
+    }
+    
+    populateTable();
+    updateFormFromSelection();
+    m_lblStatus->setText("Tags pasted successfully.");
+}
+
+void AdvancedTagEditorDialog::onOptimizeArtwork() {
+    if (m_currentArtworkData.isEmpty()) {
+        QMessageBox::warning(this, "Optimize Artwork", "There is no artwork currently loaded to optimize.");
+        return;
+    }
+    
+    QImage img;
+    if (!img.loadFromData(m_currentArtworkData)) {
+        QMessageBox::warning(this, "Optimize Artwork", "Failed to load artwork data as an image.");
+        return;
+    }
+    
+    QDialog dlg(this);
+    dlg.setWindowTitle("Optimize Cover Artwork");
+    QVBoxLayout* lay = new QVBoxLayout(&dlg);
+    
+    lay->addWidget(new QLabel(QString("Current size: %1 x %2 pixels (%3 KB)")
+        .arg(img.width()).arg(img.height()).arg(m_currentArtworkData.size() / 1024), &dlg));
+        
+    lay->addWidget(new QLabel("Select target resolution (max boundary):", &dlg));
+    QComboBox* comboRes = new QComboBox(&dlg);
+    comboRes->addItems({"500 x 500", "600 x 600", "800 x 800", "1000 x 1000"});
+    comboRes->setCurrentIndex(1); // 600 x 600 default
+    lay->addWidget(comboRes);
+    
+    lay->addWidget(new QLabel("Select compression quality (JPEG):", &dlg));
+    QComboBox* comboQual = new QComboBox(&dlg);
+    comboQual->addItems({"70% (Highly compressed)", "80% (Recommended)", "85% (Balanced)", "90% (High Quality)", "95% (Near Lossless)"});
+    comboQual->setCurrentIndex(2); // 85% default
+    lay->addWidget(comboQual);
+    
+    lay->addWidget(new QLabel("Format:", &dlg));
+    QComboBox* comboFmt = new QComboBox(&dlg);
+    comboFmt->addItems({"JPEG", "PNG (Lossless but larger)"});
+    comboFmt->setCurrentIndex(0); // JPEG default
+    lay->addWidget(comboFmt);
+    
+    QHBoxLayout* btns = new QHBoxLayout();
+    QPushButton* btnOk = new QPushButton("Optimize", &dlg);
+    QPushButton* btnCan = new QPushButton("Cancel", &dlg);
+    btns->addWidget(btnOk);
+    btns->addWidget(btnCan);
+    lay->addLayout(btns);
+    
+    connect(btnOk, &QPushButton::clicked, &dlg, &QDialog::accept);
+    connect(btnCan, &QPushButton::clicked, &dlg, &QDialog::reject);
+    
+    if (dlg.exec() != QDialog::Accepted) return;
+    
+    pushUndoState();
+    
+    int maxDim = 600;
+    QString resText = comboRes->currentText();
+    if (resText.startsWith("500")) maxDim = 500;
+    else if (resText.startsWith("600")) maxDim = 600;
+    else if (resText.startsWith("800")) maxDim = 800;
+    else if (resText.startsWith("1000")) maxDim = 1000;
+    
+    int quality = 85;
+    QString qualText = comboQual->currentText();
+    if (qualText.startsWith("70")) quality = 70;
+    else if (qualText.startsWith("80")) quality = 80;
+    else if (qualText.startsWith("85")) quality = 85;
+    else if (qualText.startsWith("90")) quality = 90;
+    else if (qualText.startsWith("95")) quality = 95;
+    
+    QString format = "JPG";
+    QString mime = "image/jpeg";
+    if (comboFmt->currentText().startsWith("PNG")) {
+        format = "PNG";
+        mime = "image/png";
+    }
+    
+    QImage scaledImg = img;
+    if (img.width() > maxDim || img.height() > maxDim) {
+        scaledImg = img.scaled(maxDim, maxDim, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    }
+    
+    QByteArray optData;
+    QBuffer buffer(&optData);
+    buffer.open(QIODevice::WriteOnly);
+    scaledImg.save(&buffer, format.toLatin1().constData(), format == "JPG" ? quality : -1);
+    
+    m_currentArtworkData = optData;
+    m_currentArtworkMimeType = mime;
+    m_currentArtworkChanged = true;
+    m_chkWArtwork->setChecked(true);
+    
+    QPixmap pix = loadArtworkPixmap(m_currentArtworkData, m_currentArtworkMimeType);
+    m_lblArtworkPreview->setPixmap(pix.scaled(m_lblArtworkPreview->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    
+    m_lblStatus->setText(QString("Cover optimized: resized to %1x%2, size reduced to %3 KB")
+        .arg(scaledImg.width()).arg(scaledImg.height()).arg(m_currentArtworkData.size() / 1024));
+}
+
+void AdvancedTagEditorDialog::onScanReplayGain() {
+    QList<QTableWidgetItem*> selectedItems = m_tableFiles->selectedItems();
+    QSet<int> selectedRows;
+    for (QTableWidgetItem* item : selectedItems) {
+        selectedRows.insert(item->row());
+    }
+    if (selectedRows.isEmpty()) {
+        QMessageBox::warning(this, "ReplayGain Scanner", "Please select one or more tracks to scan.");
+        return;
+    }
+    
+    QProgressDialog progress("Scanning tracks loudness (EBU R128)...", "Cancel", 0, selectedRows.size(), this);
+    progress.setWindowModality(Qt::WindowModal);
+    progress.setMinimumDuration(0);
+    progress.setValue(0);
+    
+    pushUndoState();
+    
+    int scannedCount = 0;
+    
+    for (int row : selectedRows) {
+        if (progress.wasCanceled()) break;
+        
+        TrackEditInfo& track = m_tracks[row];
+        progress.setLabelText(QString("Scanning (%1/%2): %3")
+            .arg(scannedCount + 1).arg(selectedRows.size()).arg(QFileInfo(track.currentPath).fileName()));
+        
+        QProcess proc;
+        QStringList args = {"-nostats", "-i", track.currentPath, "-filter_complex", "ebur128=peak=true", "-f", "null", "-"};
+        proc.start("ffmpeg", args);
+        if (proc.waitForFinished(30000)) { 
+            QString out = QString::fromUtf8(proc.readAllStandardError());
+            
+            double integratedLoudness = -99.0;
+            double truePeakDb = 0.0;
+            
+            QRegularExpression reI("I:\\s*([+-]?\\d+\\.\\d+)\\s*LUFS");
+            QRegularExpression rePeak("Peak:\\s*([+-]?\\d+\\.\\d+)\\s*dBFS");
+            
+            QRegularExpressionMatch matchI = reI.match(out);
+            if (matchI.hasMatch()) {
+                integratedLoudness = matchI.captured(1).toDouble();
+            }
+            QRegularExpressionMatch matchPeak = rePeak.match(out);
+            if (matchPeak.hasMatch()) {
+                truePeakDb = matchPeak.captured(1).toDouble();
+            }
+            
+            if (integratedLoudness > -90.0) {
+                double gain = -18.0 - integratedLoudness;
+                double peak = std::pow(10.0, truePeakDb / 20.0);
+                
+                QString gainStr = QString("%1 dB").arg(gain, 0, 'f', 2);
+                if (gain > 0) gainStr = "+" + gainStr;
+                QString peakStr = QString("%1").arg(peak, 0, 'f', 6);
+                
+                track.metadata.customTags["REPLAYGAIN_TRACK_GAIN"] = gainStr;
+                track.metadata.customTags["REPLAYGAIN_TRACK_PEAK"] = peakStr;
+                track.isModified = true;
+                scannedCount++;
+            }
+        }
+        
+        progress.setValue(scannedCount);
+        QApplication::processEvents();
+    }
+    
+    if (scannedCount > 0) {
+        populateTable();
+        updateFormFromSelection();
+        QMessageBox::information(this, "ReplayGain Complete", 
+            QString("Successfully scanned and calculated ReplayGain for %1 track(s).\n\n"
+                    "Calculated gain & peak tags have been added to their Custom Tags. Click Save to write them to disk.")
+            .arg(scannedCount));
+    }
+}
+
+void AdvancedTagEditorDialog::onAcoustIdScan() {
+    QList<QTableWidgetItem*> selectedItems = m_tableFiles->selectedItems();
+    QSet<int> selectedRows;
+    for (QTableWidgetItem* item : selectedItems) {
+        selectedRows.insert(item->row());
+    }
+    if (selectedRows.isEmpty()) {
+        QMessageBox::warning(this, "AcoustID Lookup", "Please select one or more tracks to scan.");
+        return;
+    }
+    
+    QProgressDialog progress("Fingerprinting tracks...", "Cancel", 0, selectedRows.size(), this);
+    progress.setWindowModality(Qt::WindowModal);
+    progress.setMinimumDuration(0);
+    progress.setValue(0);
+    
+    pushUndoState();
+    
+    int identifiedCount = 0;
+    int idx = 0;
+    
+    for (int row : selectedRows) {
+        if (progress.wasCanceled()) break;
+        
+        TrackEditInfo& track = m_tracks[row];
+        progress.setLabelText(QString("Fingerprinting (%1/%2): %3")
+            .arg(idx + 1).arg(selectedRows.size()).arg(QFileInfo(track.currentPath).fileName()));
+            
+        QProcess proc;
+        proc.start("fpcalc", {"-json", track.currentPath});
+        if (proc.waitForFinished(10000)) {
+            QByteArray out = proc.readAllStandardOutput();
+            QJsonDocument doc = QJsonDocument::fromJson(out);
+            if (!doc.isNull() && doc.isObject()) {
+                QJsonObject obj = doc.object();
+                int duration = obj.value("duration").toInt();
+                QString fingerprint = obj.value("fingerprint").toString();
+                
+                if (duration > 0 && !fingerprint.isEmpty()) {
+                    progress.setLabelText(QString("Querying AcoustID (%1/%2): %3")
+                        .arg(idx + 1).arg(selectedRows.size()).arg(QFileInfo(track.currentPath).fileName()));
+                    
+                    QUrl url("https://api.acoustid.org/v2/lookup");
+                    QUrlQuery query;
+                    query.addQueryItem("client", "8XaBEL6H");
+                    query.addQueryItem("duration", QString::number(duration));
+                    query.addQueryItem("fingerprint", fingerprint);
+                    query.addQueryItem("meta", "recordings releases");
+                    url.setQuery(query);
+                    
+                    QNetworkRequest req(url);
+                    req.setRawHeader("User-Agent", "Amifiles/1.0 ( dave@example.com )");
+                    
+                    QNetworkReply* reply = m_networkManager->get(req);
+                    
+                    QEventLoop loop;
+                    connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+                    loop.exec();
+                    
+                    if (reply->error() == QNetworkReply::NoError) {
+                        QByteArray resp = reply->readAll();
+                        QJsonDocument respDoc = QJsonDocument::fromJson(resp);
+                        if (!respDoc.isNull() && respDoc.isObject()) {
+                            QJsonObject respObj = respDoc.object();
+                            if (respObj.value("status").toString() == "ok") {
+                                QJsonArray results = respObj.value("results").toArray();
+                                if (!results.isEmpty()) {
+                                    QJsonObject bestResult = results.at(0).toObject();
+                                    QJsonArray recordings = bestResult.value("recordings").toArray();
+                                    if (!recordings.isEmpty()) {
+                                        QJsonObject bestRec = recordings.at(0).toObject();
+                                        QString title = bestRec.value("title").toString();
+                                        
+                                        QString artist;
+                                        QJsonArray artists = bestRec.value("artists").toArray();
+                                        if (!artists.isEmpty()) {
+                                            artist = artists.at(0).toObject().value("name").toString();
+                                        }
+                                        
+                                        QString album;
+                                        QString year;
+                                        QJsonArray releases = bestRec.value("releases").toArray();
+                                        if (!releases.isEmpty()) {
+                                            QJsonObject bestRel = releases.at(0).toObject();
+                                            album = bestRel.value("title").toString();
+                                            
+                                            QJsonValue dateVal = bestRel.value("date");
+                                            if (dateVal.isObject()) {
+                                                year = QString::number(dateVal.toObject().value("year").toInt());
+                                            } else if (dateVal.isString()) {
+                                                QString dateStr = dateVal.toString();
+                                                if (dateStr.length() >= 4) year = dateStr.left(4);
+                                            }
+                                        }
+                                        
+                                        bool modified = false;
+                                        if (!title.isEmpty() && !track.lockedFields.contains("title")) {
+                                            track.metadata.title = title;
+                                            modified = true;
+                                        }
+                                        if (!artist.isEmpty() && !track.lockedFields.contains("artist")) {
+                                            track.metadata.artist = artist;
+                                            modified = true;
+                                        }
+                                        if (!album.isEmpty() && !track.lockedFields.contains("album")) {
+                                            track.metadata.album = album;
+                                            modified = true;
+                                        }
+                                        if (!year.isEmpty() && !track.lockedFields.contains("year")) {
+                                            track.metadata.year = year;
+                                            modified = true;
+                                        }
+                                        
+                                        if (modified) {
+                                            track.isModified = true;
+                                            identifiedCount++;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    reply->deleteLater();
+                }
+            }
+        }
+        
+        idx++;
+        progress.setValue(idx);
+        QApplication::processEvents();
+    }
+    
+    if (identifiedCount > 0) {
+        populateTable();
+        updateFormFromSelection();
+        QMessageBox::information(this, "AcoustID Complete", 
+            QString("Successfully identified and populated tags for %1 track(s) using audio fingerprinting.")
+            .arg(identifiedCount));
+    } else {
+        QMessageBox::warning(this, "AcoustID Result", "No matching track information found in AcoustID database.");
+    }
+}
+
+void AdvancedTagEditorDialog::onTableContextMenuRequested(const QPoint& pos) {
+    QMenu menu(this);
+    menu.setStyleSheet("QMenu { background-color: #1e1e2e; color: #cdd6f4; border: 1px solid #313244; }"
+                       "QMenu::item:selected { background-color: #313244; color: #89b4fa; }");
+
+    QAction* actCopy = menu.addAction("📋 Copy Tags");
+    QAction* actPaste = menu.addAction("📋 Paste Tags");
+    actPaste->setEnabled(m_hasCopiedTags);
+
+    menu.addSeparator();
+
+    QAction* actReplayGain = menu.addAction("🔊 Scan ReplayGain (ffmpeg)");
+    QAction* actAcoustID = menu.addAction("🎧 Scan AcoustID Fingerprint");
+
+    connect(actCopy, &QAction::triggered, this, &AdvancedTagEditorDialog::onCopyTags);
+    connect(actPaste, &QAction::triggered, this, &AdvancedTagEditorDialog::onPasteTags);
+    connect(actReplayGain, &QAction::triggered, this, &AdvancedTagEditorDialog::onScanReplayGain);
+    connect(actAcoustID, &QAction::triggered, this, &AdvancedTagEditorDialog::onAcoustIdScan);
+
+    menu.exec(m_tableFiles->viewport()->mapToGlobal(pos));
 }
