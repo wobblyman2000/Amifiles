@@ -4081,13 +4081,16 @@ void FilePanel::showAudioShowcaseContextMenu(const QPoint& pos) {
     QMenu* casingMenu = menu.addMenu("Casing Style");
     QAction* actCasingClear = casingMenu->addAction("Clear CD Jewel Case");
     QAction* actCasingBlack = casingMenu->addAction("Black CD Jewel Case");
+    QAction* actCasingBlackPremium = casingMenu->addAction("Black CD Jewel Case (Premium)");
     QAction* actCasingVinyl = casingMenu->addAction("Vinyl LP Record Sleeve");
 
     actCasingClear->setCheckable(true);
     actCasingBlack->setCheckable(true);
+    actCasingBlackPremium->setCheckable(true);
     actCasingVinyl->setCheckable(true);
 
     if (casingType == "cd_black") actCasingBlack->setChecked(true);
+    else if (casingType == "cd_black_premium") actCasingBlackPremium->setChecked(true);
     else if (casingType == "vinyl") actCasingVinyl->setChecked(true);
     else actCasingClear->setChecked(true);
 
@@ -4139,9 +4142,10 @@ void FilePanel::showAudioShowcaseContextMenu(const QPoint& pos) {
         refresh();
     } else if (selected == actHideExtensions) {
         promptHideExtensions();
-    } else if (selected == actCasingClear || selected == actCasingBlack || selected == actCasingVinyl) {
+    } else if (selected == actCasingClear || selected == actCasingBlack || selected == actCasingBlackPremium || selected == actCasingVinyl) {
         QString newCasing = "cd";
         if (selected == actCasingBlack) newCasing = "cd_black";
+        else if (selected == actCasingBlackPremium) newCasing = "cd_black_premium";
         else if (selected == actCasingVinyl) newCasing = "vinyl";
         settings.setValue("music_showcase/casing_type", newCasing);
         if (m_proxyModel) {
@@ -4233,13 +4237,16 @@ void FilePanel::showMusicShowcaseContextMenu(const QPoint& pos) {
     QMenu* casingMenu = menu.addMenu("Casing Style");
     QAction* actCasingClear = casingMenu->addAction("Clear CD Jewel Case");
     QAction* actCasingBlack = casingMenu->addAction("Black CD Jewel Case");
+    QAction* actCasingBlackPremium = casingMenu->addAction("Black CD Jewel Case (Premium)");
     QAction* actCasingVinyl = casingMenu->addAction("Vinyl LP Record Sleeve");
 
     actCasingClear->setCheckable(true);
     actCasingBlack->setCheckable(true);
+    actCasingBlackPremium->setCheckable(true);
     actCasingVinyl->setCheckable(true);
 
     if (casingType == "cd_black") actCasingBlack->setChecked(true);
+    else if (casingType == "cd_black_premium") actCasingBlackPremium->setChecked(true);
     else if (casingType == "vinyl") actCasingVinyl->setChecked(true);
     else actCasingClear->setChecked(true);
 
@@ -4352,9 +4359,10 @@ void FilePanel::showMusicShowcaseContextMenu(const QPoint& pos) {
         refresh();
     } else if (selected == actHideExtensions) {
         promptHideExtensions();
-    } else if (selected == actCasingClear || selected == actCasingBlack || selected == actCasingVinyl) {
+    } else if (selected == actCasingClear || selected == actCasingBlack || selected == actCasingBlackPremium || selected == actCasingVinyl) {
         QString newCasing = "cd";
         if (selected == actCasingBlack) newCasing = "cd_black";
+        else if (selected == actCasingBlackPremium) newCasing = "cd_black_premium";
         else if (selected == actCasingVinyl) newCasing = "vinyl";
         settings.setValue("music_showcase/casing_type", newCasing);
         if (m_proxyModel) {
@@ -6746,9 +6754,11 @@ void CasingRunnable::run() {
             QString templatePath = "/home/dave/.gemini/antigravity/cd_case_overlay.png";
             if (casingType == "cd_black") {
                 templatePath = "/home/dave/.gemini/antigravity/cd_case_overlay_black.png";
+            } else if (casingType == "cd_black_premium") {
+                templatePath = "/home/dave/.gemini/antigravity/cd_case_overlay_black_premium.png";
             }
             QImage templateImage(templatePath);
-            if (templateImage.isNull() && casingType == "cd_black") {
+            if (templateImage.isNull() && (casingType == "cd_black" || casingType == "cd_black_premium")) {
                 templateImage.load("/home/dave/.gemini/antigravity/cd_case_overlay.png");
             }
             if (!templateImage.isNull()) {
@@ -6763,6 +6773,7 @@ void CasingRunnable::run() {
                     right = qRound(975.0 * scale);
                     bottom = qRound(915.0 * scale);
                 } else {
+                    // cd and cd_black_premium both use the clear case layout
                     left = qRound(181.0 * scale);
                     top = qRound(148.0 * scale);
                     right = qRound(925.0 * scale);
