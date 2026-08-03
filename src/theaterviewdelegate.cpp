@@ -244,7 +244,7 @@ QSize TheaterViewDelegate::sizeHint(const QStyleOptionViewItem& option, const QM
     if (option.rect.isValid()) {
         return option.rect.size();
     }
-    return m_isCinemaMode ? QSize(140, 210) : QSize(135, 185);
+    return m_isCinemaMode ? QSize(140, 210) : QSize(135, 159);
 }
 
 void TheaterViewDelegate::updateEditorGeometry(QWidget* editor, const QStyleOptionViewItem& option, const QModelIndex& index) const {

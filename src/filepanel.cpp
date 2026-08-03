@@ -1627,10 +1627,16 @@ bool FilePanel::eventFilter(QObject* watched, QEvent* event) {
                     QStringList curSelected = selectedPaths();
                     QString selectedPath = curSelected.isEmpty() ? "" : curSelected.first();
                     if (!selectedPath.isEmpty()) {
-                        VideoScraperDialog scraperDlg({selectedPath}, this);
-                        if (scraperDlg.exec() == QDialog::Accepted) {
+                        if (viewModeIndex() == 10) {
+                            FolderArtScraperDialog dlg(selectedPath, this);
+                            dlg.exec();
                             refresh();
-                            onSelectionChanged();
+                        } else {
+                            VideoScraperDialog scraperDlg({selectedPath}, this);
+                            if (scraperDlg.exec() == QDialog::Accepted) {
+                                refresh();
+                                onSelectionChanged();
+                            }
                         }
                         return true;
                     }
@@ -5226,8 +5232,12 @@ void FilePanel::updateTheaterGridSize() {
     double factor = (double)size / 32.0;
 
     int gw, gh;
-    if (index == 6 || index == 10) {
-        // Compact square music/audio showcase
+    if (index == 10) {
+        // Perfect square music/audio showcase (Image width = gw - 16, Image height = gh - 40. Lock gh = gw + 24 for 1:1 image area)
+        gw = qRound(160.0 * factor);
+        gh = gw + 24;
+    } else if (index == 6) {
+        // Compact square music/audio showcase fallback
         gw = qRound(160.0 * factor);
         gh = qRound(185.0 * factor);
     } else {
@@ -8709,7 +8719,12 @@ QAction* FilePanel::createContextMenuAction(QMenu* parentMenu, const QJsonObject
     } else if (command == "app.fetch_musicbrainz") {
         act = parentMenu->addAction(style->standardIcon(QStyle::SP_ComputerIcon), "Fetch MusicBrainz Album Info...");
     } else if (command == "app.scrape_video") {
-        act = parentMenu->addAction(style->standardIcon(QStyle::SP_ComputerIcon), "Scrape Video Metadata...");
+        if (viewModeIndex() == 10) {
+            act = parentMenu->addAction(style->standardIcon(QStyle::SP_ComputerIcon), "Fetch Cover Art & Wallpaper...");
+            actionCommands[act] = "app.fetch_folder_art";
+        } else {
+            act = parentMenu->addAction(style->standardIcon(QStyle::SP_ComputerIcon), "Scrape Video Metadata...");
+        }
     } else if (command == "app.fetch_folder_art") {
         act = parentMenu->addAction(style->standardIcon(QStyle::SP_ComputerIcon), "Fetch Cover Art & Wallpaper...");
     } else if (command == "app.color_none") {
