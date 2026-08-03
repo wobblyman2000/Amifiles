@@ -744,3 +744,16 @@ FS KeyPress: key=16777216 modifiers=0 pressed=Esc shortcutNext=N shortcutPrev=P
 FS KeyPress: key=16777216 modifiers=0 pressed=Esc shortcutNext=N shortcutPrev=P
 FS KeyPress: key=16777216 modifiers=0 pressed=Esc shortcutNext=N shortcutPrev=P
 FS KeyPress: key=16777216 modifiers=0 pressed=Esc shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777216 modifiers=0 pressed=Esc shortcutNext=N shortcutPrev=P
+onNextTrack called: size=141 index=0
+onNextTrack called: size=141 index=1
+FS KeyPress: key=16777249 modifiers=67108864 pressed=Ctrl+Control shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777217 modifiers=67108864 pressed=Ctrl+Tab shortcutNext=N shortcutPrev=P
+FS KeyPress: key=80 modifiers=0 pressed=P shortcutNext=N shortcutPrev=P
+FS KeyPress: key=67 modifiers=0 pressed=C shortcutNext=N shortcutPrev=P
+Selected action: ⏭ Jump to Next Chapter (m_menuCanceled=0)
+FS KeyPress: key=16777220 modifiers=0 pressed=Return shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777235 modifiers=0 pressed=Up shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777216 modifiers=0 pressed=Esc shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777251 modifiers=134217728 pressed=Alt+Alt shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777216 modifiers=0 pressed=Esc shortcutNext=N shortcutPrev=P

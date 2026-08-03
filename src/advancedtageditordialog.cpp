@@ -1828,6 +1828,10 @@ void AdvancedTagEditorDialog::fetchLyricsForTrack(int idx) {
     QUrlQuery query;
     query.addQueryItem("artist_name", artist);
     query.addQueryItem("track_name", title);
+    int durationSec = track.metadata.durationMs / 1000;
+    if (durationSec > 0) {
+        query.addQueryItem("duration", QString::number(durationSec));
+    }
     url.setQuery(query);
     
     QNetworkRequest req(url);
@@ -1844,7 +1848,10 @@ void AdvancedTagEditorDialog::fetchLyricsForTrack(int idx) {
         QByteArray data = reply->readAll();
         QJsonDocument doc = QJsonDocument::fromJson(data);
         QJsonObject obj = doc.object();
-        QString lyrics = obj["plainLyrics"].toString();
+        QString lyrics = obj["syncedLyrics"].toString();
+        if (lyrics.isEmpty()) {
+            lyrics = obj["plainLyrics"].toString();
+        }
         if (!lyrics.isEmpty()) {
             m_tracks[idx].metadata.lyrics = lyrics;
             m_tracks[idx].isModified = true;
