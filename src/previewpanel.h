@@ -475,6 +475,24 @@ private:
     SpectrumVisualizerWidget* m_fullscreenVisualizer = nullptr;
     QScrollArea* m_fullscreenLyricsScroll = nullptr;
     QLabel* m_fullscreenLyricsLabel = nullptr;
+    QWidget* m_fullscreenLyricsPanel = nullptr;
+
+    struct SyncedLyricLine {
+        qint64 timestampMs;
+        QString text;
+    };
+    QList<SyncedLyricLine> m_syncedLyrics;
+    QList<QLabel*> m_lyricLabels;
+    int m_currentLyricLineIndex = -1;
+    bool m_useScrollingLyrics = true;
+    QPushButton* m_btnToggleLyricMode = nullptr;
+    QWidget* m_lyricContainerWidget = nullptr;
+    bool m_hasSyncData = false;
+    QString m_rawLyricsText;
+
+    void updateLyricsPosition(qint64 positionMs);
+    void onToggleLyricsMode();
+    void rebuildLyricsView();
 
     void buildFullscreenContent(bool isVideo, const QString& activePath, class QVBoxLayout* mainLayout);
 
