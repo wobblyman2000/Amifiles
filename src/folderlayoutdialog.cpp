@@ -294,6 +294,9 @@ void FolderLayoutDialog::setupUI() {
     QGridLayout* triggerGrid = new QGridLayout(triggerGroup);
     triggerGrid->setSpacing(8);
     triggerGrid->setColumnMinimumWidth(0, 180);
+    triggerGrid->setColumnStretch(0, 0);
+    triggerGrid->setColumnStretch(1, 1);
+    triggerGrid->setColumnStretch(2, 0);
 
     triggerGrid->addWidget(new QLabel("Profile / Template Name:", this), 0, 0);
     m_editName = new QLineEdit(this);
@@ -384,6 +387,8 @@ void FolderLayoutDialog::setupUI() {
     QGridLayout* viewGrid = new QGridLayout(m_viewGroup);
     viewGrid->setSpacing(8);
     viewGrid->setColumnMinimumWidth(0, 180);
+    viewGrid->setColumnStretch(0, 0);
+    viewGrid->setColumnStretch(1, 1);
 
     viewGrid->addWidget(new QLabel("View Mode:", this), 0, 0);
     m_comboViewMode = new QComboBox(this);
