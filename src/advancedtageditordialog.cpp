@@ -206,6 +206,22 @@ void AdvancedTagEditorDialog::setupUI() {
     addFieldRow("BPM:", m_editBpm, m_chkBpm);
     addFieldRow("Comment:", m_editComment, m_chkWComment);
 
+    // Lyrics row
+    QHBoxLayout* lyricsLay = new QHBoxLayout();
+    m_editLyrics = new QPlainTextEdit(rightContainer);
+    m_editLyrics->setMaximumHeight(80);
+    m_editLyrics->setStyleSheet("QPlainTextEdit { background-color: #1e1e2e; color: #cdd6f4; border: 1px solid #313244; border-radius: 4px; }");
+    m_chkWLyrics = new QCheckBox(rightContainer);
+    m_chkWLyrics->setToolTip("Write in bulk to all selected files");
+    lyricsLay->addWidget(m_editLyrics, 1);
+    lyricsLay->addWidget(m_chkWLyrics);
+    form->addRow("Lyrics:", lyricsLay);
+
+    connect(m_editLyrics, &QPlainTextEdit::textChanged, this, [=]() {
+        m_chkWLyrics->setChecked(true);
+        onFieldEdited();
+    });
+
     // Compilation checkbox
     QHBoxLayout* compLay = new QHBoxLayout();
     m_chkCompilation = new QCheckBox(rightContainer);
@@ -409,6 +425,7 @@ void AdvancedTagEditorDialog::updateFormFromSelection() {
     m_chkWComposer->setChecked(false);
     m_chkBpm->setChecked(false);
     m_chkWComment->setChecked(false);
+    m_chkWLyrics->setChecked(false);
     m_chkWCompilation->setChecked(false);
     m_chkWArtwork->setChecked(false);
 
@@ -427,6 +444,7 @@ void AdvancedTagEditorDialog::updateFormFromSelection() {
         m_editComposer->clear();
         m_editBpm->clear();
         m_editComment->clear();
+        m_editLyrics->clear();
         m_chkCompilation->setChecked(false);
         m_lblArtworkPreview->setText("No selection");
         m_lblArtworkPreview->setPixmap(QPixmap());
@@ -452,6 +470,7 @@ void AdvancedTagEditorDialog::updateFormFromSelection() {
         m_editComposer->setText(track.metadata.composer);
         m_editBpm->setText(track.metadata.bpm);
         m_editComment->setText(track.metadata.comment);
+        m_editLyrics->setPlainText(track.metadata.lyrics);
         m_chkCompilation->setChecked(track.metadata.compilation);
 
         m_currentArtworkData = track.coverData;
@@ -480,6 +499,7 @@ void AdvancedTagEditorDialog::updateFormFromSelection() {
         m_chkWComposer->setVisible(false);
         m_chkBpm->setVisible(false);
         m_chkWComment->setVisible(false);
+        m_chkWLyrics->setVisible(false);
         m_chkWCompilation->setVisible(false);
         m_chkWArtwork->setVisible(false);
 
@@ -498,6 +518,7 @@ void AdvancedTagEditorDialog::updateFormFromSelection() {
         m_chkWComposer->setVisible(true);
         m_chkBpm->setVisible(true);
         m_chkWComment->setVisible(true);
+        m_chkWLyrics->setVisible(true);
         m_chkWCompilation->setVisible(true);
         m_chkWArtwork->setVisible(true);
 
@@ -517,6 +538,7 @@ void AdvancedTagEditorDialog::updateFormFromSelection() {
         QString composer = first.metadata.composer;
         QString bpm = first.metadata.bpm;
         QString comment = first.metadata.comment;
+        QString lyrics = first.metadata.lyrics;
         bool compilation = first.metadata.compilation;
         QByteArray artwork = first.coverData;
         QString mime = first.coverMimeType;
@@ -536,6 +558,7 @@ void AdvancedTagEditorDialog::updateFormFromSelection() {
             if (t.metadata.composer != composer) composer = "";
             if (t.metadata.bpm != bpm) bpm = "";
             if (t.metadata.comment != comment) comment = "";
+            if (t.metadata.lyrics != lyrics) lyrics = "";
             if (t.metadata.compilation != compilation) compilation = false;
             if (t.coverData != artwork) artwork = QByteArray();
         }
@@ -553,6 +576,7 @@ void AdvancedTagEditorDialog::updateFormFromSelection() {
         m_editComposer->setText(composer);
         m_editBpm->setText(bpm);
         m_editComment->setText(comment);
+        m_editLyrics->setPlainText(lyrics);
         m_chkCompilation->setChecked(compilation);
 
         m_editTitle->setPlaceholderText(title.isEmpty() ? "<Multiple Values>" : "");
@@ -568,6 +592,7 @@ void AdvancedTagEditorDialog::updateFormFromSelection() {
         m_editComposer->setPlaceholderText(composer.isEmpty() ? "<Multiple Values>" : "");
         m_editBpm->setPlaceholderText(bpm.isEmpty() ? "<Multiple Values>" : "");
         m_editComment->setPlaceholderText(comment.isEmpty() ? "<Multiple Values>" : "");
+        m_editLyrics->setPlaceholderText(lyrics.isEmpty() ? "<Multiple Values>" : "");
 
         m_currentArtworkData = artwork;
         m_currentArtworkMimeType = mime;
@@ -1254,6 +1279,7 @@ void AdvancedTagEditorDialog::applyFieldsToSelection() {
         if (m_chkWComposer->isChecked()) { track.metadata.composer = m_editComposer->text(); changed = true; }
         if (m_chkBpm->isChecked()) { track.metadata.bpm = m_editBpm->text(); changed = true; }
         if (m_chkWComment->isChecked()) { track.metadata.comment = m_editComment->text(); changed = true; }
+        if (m_chkWLyrics->isChecked()) { track.metadata.lyrics = m_editLyrics->toPlainText(); changed = true; }
         if (m_chkWCompilation->isChecked()) { track.metadata.compilation = m_chkCompilation->isChecked(); changed = true; }
         
         if (m_chkWArtwork->isChecked()) {
@@ -1290,7 +1316,8 @@ void AdvancedTagEditorDialog::saveTagsToDisk() {
                 track.metadata.discNumber, track.metadata.compilation,
                 track.coverChanged && track.coverData.isEmpty(), track.coverData, track.coverMimeType,
                 track.metadata.track, track.metadata.trackTotal, track.metadata.discTotal,
-                track.metadata.composer, track.metadata.bpm, track.metadata.comment
+                track.metadata.composer, track.metadata.bpm, track.metadata.comment,
+                track.metadata.lyrics
             );
         } else if (ext == "flac") {
             success = TagEditorDialog::writeFlacTags(
@@ -1298,7 +1325,8 @@ void AdvancedTagEditorDialog::saveTagsToDisk() {
                 track.metadata.genre, track.metadata.year, track.metadata.albumArtist,
                 track.metadata.discNumber, track.metadata.compilation,
                 track.metadata.track, track.metadata.trackTotal, track.metadata.discTotal,
-                track.metadata.composer, track.metadata.bpm, track.metadata.comment
+                track.metadata.composer, track.metadata.bpm, track.metadata.comment,
+                track.metadata.lyrics
             );
             if (success && track.coverChanged) {
                 if (track.coverData.isEmpty()) {

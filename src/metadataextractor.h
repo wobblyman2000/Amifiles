@@ -36,6 +36,7 @@ struct FileMetadata {
     QString composer;
     QString bpm;
     QString comment;
+    QString lyrics;
     bool compilation = false;
     bool hasEmbeddedArtwork = false;
     QString codec;

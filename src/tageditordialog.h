@@ -18,12 +18,14 @@ public:
                              bool stripArtwork = false, const QByteArray& newArtworkData = QByteArray(), const QString& mimeType = "image/jpeg",
                              const QString& trackNumber = QString(), const QString& trackTotal = QString(),
                              const QString& discTotal = QString(), const QString& composer = QString(),
-                             const QString& bpm = QString(), const QString& comment = QString());
+                             const QString& bpm = QString(), const QString& comment = QString(),
+                             const QString& lyrics = QString());
     static bool writeFlacTags(const QString& filePath, const QString& title, const QString& artist, const QString& album, const QString& genre, const QString& year,
                               const QString& albumArtist, const QString& discNumber, bool compilation,
                               const QString& trackNumber = QString(), const QString& trackTotal = QString(),
                               const QString& discTotal = QString(), const QString& composer = QString(),
-                              const QString& bpm = QString(), const QString& comment = QString());
+                              const QString& bpm = QString(), const QString& comment = QString(),
+                              const QString& lyrics = QString());
 
     static bool stripFlacArtwork(const QString& filePath);
     static bool writeFlacArtwork(const QString& filePath, const QByteArray& imgData, const QString& mimeType = "image/jpeg");

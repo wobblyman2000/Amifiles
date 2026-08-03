@@ -455,6 +455,7 @@ static void parseFlacMetadata(const QString& filePath, FileMetadata& meta) {
                     else if (key == "COMPOSER") meta.composer = val;
                     else if (key == "BPM" || key == "TBPM") meta.bpm = val;
                     else if (key == "COMMENT" || key == "DESCRIPTION") meta.comment = val;
+                    else if (key == "LYRICS" || key == "UNSYNCEDLYRICS") meta.lyrics = val;
                     else if (key == "COMPILATION") meta.compilation = (val == "1");
                 }
             }
@@ -580,6 +581,28 @@ void MetadataExtractor::extractAudioInfo(const QString& filePath, FileMetadata& 
                         QByteArray commText = frameData.mid(commentStart);
                         commText.prepend(enc);
                         meta.comment = decodeID3v2Text(commText);
+                    }
+                } else if (frameId == "USLT") {
+                    if (frameData.size() > 4) {
+                        char enc = frameData.at(0);
+                        int descStart = 4;
+                        int lyricsStart = descStart;
+                        if (enc == 0x00 || enc == 0x03) {
+                            int nullIdx = frameData.indexOf('\0', descStart);
+                            if (nullIdx != -1) {
+                                lyricsStart = nullIdx + 1;
+                            }
+                        } else {
+                            for (int idx = descStart; idx < frameData.size() - 1; idx += 2) {
+                                if (frameData.at(idx) == 0 && frameData.at(idx + 1) == 0) {
+                                    lyricsStart = idx + 2;
+                                    break;
+                                }
+                            }
+                        }
+                        QByteArray lyricsText = frameData.mid(lyricsStart);
+                        lyricsText.prepend(enc);
+                        meta.lyrics = decodeID3v2Text(lyricsText);
                     }
                 } else if (frameId == "TCMP") {
                     QString val = decodeID3v2Text(frameData);

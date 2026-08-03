@@ -174,3 +174,5 @@ onNextTrack called: size=101 index=2
 onNextTrack called: size=101 index=3
 onNextTrack called: size=101 index=4
 FS KeyPress: key=16777216 modifiers=0 pressed=Esc shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777216 modifiers=0 pressed=Esc shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777216 modifiers=0 pressed=Esc shortcutNext=N shortcutPrev=P

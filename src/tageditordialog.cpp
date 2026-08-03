@@ -455,7 +455,8 @@ bool TagEditorDialog::writeMp3Tags(const QString& filePath, const QString& title
                                    bool stripArtwork, const QByteArray& newArtworkData, const QString& mimeType,
                                    const QString& trackNumber, const QString& trackTotal,
                                    const QString& discTotal, const QString& composer,
-                                   const QString& bpm, const QString& comment) {
+                                   const QString& bpm, const QString& comment,
+                                   const QString& lyrics) {
     QFile file(filePath);
     if (!file.open(QIODevice::ReadOnly)) return false;
 
@@ -555,6 +556,30 @@ bool TagEditorDialog::writeMp3Tags(const QString& filePath, const QString& title
         frames.append(createFrame("TCMP", "1"));
     }
 
+    // USLT (Unsynchronized lyrics)
+    if (!lyrics.isEmpty()) {
+        QByteArray payload;
+        payload.append((char)3); // UTF-8 encoding
+        payload.append("eng", 3);
+        payload.append((char)0); // Empty description
+        payload.append(lyrics.toUtf8());
+
+        QByteArray frame;
+        frame.append("USLT", 4);
+
+        int size = payload.size();
+        frame.append((size >> 24) & 0xFF);
+        frame.append((size >> 16) & 0xFF);
+        frame.append((size >> 8) & 0xFF);
+        frame.append(size & 0xFF);
+
+        frame.append((char)0); // Flags
+        frame.append((char)0);
+
+        frame.append(payload);
+        frames.append(frame);
+    }
+
     // Parse and copy non-text frames from the old tag
     if (!oldTagData.isEmpty()) {
         int offset = 0;
@@ -587,7 +612,7 @@ bool TagEditorDialog::writeMp3Tags(const QString& filePath, const QString& title
                 frameId == "TCON" || frameId == "TYER" || frameId == "TDRC" ||
                 frameId == "TPE2" || frameId == "TPOS" || frameId == "TCMP" ||
                 frameId == "TRCK" || frameId == "TCOM" || frameId == "TBPM" ||
-                frameId == "COMM") {
+                frameId == "COMM" || frameId == "USLT") {
                 shouldPreserve = false;
             }
 
@@ -693,13 +718,15 @@ bool TagEditorDialog::writeFlacTags(const QString& filePath, const QString& titl
                                     const QString& albumArtist, const QString& discNumber, bool compilation,
                                     const QString& trackNumber, const QString& trackTotal,
                                     const QString& discTotal, const QString& composer,
-                                    const QString& bpm, const QString& comment) {
+                                    const QString& bpm, const QString& comment,
+                                    const QString& lyrics) {
     QProcess proc;
     QStringList args;
     args << "--remove-tag=TITLE" << "--remove-tag=ARTIST" << "--remove-tag=ALBUM" << "--remove-tag=GENRE" << "--remove-tag=DATE"
          << "--remove-tag=ALBUMARTIST" << "--remove-tag=DISCNUMBER" << "--remove-tag=COMPILATION"
          << "--remove-tag=TRACKNUMBER" << "--remove-tag=TRACKTOTAL"
-         << "--remove-tag=DISCTOTAL" << "--remove-tag=COMPOSER" << "--remove-tag=BPM" << "--remove-tag=COMMENT" << "--remove-tag=DESCRIPTION";
+         << "--remove-tag=DISCTOTAL" << "--remove-tag=COMPOSER" << "--remove-tag=BPM" << "--remove-tag=COMMENT" << "--remove-tag=DESCRIPTION"
+         << "--remove-tag=LYRICS" << "--remove-tag=UNSYNCEDLYRICS";
     if (!title.isEmpty()) args << QString("--set-tag=TITLE=%1").arg(title);
     if (!artist.isEmpty()) args << QString("--set-tag=ARTIST=%1").arg(artist);
     if (!album.isEmpty()) args << QString("--set-tag=ALBUM=%1").arg(album);
@@ -715,6 +742,10 @@ bool TagEditorDialog::writeFlacTags(const QString& filePath, const QString& titl
     if (!comment.isEmpty()) {
         args << QString("--set-tag=COMMENT=%1").arg(comment);
         args << QString("--set-tag=DESCRIPTION=%1").arg(comment);
+    }
+    if (!lyrics.isEmpty()) {
+        args << QString("--set-tag=LYRICS=%1").arg(lyrics);
+        args << QString("--set-tag=UNSYNCEDLYRICS=%1").arg(lyrics);
     }
     args << QString("--set-tag=COMPILATION=%1").arg(compilation ? "1" : "0");
     args << filePath;
@@ -749,6 +780,10 @@ bool TagEditorDialog::writeFlacTags(const QString& filePath, const QString& titl
     if (!composer.isEmpty()) args2 << QString("-Composer=%1").arg(composer);
     if (!bpm.isEmpty()) args2 << QString("-Bpm=%1").arg(bpm);
     if (!comment.isEmpty()) args2 << QString("-Comment=%1").arg(comment);
+    if (!lyrics.isEmpty()) {
+        args2 << QString("-Lyrics=%1").arg(lyrics);
+        args2 << QString("-Unsyncedlyrics=%1").arg(lyrics);
+    }
     args2 << QString("-Compilation=%1").arg(compilation ? "1" : "0");
     args2 << filePath;
 

@@ -20,6 +20,8 @@ struct TrackEditInfo {
     bool coverChanged = false;
 };
 
+#include <QPlainTextEdit>
+
 class AdvancedTagEditorDialog : public QDialog {
     Q_OBJECT
 public:
@@ -74,6 +76,7 @@ private:
     QLineEdit* m_editComposer = nullptr;
     QLineEdit* m_editBpm = nullptr;
     QLineEdit* m_editComment = nullptr;
+    QPlainTextEdit* m_editLyrics = nullptr;
     QCheckBox* m_chkCompilation = nullptr;
 
     // Checkboxes for bulk edits
@@ -90,6 +93,7 @@ private:
     QCheckBox* m_chkWComposer = nullptr;
     QCheckBox* m_chkBpm = nullptr;
     QCheckBox* m_chkWComment = nullptr;
+    QCheckBox* m_chkWLyrics = nullptr;
     QCheckBox* m_chkWCompilation = nullptr;
     QCheckBox* m_chkWArtwork = nullptr;
 
