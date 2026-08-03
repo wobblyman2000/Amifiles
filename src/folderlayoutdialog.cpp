@@ -25,6 +25,7 @@ class ButtonChooserDialog : public QDialog {
 public:
     ButtonChooserDialog(const QList<CustomButton>& available, const QStringList& selected, QWidget* parent) : QDialog(parent) {
         setWindowTitle("Select Custom Toolbar Buttons");
+        resize(450, 450);
         QVBoxLayout* layout = new QVBoxLayout(this);
         
         QLabel* label = new QLabel("Select which custom script buttons to display in this folder's toolbar:", this);
@@ -72,6 +73,7 @@ class MultiSelectDialog : public QDialog {
 public:
     MultiSelectDialog(const QString& title, const QString& labelText, const QList<QPair<QString, QString>>& items, const QStringList& initiallySelected, QWidget* parent) : QDialog(parent) {
         setWindowTitle(title);
+        resize(450, 450);
         QVBoxLayout* layout = new QVBoxLayout(this);
         
         QLabel* label = new QLabel(labelText, this);
@@ -513,23 +515,25 @@ void FolderLayoutDialog::setupUI() {
     m_btnSelectToolbars = new QPushButton("Select Active Toolbars...", this);
     m_btnSelectToolbars->setToolTip("Choose which toolbar panels are displayed.");
     m_btnSelectToolbars->setEnabled(false);
+    m_btnSelectToolbars->setMaximumWidth(400);
     connect(m_btnSelectToolbars, &QPushButton::clicked, this, &FolderLayoutDialog::onSelectToolbars);
     connect(m_stateToolbars, &ToggleSwitch::toggled, m_btnSelectToolbars, &QPushButton::setEnabled);
     visGrid->addWidget(new QLabel("Custom Toolbars", this), 13, 0);
     visGrid->addWidget(m_stateToolbars, 13, 1);
-    visGrid->addWidget(m_btnSelectToolbars, 13, 2);
-
+    visGrid->addWidget(m_btnSelectToolbars, 13, 2, Qt::AlignLeft);
+ 
     // Custom Menus
     m_stateMenus = new ToggleSwitch(this);
     m_stateMenus->setToolTip("Enforce custom active context menus list.");
     m_btnSelectMenus = new QPushButton("Select Custom Menus...", this);
     m_btnSelectMenus->setToolTip("Choose which custom right-click context menus are active.");
     m_btnSelectMenus->setEnabled(false);
+    m_btnSelectMenus->setMaximumWidth(400);
     connect(m_btnSelectMenus, &QPushButton::clicked, this, &FolderLayoutDialog::onSelectMenus);
     connect(m_stateMenus, &ToggleSwitch::toggled, m_btnSelectMenus, &QPushButton::setEnabled);
     visGrid->addWidget(new QLabel("Custom Menus", this), 14, 0);
     visGrid->addWidget(m_stateMenus, 14, 1);
-    visGrid->addWidget(m_btnSelectMenus, 14, 2);
+    visGrid->addWidget(m_btnSelectMenus, 14, 2, Qt::AlignLeft);
 
     scrollLayout->addWidget(m_visGroup);
 
