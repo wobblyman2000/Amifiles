@@ -111,8 +111,8 @@ void AdvancedTagEditorDialog::setupUI() {
     leftLayout->setSpacing(6);
 
     m_tableFiles = new QTableWidget(this);
-    m_tableFiles->setColumnCount(7);
-    m_tableFiles->setHorizontalHeaderLabels({"File Name", "Title", "Artist", "Album", "Track", "Year", "Genre"});
+    m_tableFiles->setColumnCount(8);
+    m_tableFiles->setHorizontalHeaderLabels({"File Name", "Title", "Artist", "Album", "Track", "Disc #", "Year", "Genre"});
     m_tableFiles->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
     m_tableFiles->horizontalHeader()->setStretchLastSection(true);
     m_tableFiles->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -353,12 +353,13 @@ void AdvancedTagEditorDialog::populateTable() {
         m_tableFiles->setItem(i, 2, new QTableWidgetItem(track.metadata.artist));
         m_tableFiles->setItem(i, 3, new QTableWidgetItem(track.metadata.album));
         m_tableFiles->setItem(i, 4, new QTableWidgetItem(track.metadata.track));
-        m_tableFiles->setItem(i, 5, new QTableWidgetItem(track.metadata.year));
-        m_tableFiles->setItem(i, 6, new QTableWidgetItem(track.metadata.genre));
+        m_tableFiles->setItem(i, 5, new QTableWidgetItem(track.metadata.discNumber));
+        m_tableFiles->setItem(i, 6, new QTableWidgetItem(track.metadata.year));
+        m_tableFiles->setItem(i, 7, new QTableWidgetItem(track.metadata.genre));
         
         // Mark changed items in italics or visual color
         if (track.isModified) {
-            for (int col = 0; col < 7; ++col) {
+            for (int col = 0; col < 8; ++col) {
                 QTableWidgetItem* item = m_tableFiles->item(i, col);
                 if (item) {
                     QFont f = item->font();
@@ -817,19 +818,33 @@ void AdvancedTagEditorDialog::onRenameFromTags() {
     previewTable->setRowCount(0);
     int rowIdx = 0;
     
-    // Sort rows numerically by track number (falling back to table order)
+    // Sort rows numerically by Disc Number first, then by Track Number (falling back to table order)
     QList<int> sortedRows = selectedRows.values();
     std::sort(sortedRows.begin(), sortedRows.end(), [this](int a, int b) {
+        QString discA = m_tracks[a].metadata.discNumber;
+        QString discB = m_tracks[b].metadata.discNumber;
+        
+        bool okDiscA = false, okDiscB = false;
+        int numDiscA = discA.toInt(&okDiscA);
+        int numDiscB = discB.toInt(&okDiscB);
+        
+        if (!okDiscA) numDiscA = 1;
+        if (!okDiscB) numDiscB = 1;
+        
+        if (numDiscA != numDiscB) {
+            return numDiscA < numDiscB;
+        }
+        
         QString trackA = m_tracks[a].metadata.track;
         QString trackB = m_tracks[b].metadata.track;
-        bool okA = false, okB = false;
-        int numA = trackA.toInt(&okA);
-        int numB = trackB.toInt(&okB);
-        if (okA && okB) {
-            return numA < numB;
-        } else if (okA) {
+        bool okTrackA = false, okTrackB = false;
+        int numTrackA = trackA.toInt(&okTrackA);
+        int numTrackB = trackB.toInt(&okTrackB);
+        if (okTrackA && okTrackB) {
+            return numTrackA < numTrackB;
+        } else if (okTrackA) {
             return true;
-        } else if (okB) {
+        } else if (okTrackB) {
             return false;
         }
         return a < b;
