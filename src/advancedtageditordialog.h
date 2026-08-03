@@ -40,6 +40,7 @@ private slots:
     void onCaseConversion();
     void onOnlineScrape();
     void onQuickActionTriggered();
+    void onFetchLyricsClicked();
     void onApplyClicked();
     void onSaveClicked();
 
@@ -106,4 +107,10 @@ private:
     QByteArray m_currentArtworkData;
     QString m_currentArtworkMimeType;
     bool m_currentArtworkChanged = false;
+
+    // Network manager and online lyrics helpers
+    class QNetworkAccessManager* m_networkManager = nullptr;
+    void fetchLyricsForTrack(int idx);
+    void fetchLyricsOvh(int idx);
+    void updateUIIfSelected(int idx);
 };

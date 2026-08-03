@@ -27,6 +27,13 @@
 #include <QMenu>
 #include <QDirIterator>
 #include <QSettings>
+#include <QNetworkAccessManager>
+#include <QNetworkRequest>
+#include <QNetworkReply>
+#include <QUrlQuery>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
 
 AdvancedTagEditorDialog::AdvancedTagEditorDialog(const QStringList& filePaths, QWidget* parent)
     : QDialog(parent)
@@ -46,6 +53,8 @@ AdvancedTagEditorDialog::AdvancedTagEditorDialog(const QStringList& filePaths, Q
         "QGroupBox { border: 1px solid #313244; border-radius: 6px; margin-top: 8px; padding-top: 10px; font-weight: bold; color: #89b4fa; }"
         "QGroupBox::title { subcontrol-origin: margin; left: 8px; padding: 0 3px; }"
     );
+
+    m_networkManager = new QNetworkAccessManager(this);
 
     setupUI();
     loadFiles();
@@ -207,6 +216,17 @@ void AdvancedTagEditorDialog::setupUI() {
     addFieldRow("Comment:", m_editComment, m_chkWComment);
 
     // Lyrics row
+    QWidget* labelWidget = new QWidget(rightContainer);
+    QHBoxLayout* lyricsLabelLay = new QHBoxLayout(labelWidget);
+    lyricsLabelLay->setContentsMargins(0, 0, 0, 0);
+    lyricsLabelLay->setSpacing(4);
+    lyricsLabelLay->addWidget(new QLabel("Lyrics:", labelWidget));
+    QPushButton* btnFetchLyrics = new QPushButton("Fetch", labelWidget);
+    btnFetchLyrics->setStyleSheet("background-color: #89b4fa; color: #11111b; font-weight: bold; border-radius: 3px; padding: 2px 4px; font-size: 10px;");
+    btnFetchLyrics->setToolTip("Fetch lyrics from online databases");
+    lyricsLabelLay->addWidget(btnFetchLyrics);
+    lyricsLabelLay->addStretch();
+
     QHBoxLayout* lyricsLay = new QHBoxLayout();
     m_editLyrics = new QPlainTextEdit(rightContainer);
     m_editLyrics->setMaximumHeight(80);
@@ -215,12 +235,13 @@ void AdvancedTagEditorDialog::setupUI() {
     m_chkWLyrics->setToolTip("Write in bulk to all selected files");
     lyricsLay->addWidget(m_editLyrics, 1);
     lyricsLay->addWidget(m_chkWLyrics);
-    form->addRow("Lyrics:", lyricsLay);
+    form->addRow(labelWidget, lyricsLay);
 
     connect(m_editLyrics, &QPlainTextEdit::textChanged, this, [=]() {
         m_chkWLyrics->setChecked(true);
         onFieldEdited();
     });
+    connect(btnFetchLyrics, &QPushButton::clicked, this, &AdvancedTagEditorDialog::onFetchLyricsClicked);
 
     // Compilation checkbox
     QHBoxLayout* compLay = new QHBoxLayout();
@@ -1398,4 +1419,109 @@ void AdvancedTagEditorDialog::onQuickActionTriggered() {
     
     populateTable();
     updateFormFromSelection();
+}
+
+void AdvancedTagEditorDialog::onFetchLyricsClicked() {
+    QList<QTableWidgetItem*> selectedItems = m_tableFiles->selectedItems();
+    QSet<int> selectedRows;
+    for (QTableWidgetItem* item : selectedItems) {
+        selectedRows.insert(item->row());
+    }
+    
+    if (selectedRows.isEmpty()) {
+        QMessageBox::warning(this, "No Selection", "Please select one or more tracks in the list to fetch lyrics.");
+        return;
+    }
+    
+    m_lblStatus->setText("Fetching lyrics from online databases...");
+    
+    for (int row : selectedRows) {
+        fetchLyricsForTrack(row);
+    }
+}
+
+void AdvancedTagEditorDialog::fetchLyricsForTrack(int idx) {
+    TrackEditInfo& track = m_tracks[idx];
+    QString artist = track.metadata.artist.trimmed();
+    QString title = track.metadata.title.trimmed();
+    if (artist.isEmpty() || title.isEmpty()) {
+        return;
+    }
+    
+    QUrl url("https://lrclib.net/api/get");
+    QUrlQuery query;
+    query.addQueryItem("artist", artist);
+    query.addQueryItem("track", title);
+    if (!track.metadata.album.isEmpty()) {
+        query.addQueryItem("album", track.metadata.album);
+    }
+    url.setQuery(query);
+    
+    QNetworkRequest req(url);
+    req.setRawHeader("User-Agent", "Amifiles/1.0 ( dave@example.com )");
+    
+    QNetworkReply* reply = m_networkManager->get(req);
+    connect(reply, &QNetworkReply::finished, this, [this, reply, idx]() {
+        reply->deleteLater();
+        if (reply->error() != QNetworkReply::NoError) {
+            fetchLyricsOvh(idx);
+            return;
+        }
+        
+        QByteArray data = reply->readAll();
+        QJsonDocument doc = QJsonDocument::fromJson(data);
+        QJsonObject obj = doc.object();
+        QString lyrics = obj["plainLyrics"].toString();
+        if (!lyrics.isEmpty()) {
+            m_tracks[idx].metadata.lyrics = lyrics;
+            m_tracks[idx].isModified = true;
+            updateUIIfSelected(idx);
+        } else {
+            fetchLyricsOvh(idx);
+        }
+    });
+}
+
+void AdvancedTagEditorDialog::fetchLyricsOvh(int idx) {
+    TrackEditInfo& track = m_tracks[idx];
+    QString artist = track.metadata.artist.trimmed();
+    QString title = track.metadata.title.trimmed();
+    if (artist.isEmpty() || title.isEmpty()) {
+        return;
+    }
+    
+    QUrl url(QString("https://api.lyrics.ovh/v1/%1/%2")
+             .arg(QString(QUrl::toPercentEncoding(artist)))
+             .arg(QString(QUrl::toPercentEncoding(title))));
+             
+    QNetworkRequest req(url);
+    req.setRawHeader("User-Agent", "Amifiles/1.0 ( dave@example.com )");
+    
+    QNetworkReply* reply = m_networkManager->get(req);
+    connect(reply, &QNetworkReply::finished, this, [this, reply, idx]() {
+        reply->deleteLater();
+        if (reply->error() == QNetworkReply::NoError) {
+            QByteArray data = reply->readAll();
+            QJsonDocument doc = QJsonDocument::fromJson(data);
+            QJsonObject obj = doc.object();
+            QString lyrics = obj["lyrics"].toString();
+            if (!lyrics.isEmpty()) {
+                m_tracks[idx].metadata.lyrics = lyrics;
+                m_tracks[idx].isModified = true;
+                updateUIIfSelected(idx);
+            }
+        }
+    });
+}
+
+void AdvancedTagEditorDialog::updateUIIfSelected(int idx) {
+    QList<QTableWidgetItem*> selectedItems = m_tableFiles->selectedItems();
+    QSet<int> selectedRows;
+    for (QTableWidgetItem* item : selectedItems) {
+        selectedRows.insert(item->row());
+    }
+    if (selectedRows.contains(idx)) {
+        populateTable();
+        updateFormFromSelection();
+    }
 }
