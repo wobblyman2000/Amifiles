@@ -613,6 +613,10 @@ void FilePanel::setupUI() {
         btnDrawerRemove->setFixedWidth(78);
         btnDrawerClear->setFixedWidth(78);
         
+        btnDrawerPlay->setFixedHeight(26);
+        btnDrawerRemove->setFixedHeight(26);
+        btnDrawerClear->setFixedHeight(26);
+        
         QString btnStyle = 
             "QPushButton { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 4px; padding: 6px 4px; font-weight: bold; font-family: 'Outfit'; font-size: 10px; } "
             "QPushButton:hover { background-color: #45475a; color: #ffffff; } "
