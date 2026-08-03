@@ -2559,22 +2559,70 @@ void MainWindow::onDuplicateFinderAction() {
 
 void MainWindow::loadCustomButtons() {
     QSettings settings("Amifiles", "Amifiles");
-    int count = settings.value("custom_buttons/count", -1).toInt();
     m_customButtons.clear();
 
-    if (count == -1) {
-        // First run: setup sample commands with standard Qt icons to demonstrate features
-        m_customButtons.append(CustomButton{"Say Hello", "zenity --info --text=\"Hello from Amifiles!\\nActive Folder: $AMIFILES_CURRENT_DIR\"", "qt:SP_MessageBoxInformation"});
-        m_customButtons.append(CustomButton{"Disk Space", "df -h | zenity --text-info --title=\"Disk Usage Summary\" --width=600 --height=400", "qt:SP_DriveHDIcon"});
-        m_customButtons.append(CustomButton{"Count Files", "find . -maxdepth 1 -type f | wc -l | xargs -I {} zenity --info --text=\"There are {} files in the current folder.\"", "qt:SP_FileDialogContentsView"});
-        saveCustomButtons();
+    if (settings.contains("custom_toolbars_v1")) {
+        syncCustomButtonsFromJson();
     } else {
-        for (int i = 0; i < count; ++i) {
-            QString name = settings.value(QString("custom_buttons/btn_%1/name").arg(i)).toString();
-            QString script = settings.value(QString("custom_buttons/btn_%1/script").arg(i)).toString();
-            QString icon = settings.value(QString("custom_buttons/btn_%1/icon").arg(i)).toString();
-            m_customButtons.append(CustomButton{name, script, icon});
+        int count = settings.value("custom_buttons/count", -1).toInt();
+        if (count == -1) {
+            // First run: setup sample commands with standard Qt icons to demonstrate features
+            m_customButtons.append(CustomButton{"Say Hello", "zenity --info --text=\"Hello from Amifiles!\\nActive Folder: $AMIFILES_CURRENT_DIR\"", "qt:SP_MessageBoxInformation"});
+            m_customButtons.append(CustomButton{"Disk Space", "df -h | zenity --text-info --title=\"Disk Usage Summary\" --width=600 --height=400", "qt:SP_DriveHDIcon"});
+            m_customButtons.append(CustomButton{"Count Files", "find . -maxdepth 1 -type f | wc -l | xargs -I {} zenity --info --text=\"There are {} files in the current folder.\"", "qt:SP_FileDialogContentsView"});
+            saveCustomButtons();
+        } else {
+            for (int i = 0; i < count; ++i) {
+                QString name = settings.value(QString("custom_buttons/btn_%1/name").arg(i)).toString();
+                QString script = settings.value(QString("custom_buttons/btn_%1/script").arg(i)).toString();
+                QString icon = settings.value(QString("custom_buttons/btn_%1/icon").arg(i)).toString();
+                m_customButtons.append(CustomButton{name, script, icon});
+            }
         }
+    }
+}
+
+void MainWindow::syncCustomButtonsFromJson() {
+    QSettings settings("Amifiles", "Amifiles");
+    QString jsonStr = settings.value("custom_toolbars_v1").toString();
+    QJsonArray arr;
+    if (jsonStr.isEmpty()) {
+        arr = ToolbarEditorDialog::getDefaultToolbarsJson();
+    } else {
+        arr = QJsonDocument::fromJson(jsonStr.toUtf8()).array();
+    }
+
+    m_customButtons.clear();
+    for (int i = 0; i < arr.size(); ++i) {
+        QJsonObject tbObj = arr[i].toObject();
+        if (tbObj["id"].toString() == "customToolBar") {
+            QJsonArray items = tbObj["items"].toArray();
+            for (int j = 0; j < items.size(); ++j) {
+                QJsonObject item = items[j].toObject();
+                QString type = item["type"].toString();
+                QString name = item["name"].toString();
+                QString icon = item["icon"].toString();
+                QString script;
+                if (type == "custom") {
+                    script = item["command"].toString();
+                } else if (type == "internal") {
+                    script = "@internal:" + item["id"].toString();
+                } else if (type == "separator") {
+                    continue;
+                }
+                m_customButtons.append(CustomButton{name, script, icon});
+            }
+            break;
+        }
+    }
+
+    // Write back to legacy config
+    settings.remove("custom_buttons");
+    settings.setValue("custom_buttons/count", m_customButtons.size());
+    for (int i = 0; i < m_customButtons.size(); ++i) {
+        settings.setValue(QString("custom_buttons/btn_%1/name").arg(i), m_customButtons[i].name);
+        settings.setValue(QString("custom_buttons/btn_%1/script").arg(i), m_customButtons[i].script);
+        settings.setValue(QString("custom_buttons/btn_%1/icon").arg(i), m_customButtons[i].icon);
     }
 }
 
@@ -2587,6 +2635,39 @@ void MainWindow::saveCustomButtons() {
         settings.setValue(QString("custom_buttons/btn_%1/script").arg(i), m_customButtons[i].script);
         settings.setValue(QString("custom_buttons/btn_%1/icon").arg(i), m_customButtons[i].icon);
     }
+
+    // Sync into custom_toolbars_v1
+    QString jsonStr = settings.value("custom_toolbars_v1").toString();
+    QJsonArray arr;
+    if (jsonStr.isEmpty()) {
+        arr = ToolbarEditorDialog::getDefaultToolbarsJson();
+    } else {
+        arr = QJsonDocument::fromJson(jsonStr.toUtf8()).array();
+    }
+
+    for (int i = 0; i < arr.size(); ++i) {
+        QJsonObject tbObj = arr[i].toObject();
+        if (tbObj["id"].toString() == "customToolBar") {
+            QJsonArray items;
+            for (const auto& btn : m_customButtons) {
+                QJsonObject item;
+                if (btn.script.startsWith("@internal:")) {
+                    item["type"] = "internal";
+                    item["id"] = btn.script.mid(10);
+                } else {
+                    item["type"] = "custom";
+                    item["command"] = btn.script;
+                }
+                item["name"] = btn.name;
+                item["icon"] = btn.icon;
+                items.append(item);
+            }
+            tbObj["items"] = items;
+            arr[i] = tbObj;
+            break;
+        }
+    }
+    settings.setValue("custom_toolbars_v1", QJsonDocument(arr).toJson(QJsonDocument::Compact));
 }
 
 void MainWindow::rebuildCustomToolBar() {
@@ -7726,6 +7807,9 @@ void MainWindow::editToolbarItem(QToolBar* tb, QAction* act) {
             }
 
             settings.setValue("custom_toolbars_v1", QJsonDocument(arr).toJson(QJsonDocument::Compact));
+            if (tbId == "customToolBar") {
+                syncCustomButtonsFromJson();
+            }
             rebuildToolBars();
         }
     }
@@ -7787,6 +7871,9 @@ void MainWindow::removeToolbarItem(QToolBar* tb, QAction* act) {
         }
 
         settings.setValue("custom_toolbars_v1", QJsonDocument(arr).toJson(QJsonDocument::Compact));
+        if (tbId == "customToolBar") {
+            syncCustomButtonsFromJson();
+        }
         rebuildToolBars();
     }
 }
@@ -7844,5 +7931,8 @@ void MainWindow::handleToolbarDrop(const QString& sourceTbId, int sourceIdx, con
     }
 
     settings.setValue("custom_toolbars_v1", QJsonDocument(arr).toJson(QJsonDocument::Compact));
+    if (targetTbId == "customToolBar" || sourceTbId == "customToolBar") {
+        syncCustomButtonsFromJson();
+    }
     rebuildToolBars();
 }

@@ -342,6 +342,7 @@ private:
 
     // Custom Buttons Persistence
     void loadCustomButtons();
+    void syncCustomButtonsFromJson();
     void saveCustomButtons();
     void rebuildCustomToolBar();
     void loadFolderRules();
