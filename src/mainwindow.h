@@ -273,6 +273,7 @@ private slots:
     void onToggleCasingOverlays(bool checked);
     void onToggleAudioCoverArt(bool checked);
     void onSaveSearchPreset();
+    void onScreenGrabAction();
     void onPreferencesAction();
     void onMediaPreferences();
     void onThemeStudioAction();
@@ -447,6 +448,7 @@ private:
 
     QAction* m_actToggleDualPane = nullptr;
     QAction* m_actTogglePreview = nullptr;
+    QAction* m_actScreenGrab = nullptr;
     QAction* m_actCommandPalette = nullptr;
     QAction* m_actMutePreview = nullptr;
     QAction* m_actToggleAgeColoring = nullptr;

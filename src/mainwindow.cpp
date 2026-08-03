@@ -18,6 +18,7 @@
 #include "shreddialog.h"
 #include "searchdialog.h"
 #include "remotemountdialog.h"
+#include "screengrabdialog.h"
 #include "cloudmountdialog.h"
 #include "imageconverterdialog.h"
 #include "agestylingdialog.h"
@@ -722,6 +723,12 @@ void MainWindow::setupActions() {
     m_actCommandPalette->setStatusTip("Open spotlight command palette dialog");
     connect(m_actCommandPalette, &QAction::triggered, this, &MainWindow::onCommandPaletteAction);
 
+    m_actScreenGrab = new QAction("Screen Grab Tool...", this);
+    m_actScreenGrab->setShortcut(QKeySequence("Ctrl+Shift+S"));
+    m_actScreenGrab->setToolTip("Capture full screen, active window, or customized region snippet");
+    m_actScreenGrab->setStatusTip("Capture full screen, active window, or customized region snippet");
+    connect(m_actScreenGrab, &QAction::triggered, this, &MainWindow::onScreenGrabAction);
+
     m_actMutePreview = new QAction("Mute Preview Audio", this);
     m_actMutePreview->setCheckable(true);
     m_actMutePreview->setChecked(false);
@@ -1296,6 +1303,7 @@ void MainWindow::setupMenus() {
 
     m_menuTools = menuBar()->addMenu("Tools");
     m_menuTools->addAction(m_actCommandPalette);
+    m_menuTools->addAction(m_actScreenGrab);
     m_menuTools->addSeparator();
     m_menuTools->addAction(m_actCompareSync);
     m_menuTools->addAction(m_actDuplicateFinder);
@@ -7903,4 +7911,9 @@ void MainWindow::handleToolbarDrop(const QString& sourceTbId, int sourceIdx, con
         syncCustomButtonsFromJson();
     }
     rebuildToolBars();
+}
+
+void MainWindow::onScreenGrabAction() {
+    ScreenGrabDialog dlg(this);
+    dlg.exec();
 }
