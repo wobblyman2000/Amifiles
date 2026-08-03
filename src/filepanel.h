@@ -1053,6 +1053,9 @@ private:
     QToolButton* m_btnClonePath = nullptr;
     QToolButton* m_btnFlatView = nullptr;
     QToolButton* m_btnToggleSidePane = nullptr;
+    QTimer* m_playlistCollapseTimer = nullptr;
+    int m_lastPlaylistSize = 0;
+    bool m_blockCollapseTimerStop = false;
     QToolButton* m_btnViewMode = nullptr; // keep single instance
     QHeaderView* m_header = nullptr;
     // New global search components

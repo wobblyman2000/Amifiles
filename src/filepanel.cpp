@@ -291,6 +291,14 @@ void FilePanel::setupUI() {
     m_btnToggleSidePane->setStyleSheet("QToolButton { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 4px; padding: 2px 6px; font-weight: bold; } QToolButton:hover { background-color: #45475a; } QToolButton:checked { background-color: #a6e3a1; color: #11111b; }");
     connect(m_btnToggleSidePane, &QToolButton::toggled, this, &FilePanel::onToggleSidePane);
 
+    m_playlistCollapseTimer = new QTimer(this);
+    m_playlistCollapseTimer->setSingleShot(true);
+    connect(m_playlistCollapseTimer, &QTimer::timeout, this, [this]() {
+        if (m_btnToggleSidePane && m_btnToggleSidePane->isChecked()) {
+            m_btnToggleSidePane->setChecked(false);
+        }
+    });
+
     navLayout->addWidget(m_btnBack);
     navLayout->addWidget(m_btnForward);
     navLayout->addWidget(m_btnUp);
@@ -766,32 +774,13 @@ void FilePanel::setupUI() {
             w = w->parentWidget();
         }
         if (mainWin && mainWin->previewPanel()) {
-            QSettings settings("Amifiles", "Amifiles");
-            bool autoQueue = settings.value("preview/auto_queue_sibling_files", true).toBool();
-            
-            if (autoQueue) {
-                int idx = m_trackListWidget->row(item);
-                QStringList plist;
-                for (int i = 0; i < m_trackListWidget->count(); ++i) {
-                    QString pathVal = m_trackListWidget->item(i)->data(Qt::UserRole).toString();
-                    if (!pathVal.isEmpty()) {
-                        plist.append(pathVal);
-                    }
+            int idx = m_trackListWidget->row(item);
+            if (idx >= 0 && idx < mainWin->previewPanel()->playlist().size()) {
+                mainWin->previewPanel()->playPlaylistIndex(idx);
+                int vm = viewModeIndex();
+                if ((vm == 8 || vm == 9 || vm == 10) && !mainWin->previewPanel()->isFullscreen()) {
+                    mainWin->previewPanel()->toggleFullscreen();
                 }
-                if (!plist.isEmpty()) {
-                    mainWin->previewPanel()->playPlaylist(plist);
-                    mainWin->previewPanel()->playPlaylistIndex(idx);
-                }
-            } else {
-                QString pathVal = item->data(Qt::UserRole).toString();
-                if (!pathVal.isEmpty()) {
-                    mainWin->previewPanel()->playPlaylist({pathVal});
-                    mainWin->previewPanel()->playPlaylistIndex(0);
-                }
-            }
-            int vm = viewModeIndex();
-            if ((vm == 8 || vm == 9 || vm == 10) && !mainWin->previewPanel()->isFullscreen()) {
-                mainWin->previewPanel()->toggleFullscreen();
             }
         }
     });
@@ -5492,6 +5481,11 @@ void FilePanel::updateDrawerVisibility() {
 }
 
 void FilePanel::onToggleSidePane() {
+    if (!m_blockCollapseTimerStop) {
+        if (m_playlistCollapseTimer) {
+            m_playlistCollapseTimer->stop();
+        }
+    }
     updateDrawerVisibility();
 }
 
@@ -7646,6 +7640,20 @@ void FilePanel::syncPlaylist(const QStringList& playlistPaths, int currentIndex)
     }
     m_trackListWidget->blockSignals(false);
     updateDrawerVisibility();
+
+    if (playlistPaths.size() > m_lastPlaylistSize) {
+        int vm = viewModeIndex();
+        if (vm >= 8 && vm <= 10) {
+            m_blockCollapseTimerStop = true;
+            m_btnToggleSidePane->setChecked(true);
+            m_blockCollapseTimerStop = false;
+            
+            if (m_playlistCollapseTimer) {
+                m_playlistCollapseTimer->start(10000); // 10 seconds
+            }
+        }
+    }
+    m_lastPlaylistSize = playlistPaths.size();
 }
 
 void FilePanel::updatePlaybackProgress(qint64 position, qint64 duration) {
