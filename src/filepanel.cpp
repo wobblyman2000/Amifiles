@@ -7010,32 +7010,97 @@ void CasingRunnable::run() {
         painter.drawRect(coverX, coverY, coverW, headerH);
 
         // B. Draw the DVD Video logo inside the header
-        int centerX = coverX + coverW / 2;
-        int logoY = coverY + qRound(7.0 * scaleFactor);
+        int logoW = qRound(27.0 * scaleFactor);
+        int logoH = qRound(12.5 * scaleFactor);
+        int logoX = coverX + (coverW - logoW) / 2;
+        int logoY = coverY + (headerH - logoH) / 2;
         
-        // DVD oval ring
-        painter.setBrush(Qt::NoBrush);
-        painter.setPen(QPen(QColor(224, 224, 224), qMax(1.0, 1.0 * scaleFactor)));
-        painter.drawEllipse(QRectF(centerX - qRound(12.0 * scaleFactor), logoY - qRound(3.5 * scaleFactor), qRound(24.0 * scaleFactor), qRound(7.0 * scaleFactor)));
-
-        // DVD Text
-        QFont dvdFont("Arial");
-        dvdFont.setPixelSize(qMax(6, qRound(9.0 * scaleFactor)));
-        dvdFont.setBold(true);
-        dvdFont.setItalic(true);
-        dvdFont.setStretch(125);
-        painter.setFont(dvdFont);
-        painter.setPen(QColor("#dddddd"));
-        painter.drawText(QRect(centerX - qRound(14.0 * scaleFactor), logoY - qRound(5.0 * scaleFactor), qRound(28.0 * scaleFactor), qRound(9.0 * scaleFactor)), Qt::AlignCenter, "DVD");
-
-        // VIDEO Text
-        QFont videoFont("Arial");
-        videoFont.setPixelSize(qMax(4, qRound(6.0 * scaleFactor)));
-        videoFont.setBold(true);
-        videoFont.setLetterSpacing(QFont::AbsoluteSpacing, qRound(2.0 * scaleFactor));
-        painter.setFont(videoFont);
-        painter.setPen(QColor("#b3b3b3"));
-        painter.drawText(QRect(coverX, coverY + qRound(13.0 * scaleFactor), coverW, qRound(8.0 * scaleFactor)), Qt::AlignCenter, "VIDEO");
+        static QImage dvdLogoImg;
+        if (dvdLogoImg.isNull()) {
+            QByteArray base64Data = QByteArray::fromBase64(
+                "iVBORw0KGgoAAAANSUhEUgAAAHgAAAA4CAYAAAA2PDy+AAASNklEQVR4nNVdebAe"
+                "FRH/zffeywEJAQlHgoABhHAGEi4LUBSVUg4VQcDSKhEUCxH9QzygwNKSqwTBW5Go"
+                "UFCIiliCSCGXhSCXIASMyCVHEiAJJJCEhJf3tdWbX7/qN293dvb7vkDsqq192W+n"
+                "p6d7prunu2cT0BBEpBVCaIvIsQA+D2AlgD6sezAEYByAS0MIPze6O0UmIn0hhCER"
+                "+QiAU4h/bY1bAAwCeBXASwAWAHgMwJMA/hVCWOLpAtAOIWibURAa9ywSFJmIXAHg"
+                "41j34QEAe3YpXJvUbwdwO4DN8ObAMgDzAdwP4BoAN4cQFvsJ2JWAnXD7ybiddPYA"
+                "aGHdhTaAA0IId3WyinXMHN94ADcA2A/A6jdwzMKrVdLnEwAuA/CDEMLLKpcQwurO"
+                "e1ozWL1vJyJLVdIiojN7XYVB3s8i3f0djLlQwyLyowjnmwHKazUTq3kZzBWRD3kZ"
+                "zBWRD3kZGTSdhfb+rgAm0A4VeDu82sShs65jFZpB7wdEZLzO7pgBKeCKUIZ+EsBJ"
+                "pLVqkrS74EMVT/TubatpE510he3le9MB/F5EvkwN22fjbCpgY84+rqPQxWU4+vl3"
+                "u8eCbpFBM3j5MSSB6lwnxEwA368xRfZbN7wo44nxNxa0H1+/49l3ROQ02uJWx04W"
+                "gN0AbM6Oq3DUCWsAwMYAtgKwM4CZvHuG9QKGyKjzQwinVjkjsXDJ0PUA3MnxVnnN"
+                "9fyHAH7HNlX4hSsuVAhM8UwEMAXADgD2IF/Wz+CLOA1zTAjhKjMv6wSIyAYioqr0"
+                "z7QrQz2y70O8PywiE3SC1qlpZ3cvrbG7ZgevW4t8mSEiF4jIa84Op8aqvz8nIpsU"
+                "TnEHHvQmAA5PrE7h6rwPwINO9ZaB9R+896e2BMB57p3GmiaCNmf3wSGEW1Peptvv"
+                "fgnAhVxxZXbXVtPj6qUD2Isr7/WSVSbEsRDAHxMrGH7MEU/eoXt6AG+vWclG7+kh"
+                "hLOzuGMD5/0TmSvnON8uA3+gc2D9nBqtkm5gkPfzibuUOfZcRA4QkVVcEaYBPLRJ"
+                "10plvIiMFZHlGXTcmOq/gict8/5FZLqIvOi86dQqfkBExnUi4AuJZJVz1+0a5H2F"
+                "iGxvRGZ3MlLQOrDbHNHdQJv3x9SbLqOL/WnfU0XkPzX92oT5ItseKCKvRzzwl/Hq"
+                "u56XDfkywPsXaia+jfUVEdmniSNjanaPyFX3lz1/GsAz6AAs5MaAxMU2vppmqhZT"
+                "G/xAHNsCeKcLXiAStt5/SjU47IlWqMBfhRC+x9WozuGAU8V9Fdc/GjPE9cu+Lgfw"
+                "AvGV8UXH0KazNq3VYMugs0I952kO0ahXeX8IwKripYoYaX2XBdPVjq9IDMadeP+L"
+                "gfwAvGV8UXH0KazNq3VYMugs0I952kO0ahXeX8IwKripYoYaX2XBdPVjq9IDMade"
+                "P9Lf4vTdhNDNvL8FwDMAtqbqOpJMVodkLIBfApiasLummr8bQrjSUnT8TZ3Jt7gV"
+                "HoM9+2f078bAjFZw2ayUtlKan88SMNVtoINVhdgG/Kw6Wdw3dypgwz+NQq5inuF/"
+                "gnvGP7jIkpS8b+N9n4i8hREt3W+/u8bu6vOb1EZHwgX3vwpVq9JoMQF3xBPnCA44"
+                "jVFlJvXdRZo/bjVArDN8+4xZ+CAZ1wv1/C4jo+a9e3j/G4CHE4GEQIFpeFQjRO9"
+                "TZykhXHOQ1OadoCpWn0Uqds8EXfbeItKVM5YqsAjcTtwNmCCr+vyvTvycFWzvzKD"
+                "rnYVYIP7jKCGAlhD3ZpBqCoaA+DQGlz9FM5fipdC0CqI3/K1d0cZwfQPAbCfEuA/"
+                "L7ijO40MIqpUKb5vaaYh7aoufp5j9cAihcBa7sL9FJBHAhzjuVLxb4RbVajkCNsI"
+                "3cysg9V43ez0Fc0I+SOZVheUsPaf9adTG3rmO3ndfBf6W0w5bJkKhltQ/M4Rwg6U"
+                "OIxzbcliBGhPyzyYRrKrkh8brAXwioqFsfEr71amXyojcI0UDcc1jkMOedbp6x3L"
+                "LktpmmSaZbekxtp9DlR0Sk9HGldozq627JoRwLu2ux2XCVFs4KeEjGGj1C7rIkNl"
+                "++0vcqqacQaXjVp1UtVFEV8ExUUQeTITvLGx2kwtpdhKitHDcBTXhOH3eZiWD0l"
+                "bYJ9f352pCjSmwNop7Y4sHR7RaP99OZJssZKgx6r26CFFaHHp/ZpRSWTb77eCs/l"
+                "zwfTrjy1WIbYAXeaIaDMJWn/59ciTEMjDBHxkx3Oh9q4i8HDE6ByyI/6qI7O1xlt"
+                "Csgr/OMbaM2QqPi8ikpiqa+E24u4rIMzXjMRlcld2XY9wREWOrGP4p3y5jAMOlJt"
+                "oGMRkW85fFUD0aC+wq9KJsfwatOqTxk58Bywdz9rNJXRzfuEGaZP5InwvSLyXhGZ"
+                "l8n//2rQhjxpJOCzEx20HXNmkcABiLpGdc6U283Ek1JBJoA7WCAwKnnvZv3HHL4c"
+                "MNw/dRNulJlxE2hWDW7j1dkc95iGPNGE/XlMSabGYYtB3zsoezLFg7kxItqDdaSx"
+                "1mzQQINWCorIlY65OStXPeadj3P6V3S0zunA9sZ7ZeOBaSX94M1s+gFF7dqo/XBJ"
+                "Vb3uSU+v2QvbCrdVl+tx2/vzWWQ+hWeBUgeqFG539N3l6Ijf3aaUS1L0c6Y7KeD7"
+                "s7/Vy/e12jGOsgN41lbHcBLPNcft9hORe0rapvbAVRpUf/+H+jF6gN0O7FUVMPiI"
+                "34yvO+Ev5X2Ji/bfpCb8nf4s19P5hlBje4Tv/BS687JDqqHNrTLH6BoSBu9iU2Nq"
+                "fj2EB7xznDSLXluph71zP+t09Y7lliW1zTJNMtvSY2w/hyo7JCYj1B/iMtS8b8MI"
+                "Vk55b6tDnljwxCplWsxFa2nuRSGEIjVap5b7M1JTuzgh5On3vEHEAgVDjLdwEL9X"
+                "e5gziApo866x6a8BGBP9ZqVFn2bCv6hypeAb9B+sxrnXtccWF285Wh8kT64OITzq"
+                "Vm27ji/9qRJZFre/o8LQ9wIWMevxCE/t3aRBfUdH1iCqQNZM0LnEfVAU4ltF52RB"
+                "BxPoIOLxk6ZX8Brr2fS46F10LLVCZpXjieTSW7WCLd22IfOg3aT/2iyK09X4MmuD"
+                "51GwWsIyL4Sgg0KvBFsMgKcgw5rV+VsKxXufX6+rkU6sYM15X19RA52LRz3slfSC"
+                "F5EXT7O+bIEdCx1u0FCw6xS4DX/tqYOGeFu861ZlkXNgrshxqt5MsHpoH6nrBGob"
+                "dpriyuyzyLl2U6OUMfgWc7dqi49iZuf91CYKo5y2OnrYZ1ibfOnmwHoV0jcMojrk"
+                "FB2pUtlGyXNZ8+mFy3naf24DGqvoq6PZ6rvXdoHdGyvgCsb4Gd8zO0Lt0s9rwBWY"
+                "23FUuPuWzN9e76JK5gkP8Rq0s7ldnZQfTWMrqhKxv7G2J0FXAnaqyq52rmrhJl0P"
+                "ka/PazyrEzdiaZCG8DbgNZHvTOB7GuIbx2sMBeZLXlsV41vJ9jGjTdgq4NV0nlYF"
+                "Wxz3Kq9XaKmbNqF0/e11E4Vlmbzwf4sDenol9EanCyMi7GBJ2as6GA3gVEYZ23JX"
+                "gRoT8s8mEawq+aHxeoCfCHiQxU4U6fS9UxZnbYFFskLU72AcoUaN1eIFT5f8H6vH"
+                "1fNS+Oky1O9gP2OFkzlZYX/rSxwV2ZBZpF3vvf+XpyKbeB7sXidAN/P5b/V4vXD9"
+                "p+HxkvqxsQ/EnTjL+WTMt2XF/KS+QWfHlzmPrRmlH61RuHrs/5+iu9vH+WTVw5mJ"
+                "C3X92/v4soT1u56oMRTs+tweTafQN6PgJ/P5ZL5jSfyx7m6VGrnQfU1XFpPpeneR"
+                "K+v3/zYheH/m88l8x5L4Y93dKjVyoW9GwU/m88l8x5L4Y93dKjVyofts/p+D5b8L"
+                "d/VvG7Hj6LpYqIuG9j3D/D/jB904Q+w/c3/i/gCzB/1h3t0qNXNiF8A/5D10yC/e"
+                "F2n//Fv3qZzZp6J/j5j9Yc3x01U/cT6V/5D7zYF+sm8n8+qvcd+H5/9s1NuhdJ6K"
+                "5141Xp7nO5K0w/g9V/w/D33M9E3TZaO7tUHOvG/N3/5rI/9kLwDk9GZ7nU5uQ3Dq"
+                "8t4t9jRVPZu9lRPjOw/f85W3pZ9F+pXb923H2uWqR96D0mJdp6krantOeHhH9P16"
+                "bGv+Zc3oX41mdf9+T54d31x+394P37n2Z/T+F/41hZYbB5f/kMjxGsDLD/6Xn9/f"
+                "76WjRz5pFL1y0i55esxfw31fEDRGR77u3Tohp5N4/Q8d3F0Y5bcUcs1W865GcXxg"
+                "TE+H+gKsuDvQG0/B74G9N3cTr/BqfHn7zUf+9P8a1hVpS/8wQwg0u4+vX1/Bv3vQ"
+                "Yh+V3FOfxHjzn0r/r3vrsQJhGuPT8kJ7cExm4/f88j3vN0Rojc/ZcphlRRPQY5t5"
+                "c08XUj5Q82+B4Qd7r8eG7wOsXTenB14LpPz/oV2D8n/qj/n8/V/W02fT10YQvVDr"
+                "wNqGQZaz0YTa2oDadBD7/1aD/8x04f852t9GP2eFkznZpOHVl6ZqDAd9Mwpe+j4A"
+                "mLXPtFMLdf3be/eyXEf3Fr1rEwI0G/D/MvqZz9fW0xG/u00pl6To50wTshje+8H3"
+                "ThDPB1+dTw2gId29aYvtE5E+M6T0C9oWv/8C3uM4f5v/t8qSHbI/O2M6+JpvmKZe"
+                "OntDPXQgpSJcWxbK9VuZKnidTpHGoB9lWHM6b3sWgx/A9pw6LUPZVNx1C9c7vP8P"
+                "GjH6qIifhS7yH8z6iZOBqXwepwP7GfPpb3X9v9H7ZpG25V3vrH/M5swA3vU9+2N+"
+                "f9hG5qL/B8M/Qudm13E+okbr2Xqfv/vXRP7PnI+IuOfz/N07fXvHl634aQT/ftz"
+                "j8D/qQ1W9B39h/qHXD3p7rOL2h7M4x3/D8j5B1c="
+            );
+            dvdLogoImg.loadFromData(base64Data, "PNG");
+        }
+        if (!dvdLogoImg.isNull()) {
+            painter.drawImage(QRect(logoX, logoY, logoW, logoH), dvdLogoImg);
+        }
 
         // Header bottom divider line
         painter.setPen(QPen(QColor(255, 255, 255, 30), qMax(1.0, 1.0 * scaleFactor)));
