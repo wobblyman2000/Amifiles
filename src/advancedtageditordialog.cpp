@@ -817,7 +817,25 @@ void AdvancedTagEditorDialog::onRenameFromTags() {
     previewTable->setRowCount(0);
     int rowIdx = 0;
     
-    for (int row : selectedRows) {
+    // Sort rows numerically by track number (falling back to table order)
+    QList<int> sortedRows = selectedRows.values();
+    std::sort(sortedRows.begin(), sortedRows.end(), [this](int a, int b) {
+        QString trackA = m_tracks[a].metadata.track;
+        QString trackB = m_tracks[b].metadata.track;
+        bool okA = false, okB = false;
+        int numA = trackA.toInt(&okA);
+        int numB = trackB.toInt(&okB);
+        if (okA && okB) {
+            return numA < numB;
+        } else if (okA) {
+            return true;
+        } else if (okB) {
+            return false;
+        }
+        return a < b;
+    });
+
+    for (int row : sortedRows) {
         const TrackEditInfo& track = m_tracks[row];
         QFileInfo info(track.currentPath);
         QString ext = info.suffix();
