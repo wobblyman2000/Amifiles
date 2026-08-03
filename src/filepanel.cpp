@@ -2074,7 +2074,7 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
         m_homeDashboardActive = false;
 
         // Restore active view stack widget
-        onViewModeChanged(viewModeIndex());
+        onViewModeChanged(m_comboViewMode ? m_comboViewMode->currentIndex() : 0);
 
         updateActiveViewModel();
 
@@ -5225,7 +5225,7 @@ void FilePanel::syncZoom(int value) {
 
 void FilePanel::updateTheaterGridSize() {
     int index = viewModeIndex();
-    if (index < 6 || index > 10) return;
+    if (index < 8 || index > 10) return; // 8: Movies, 9: TV, 10: Music
 
     int sizes[] = { 16, 24, 32, 48, 64, 96, 128 };
     int size = sizes[qBound(0, m_zoomLevel, 6)];
@@ -5236,10 +5236,6 @@ void FilePanel::updateTheaterGridSize() {
         // Perfect square music/audio showcase (Image width = gw - 16, Image height = gh - 40. Lock gh = gw + 24 for 1:1 image area)
         gw = qRound(160.0 * factor);
         gh = gw + 24;
-    } else if (index == 6) {
-        // Compact square music/audio showcase fallback
-        gw = qRound(160.0 * factor);
-        gh = qRound(185.0 * factor);
     } else {
         // 2:3 widescreen posters for Movie/TV
         gw = qRound(155.0 * factor);
@@ -6176,7 +6172,7 @@ void FilePanel::onDoubleClickedPath(const QString& path) {
 }
 
 int FilePanel::viewModeIndex() const {
-    return m_comboViewMode ? m_comboViewMode->currentIndex() : 0;
+    return m_comboViewMode ? comboIndexToInternal(m_comboViewMode->currentIndex()) : 0;
 }
 
 int FilePanel::getTrackListCurrentIndex() const {
@@ -6224,7 +6220,7 @@ void FilePanel::setRepeatState(int mode) {
 
 void FilePanel::setViewModeIndex(int index) {
     if (m_comboViewMode) {
-        m_comboViewMode->setCurrentIndex(index);
+        m_comboViewMode->setCurrentIndex(internalToComboIndex(index));
     }
 }
 
