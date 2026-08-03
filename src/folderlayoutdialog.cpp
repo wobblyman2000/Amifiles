@@ -293,6 +293,7 @@ void FolderLayoutDialog::setupUI() {
     QGroupBox* triggerGroup = new QGroupBox("1. Folder Profile & Layout Template", this);
     QGridLayout* triggerGrid = new QGridLayout(triggerGroup);
     triggerGrid->setSpacing(8);
+    triggerGrid->setColumnMinimumWidth(0, 180);
 
     triggerGrid->addWidget(new QLabel("Profile / Template Name:", this), 0, 0);
     m_editName = new QLineEdit(this);
@@ -382,11 +383,13 @@ void FolderLayoutDialog::setupUI() {
     m_viewGroup = new QGroupBox("2. View Mode & Toolbars", this);
     QGridLayout* viewGrid = new QGridLayout(m_viewGroup);
     viewGrid->setSpacing(8);
+    viewGrid->setColumnMinimumWidth(0, 180);
 
     viewGrid->addWidget(new QLabel("View Mode:", this), 0, 0);
     m_comboViewMode = new QComboBox(this);
     m_comboViewMode->addItems({"No Change", "List", "Grid", "Card", "Miller", "Timeline", "Filmstrip", "Audio Showcase (Classic)", "Video Showcase (Classic)", "Movies Full Screen", "TV Shows Full Screen", "Music Full Screen", "Cover Flow Carousel"});
-    viewGrid->addWidget(m_comboViewMode, 0, 1);
+    m_comboViewMode->setMinimumWidth(280);
+    viewGrid->addWidget(m_comboViewMode, 0, 1, Qt::AlignLeft);
 
     m_lblCustomButtons = new QLabel("Filter Custom Buttons:", this);
     m_lblCustomButtons->setToolTip("Choose which user-defined custom toolbar buttons are visible in this folder profile. Manage all custom buttons via the 'Edit Toolbars...' button on the left panel.");
@@ -394,8 +397,9 @@ void FolderLayoutDialog::setupUI() {
 
     m_btnChooseButtons = new QPushButton("All Buttons (Default)", this);
     m_btnChooseButtons->setToolTip("Select custom script/app buttons to enable for this profile. If empty, all are shown.");
+    m_btnChooseButtons->setMinimumWidth(280);
     connect(m_btnChooseButtons, &QPushButton::clicked, this, &FolderLayoutDialog::onChooseButtons);
-    viewGrid->addWidget(m_btnChooseButtons, 1, 1);
+    viewGrid->addWidget(m_btnChooseButtons, 1, 1, Qt::AlignLeft);
 
     scrollLayout->addWidget(m_viewGroup);
 
@@ -403,6 +407,7 @@ void FolderLayoutDialog::setupUI() {
     m_visGroup = new QGroupBox("3. Layout, Docks & Panels (On/Off States)", this);
     QGridLayout* visGrid = new QGridLayout(m_visGroup);
     visGrid->setSpacing(8);
+    visGrid->setColumnMinimumWidth(0, 180);
     visGrid->setColumnStretch(0, 0);
     visGrid->setColumnStretch(1, 0);
     visGrid->setColumnStretch(2, 1);
