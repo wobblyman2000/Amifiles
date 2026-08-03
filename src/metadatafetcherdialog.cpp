@@ -14,6 +14,7 @@
 #include <QPixmap>
 #include <QMessageBox>
 #include <QNetworkRequest>
+#include <QSettings>
 
 MetadataFetcherDialog::MetadataFetcherDialog(const QStringList& filePaths, QWidget* parent)
     : QDialog(parent), m_filePaths(filePaths) {
@@ -54,6 +55,34 @@ MetadataFetcherDialog::MetadataFetcherDialog(const QStringList& filePaths, QWidg
 void MetadataFetcherDialog::setupUI() {
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
     mainLayout->setSpacing(12);
+
+    // Source selection panel
+    QHBoxLayout* sourceLayout = new QHBoxLayout();
+    sourceLayout->setSpacing(8);
+
+    m_comboSource = new QComboBox(this);
+    m_comboSource->addItems({"MusicBrainz", "Discogs"});
+    
+    m_editDiscogsToken = new QLineEdit(this);
+    m_editDiscogsToken->setPlaceholderText("Enter Discogs Personal Access Token...");
+    m_editDiscogsToken->setEchoMode(QLineEdit::Password);
+    
+    QSettings settings("Amifiles", "Amifiles");
+    m_editDiscogsToken->setText(settings.value("discogs_token", "").toString());
+    m_editDiscogsToken->setVisible(false);
+
+    m_lblTokenHint = new QLabel(this);
+    m_lblTokenHint->setText("<a href='https://www.discogs.com/settings/developers' style='color:#89b4fa;'>Get Token</a>");
+    m_lblTokenHint->setOpenExternalLinks(true);
+    m_lblTokenHint->setVisible(false);
+
+    sourceLayout->addWidget(new QLabel("Meta Source:", this));
+    sourceLayout->addWidget(m_comboSource);
+    sourceLayout->addWidget(m_editDiscogsToken, 1);
+    sourceLayout->addWidget(m_lblTokenHint);
+    
+    connect(m_comboSource, &QComboBox::currentIndexChanged, this, &MetadataFetcherDialog::onSourceChanged);
+    mainLayout->addLayout(sourceLayout);
 
     // Search inputs
     QHBoxLayout* searchLayout = new QHBoxLayout();
@@ -152,7 +181,6 @@ void MetadataFetcherDialog::onSearch() {
         return;
     }
 
-    m_lblStatus->setText("Searching MusicBrainz...");
     m_btnSearch->setEnabled(false);
     m_tableReleases->setRowCount(0);
     m_tableTracks->setRowCount(0);
@@ -162,22 +190,51 @@ void MetadataFetcherDialog::onSearch() {
     m_lblArtworkPreview->setText("No Artwork");
     m_artworkData.clear();
 
-    QUrl url("https://musicbrainz.org/ws/2/release/");
-    QUrlQuery query;
-    QString qStr;
-    if (!artist.isEmpty()) qStr += QString("artist:\"%1\"").arg(artist);
-    if (!album.isEmpty()) {
-        if (!qStr.isEmpty()) qStr += " AND ";
-        qStr += QString("release:\"%1\"").arg(album);
-    }
-    query.addQueryItem("query", qStr);
-    query.addQueryItem("fmt", "json");
-    url.setQuery(query);
+    if (m_comboSource->currentIndex() == 0) {
+        m_lblStatus->setText("Searching MusicBrainz...");
+        QUrl url("https://musicbrainz.org/ws/2/release/");
+        QUrlQuery query;
+        QString qStr;
+        if (!artist.isEmpty()) qStr += QString("artist:\"%1\"").arg(artist);
+        if (!album.isEmpty()) {
+            if (!qStr.isEmpty()) qStr += " AND ";
+            qStr += QString("release:\"%1\"").arg(album);
+        }
+        query.addQueryItem("query", qStr);
+        query.addQueryItem("fmt", "json");
+        url.setQuery(query);
 
-    QNetworkRequest req(url);
-    req.setRawHeader("User-Agent", "Amifiles/" AMIFILES_VERSION_STRING " ( dave@example.com )");
-    QNetworkReply* reply = m_networkManager->get(req);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() { onSearchFinished(reply); });
+        QNetworkRequest req(url);
+        req.setRawHeader("User-Agent", "Amifiles/" AMIFILES_VERSION_STRING " ( dave@example.com )");
+        QNetworkReply* reply = m_networkManager->get(req);
+        connect(reply, &QNetworkReply::finished, this, [this, reply]() { onSearchFinished(reply); });
+    } else {
+        QString token = m_editDiscogsToken->text().trimmed();
+        if (token.isEmpty()) {
+            QMessageBox::warning(this, "Discogs Token Required", "Discogs search requires a Personal Access Token.\nPlease enter it in the field above.");
+            m_btnSearch->setEnabled(true);
+            return;
+        }
+
+        // Save token to QSettings
+        QSettings settings("Amifiles", "Amifiles");
+        settings.setValue("discogs_token", token);
+
+        m_lblStatus->setText("Searching Discogs...");
+        QUrl url("https://api.discogs.com/database/search");
+        QUrlQuery query;
+        if (!artist.isEmpty()) query.addQueryItem("artist", artist);
+        if (!album.isEmpty()) query.addQueryItem("release_title", album);
+        query.addQueryItem("type", "release");
+        url.setQuery(query);
+
+        QNetworkRequest req(url);
+        req.setRawHeader("User-Agent", "Amifiles/" AMIFILES_VERSION_STRING " ( dave@example.com )");
+        req.setRawHeader("Authorization", QString("Discogs token=%1").arg(token).toUtf8());
+
+        QNetworkReply* reply = m_networkManager->get(req);
+        connect(reply, &QNetworkReply::finished, this, [this, reply]() { onDiscogsSearchFinished(reply); });
+    }
 }
 
 void MetadataFetcherDialog::onSearchFinished(QNetworkReply* reply) {
@@ -239,24 +296,36 @@ void MetadataFetcherDialog::onReleaseSelected() {
     m_lblArtworkPreview->setText("Loading Art...");
     m_artworkData.clear();
 
-    // Fetch tracklist details
-    QUrl url(QString("https://musicbrainz.org/ws/2/release/%1").arg(mbid));
-    QUrlQuery query;
-    query.addQueryItem("inc", "recordings");
-    query.addQueryItem("fmt", "json");
-    url.setQuery(query);
+    if (m_comboSource->currentIndex() == 0) {
+        // Fetch tracklist details
+        QUrl url(QString("https://musicbrainz.org/ws/2/release/%1").arg(mbid));
+        QUrlQuery query;
+        query.addQueryItem("inc", "recordings");
+        query.addQueryItem("fmt", "json");
+        url.setQuery(query);
 
-    QNetworkRequest req(url);
-    req.setRawHeader("User-Agent", "Amifiles/" AMIFILES_VERSION_STRING " ( dave@example.com )");
-    QNetworkReply* reply = m_networkManager->get(req);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() { onReleaseDetailsFinished(reply); });
+        QNetworkRequest req(url);
+        req.setRawHeader("User-Agent", "Amifiles/" AMIFILES_VERSION_STRING " ( dave@example.com )");
+        QNetworkReply* reply = m_networkManager->get(req);
+        connect(reply, &QNetworkReply::finished, this, [this, reply]() { onReleaseDetailsFinished(reply); });
 
-    // Fetch cover art info
-    QUrl coverUrl(QString("https://coverartarchive.org/release/%1").arg(mbid));
-    QNetworkRequest coverReq(coverUrl);
-    coverReq.setRawHeader("User-Agent", "Amifiles/" AMIFILES_VERSION_STRING " ( dave@example.com )");
-    QNetworkReply* coverReply = m_networkManager->get(coverReq);
-    connect(coverReply, &QNetworkReply::finished, this, [this, coverReply]() { onCoverArtFinished(coverReply); });
+        // Fetch cover art info
+        QUrl coverUrl(QString("https://coverartarchive.org/release/%1").arg(mbid));
+        QNetworkRequest coverReq(coverUrl);
+        coverReq.setRawHeader("User-Agent", "Amifiles/" AMIFILES_VERSION_STRING " ( dave@example.com )");
+        QNetworkReply* coverReply = m_networkManager->get(coverReq);
+        connect(coverReply, &QNetworkReply::finished, this, [this, coverReply]() { onCoverArtFinished(coverReply); });
+    } else {
+        QString token = m_editDiscogsToken->text().trimmed();
+        QUrl url(QString("https://api.discogs.com/releases/%1").arg(mbid));
+
+        QNetworkRequest req(url);
+        req.setRawHeader("User-Agent", "Amifiles/" AMIFILES_VERSION_STRING " ( dave@example.com )");
+        req.setRawHeader("Authorization", QString("Discogs token=%1").arg(token).toUtf8());
+
+        QNetworkReply* reply = m_networkManager->get(req);
+        connect(reply, &QNetworkReply::finished, this, [this, reply]() { onDiscogsReleaseDetailsFinished(reply); });
+    }
 }
 
 void MetadataFetcherDialog::onReleaseDetailsFinished(QNetworkReply* reply) {
@@ -425,4 +494,135 @@ void MetadataFetcherDialog::onApply() {
     }
 
     accept();
+}
+
+void MetadataFetcherDialog::onSourceChanged(int index) {
+    bool isDiscogs = (index == 1);
+    m_editDiscogsToken->setVisible(isDiscogs);
+    m_lblTokenHint->setVisible(isDiscogs);
+    m_btnSearch->setText(isDiscogs ? "Search Discogs" : "Search MusicBrainz");
+}
+
+void MetadataFetcherDialog::onDiscogsSearchFinished(QNetworkReply* reply) {
+    m_btnSearch->setEnabled(true);
+    if (reply->error() != QNetworkReply::NoError) {
+        m_lblStatus->setText("Discogs search failed: " + reply->errorString());
+        reply->deleteLater();
+        return;
+    }
+
+    QByteArray data = reply->readAll();
+    reply->deleteLater();
+
+    QJsonDocument doc = QJsonDocument::fromJson(data);
+    QJsonObject root = doc.object();
+    QJsonArray resultsArr = root["results"].toArray();
+
+    m_tableReleases->setRowCount(0);
+    m_releases.clear();
+
+    for (int i = 0; i < resultsArr.size(); ++i) {
+        QJsonObject rel = resultsArr[i].toObject();
+        ReleaseInfo info;
+        
+        info.mbid = QString::number(rel["id"].toInt()); 
+        
+        QString fullTitle = rel["title"].toString();
+        int dashIdx = fullTitle.indexOf(" - ");
+        if (dashIdx != -1) {
+            info.artist = fullTitle.left(dashIdx).trimmed();
+            info.title = fullTitle.mid(dashIdx + 3).trimmed();
+        } else {
+            info.artist = m_editArtistSearch->text().trimmed();
+            info.title = fullTitle;
+        }
+
+        info.year = rel["year"].toString();
+        if (info.year.isEmpty()) {
+            info.year = QString::number(rel["year"].toInt());
+            if (info.year == "0") info.year = "";
+        }
+        
+        info.trackCount = 0; 
+
+        m_releases.append(info);
+
+        int row = m_tableReleases->rowCount();
+        m_tableReleases->insertRow(row);
+        m_tableReleases->setItem(row, 0, new QTableWidgetItem(info.artist));
+        m_tableReleases->setItem(row, 1, new QTableWidgetItem(info.title));
+        m_tableReleases->setItem(row, 2, new QTableWidgetItem(info.year));
+        m_tableReleases->setItem(row, 3, new QTableWidgetItem("N/A"));
+    }
+
+    m_lblStatus->setText(QString("Found %1 Discogs releases").arg(m_releases.size()));
+}
+
+void MetadataFetcherDialog::onDiscogsReleaseDetailsFinished(QNetworkReply* reply) {
+    if (reply->error() != QNetworkReply::NoError) {
+        m_lblStatus->setText("Failed to fetch release details: " + reply->errorString());
+        m_lblArtworkPreview->setText("Load Failed");
+        reply->deleteLater();
+        return;
+    }
+
+    QByteArray data = reply->readAll();
+    reply->deleteLater();
+
+    QJsonDocument doc = QJsonDocument::fromJson(data);
+    QJsonObject root = doc.object();
+
+    QJsonArray tracklistArr = root["tracklist"].toArray();
+    int trackIndex = 1;
+    for (int i = 0; i < tracklistArr.size(); ++i) {
+        QJsonObject trackObj = tracklistArr[i].toObject();
+        QString type = trackObj["type_"].toString();
+        if (!type.isEmpty() && type != "track") continue;
+
+        TrackInfo info;
+        info.title = trackObj["title"].toString();
+        info.number = trackIndex++;
+        m_currentReleaseTracks.append(info);
+
+        int row = m_tableTracks->rowCount();
+        m_tableTracks->insertRow(row);
+        m_tableTracks->setItem(row, 0, new QTableWidgetItem(trackObj["position"].toString()));
+        m_tableTracks->setItem(row, 1, new QTableWidgetItem(info.title));
+    }
+
+    m_lblStatus->setText(QString("Fetched %1 tracks").arg(m_currentReleaseTracks.size()));
+
+    int currRow = m_tableReleases->currentRow();
+    if (currRow >= 0 && currRow < m_releases.size()) {
+        m_releases[currRow].trackCount = m_currentReleaseTracks.size();
+        m_tableReleases->setItem(currRow, 3, new QTableWidgetItem(QString::number(m_currentReleaseTracks.size())));
+    }
+
+    autoMapTracks();
+
+    QString coverUrl;
+    QJsonArray imagesArr = root["images"].toArray();
+    for (int i = 0; i < imagesArr.size(); ++i) {
+        QJsonObject imgObj = imagesArr[i].toObject();
+        QString imgType = imgObj["type"].toString();
+        if (imgType == "primary") {
+            coverUrl = imgObj["resource_url"].toString();
+            break;
+        }
+    }
+    if (coverUrl.isEmpty() && !imagesArr.isEmpty()) {
+        coverUrl = imagesArr[0].toObject()["resource_url"].toString();
+    }
+
+    if (!coverUrl.isEmpty()) {
+        QString token = m_editDiscogsToken->text().trimmed();
+        QNetworkRequest imgReq(coverUrl);
+        imgReq.setRawHeader("User-Agent", "Amifiles/" AMIFILES_VERSION_STRING " ( dave@example.com )");
+        imgReq.setRawHeader("Authorization", QString("Discogs token=%1").arg(token).toUtf8());
+
+        QNetworkReply* imgReply = m_networkManager->get(imgReq);
+        connect(imgReply, &QNetworkReply::finished, this, [this, imgReply]() { onDownloadArtworkFinished(imgReply); });
+    } else {
+        m_lblArtworkPreview->setText("No Artwork");
+    }
 }

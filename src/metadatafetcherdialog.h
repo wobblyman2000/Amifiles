@@ -43,6 +43,9 @@ private slots:
     void onReleaseDetailsFinished(QNetworkReply* reply);
     void onCoverArtFinished(QNetworkReply* reply);
     void onDownloadArtworkFinished(QNetworkReply* reply);
+    void onSourceChanged(int index);
+    void onDiscogsSearchFinished(QNetworkReply* reply);
+    void onDiscogsReleaseDetailsFinished(QNetworkReply* reply);
 
 private:
     void setupUI();
@@ -54,6 +57,9 @@ private:
     QString m_artworkMimeType;
 
     // UI elements
+    class QComboBox* m_comboSource = nullptr;
+    QLineEdit* m_editDiscogsToken = nullptr;
+    class QLabel* m_lblTokenHint = nullptr;
     QLineEdit* m_editArtistSearch = nullptr;
     QLineEdit* m_editAlbumSearch = nullptr;
     QPushButton* m_btnSearch = nullptr;
