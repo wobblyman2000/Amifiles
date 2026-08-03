@@ -310,7 +310,7 @@ void FolderLayoutDialog::setupUI() {
     triggerGrid->addWidget(new QLabel("Profile / Template Name:", this), 0, 0);
     m_editName = new QLineEdit(this);
     m_editName->setToolTip("Descriptive label for this profile or template (e.g. 'My Music Collection', 'Movies Showcase', 'TV Series').");
-    m_editName->setMaximumWidth(400);
+    m_editName->setFixedWidth(400);
     triggerGrid->addWidget(m_editName, 0, 1, 1, 2, Qt::AlignLeft);
     connect(m_editName, &QLineEdit::textChanged, this, [this](const QString& text) {
         if (m_currentIndex >= 0 && m_currentIndex < m_rules.size()) {
@@ -347,7 +347,7 @@ void FolderLayoutDialog::setupUI() {
     m_comboRuleType = new QComboBox(this);
     m_comboRuleType->addItems({"Path", "Category"});
     m_comboRuleType->setToolTip("Rule match type: Select 'Path' to target a specific directory folder path, or 'Category' to target a media category type (Music, Videos, Images, Documents).");
-    m_comboRuleType->setMaximumWidth(400);
+    m_comboRuleType->setFixedWidth(400);
     triggerGrid->addWidget(m_comboRuleType, 2, 1, 1, 2, Qt::AlignLeft);
     connect(m_comboRuleType, &QComboBox::currentTextChanged, this, &FolderLayoutDialog::onRuleTypeChanged);
 
@@ -357,7 +357,7 @@ void FolderLayoutDialog::setupUI() {
     pathRow->setSpacing(8);
     m_editValue = new QLineEdit(this);
     m_editValue->setToolTip("The exact folder directory path (e.g. /home/user/Music or /media/Movies) to apply this profile layout to.");
-    m_editValue->setMaximumWidth(400);
+    m_editValue->setFixedWidth(400);
     
     m_btnBrowse = new QPushButton("📂 Browse...", this);
     m_btnBrowse->setToolTip("Open file chooser dialog to select a folder directory path.");
@@ -370,7 +370,7 @@ void FolderLayoutDialog::setupUI() {
 
     m_btnUseActivePath = new QPushButton("⚡ Use Active Path", this);
     m_btnUseActivePath->setToolTip("Insert the currently open folder path from the active file panel into the target path field.");
-    m_btnUseActivePath->setMaximumWidth(400);
+    m_btnUseActivePath->setFixedWidth(400);
     connect(m_btnUseActivePath, &QPushButton::clicked, this, &FolderLayoutDialog::onUseActivePath);
     triggerGrid->addWidget(m_btnUseActivePath, 4, 1, 1, 2, Qt::AlignLeft);
 
@@ -382,7 +382,7 @@ void FolderLayoutDialog::setupUI() {
     m_comboSubfolderDepth->addItem("3 Subfolder Levels Deep (TV Shows: Root -> Show -> Season -> Episodes)", 3);
     m_comboSubfolderDepth->addItem("Unlimited Subfolder Depth (All Nested Subdirectories)", 999);
     m_comboSubfolderDepth->setToolTip("Controls how many subfolder levels deep inside this directory will inherit this profile layout. For TV Shows, select '3 Subfolder Levels Deep' or 'Unlimited' so all Show, Season, and Episode folders automatically use this layout!");
-    m_comboSubfolderDepth->setMaximumWidth(400);
+    m_comboSubfolderDepth->setFixedWidth(400);
     triggerGrid->addWidget(m_comboSubfolderDepth, 5, 1, 1, 2, Qt::AlignLeft);
 
     QLabel* lblLink = new QLabel("Assigned Layout Template:", this);
@@ -391,7 +391,7 @@ void FolderLayoutDialog::setupUI() {
 
     m_comboLinkedProfile = new QComboBox(this);
     m_comboLinkedProfile->setToolTip("Choose a pre-configured Layout Template (Movies, TV Series, Music, Default, etc.) to apply to this folder, or select '(None - Custom)' to define custom rules.");
-    m_comboLinkedProfile->setMaximumWidth(400);
+    m_comboLinkedProfile->setFixedWidth(400);
     triggerGrid->addWidget(m_comboLinkedProfile, 6, 1, 1, 2, Qt::AlignLeft);
     connect(m_comboLinkedProfile, &QComboBox::currentIndexChanged, this, &FolderLayoutDialog::onLinkedProfileChanged);
 
@@ -414,7 +414,7 @@ void FolderLayoutDialog::setupUI() {
     viewGrid->addWidget(new QLabel("View Mode:", this), 0, 0);
     m_comboViewMode = new QComboBox(this);
     m_comboViewMode->addItems({"No Change", "List", "Grid", "Card", "Miller", "Timeline", "Filmstrip", "Audio Showcase (Classic)", "Video Showcase (Classic)", "Movies Full Screen", "TV Shows Full Screen", "Music Full Screen", "Cover Flow Carousel"});
-    m_comboViewMode->setMaximumWidth(400);
+    m_comboViewMode->setFixedWidth(400);
     viewGrid->addWidget(m_comboViewMode, 0, 1, Qt::AlignLeft);
 
     m_lblCustomButtons = new QLabel("Filter Custom Buttons:", this);
@@ -423,7 +423,7 @@ void FolderLayoutDialog::setupUI() {
 
     m_btnChooseButtons = new QPushButton("All Buttons (Default)", this);
     m_btnChooseButtons->setToolTip("Select custom script/app buttons to enable for this profile. If empty, all are shown.");
-    m_btnChooseButtons->setMaximumWidth(400);
+    m_btnChooseButtons->setFixedWidth(400);
     connect(m_btnChooseButtons, &QPushButton::clicked, this, &FolderLayoutDialog::onChooseButtons);
     viewGrid->addWidget(m_btnChooseButtons, 1, 1, Qt::AlignLeft);
 
@@ -522,7 +522,7 @@ void FolderLayoutDialog::setupUI() {
     m_btnSelectToolbars = new QPushButton("Select Active Toolbars...", this);
     m_btnSelectToolbars->setToolTip("Choose which toolbar panels are displayed.");
     m_btnSelectToolbars->setEnabled(false);
-    m_btnSelectToolbars->setMaximumWidth(400);
+    m_btnSelectToolbars->setFixedWidth(400);
     connect(m_btnSelectToolbars, &QPushButton::clicked, this, &FolderLayoutDialog::onSelectToolbars);
     connect(m_stateToolbars, &ToggleSwitch::toggled, m_btnSelectToolbars, &QPushButton::setEnabled);
     visGrid->addWidget(new QLabel("Custom Toolbars", this), 13, 0);
@@ -535,7 +535,7 @@ void FolderLayoutDialog::setupUI() {
     m_btnSelectMenus = new QPushButton("Select Custom Menus...", this);
     m_btnSelectMenus->setToolTip("Choose which custom right-click context menus are active.");
     m_btnSelectMenus->setEnabled(false);
-    m_btnSelectMenus->setMaximumWidth(400);
+    m_btnSelectMenus->setFixedWidth(400);
     connect(m_btnSelectMenus, &QPushButton::clicked, this, &FolderLayoutDialog::onSelectMenus);
     connect(m_stateMenus, &ToggleSwitch::toggled, m_btnSelectMenus, &QPushButton::setEnabled);
     visGrid->addWidget(new QLabel("Custom Menus", this), 14, 0);
