@@ -21,6 +21,7 @@ public:
     void rotateImage(bool clockwise);
     void removeGreenScreen();
     void removeGreenScreen(double threshold);
+    void resizeImage(int w, int h);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -61,6 +62,7 @@ private slots:
     void onChromaThresholdChanged(int value);
     void onToolChanged(int index);
     void onColorChanged(int index);
+    void onResizeImage();
 
 private:
     void setupUI();

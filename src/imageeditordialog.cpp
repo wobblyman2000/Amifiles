@@ -8,6 +8,76 @@
 #include <QMouseEvent>
 #include <QInputDialog>
 #include <QMessageBox>
+#include <QFormLayout>
+#include <QSpinBox>
+#include <QCheckBox>
+
+class ImageResizeDialog : public QDialog {
+public:
+    ImageResizeDialog(int currentW, int currentH, QWidget* parent = nullptr) : QDialog(parent), m_aspectRatio(double(currentW) / currentH) {
+        setWindowTitle("Resize Image");
+        
+        QFormLayout* layout = new QFormLayout(this);
+        
+        m_spinWidth = new QSpinBox(this);
+        m_spinWidth->setRange(1, 20000);
+        m_spinWidth->setValue(currentW);
+        
+        m_spinHeight = new QSpinBox(this);
+        m_spinHeight->setRange(1, 20000);
+        m_spinHeight->setValue(currentH);
+        
+        m_checkAspect = new QCheckBox("Preserve aspect ratio", this);
+        m_checkAspect->setChecked(true);
+        
+        layout->addRow("Width (px):", m_spinWidth);
+        layout->addRow("Height (px):", m_spinHeight);
+        layout->addRow(m_checkAspect);
+        
+        QHBoxLayout* buttons = new QHBoxLayout();
+        QPushButton* ok = new QPushButton("OK", this);
+        QPushButton* cancel = new QPushButton("Cancel", this);
+        connect(ok, &QPushButton::clicked, this, &QDialog::accept);
+        connect(cancel, &QPushButton::clicked, this, &QDialog::reject);
+        buttons->addWidget(ok);
+        buttons->addWidget(cancel);
+        layout->addRow(buttons);
+        
+        // Auto-update height/width when aspect ratio is preserved
+        connect(m_spinWidth, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int w) {
+            if (m_checkAspect->isChecked() && !m_updating) {
+                m_updating = true;
+                m_spinHeight->setValue(qRound(w / m_aspectRatio));
+                m_updating = false;
+            }
+        });
+        
+        connect(m_spinHeight, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int h) {
+            if (m_checkAspect->isChecked() && !m_updating) {
+                m_updating = true;
+                m_spinWidth->setValue(qRound(h * m_aspectRatio));
+                m_updating = false;
+            }
+        });
+        
+        setStyleSheet("QDialog { background-color: #1e1e2e; color: #cdd6f4; }"
+                      "QLabel { color: #cdd6f4; }"
+                      "QSpinBox { background-color: #181825; color: #cdd6f4; border: 1px solid #313244; border-radius: 4px; padding: 4px; }"
+                      "QCheckBox { color: #cdd6f4; }"
+                      "QPushButton { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; padding: 6px 12px; border-radius: 4px; }"
+                      "QPushButton:hover { background-color: #89b4fa; color: #11111b; }");
+    }
+    
+    int widthValue() const { return m_spinWidth->value(); }
+    int heightValue() const { return m_spinHeight->value(); }
+    
+private:
+    QSpinBox* m_spinWidth;
+    QSpinBox* m_spinHeight;
+    QCheckBox* m_checkAspect;
+    double m_aspectRatio;
+    bool m_updating = false;
+};
 
 ImageEditorCanvas::ImageEditorCanvas(QWidget* parent) : QWidget(parent) {
     setMinimumSize(400, 300);
@@ -89,6 +159,16 @@ void ImageEditorCanvas::removeGreenScreen(double threshold) {
             }
         }
     }
+    update();
+}
+
+void ImageEditorCanvas::resizeImage(int w, int h) {
+    if (m_baseImage.isNull()) return;
+    m_baseImage = m_baseImage.scaled(w, h, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+    if (!m_originalBaseImage.isNull()) {
+        m_originalBaseImage = m_originalBaseImage.scaled(w, h, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+    }
+    m_annotations.clear(); // Clear markup to avoid coordinate mismatch on scale change
     update();
 }
 
@@ -252,6 +332,11 @@ void ImageEditorDialog::setupUI() {
     connect(btnChroma, &QPushButton::clicked, this, &ImageEditorDialog::onRemoveGreenScreen);
     toolbar->addWidget(btnChroma);
 
+    QPushButton* btnResize = new QPushButton("Resize... 📐", this);
+    btnResize->setStyleSheet(btnCW->styleSheet());
+    connect(btnResize, &QPushButton::clicked, this, &ImageEditorDialog::onResizeImage);
+    toolbar->addWidget(btnResize);
+
     toolbar->addWidget(new QLabel("Sensitivity:", this));
     m_sliderChroma = new QSlider(Qt::Horizontal, this);
     m_sliderChroma->setRange(10, 90);
@@ -348,5 +433,17 @@ void ImageEditorDialog::onSave() {
         accept();
     } else {
         QMessageBox::critical(this, "Error", "Failed to save the image. Check file permissions.");
+    }
+}
+
+void ImageEditorDialog::onResizeImage() {
+    QImage curImg = m_canvas->currentImage();
+    if (curImg.isNull()) return;
+    
+    ImageResizeDialog dlg(curImg.width(), curImg.height(), this);
+    if (dlg.exec() == QDialog::Accepted) {
+        int w = dlg.widthValue();
+        int h = dlg.heightValue();
+        m_canvas->resizeImage(w, h);
     }
 }
