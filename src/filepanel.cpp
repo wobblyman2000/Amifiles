@@ -84,8 +84,23 @@ static bool hasAudioFilesRecursively(const QString& folderPath, int depth = 0);
 #include <QDragMoveEvent>
 #include <QDropEvent>
 
-#include <QPainter>
-#include <QPen>
+static int comboIndexToInternal(int idx) {
+    if (idx >= 0 && idx <= 5) return idx;
+    if (idx == 6) return 8;  // Movies Full Screen
+    if (idx == 7) return 9;  // TV Shows Full Screen
+    if (idx == 8) return 10; // Music Full Screen
+    if (idx == 9) return 11; // Cover Flow Carousel
+    return 0;
+}
+
+static int internalToComboIndex(int idx) {
+    if (idx >= 0 && idx <= 5) return idx;
+    if (idx == 8) return 6;
+    if (idx == 9) return 7;
+    if (idx == 10) return 8;
+    if (idx == 11) return 9;
+    return 0;
+}
 
 static QIcon createSearchIcon(const QColor& color) {
     QPixmap pix(24, 24);
@@ -258,8 +273,6 @@ void FilePanel::setupUI() {
         "Miller Columns",
         "Chronological Timeline",
         "Filmstrip View",
-        "Audio Showcase (Classic)",
-        "Video Showcase (Classic)",
         "Movies Full Screen",
         "TV Shows Full Screen",
         "Music Full Screen",
@@ -5916,30 +5929,32 @@ QList<bool> ColumnSelectorDialog::selectedVisibilities() const {
 }
 
 void FilePanel::onViewModeChanged(int index) {
-    if (index == 0) { // Details Table
+    int internalIdx = comboIndexToInternal(index);
+
+    if (internalIdx == 0) { // Details Table
         m_listView->setItemDelegate(m_defaultDelegate);
         m_viewStack->setCurrentWidget(m_treeView);
-    } else if (index == 1) { // Grid / Icons
+    } else if (internalIdx == 1) { // Grid / Icons
         m_listView->setItemDelegate(m_defaultDelegate);
         m_listView->setGridSize(QSize());
         m_viewStack->setCurrentWidget(m_listView);
-    } else if (index == 2) { // Card / Tiles
+    } else if (internalIdx == 2) { // Card / Tiles
         m_listView->setItemDelegate(m_cardDelegate);
         m_listView->setGridSize(QSize(195, 75));
         m_viewStack->setCurrentWidget(m_listView);
-    } else if (index == 3) { // Miller Columns
+    } else if (internalIdx == 3) { // Miller Columns
         m_millerView->setRootPath(m_currentPath);
         m_viewStack->setCurrentWidget(m_millerView);
-    } else if (index == 4) { // Chronological Timeline
+    } else if (internalIdx == 4) { // Chronological Timeline
         m_timelineView->setRootPath(m_currentPath);
         m_viewStack->setCurrentWidget(m_timelineView);
-    } else if (index == 5) { // Filmstrip View
+    } else if (internalIdx == 5) { // Filmstrip View
         m_filmstripView->setRootPath(m_currentPath);
         m_viewStack->setCurrentWidget(m_filmstripView);
-    } else if (index >= 6 && index <= 10) { // 6: Music Showcase, 7: Cinema Showcase, 8: Movie Showcase (v2), 9: TV Show Showcase (v2), 10: Music Showcase (v2)
+    } else if (internalIdx >= 8 && internalIdx <= 10) { // 8: Movies Full Screen, 9: TV Shows Full Screen, 10: Music Full Screen
         if (m_theaterDelegate) {
-            m_theaterDelegate->setCinemaMode(index == 7 || index == 8 || index == 9);
-            m_theaterDelegate->setShowcaseViewMode(index);
+            m_theaterDelegate->setCinemaMode(internalIdx == 8 || internalIdx == 9);
+            m_theaterDelegate->setShowcaseViewMode(internalIdx);
         }
         updateTheaterGridSize();
         m_viewStack->setCurrentWidget(m_theaterContainer);
@@ -5951,7 +5966,7 @@ void FilePanel::onViewModeChanged(int index) {
             m_theaterListView->setVisible(true);
             m_theaterScrollArea->setVisible(false);
         }
-    } else if (index == 11) { // Cover Flow Carousel
+    } else if (internalIdx == 11) { // Cover Flow Carousel
         if (m_coverFlowView) {
             m_coverFlowView->setRootIndex(m_listView->rootIndex());
             m_coverFlowView->setSelectedIndex(0);
@@ -5961,17 +5976,13 @@ void FilePanel::onViewModeChanged(int index) {
     
     // Save view mode index choice in preferences
     QSettings settings("Amifiles", "Amifiles");
-    bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool() && (index == 6 || index == 10);
+    bool groupMultiDisc = settings.value("theater/group_multi_disc", true).toBool() && (internalIdx == 10);
     if (m_proxyModel) {
-        if (index == 6) {
-            m_proxyModel->setShowcaseMode(1); // Audio Showcase
-        } else if (index == 7) {
-            m_proxyModel->setShowcaseMode(2); // Video Showcase
-        } else if (index == 8) {
+        if (internalIdx == 8) {
             m_proxyModel->setShowcaseMode(3); // Movie Showcase (v2)
-        } else if (index == 9) {
+        } else if (internalIdx == 9) {
             m_proxyModel->setShowcaseMode(4); // TV Show Showcase (v2)
-        } else if (index == 10) {
+        } else if (internalIdx == 10) {
             m_proxyModel->setShowcaseMode(5); // Music Showcase (v2)
         } else {
             m_proxyModel->setShowcaseMode(0); // Standard View
@@ -5992,22 +6003,22 @@ void FilePanel::onViewModeChanged(int index) {
         w = w->parentWidget();
     }
     if (!mainWin || !mainWin->isApplyingFolderProfile()) {
-        settings.setValue("file_panel/view_mode_index", index);
+        settings.setValue("file_panel/view_mode_index", internalIdx);
     }
 
     onSelectionChanged(); // Trigger layout update for bottom info panel
 
     if (m_btnToggleSidePane) {
         bool groupingActive = m_groupProxy && m_groupProxy->isGroupingActive();
-        m_btnToggleSidePane->setVisible((index >= 7 && index <= 10) || groupingActive);
+        m_btnToggleSidePane->setVisible((internalIdx >= 8 && internalIdx <= 10) || groupingActive);
         if (m_theaterSideContainer) {
             updateDrawerVisibility();
         }
         if (m_trackListWidget) {
-            m_trackListWidget->setVisible(index >= 7 && index <= 10 && !groupingActive);
+            m_trackListWidget->setVisible(internalIdx >= 8 && internalIdx <= 10 && !groupingActive);
         }
         if (m_drawerBtnContainer) {
-            m_drawerBtnContainer->setVisible(index >= 7 && index <= 10 && !groupingActive);
+            m_drawerBtnContainer->setVisible(internalIdx >= 8 && internalIdx <= 10 && !groupingActive);
         }
     }
     emit viewModeChanged();

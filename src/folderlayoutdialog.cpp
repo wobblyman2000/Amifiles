@@ -413,7 +413,7 @@ void FolderLayoutDialog::setupUI() {
 
     viewGrid->addWidget(new QLabel("View Mode:", this), 0, 0);
     m_comboViewMode = new QComboBox(this);
-    m_comboViewMode->addItems({"No Change", "List", "Grid", "Card", "Miller", "Timeline", "Filmstrip", "Audio Showcase (Classic)", "Video Showcase (Classic)", "Movies Full Screen", "TV Shows Full Screen", "Music Full Screen", "Cover Flow Carousel"});
+    m_comboViewMode->addItems({"No Change", "List", "Grid", "Card", "Miller", "Timeline", "Filmstrip", "Movies Full Screen", "TV Shows Full Screen", "Music Full Screen", "Cover Flow Carousel"});
     m_comboViewMode->setFixedWidth(400);
     viewGrid->addWidget(m_comboViewMode, 0, 1, Qt::AlignLeft);
 
@@ -1349,8 +1349,6 @@ void FolderLayoutDialog::onCaptureUI() {
         else if (idx == 3) m_comboViewMode->setCurrentText("Miller");
         else if (idx == 4) m_comboViewMode->setCurrentText("Timeline");
         else if (idx == 5) m_comboViewMode->setCurrentText("Filmstrip");
-        else if (idx == 6) m_comboViewMode->setCurrentText("Audio Showcase (Classic)");
-        else if (idx == 7) m_comboViewMode->setCurrentText("Video Showcase (Classic)");
         else if (idx == 8) m_comboViewMode->setCurrentText("Movies Full Screen");
         else if (idx == 9) m_comboViewMode->setCurrentText("TV Shows Full Screen");
         else if (idx == 10) m_comboViewMode->setCurrentText("Music Full Screen");
