@@ -13,6 +13,18 @@ public:
     explicit TagEditorDialog(const QStringList& filePaths, QWidget* parent = nullptr, bool autoStartFetch = false);
     ~TagEditorDialog() override = default;
 
+    static bool writeMp3Tags(const QString& filePath, const QString& title, const QString& artist, const QString& album, const QString& genre, const QString& year,
+                             const QString& albumArtist, const QString& discNumber, bool compilation,
+                             bool stripArtwork = false, const QByteArray& newArtworkData = QByteArray(), const QString& mimeType = "image/jpeg",
+                             const QString& trackNumber = QString(), const QString& trackTotal = QString(),
+                             const QString& discTotal = QString(), const QString& composer = QString(),
+                             const QString& bpm = QString(), const QString& comment = QString());
+    static bool writeFlacTags(const QString& filePath, const QString& title, const QString& artist, const QString& album, const QString& genre, const QString& year,
+                              const QString& albumArtist, const QString& discNumber, bool compilation,
+                              const QString& trackNumber = QString(), const QString& trackTotal = QString(),
+                              const QString& discTotal = QString(), const QString& composer = QString(),
+                              const QString& bpm = QString(), const QString& comment = QString());
+
 private slots:
     void onSaveClicked();
     void onPasteArtwork();
@@ -21,6 +33,7 @@ private slots:
     void onPrevArtwork();
     void onNextArtwork();
     void onAutoFetchClicked();
+    void onBrowseArtwork();
 
 private:
     void setupUI();
@@ -29,17 +42,6 @@ private:
     QStringList getEmbeddedArtworkTags(const QString& filePath);
     class QPixmap loadEmbeddedArtwork(const QString& filePath);
     class QPixmap loadEmbeddedArtworkAtIndex(const QString& filePath, const QString& tag);
-    bool writeMp3Tags(const QString& filePath, const QString& title, const QString& artist, const QString& album, const QString& genre, const QString& year,
-                      const QString& albumArtist, const QString& discNumber, bool compilation,
-                      bool stripArtwork = false, const QByteArray& newArtworkData = QByteArray(), const QString& mimeType = "image/jpeg",
-                      const QString& trackNumber = QString(), const QString& trackTotal = QString(),
-                      const QString& discTotal = QString(), const QString& composer = QString(),
-                      const QString& bpm = QString(), const QString& comment = QString());
-    bool writeFlacTags(const QString& filePath, const QString& title, const QString& artist, const QString& album, const QString& genre, const QString& year,
-                       const QString& albumArtist, const QString& discNumber, bool compilation,
-                       const QString& trackNumber = QString(), const QString& trackTotal = QString(),
-                       const QString& discTotal = QString(), const QString& composer = QString(),
-                       const QString& bpm = QString(), const QString& comment = QString());
     bool stripFlacArtwork(const QString& filePath);
     bool writeFlacArtwork(const QString& filePath, const QByteArray& imgData, const QString& mimeType = "image/jpeg");
     bool writeExifTags(const QString& filePath, const QString& camera, const QString& dateTaken);
@@ -65,6 +67,7 @@ private:
     QLabel* m_lblArtworkStatus = nullptr;
     QLabel* m_lblArtworkPreview = nullptr;
     QPushButton* m_btnPasteArtwork = nullptr;
+    QPushButton* m_btnBrowseArtwork = nullptr;
     QPushButton* m_btnExtractArtwork = nullptr;
     QPushButton* m_btnDeleteArtwork = nullptr;
     QPushButton* m_btnPrevArtwork = nullptr;

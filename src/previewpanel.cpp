@@ -1,4 +1,5 @@
 #include "previewpanel.h"
+#include "tageditordialog.h"
 #include <QCoreApplication>
 #include <QStandardPaths>
 #include <complex>
@@ -1690,6 +1691,50 @@ void PreviewPanel::setupUI() {
 
     metaLayout->addLayout(tagForm);
 
+    // Initialize Music Tags Quick Editor (hidden/removed by default)
+    m_musicTagsContainer = new QWidget(this);
+    QVBoxLayout* musicTagsLayout = new QVBoxLayout(m_musicTagsContainer);
+    musicTagsLayout->setContentsMargins(6, 6, 6, 6);
+    musicTagsLayout->setSpacing(4);
+
+    QFormLayout* musicTagsForm = new QFormLayout();
+    musicTagsForm->setSpacing(4);
+
+    QString editStyle = "QLineEdit { background-color: #11111b; color: #cdd6f4; border: 1px solid #45475a; border-radius: 4px; padding: 3px; }";
+
+    m_musicEditTitle = new QLineEdit(m_musicTagsContainer);
+    m_musicEditTitle->setStyleSheet(editStyle);
+    musicTagsForm->addRow("Title:", m_musicEditTitle);
+
+    m_musicEditArtist = new QLineEdit(m_musicTagsContainer);
+    m_musicEditArtist->setStyleSheet(editStyle);
+    musicTagsForm->addRow("Artist:", m_musicEditArtist);
+
+    m_musicEditAlbum = new QLineEdit(m_musicTagsContainer);
+    m_musicEditAlbum->setStyleSheet(editStyle);
+    musicTagsForm->addRow("Album:", m_musicEditAlbum);
+
+    m_musicEditGenre = new QLineEdit(m_musicTagsContainer);
+    m_musicEditGenre->setStyleSheet(editStyle);
+    musicTagsForm->addRow("Genre:", m_musicEditGenre);
+
+    m_musicEditYear = new QLineEdit(m_musicTagsContainer);
+    m_musicEditYear->setStyleSheet(editStyle);
+    musicTagsForm->addRow("Year:", m_musicEditYear);
+
+    m_musicEditTrack = new QLineEdit(m_musicTagsContainer);
+    m_musicEditTrack->setStyleSheet(editStyle);
+    musicTagsForm->addRow("Track:", m_musicEditTrack);
+
+    musicTagsLayout->addLayout(musicTagsForm);
+
+    m_btnSaveMusicTags = new QPushButton("Save Tags", m_musicTagsContainer);
+    m_btnSaveMusicTags->setStyleSheet("QPushButton { background-color: #a6e3a1; color: #11111b; font-weight: bold; border-radius: 4px; padding: 6px; }"
+                                      "QPushButton:hover { background-color: #94e2d5; }");
+    connect(m_btnSaveMusicTags, &QPushButton::clicked, this, &PreviewPanel::onSaveMusicTags);
+    musicTagsLayout->addWidget(m_btnSaveMusicTags);
+    musicTagsLayout->addStretch(1);
+
     m_bottomTab->addTab(m_metadataContainer, "Properties");
     m_bottomTab->setTabToolTip(m_bottomTab->indexOf(m_metadataContainer), "File Properties");
 
@@ -2739,6 +2784,28 @@ void PreviewPanel::updateMetadataDisplay(const FileMetadata& meta) {
     } else {
         m_btnChooseOverlayIcon->setText("Select...");
         m_btnChooseOverlayIcon->setIcon(QIcon());
+    }
+
+    // Dynamic Tab Management for Music Tagging
+    QString ext = QFileInfo(meta.path).suffix().toLower();
+    QStringList audioExts = { "mp3", "wav", "flac", "ogg", "m4a", "mod", "xm", "s3m", "it", "sid" };
+    if (audioExts.contains(ext) && (ext == "mp3" || ext == "flac")) {
+        m_musicEditTitle->setText(meta.title);
+        m_musicEditArtist->setText(meta.artist);
+        m_musicEditAlbum->setText(meta.album);
+        m_musicEditGenre->setText(meta.genre);
+        m_musicEditYear->setText(meta.year);
+        m_musicEditTrack->setText(meta.track);
+
+        if (m_bottomTab->indexOf(m_musicTagsContainer) == -1) {
+            m_bottomTab->insertTab(1, m_musicTagsContainer, "Music Tags");
+            m_bottomTab->setTabToolTip(m_bottomTab->indexOf(m_musicTagsContainer), "Quick Audio Tag Editor");
+        }
+    } else {
+        int idx = m_bottomTab->indexOf(m_musicTagsContainer);
+        if (idx != -1) {
+            m_bottomTab->removeTab(idx);
+        }
     }
 }
 
@@ -4380,5 +4447,42 @@ void PreviewPanel::loadPreferences() {
         m_chkAutoQueue->blockSignals(true);
         m_chkAutoQueue->setChecked(settings.value("preview/auto_queue_sibling_files", true).toBool());
         m_chkAutoQueue->blockSignals(false);
+    }
+}
+
+void PreviewPanel::onSaveMusicTags() {
+    if (m_previewedFilePath.isEmpty()) return;
+
+    QString ext = QFileInfo(m_previewedFilePath).suffix().toLower();
+    bool success = false;
+
+    QString title = m_musicEditTitle->text();
+    QString artist = m_musicEditArtist->text();
+    QString album = m_musicEditAlbum->text();
+    QString genre = m_musicEditGenre->text();
+    QString year = m_musicEditYear->text();
+    QString track = m_musicEditTrack->text();
+
+    if (ext == "mp3") {
+        success = TagEditorDialog::writeMp3Tags(
+            m_previewedFilePath, title, artist, album, genre, year,
+            "", "", false, false, QByteArray(), "image/jpeg", track
+        );
+    } else if (ext == "flac") {
+        success = TagEditorDialog::writeFlacTags(
+            m_previewedFilePath, title, artist, album, genre, year,
+            "", "", false, track
+        );
+    }
+
+    if (success) {
+        QMessageBox::information(this, "Tags Saved", "Music tags successfully updated!");
+        emit tagsChanged(m_previewedFilePath);
+        
+        // Reload metadata and update display
+        FileMetadata updatedMeta = MetadataExtractor::extract(m_previewedFilePath);
+        updateMetadataDisplay(updatedMeta);
+    } else {
+        QMessageBox::warning(this, "Save Failed", "Could not save tags. Ensure that the file is not write-protected.");
     }
 }

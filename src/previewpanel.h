@@ -454,6 +454,16 @@ private:
     class QWidget* m_textContainer = nullptr;
     class QLineEdit* m_textSearchEdit = nullptr;
     class QLabel* m_lblTextSearchMatches = nullptr;
+ 
+    // Quick Music Tag Editor elements
+    QWidget* m_musicTagsContainer = nullptr;
+    class QLineEdit* m_musicEditTitle = nullptr;
+    class QLineEdit* m_musicEditArtist = nullptr;
+    class QLineEdit* m_musicEditAlbum = nullptr;
+    class QLineEdit* m_musicEditGenre = nullptr;
+    class QLineEdit* m_musicEditYear = nullptr;
+    class QLineEdit* m_musicEditTrack = nullptr;
+    class QPushButton* m_btnSaveMusicTags = nullptr;
 
     // Fullscreen support
     FullscreenWidget* m_fullscreenWidget = nullptr;
@@ -471,6 +481,7 @@ private slots:
     void onClearOverlayIcon();
     void onApplyTagsColors();
     void onAutoPreviewToggled();
+    void onSaveMusicTags();
 };
 
 #endif // PREVIEWPANEL_H

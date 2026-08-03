@@ -12,6 +12,8 @@
 #include <QClipboard>
 #include <QFileDialog>
 #include <QApplication>
+#include <QMimeData>
+#include <QUrl>
 #include <QDir>
 #include <QBuffer>
 #include <QTimer>
@@ -172,6 +174,11 @@ void TagEditorDialog::setupUI() {
     m_btnPasteArtwork->setStyleSheet("QPushButton { min-height: 28px; }");
     connect(m_btnPasteArtwork, &QPushButton::clicked, this, &TagEditorDialog::onPasteArtwork);
     artworkControlsLayout->addWidget(m_btnPasteArtwork);
+
+    m_btnBrowseArtwork = new QPushButton("Select Cover File...", this);
+    m_btnBrowseArtwork->setStyleSheet("QPushButton { min-height: 28px; }");
+    connect(m_btnBrowseArtwork, &QPushButton::clicked, this, &TagEditorDialog::onBrowseArtwork);
+    artworkControlsLayout->addWidget(m_btnBrowseArtwork);
 
     m_btnExtractArtwork = new QPushButton("Extract to Folder", this);
     m_btnExtractArtwork->setStyleSheet("QPushButton { min-height: 28px; }");
@@ -756,7 +763,23 @@ void TagEditorDialog::onPasteArtwork() {
     QClipboard* clipboard = QApplication::clipboard();
     QImage image = clipboard->image();
     if (image.isNull()) {
-        QMessageBox::warning(this, "Paste Failed", "No image found in the clipboard. Copy an image first!");
+        const QMimeData* mimeData = clipboard->mimeData();
+        if (mimeData && mimeData->hasUrls()) {
+            QList<QUrl> urls = mimeData->urls();
+            for (const QUrl& url : urls) {
+                if (url.isLocalFile()) {
+                    QImage loaded(url.toLocalFile());
+                    if (!loaded.isNull()) {
+                        image = loaded;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    if (image.isNull()) {
+        QMessageBox::warning(this, "Paste Failed", "No image or image file found in the clipboard. Copy an image or image file first!");
         return;
     }
 
@@ -791,6 +814,53 @@ void TagEditorDialog::onPasteArtwork() {
         loadCommonTags();
     } else {
         QMessageBox::warning(this, "Paste Failed", "Could not embed artwork. Make sure exiftool or metaflac is installed.");
+    }
+}
+
+void TagEditorDialog::onBrowseArtwork() {
+    if (m_filePaths.isEmpty()) return;
+
+    QString defaultDir = QFileInfo(m_filePaths.first()).absolutePath();
+    QString filePath = QFileDialog::getOpenFileName(this, "Select Cover Art", defaultDir, "Images (*.jpg *.jpeg *.png *.webp);;All Files (*)");
+    if (filePath.isEmpty()) return;
+
+    QImage image(filePath);
+    if (image.isNull()) {
+        QMessageBox::warning(this, "Load Failed", "Could not load the selected image file.");
+        return;
+    }
+
+    QByteArray imgBytes;
+    {
+        QBuffer buffer(&imgBytes);
+        buffer.open(QIODevice::WriteOnly);
+        image.save(&buffer, "JPEG");
+    }
+
+    int successCount = 0;
+    for (const QString& path : m_filePaths) {
+        QString ext = QFileInfo(path).suffix().toLower();
+        bool success = false;
+
+        if (ext == "mp3") {
+            success = writeMp3Tags(path, m_editTitle->text(), m_editArtist->text(), m_editAlbum->text(), m_editGenre->text(), m_editYear->text(),
+                                   m_editAlbumArtist->text(), m_editDiscNumber->text(), m_chkCompilation->isChecked(),
+                                   true, imgBytes, "image/jpeg",
+                                   m_editTrackNumber->text(), m_editTrackTotal->text(),
+                                   m_editDiscTotal->text(), m_editComposer->text(),
+                                   m_editBpm->text(), m_editComment->text());
+        } else if (ext == "flac") {
+            success = writeFlacArtwork(path, imgBytes, "image/jpeg");
+        }
+
+        if (success) successCount++;
+    }
+
+    if (successCount > 0) {
+        QMessageBox::information(this, "Artwork Set", QString("Successfully embedded artwork into %1 file(s).").arg(successCount));
+        loadCommonTags();
+    } else {
+        QMessageBox::warning(this, "Error", "Could not embed artwork. Make sure exiftool or metaflac is installed.");
     }
 }
 
