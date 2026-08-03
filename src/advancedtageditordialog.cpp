@@ -25,6 +25,7 @@
 #include <QUrl>
 #include <QToolButton>
 #include <QMenu>
+#include <QDirIterator>
 
 AdvancedTagEditorDialog::AdvancedTagEditorDialog(const QStringList& filePaths, QWidget* parent)
     : QDialog(parent)
@@ -292,12 +293,17 @@ void AdvancedTagEditorDialog::loadFiles() {
     for (const QString& path : m_initialPaths) {
         QFileInfo info(path);
         if (info.isDir()) {
-            QDir dir(path);
-            for (const QFileInfo& fi : dir.entryInfoList(QDir::Files)) {
-                QString ext = fi.suffix().toLower();
-                if (ext == "mp3" || ext == "flac") {
-                    finalFiles.append(fi.absoluteFilePath());
-                }
+            QString folderPath = path;
+            QFileInfo folderInfo(folderPath);
+            QString folderName = folderInfo.fileName().toLower().trimmed();
+            QRegularExpression discFolderRe("^(cd|disc|disc |cd )\\d+$");
+            if (discFolderRe.match(folderName).hasMatch()) {
+                folderPath = folderInfo.absoluteDir().absolutePath();
+            }
+            
+            QDirIterator it(folderPath, QStringList() << "*.mp3" << "*.flac", QDir::Files, QDirIterator::Subdirectories);
+            while (it.hasNext()) {
+                finalFiles.append(it.next());
             }
         } else {
             QString ext = info.suffix().toLower();
