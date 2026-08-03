@@ -151,8 +151,8 @@ void AdvancedTagEditorDialog::setupUI() {
     form->setSpacing(8);
     form->setLabelAlignment(Qt::AlignRight);
 
-    // Helper lambda to add form row with checkbox (for bulk write support)
-    auto addFieldRow = [&](const QString& labelText, QLineEdit*& edit, QCheckBox*& chk) {
+    // Helper lambda to add form row with checkbox (for bulk write support) and lock button
+    auto addFieldRow = [&](const QString& labelText, QLineEdit*& edit, QCheckBox*& chk, QToolButton*& lockBtn, const QString& fieldName) {
         QHBoxLayout* hLay = new QHBoxLayout();
         hLay->setSpacing(6);
         
@@ -160,7 +160,14 @@ void AdvancedTagEditorDialog::setupUI() {
         chk = new QCheckBox(rightContainer);
         chk->setToolTip("Write in bulk to all selected files");
         
+        lockBtn = new QToolButton(rightContainer);
+        lockBtn->setText("🔓");
+        lockBtn->setCheckable(true);
+        lockBtn->setToolTip("Lock this field to prevent accidental changes or scraping overwrites");
+        lockBtn->setStyleSheet("QToolButton { border: none; background: transparent; font-size: 16px; }");
+        
         hLay->addWidget(edit, 1);
+        hLay->addWidget(lockBtn);
         hLay->addWidget(chk);
         
         form->addRow(labelText, hLay);
@@ -169,21 +176,42 @@ void AdvancedTagEditorDialog::setupUI() {
             chk->setChecked(true);
             onFieldEdited();
         });
+        connect(lockBtn, &QToolButton::clicked, this, [=](bool checked) {
+            lockBtn->setText(checked ? "🔒" : "🔓");
+            edit->setReadOnly(checked);
+            QList<QTableWidgetItem*> selectedItems = m_tableFiles->selectedItems();
+            for (QTableWidgetItem* item : selectedItems) {
+                int row = item->row();
+                if (checked) {
+                    m_tracks[row].lockedFields.insert(fieldName);
+                } else {
+                    m_tracks[row].lockedFields.remove(fieldName);
+                }
+            }
+        });
     };
 
-    addFieldRow("Title:", m_editTitle, m_chkWTitle);
-    addFieldRow("Artist:", m_editArtist, m_chkWArtist);
-    addFieldRow("Album:", m_editAlbum, m_chkWAlbum);
+    addFieldRow("Title:", m_editTitle, m_chkWTitle, m_lockTitle, "title");
+    addFieldRow("Artist:", m_editArtist, m_chkWArtist, m_lockArtist, "artist");
+    addFieldRow("Album:", m_editAlbum, m_chkWAlbum, m_lockAlbum, "album");
 
     // Genre combobox layout
     m_editGenre = new QComboBox(rightContainer);
     m_editGenre->setEditable(true);
     m_editGenre->addItems({"Alternative", "Ambient", "Blues", "Classical", "Comedy", "Country", "Dance", "Disco", "Electronic", "Folk", "Hip-Hop", "House", "Indie", "Industrial", "Jazz", "Metal", "New Age", "Other", "Pop", "Punk", "R&B", "Rap", "Reggae", "Rock", "Soul", "Soundtrack", "Spoken Word", "Techno", "Trance", "Vocal"});
+    
+    m_lockGenre = new QToolButton(rightContainer);
+    m_lockGenre->setText("🔓");
+    m_lockGenre->setCheckable(true);
+    m_lockGenre->setToolTip("Lock this field to prevent accidental changes or scraping overwrites");
+    m_lockGenre->setStyleSheet("QToolButton { border: none; background: transparent; font-size: 16px; }");
+    
     m_chkWGenre = new QCheckBox(rightContainer);
     m_chkWGenre->setToolTip("Write in bulk to all selected files");
     QHBoxLayout* genreLay = new QHBoxLayout();
     genreLay->setSpacing(6);
     genreLay->addWidget(m_editGenre, 1);
+    genreLay->addWidget(m_lockGenre);
     genreLay->addWidget(m_chkWGenre);
     form->addRow("Genre:", genreLay);
     connect(m_editGenre->lineEdit(), &QLineEdit::textEdited, this, [=]() {
@@ -194,46 +222,127 @@ void AdvancedTagEditorDialog::setupUI() {
         m_chkWGenre->setChecked(true);
         onFieldEdited();
     });
+    connect(m_lockGenre, &QToolButton::clicked, this, [=](bool checked) {
+        m_lockGenre->setText(checked ? "🔒" : "🔓");
+        m_editGenre->setEnabled(!checked);
+        QList<QTableWidgetItem*> selectedItems = m_tableFiles->selectedItems();
+        for (QTableWidgetItem* item : selectedItems) {
+            int row = item->row();
+            if (checked) {
+                m_tracks[row].lockedFields.insert("genre");
+            } else {
+                m_tracks[row].lockedFields.remove("genre");
+            }
+        }
+    });
 
-    addFieldRow("Year:", m_editYear, m_chkWYear);
+    addFieldRow("Year:", m_editYear, m_chkWYear, m_lockYear, "year");
 
     // Track layout
     QHBoxLayout* trackLay = new QHBoxLayout();
     m_editTrack = new QLineEdit(rightContainer);
     m_editTrackTotal = new QLineEdit(rightContainer);
     m_editTrackTotal->setPlaceholderText("Total");
+    
+    m_lockTrack = new QToolButton(rightContainer);
+    m_lockTrack->setText("🔓");
+    m_lockTrack->setCheckable(true);
+    m_lockTrack->setToolTip("Lock this field to prevent accidental changes or scraping overwrites");
+    m_lockTrack->setStyleSheet("QToolButton { border: none; background: transparent; font-size: 16px; }");
+
+    m_lockTrackTotal = new QToolButton(rightContainer);
+    m_lockTrackTotal->setText("🔓");
+    m_lockTrackTotal->setCheckable(true);
+    m_lockTrackTotal->setToolTip("Lock this field to prevent accidental changes or scraping overwrites");
+    m_lockTrackTotal->setStyleSheet("QToolButton { border: none; background: transparent; font-size: 16px; }");
+
     m_chkWTrack = new QCheckBox(rightContainer);
     m_chkWTrackTotal = new QCheckBox(rightContainer);
     trackLay->addWidget(m_editTrack, 2);
+    trackLay->addWidget(m_lockTrack);
     trackLay->addWidget(m_chkWTrack);
     trackLay->addWidget(m_editTrackTotal, 1);
+    trackLay->addWidget(m_lockTrackTotal);
     trackLay->addWidget(m_chkWTrackTotal);
     form->addRow("Track # / Total:", trackLay);
 
     connect(m_editTrack, &QLineEdit::textEdited, this, [=]() { m_chkWTrack->setChecked(true); onFieldEdited(); });
     connect(m_editTrackTotal, &QLineEdit::textEdited, this, [=]() { m_chkWTrackTotal->setChecked(true); onFieldEdited(); });
+    
+    connect(m_lockTrack, &QToolButton::clicked, this, [=](bool checked) {
+        m_lockTrack->setText(checked ? "🔒" : "🔓");
+        m_editTrack->setReadOnly(checked);
+        QList<QTableWidgetItem*> selectedItems = m_tableFiles->selectedItems();
+        for (QTableWidgetItem* item : selectedItems) {
+            if (checked) m_tracks[item->row()].lockedFields.insert("track");
+            else m_tracks[item->row()].lockedFields.remove("track");
+        }
+    });
+    connect(m_lockTrackTotal, &QToolButton::clicked, this, [=](bool checked) {
+        m_lockTrackTotal->setText(checked ? "🔒" : "🔓");
+        m_editTrackTotal->setReadOnly(checked);
+        QList<QTableWidgetItem*> selectedItems = m_tableFiles->selectedItems();
+        for (QTableWidgetItem* item : selectedItems) {
+            if (checked) m_tracks[item->row()].lockedFields.insert("trackTotal");
+            else m_tracks[item->row()].lockedFields.remove("trackTotal");
+        }
+    });
 
-    addFieldRow("Album Artist:", m_editAlbumArtist, m_chkWAlbumArtist);
+    addFieldRow("Album Artist:", m_editAlbumArtist, m_chkWAlbumArtist, m_lockAlbumArtist, "albumArtist");
 
     // Disc layout
     QHBoxLayout* discLay = new QHBoxLayout();
     m_editDisc = new QLineEdit(rightContainer);
     m_editDiscTotal = new QLineEdit(rightContainer);
     m_editDiscTotal->setPlaceholderText("Total");
+
+    m_lockDisc = new QToolButton(rightContainer);
+    m_lockDisc->setText("🔓");
+    m_lockDisc->setCheckable(true);
+    m_lockDisc->setToolTip("Lock this field to prevent accidental changes or scraping overwrites");
+    m_lockDisc->setStyleSheet("QToolButton { border: none; background: transparent; font-size: 16px; }");
+
+    m_lockDiscTotal = new QToolButton(rightContainer);
+    m_lockDiscTotal->setText("🔓");
+    m_lockDiscTotal->setCheckable(true);
+    m_lockDiscTotal->setToolTip("Lock this field to prevent accidental changes or scraping overwrites");
+    m_lockDiscTotal->setStyleSheet("QToolButton { border: none; background: transparent; font-size: 16px; }");
+
     m_chkWDisc = new QCheckBox(rightContainer);
     m_chkWDiscTotal = new QCheckBox(rightContainer);
     discLay->addWidget(m_editDisc, 2);
+    discLay->addWidget(m_lockDisc);
     discLay->addWidget(m_chkWDisc);
     discLay->addWidget(m_editDiscTotal, 1);
+    discLay->addWidget(m_lockDiscTotal);
     discLay->addWidget(m_chkWDiscTotal);
     form->addRow("Disc # / Total:", discLay);
 
     connect(m_editDisc, &QLineEdit::textEdited, this, [=]() { m_chkWDisc->setChecked(true); onFieldEdited(); });
     connect(m_editDiscTotal, &QLineEdit::textEdited, this, [=]() { m_chkWDiscTotal->setChecked(true); onFieldEdited(); });
 
-    addFieldRow("Composer:", m_editComposer, m_chkWComposer);
-    addFieldRow("BPM:", m_editBpm, m_chkBpm);
-    addFieldRow("Comment:", m_editComment, m_chkWComment);
+    connect(m_lockDisc, &QToolButton::clicked, this, [=](bool checked) {
+        m_lockDisc->setText(checked ? "🔒" : "🔓");
+        m_editDisc->setReadOnly(checked);
+        QList<QTableWidgetItem*> selectedItems = m_tableFiles->selectedItems();
+        for (QTableWidgetItem* item : selectedItems) {
+            if (checked) m_tracks[item->row()].lockedFields.insert("disc");
+            else m_tracks[item->row()].lockedFields.remove("disc");
+        }
+    });
+    connect(m_lockDiscTotal, &QToolButton::clicked, this, [=](bool checked) {
+        m_lockDiscTotal->setText(checked ? "🔒" : "🔓");
+        m_editDiscTotal->setReadOnly(checked);
+        QList<QTableWidgetItem*> selectedItems = m_tableFiles->selectedItems();
+        for (QTableWidgetItem* item : selectedItems) {
+            if (checked) m_tracks[item->row()].lockedFields.insert("discTotal");
+            else m_tracks[item->row()].lockedFields.remove("discTotal");
+        }
+    });
+
+    addFieldRow("Composer:", m_editComposer, m_chkWComposer, m_lockComposer, "composer");
+    addFieldRow("BPM:", m_editBpm, m_chkBpm, m_lockBpm, "bpm");
+    addFieldRow("Comment:", m_editComment, m_chkWComment, m_lockComment, "comment");
 
     // Lyrics row
     QWidget* labelWidget = new QWidget(rightContainer);
@@ -251,9 +360,17 @@ void AdvancedTagEditorDialog::setupUI() {
     m_editLyrics = new QPlainTextEdit(rightContainer);
     m_editLyrics->setMaximumHeight(80);
     m_editLyrics->setStyleSheet("QPlainTextEdit { background-color: #1e1e2e; color: #cdd6f4; border: 1px solid #313244; border-radius: 4px; }");
+    
+    m_lockLyrics = new QToolButton(rightContainer);
+    m_lockLyrics->setText("🔓");
+    m_lockLyrics->setCheckable(true);
+    m_lockLyrics->setToolTip("Lock this field to prevent accidental changes or scraping overwrites");
+    m_lockLyrics->setStyleSheet("QToolButton { border: none; background: transparent; font-size: 16px; }");
+
     m_chkWLyrics = new QCheckBox(rightContainer);
     m_chkWLyrics->setToolTip("Write in bulk to all selected files");
     lyricsLay->addWidget(m_editLyrics, 1);
+    lyricsLay->addWidget(m_lockLyrics);
     lyricsLay->addWidget(m_chkWLyrics);
     form->addRow(labelWidget, lyricsLay);
 
@@ -262,16 +379,43 @@ void AdvancedTagEditorDialog::setupUI() {
         onFieldEdited();
     });
     connect(btnFetchLyrics, &QPushButton::clicked, this, &AdvancedTagEditorDialog::onFetchLyricsClicked);
+    connect(m_lockLyrics, &QToolButton::clicked, this, [=](bool checked) {
+        m_lockLyrics->setText(checked ? "🔒" : "🔓");
+        m_editLyrics->setReadOnly(checked);
+        btnFetchLyrics->setEnabled(!checked);
+        QList<QTableWidgetItem*> selectedItems = m_tableFiles->selectedItems();
+        for (QTableWidgetItem* item : selectedItems) {
+            if (checked) m_tracks[item->row()].lockedFields.insert("lyrics");
+            else m_tracks[item->row()].lockedFields.remove("lyrics");
+        }
+    });
 
     // Compilation checkbox
     QHBoxLayout* compLay = new QHBoxLayout();
     m_chkCompilation = new QCheckBox(rightContainer);
+    
+    m_lockCompilation = new QToolButton(rightContainer);
+    m_lockCompilation->setText("🔓");
+    m_lockCompilation->setCheckable(true);
+    m_lockCompilation->setToolTip("Lock this field to prevent accidental changes or scraping overwrites");
+    m_lockCompilation->setStyleSheet("QToolButton { border: none; background: transparent; font-size: 16px; }");
+
     m_chkWCompilation = new QCheckBox(rightContainer);
     compLay->addWidget(m_chkCompilation);
+    compLay->addWidget(m_lockCompilation);
     compLay->addStretch();
     compLay->addWidget(m_chkWCompilation);
     form->addRow("Compilation:", compLay);
     connect(m_chkCompilation, &QCheckBox::checkStateChanged, this, [=]() { m_chkWCompilation->setChecked(true); onFieldEdited(); });
+    connect(m_lockCompilation, &QToolButton::clicked, this, [=](bool checked) {
+        m_lockCompilation->setText(checked ? "🔒" : "🔓");
+        m_chkCompilation->setEnabled(!checked);
+        QList<QTableWidgetItem*> selectedItems = m_tableFiles->selectedItems();
+        for (QTableWidgetItem* item : selectedItems) {
+            if (checked) m_tracks[item->row()].lockedFields.insert("compilation");
+            else m_tracks[item->row()].lockedFields.remove("compilation");
+        }
+    });
 
     rightLayout->addLayout(form);
 
@@ -292,6 +436,13 @@ void AdvancedTagEditorDialog::setupUI() {
     btnExtractArtwork->setToolTip("Extract embedded artwork to file");
     connect(btnExtractArtwork, &QPushButton::clicked, this, &AdvancedTagEditorDialog::onExtractArtwork);
     m_btnDeleteArtwork = new QPushButton("Clear", artGroup);
+    
+    m_lockArtwork = new QToolButton(artGroup);
+    m_lockArtwork->setText("🔓");
+    m_lockArtwork->setCheckable(true);
+    m_lockArtwork->setToolTip("Lock cover artwork to prevent accidental changes or scraping overwrites");
+    m_lockArtwork->setStyleSheet("QToolButton { border: none; background: transparent; font-size: 16px; }");
+
     m_chkWArtwork = new QCheckBox(artGroup);
     m_chkWArtwork->setToolTip("Apply artwork to all selected tracks");
 
@@ -299,8 +450,21 @@ void AdvancedTagEditorDialog::setupUI() {
     artBtns->addWidget(m_btnPasteArtwork);
     artBtns->addWidget(btnExtractArtwork);
     artBtns->addWidget(m_btnDeleteArtwork);
+    artBtns->addWidget(m_lockArtwork);
     artBtns->addWidget(m_chkWArtwork);
     artLayout->addLayout(artBtns);
+
+    connect(m_lockArtwork, &QToolButton::clicked, this, [=](bool checked) {
+        m_lockArtwork->setText(checked ? "🔒" : "🔓");
+        m_btnBrowseArtwork->setEnabled(!checked);
+        m_btnPasteArtwork->setEnabled(!checked);
+        m_btnDeleteArtwork->setEnabled(!checked);
+        QList<QTableWidgetItem*> selectedItems = m_tableFiles->selectedItems();
+        for (QTableWidgetItem* item : selectedItems) {
+            if (checked) m_tracks[item->row()].lockedFields.insert("artwork");
+            else m_tracks[item->row()].lockedFields.remove("artwork");
+        }
+    });
 
     rightLayout->addWidget(artGroup);
 
@@ -481,6 +645,68 @@ void AdvancedTagEditorDialog::updateFormFromSelection() {
     }
 
     m_blockFormUpdates = true;
+
+    // Reset lock states of all UI lock buttons
+    auto updateLockState = [&](QToolButton* lockBtn, QWidget* editWidget, const QString& fieldName) {
+        if (!lockBtn || !editWidget) return;
+        bool allLocked = !selectedRows.isEmpty();
+        for (int row : selectedRows) {
+            if (!m_tracks[row].lockedFields.contains(fieldName)) {
+                allLocked = false;
+                break;
+            }
+        }
+        lockBtn->blockSignals(true);
+        lockBtn->setChecked(allLocked);
+        lockBtn->setText(allLocked ? "🔒" : "🔓");
+        lockBtn->blockSignals(false);
+        
+        if (QLineEdit* le = qobject_cast<QLineEdit*>(editWidget)) {
+            le->setReadOnly(allLocked);
+        } else if (QComboBox* cb = qobject_cast<QComboBox*>(editWidget)) {
+            cb->setEnabled(!allLocked);
+        } else if (QPlainTextEdit* te = qobject_cast<QPlainTextEdit*>(editWidget)) {
+            te->setReadOnly(allLocked);
+        } else if (QCheckBox* ck = qobject_cast<QCheckBox*>(editWidget)) {
+            ck->setEnabled(!allLocked);
+        }
+    };
+
+    updateLockState(m_lockTitle, m_editTitle, "title");
+    updateLockState(m_lockArtist, m_editArtist, "artist");
+    updateLockState(m_lockAlbum, m_editAlbum, "album");
+    updateLockState(m_lockGenre, m_editGenre, "genre");
+    updateLockState(m_lockYear, m_editYear, "year");
+    updateLockState(m_lockTrack, m_editTrack, "track");
+    updateLockState(m_lockTrackTotal, m_editTrackTotal, "trackTotal");
+    updateLockState(m_lockAlbumArtist, m_editAlbumArtist, "albumArtist");
+    updateLockState(m_lockDisc, m_editDisc, "disc");
+    updateLockState(m_lockDiscTotal, m_editDiscTotal, "discTotal");
+    updateLockState(m_lockComposer, m_editComposer, "composer");
+    updateLockState(m_lockBpm, m_editBpm, "bpm");
+    updateLockState(m_lockComment, m_editComment, "comment");
+    updateLockState(m_lockLyrics, m_editLyrics, "lyrics");
+    updateLockState(m_lockCompilation, m_chkCompilation, "compilation");
+
+    // For Artwork lock state
+    {
+        bool artworkLocked = !selectedRows.isEmpty();
+        for (int row : selectedRows) {
+            if (!m_tracks[row].lockedFields.contains("artwork")) {
+                artworkLocked = false;
+                break;
+            }
+        }
+        if (m_lockArtwork) {
+            m_lockArtwork->blockSignals(true);
+            m_lockArtwork->setChecked(artworkLocked);
+            m_lockArtwork->setText(artworkLocked ? "🔒" : "🔓");
+            m_lockArtwork->blockSignals(false);
+        }
+        if (m_btnBrowseArtwork) m_btnBrowseArtwork->setEnabled(!artworkLocked);
+        if (m_btnPasteArtwork) m_btnPasteArtwork->setEnabled(!artworkLocked);
+        if (m_btnDeleteArtwork) m_btnDeleteArtwork->setEnabled(!artworkLocked);
+    }
 
     // Reset checkboxes
     m_chkWTitle->setChecked(false);
@@ -898,13 +1124,13 @@ void AdvancedTagEditorDialog::onAutoTagFromFilename() {
             matchedCount++;
             track.isModified = true;
             
-            if (match.capturedTexts().contains("title")) track.metadata.title = match.captured("title").trimmed();
-            if (match.capturedTexts().contains("artist")) track.metadata.artist = match.captured("artist").trimmed();
-            if (match.capturedTexts().contains("album")) track.metadata.album = match.captured("album").trimmed();
-            if (match.capturedTexts().contains("track")) track.metadata.track = match.captured("track").trimmed();
-            if (match.capturedTexts().contains("year")) track.metadata.year = match.captured("year").trimmed();
-            if (match.capturedTexts().contains("genre")) track.metadata.genre = match.captured("genre").trimmed();
-            if (match.capturedTexts().contains("disc")) track.metadata.discNumber = match.captured("disc").trimmed();
+            if (match.capturedTexts().contains("title") && !track.lockedFields.contains("title")) track.metadata.title = match.captured("title").trimmed();
+            if (match.capturedTexts().contains("artist") && !track.lockedFields.contains("artist")) track.metadata.artist = match.captured("artist").trimmed();
+            if (match.capturedTexts().contains("album") && !track.lockedFields.contains("album")) track.metadata.album = match.captured("album").trimmed();
+            if (match.capturedTexts().contains("track") && !track.lockedFields.contains("track")) track.metadata.track = match.captured("track").trimmed();
+            if (match.capturedTexts().contains("year") && !track.lockedFields.contains("year")) track.metadata.year = match.captured("year").trimmed();
+            if (match.capturedTexts().contains("genre") && !track.lockedFields.contains("genre")) track.metadata.genre = match.captured("genre").trimmed();
+            if (match.capturedTexts().contains("disc") && !track.lockedFields.contains("disc")) track.metadata.discNumber = match.captured("disc").trimmed();
         }
     }
     
@@ -1188,9 +1414,18 @@ void AdvancedTagEditorDialog::onTrackNumberWizard() {
         QString val = QString::number(currentNum);
         if (zeroPad && val.length() == 1) val = "0" + val;
         
-        track.metadata.track = val;
-        track.metadata.trackTotal = QString::number(totalCount);
-        track.isModified = true;
+        bool modified = false;
+        if (!track.lockedFields.contains("track")) {
+            track.metadata.track = val;
+            modified = true;
+        }
+        if (!track.lockedFields.contains("trackTotal")) {
+            track.metadata.trackTotal = QString::number(totalCount);
+            modified = true;
+        }
+        if (modified) {
+            track.isModified = true;
+        }
         currentNum++;
     }
 
@@ -1273,10 +1508,10 @@ void AdvancedTagEditorDialog::onCaseConversion() {
         TrackEditInfo& track = m_tracks[row];
         bool changed = false;
 
-        if (chkTitle->isChecked()) { applyCasing(track.metadata.title); changed = true; }
-        if (chkArtist->isChecked()) { applyCasing(track.metadata.artist); changed = true; }
-        if (chkAlbum->isChecked()) { applyCasing(track.metadata.album); changed = true; }
-        if (chkGenre->isChecked()) { applyCasing(track.metadata.genre); changed = true; }
+        if (chkTitle->isChecked() && !track.lockedFields.contains("title")) { applyCasing(track.metadata.title); changed = true; }
+        if (chkArtist->isChecked() && !track.lockedFields.contains("artist")) { applyCasing(track.metadata.artist); changed = true; }
+        if (chkAlbum->isChecked() && !track.lockedFields.contains("album")) { applyCasing(track.metadata.album); changed = true; }
+        if (chkGenre->isChecked() && !track.lockedFields.contains("genre")) { applyCasing(track.metadata.genre); changed = true; }
 
         if (changed) track.isModified = true;
     }
@@ -1302,20 +1537,23 @@ void AdvancedTagEditorDialog::onOnlineScrape() {
             if (fetchedResults.contains(i)) {
                 FetchedTrack ft = fetchedResults[i];
                 TrackEditInfo& track = m_tracks[i];
-                track.isModified = true;
+                bool modified = false;
+                if (!track.lockedFields.contains("title")) { track.metadata.title = ft.title; modified = true; }
+                if (!track.lockedFields.contains("artist")) { track.metadata.artist = ft.artist.isEmpty() ? track.metadata.artist : ft.artist; modified = true; }
+                if (!track.lockedFields.contains("album")) { track.metadata.album = ft.album.isEmpty() ? track.metadata.album : ft.album; modified = true; }
+                if (!track.lockedFields.contains("year")) { track.metadata.year = ft.year.isEmpty() ? track.metadata.year : ft.year; modified = true; }
+                if (!track.lockedFields.contains("genre")) { track.metadata.genre = ft.genre.isEmpty() ? track.metadata.genre : ft.genre; modified = true; }
+                if (!track.lockedFields.contains("track")) { track.metadata.track = QString::number(ft.trackNumber); modified = true; }
+                if (!track.lockedFields.contains("trackTotal")) { track.metadata.trackTotal = QString::number(ft.trackCount); modified = true; }
                 
-                track.metadata.title = ft.title;
-                track.metadata.artist = ft.artist.isEmpty() ? track.metadata.artist : ft.artist;
-                track.metadata.album = ft.album.isEmpty() ? track.metadata.album : ft.album;
-                track.metadata.year = ft.year.isEmpty() ? track.metadata.year : ft.year;
-                track.metadata.genre = ft.genre.isEmpty() ? track.metadata.genre : ft.genre;
-                track.metadata.track = QString::number(ft.trackNumber);
-                track.metadata.trackTotal = QString::number(ft.trackCount);
-                
-                if (!fetchedArtwork.isEmpty()) {
+                if (!fetchedArtwork.isEmpty() && !track.lockedFields.contains("artwork")) {
                     track.coverData = fetchedArtwork;
                     track.coverMimeType = artworkMime;
                     track.coverChanged = true;
+                    modified = true;
+                }
+                if (modified) {
+                    track.isModified = true;
                 }
             }
         }
@@ -1451,30 +1689,37 @@ void AdvancedTagEditorDialog::onQuickActionTriggered() {
         bool changed = false;
         
         if (command == "various_artists") {
-            track.metadata.albumArtist = "Various Artists";
-            changed = true;
+            if (!track.lockedFields.contains("albumArtist")) {
+                track.metadata.albumArtist = "Various Artists";
+                changed = true;
+            }
         } else if (command == "swap_artist_title") {
-            QString temp = track.metadata.artist;
-            track.metadata.artist = track.metadata.title;
-            track.metadata.title = temp;
-            changed = true;
+            if (!track.lockedFields.contains("artist") && !track.lockedFields.contains("title")) {
+                QString temp = track.metadata.artist;
+                track.metadata.artist = track.metadata.title;
+                track.metadata.title = temp;
+                changed = true;
+            }
         } else if (command == "strip_track_numbers") {
-            QRegularExpression re("^\\d+\\s*(?:-|\\.)?\\s*");
-            track.metadata.title.remove(re);
-            changed = true;
+            if (!track.lockedFields.contains("title")) {
+                QRegularExpression re("^\\d+\\s*(?:-|\\.)?\\s*");
+                track.metadata.title.remove(re);
+                changed = true;
+            }
         } else if (command == "copy_artist_albumartist") {
-            track.metadata.albumArtist = track.metadata.artist;
-            changed = true;
+            if (!track.lockedFields.contains("albumArtist")) {
+                track.metadata.albumArtist = track.metadata.artist;
+                changed = true;
+            }
         } else if (command == "trim_whitespaces") {
-            track.metadata.title = track.metadata.title.trimmed();
-            track.metadata.artist = track.metadata.artist.trimmed();
-            track.metadata.album = track.metadata.album.trimmed();
-            track.metadata.genre = track.metadata.genre.trimmed();
-            track.metadata.year = track.metadata.year.trimmed();
-            track.metadata.albumArtist = track.metadata.albumArtist.trimmed();
-            track.metadata.composer = track.metadata.composer.trimmed();
-            track.metadata.comment = track.metadata.comment.trimmed();
-            changed = true;
+            if (!track.lockedFields.contains("title")) { track.metadata.title = track.metadata.title.trimmed(); changed = true; }
+            if (!track.lockedFields.contains("artist")) { track.metadata.artist = track.metadata.artist.trimmed(); changed = true; }
+            if (!track.lockedFields.contains("album")) { track.metadata.album = track.metadata.album.trimmed(); changed = true; }
+            if (!track.lockedFields.contains("genre")) { track.metadata.genre = track.metadata.genre.trimmed(); changed = true; }
+            if (!track.lockedFields.contains("year")) { track.metadata.year = track.metadata.year.trimmed(); changed = true; }
+            if (!track.lockedFields.contains("albumArtist")) { track.metadata.albumArtist = track.metadata.albumArtist.trimmed(); changed = true; }
+            if (!track.lockedFields.contains("composer")) { track.metadata.composer = track.metadata.composer.trimmed(); changed = true; }
+            if (!track.lockedFields.contains("comment")) { track.metadata.comment = track.metadata.comment.trimmed(); changed = true; }
         }
         
         if (changed) track.isModified = true;
@@ -1506,13 +1751,13 @@ void AdvancedTagEditorDialog::onFetchLyricsClicked() {
     int queryCount = 0;
     for (int row : selectedRows) {
         TrackEditInfo& track = m_tracks[row];
-        if (!track.metadata.artist.trimmed().isEmpty() && !track.metadata.title.trimmed().isEmpty()) {
+        if (!track.metadata.artist.trimmed().isEmpty() && !track.metadata.title.trimmed().isEmpty() && !track.lockedFields.contains("lyrics")) {
             queryCount++;
         }
     }
     
     if (queryCount == 0) {
-        m_lblStatus->setText("No tracks with valid Artist and Title selected.");
+        m_lblStatus->setText("No unlocked tracks with valid Artist and Title selected.");
         return;
     }
     
@@ -1521,7 +1766,7 @@ void AdvancedTagEditorDialog::onFetchLyricsClicked() {
     
     for (int row : selectedRows) {
         TrackEditInfo& track = m_tracks[row];
-        if (!track.metadata.artist.trimmed().isEmpty() && !track.metadata.title.trimmed().isEmpty()) {
+        if (!track.metadata.artist.trimmed().isEmpty() && !track.metadata.title.trimmed().isEmpty() && !track.lockedFields.contains("lyrics")) {
             fetchLyricsForTrack(row);
         }
     }

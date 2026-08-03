@@ -20,12 +20,14 @@ struct TrackEditInfo {
     QByteArray coverData;
     QString coverMimeType;
     bool coverChanged = false;
+    QSet<QString> lockedFields;
 };
 
 #include <QPlainTextEdit>
 
 #include <QComboBox>
 #include <QTableWidget>
+#include <QToolButton>
 
 class AdvancedTagEditorDialog : public QDialog {
     Q_OBJECT
@@ -92,6 +94,24 @@ private:
     QPushButton* m_btnRemoveCustomTag = nullptr;
     QPlainTextEdit* m_editLyrics = nullptr;
     QCheckBox* m_chkCompilation = nullptr;
+
+    // Lock buttons
+    QToolButton* m_lockTitle = nullptr;
+    QToolButton* m_lockArtist = nullptr;
+    QToolButton* m_lockAlbum = nullptr;
+    QToolButton* m_lockGenre = nullptr;
+    QToolButton* m_lockYear = nullptr;
+    QToolButton* m_lockTrack = nullptr;
+    QToolButton* m_lockTrackTotal = nullptr;
+    QToolButton* m_lockAlbumArtist = nullptr;
+    QToolButton* m_lockDisc = nullptr;
+    QToolButton* m_lockDiscTotal = nullptr;
+    QToolButton* m_lockComposer = nullptr;
+    QToolButton* m_lockBpm = nullptr;
+    QToolButton* m_lockComment = nullptr;
+    QToolButton* m_lockLyrics = nullptr;
+    QToolButton* m_lockCompilation = nullptr;
+    QToolButton* m_lockArtwork = nullptr;
 
     // Checkboxes for bulk edits
     QCheckBox* m_chkWTitle = nullptr;
