@@ -241,7 +241,7 @@ void FolderLayoutDialog::setupUI() {
     connect(m_btnApplyCurrentFolder, &QPushButton::clicked, this, &FolderLayoutDialog::onApplyToCurrentFolder);
     leftLayout->addWidget(m_btnApplyCurrentFolder);
 
-    QHBoxLayout* shortcutButtons = new QHBoxLayout();
+    QHBoxLayout* shortcutRow1 = new QHBoxLayout();
     QPushButton* btnEditToolbars = new QPushButton("Edit Toolbars...", this);
     btnEditToolbars->setStyleSheet("QPushButton { background-color: #313244; color: #a6e3a1; border: 1px solid #45475a; padding: 6px 8px; }"
                                    "QPushButton:hover { background-color: #a6e3a1; color: #11111b; }");
@@ -254,9 +254,16 @@ void FolderLayoutDialog::setupUI() {
     btnEditMenus->setToolTip("Configure custom right-click context menu actions and commands.");
     connect(btnEditMenus, &QPushButton::clicked, this, &FolderLayoutDialog::onEditMenusShortcut);
 
-    shortcutButtons->addWidget(btnEditToolbars);
-    shortcutButtons->addWidget(btnEditMenus);
-    leftLayout->addLayout(shortcutButtons);
+    shortcutRow1->addWidget(btnEditToolbars);
+    shortcutRow1->addWidget(btnEditMenus);
+    leftLayout->addLayout(shortcutRow1);
+
+    QPushButton* btnEditContextMenus = new QPushButton("Edit Context Menus...", this);
+    btnEditContextMenus->setStyleSheet("QPushButton { background-color: #313244; color: #fab387; border: 1px solid #45475a; padding: 6px 8px; }"
+                                       "QPushButton:hover { background-color: #fab387; color: #11111b; }");
+    btnEditContextMenus->setToolTip("Configure custom right-click context menu items for files and folders.");
+    connect(btnEditContextMenus, &QPushButton::clicked, this, &FolderLayoutDialog::onEditContextMenusShortcut);
+    leftLayout->addWidget(btnEditContextMenus);
 
     mainLayout->addLayout(leftLayout);
 
@@ -1555,6 +1562,16 @@ void FolderLayoutDialog::onEditToolbarsShortcut() {
 void FolderLayoutDialog::onEditMenusShortcut() {
     MainWindow* mainWin = qobject_cast<MainWindow*>(parentWidget());
     CustomMenuEditorDialog dlg(this);
+    if (dlg.exec() == QDialog::Accepted) {
+        if (mainWin) {
+            mainWin->rebuildCustomMenus();
+        }
+    }
+}
+ 
+void FolderLayoutDialog::onEditContextMenusShortcut() {
+    MainWindow* mainWin = qobject_cast<MainWindow*>(parentWidget());
+    CustomMenuEditorDialog dlg("custom_context_menu_v2", this);
     if (dlg.exec() == QDialog::Accepted) {
         if (mainWin) {
             mainWin->rebuildCustomMenus();

@@ -138,6 +138,7 @@ private slots:
     void onRestoreProfiles();
     void onEditToolbarsShortcut();
     void onEditMenusShortcut();
+    void onEditContextMenusShortcut();
     void onSave();
 
 private:
