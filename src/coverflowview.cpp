@@ -149,15 +149,28 @@ QPixmap CoverFlowView::getItemPixmap(const QModelIndex& index) {
         if (icon.isNull()) {
             icon = QApplication::style()->standardIcon(QStyle::SP_FileIcon);
         }
-        pix = icon.pixmap(128, 128);
+        pix = icon.pixmap(256, 256);
     }
 
     if (!pix.isNull()) {
-        // Cache scaled version to make rendering super fast
-        pix = pix.scaled(180, 180, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        // Cache scaled version to make rendering super fast (increased size to 240px for larger display)
+        pix = pix.scaled(240, 240, Qt::KeepAspectRatio, Qt::SmoothTransformation);
         m_pixmapCache[filePath] = pix;
     }
     return pix;
+}
+
+static bool hasTransparentCorners(const QPixmap& pix) {
+    if (pix.isNull()) return false;
+    QImage img = pix.toImage();
+    if (!img.hasAlphaChannel()) return false;
+    int w = img.width();
+    int h = img.height();
+    if (w < 4 || h < 4) return false;
+    return (qAlpha(img.pixel(0, 0)) < 250 ||
+            qAlpha(img.pixel(w - 1, 0)) < 250 ||
+            qAlpha(img.pixel(0, h - 1)) < 250 ||
+            qAlpha(img.pixel(w - 1, h - 1)) < 250);
 }
 
 QRect CoverFlowView::getCardRect(int itemIndex) const {
@@ -165,15 +178,15 @@ QRect CoverFlowView::getCardRect(int itemIndex) const {
     int cy = height() / 2;
 
     if (itemIndex == m_currentIndex) {
-        return QRect(cx - 90, cy - 110, 180, 180);
+        return QRect(cx - 120, cy - 140, 240, 240);
     } else if (itemIndex < m_currentIndex) {
         int dist = m_currentIndex - itemIndex;
-        int x = cx - 130 - (dist - 1) * 45;
-        return QRect(x - 60, cy - 70, 120, 120);
+        int x = cx - 170 - (dist - 1) * 60;
+        return QRect(x - 80, cy - 90, 160, 160);
     } else {
         int dist = itemIndex - m_currentIndex;
-        int x = cx + 130 + (dist - 1) * 45;
-        return QRect(x - 60, cy - 70, 120, 120);
+        int x = cx + 170 + (dist - 1) * 60;
+        return QRect(x - 80, cy - 90, 160, 160);
     }
 }
 
@@ -213,9 +226,11 @@ void CoverFlowView::paintEvent(QPaintEvent* event) {
         int px = r.x() + (r.width() - pix.width()) / 2;
         int py = r.y() + (r.height() - pix.height()) / 2;
 
-        // Draw shadow/border frame
-        painter.setPen(QPen(QColor("#313244"), idx == m_currentIndex ? 2 : 1));
-        painter.drawRect(px - 1, py - 1, pix.width() + 1, pix.height() + 1);
+        // Draw shadow/border frame (skip drawing border if the card has transparent corners, e.g. a CD case)
+        if (!hasTransparentCorners(pix)) {
+            painter.setPen(QPen(QColor("#313244"), idx == m_currentIndex ? 2 : 1));
+            painter.drawRect(px - 1, py - 1, pix.width() + 1, pix.height() + 1);
+        }
 
         // Draw card image
         painter.drawPixmap(px, py, pix);
