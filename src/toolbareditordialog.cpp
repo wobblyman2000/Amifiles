@@ -199,7 +199,7 @@ void ToolbarEditorDialog::setupUI() {
     m_comboInternalAction->addItems({
         "Copy", "Cut", "Paste", "Delete", "Rename", "NewFolder", "Refresh", 
         "ToggleDualPane", "TogglePreview", "ToggleFlatView", "CompareSync", 
-        "DuplicateFinder", "SpaceAnalyzer", "BulkRename", "SyncScheduler", 
+        "DuplicateFinder", "SpaceAnalyzer", "SmartHome", "BulkRename", "SyncScheduler", 
         "ChecksumTool", "FolderDiff", "CloudMount", "Shred",
         "QuickRename_UPPERCASE", "QuickRename_lowercase", 
         "QuickRename_TitleCase", "QuickRename_SentenceCase"

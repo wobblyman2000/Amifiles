@@ -1013,6 +1013,13 @@ void MainWindow::setupActions() {
     m_actSpaceAnalyzer->setToolTip("View visual directory size analysis (Ctrl+L)");
     connect(m_actSpaceAnalyzer, &QAction::triggered, this, &MainWindow::onSpaceAnalyzerAction);
 
+    m_actSmartHome = new QAction(style->standardIcon(QStyle::SP_DirHomeIcon), "Smart Home", this);
+    m_actSmartHome->setToolTip("Navigate active tab to Smart Home Dashboard");
+    connect(m_actSmartHome, &QAction::triggered, this, [this]() {
+        if (m_activePanel) m_activePanel->setPath("smart://home");
+    });
+    addAction(m_actSmartHome);
+
     // Bind actions to window to ensure keyboard shortcuts work globally
     addAction(m_actNewFolder);
     addAction(m_actProperties);
@@ -6305,6 +6312,8 @@ void MainWindow::executeCustomCommand(const QString& commandOrPath) {
             onDuplicateFinderAction();
         } else if (cmd == "SpaceAnalyzer") {
             onSpaceAnalyzerAction();
+        } else if (cmd == "SmartHome") {
+            if (m_activePanel) m_activePanel->setPath("smart://home");
         } else if (cmd == "BulkRename") {
             onBulkRenameAction();
         } else if (cmd == "SyncScheduler") {
@@ -6537,6 +6546,7 @@ QAction* MainWindow::findInternalAction(const QString& actId) const {
     if (actId == "CompareSync") return m_actCompareSync;
     if (actId == "DuplicateFinder") return m_actDuplicateFinder;
     if (actId == "SpaceAnalyzer") return m_actSpaceAnalyzer;
+    if (actId == "SmartHome") return m_actSmartHome;
     return nullptr;
 }
 

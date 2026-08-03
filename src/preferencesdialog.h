@@ -52,6 +52,7 @@ private:
     QCheckBox* m_chkAlwaysCenterPreview = nullptr;
     QCheckBox* m_chkLockLayoutInShowcase = nullptr;
     QCheckBox* m_chkDetailsFullRowSelect = nullptr;
+    QCheckBox* m_chkEnableSmartHome = nullptr;
 
     // View & Style Colors
     QCheckBox* m_chkAgeColoring = nullptr;

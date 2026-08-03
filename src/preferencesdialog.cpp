@@ -120,6 +120,10 @@ void PreferencesDialog::setupUI() {
     m_chkDetailsFullRowSelect->setToolTip("If unchecked, selecting items only highlights the first column and clicking empty columns deselects selection, allowing you to paste items directly into the current folder.");
     layGen->addWidget(m_chkDetailsFullRowSelect);
 
+    m_chkEnableSmartHome = new QCheckBox("Enable Smart Home Dashboard (smart://home)", this);
+    m_chkEnableSmartHome->setToolTip("If enabled, Amifiles defaults to the Smart Home Dashboard. If disabled, clicking Home or entering smart://home loads your local physical home directory.");
+    layGen->addWidget(m_chkEnableSmartHome);
+
     layGen->addStretch(1);
     m_stackPages->addWidget(pageGeneral);
 
@@ -584,6 +588,7 @@ void PreferencesDialog::loadPreferences() {
     m_chkAlwaysCenterPreview->setChecked(settings.value("preferences/always_center_preview", true).toBool());
     m_chkLockLayoutInShowcase->setChecked(settings.value("preferences/lock_layout_in_showcase", true).toBool());
     m_chkDetailsFullRowSelect->setChecked(settings.value("preferences/details_full_row_select", true).toBool());
+    m_chkEnableSmartHome->setChecked(settings.value("preferences/enable_smart_home", true).toBool());
 
     m_chkAgeColoring->setChecked(settings.value("preferences/age_coloring_enabled", true).toBool());
 
@@ -647,6 +652,7 @@ void PreferencesDialog::savePreferences() {
     settings.setValue("preferences/always_center_preview", m_chkAlwaysCenterPreview->isChecked());
     settings.setValue("preferences/lock_layout_in_showcase", m_chkLockLayoutInShowcase->isChecked());
     settings.setValue("preferences/details_full_row_select", m_chkDetailsFullRowSelect->isChecked());
+    settings.setValue("preferences/enable_smart_home", m_chkEnableSmartHome->isChecked());
 
     settings.setValue("preferences/age_coloring_enabled", m_chkAgeColoring->isChecked());
 

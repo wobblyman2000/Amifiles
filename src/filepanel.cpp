@@ -1930,6 +1930,13 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
     }
 
     if (path == "smart://home") {
+        QSettings settings("Amifiles", "Amifiles");
+        bool enableSmartHome = settings.value("preferences/enable_smart_home", true).toBool();
+        if (!enableSmartHome) {
+            navigateTo(QDir::homePath(), addHistory);
+            return;
+        }
+
         if (m_treeView->selectionModel()) {
             disconnect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &FilePanel::onSelectionChanged);
         }

@@ -504,6 +504,7 @@ private:
     QAction* m_actCloseTab = nullptr;
     QAction* m_actShowHelp = nullptr;
     QAction* m_actSpaceAnalyzer = nullptr;
+    QAction* m_actSmartHome = nullptr;
     QAction* m_actKeybindings = nullptr;
     QAction* m_actCalculateChecksum = nullptr;
     QAction* m_actAdvancedSearch = nullptr;
