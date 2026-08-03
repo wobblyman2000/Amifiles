@@ -26,6 +26,7 @@
 #include <QToolButton>
 #include <QMenu>
 #include <QDirIterator>
+#include <QSettings>
 
 AdvancedTagEditorDialog::AdvancedTagEditorDialog(const QStringList& filePaths, QWidget* parent)
     : QDialog(parent)
@@ -675,18 +676,71 @@ void AdvancedTagEditorDialog::onAutoTagFromFilename() {
     
     lay->addWidget(new QLabel("Select or enter a filename parsing format pattern:", &dlgPattern));
     
+    QHBoxLayout* comboLayout = new QHBoxLayout();
+    
     QComboBox* combo = new QComboBox(&dlgPattern);
     combo->setEditable(true);
-    combo->addItems({
-        "%track% - %artist% - %title%",
-        "%track% - %title%",
-        "%artist% - %title%",
-        "%artist% - %album% - %track% - %title%",
-        "Disc %disc%/%track% - %title%",
-        "%artist% - %album% - Disc %disc% - %track% - %title%"
-    });
-    lay->addWidget(combo);
     
+    QSettings settings("Amifiles", "Amifiles");
+    QStringList presets = settings.value("autotag_presets").toStringList();
+    if (presets.isEmpty()) {
+        presets = {
+            "%track% - %artist% - %title%",
+            "%track% - %title%",
+            "%artist% - %title%",
+            "%artist% - %album% - %track% - %title%",
+            "Disc %disc%/%track% - %title%",
+            "%artist% - %album% - Disc %disc% - %track% - %title%"
+        };
+    }
+    combo->addItems(presets);
+    comboLayout->addWidget(combo, 1);
+    
+    QPushButton* btnAddPreset = new QPushButton("+", &dlgPattern);
+    btnAddPreset->setToolTip("Save current pattern as preset");
+    btnAddPreset->setFixedWidth(30);
+    comboLayout->addWidget(btnAddPreset);
+    
+    QPushButton* btnDelPreset = new QPushButton("-", &dlgPattern);
+    btnDelPreset->setToolTip("Delete selected preset");
+    btnDelPreset->setFixedWidth(30);
+    comboLayout->addWidget(btnDelPreset);
+    
+    lay->addLayout(comboLayout);
+    
+    connect(btnAddPreset, &QPushButton::clicked, [&]() {
+        QString text = combo->currentText().trimmed();
+        if (text.isEmpty()) return;
+        
+        int idx = combo->findText(text);
+        if (idx == -1) {
+            combo->addItem(text);
+            combo->setCurrentText(text);
+        }
+        
+        QStringList updated;
+        for (int i = 0; i < combo->count(); ++i) {
+            updated.append(combo->itemText(i));
+        }
+        QSettings s("Amifiles", "Amifiles");
+        s.setValue("autotag_presets", updated);
+        QMessageBox::information(&dlgPattern, "Preset Saved", "Pattern saved to your auto-tag presets!");
+    });
+
+    connect(btnDelPreset, &QPushButton::clicked, [&]() {
+        int idx = combo->currentIndex();
+        if (idx != -1) {
+            combo->removeItem(idx);
+            
+            QStringList updated;
+            for (int i = 0; i < combo->count(); ++i) {
+                updated.append(combo->itemText(i));
+            }
+            QSettings s("Amifiles", "Amifiles");
+            s.setValue("autotag_presets", updated);
+        }
+    });
+
     QHBoxLayout* btns = new QHBoxLayout();
     QPushButton* btnOk = new QPushButton("Parse", &dlgPattern);
     QPushButton* btnCan = new QPushButton("Cancel", &dlgPattern);
@@ -776,17 +830,70 @@ void AdvancedTagEditorDialog::onRenameFromTags() {
     
     lay->addWidget(new QLabel("Enter the renaming format pattern:", &dlgPattern));
     
+    QHBoxLayout* comboLayout = new QHBoxLayout();
+    
     QComboBox* combo = new QComboBox(&dlgPattern);
     combo->setEditable(true);
-    combo->addItems({
-        "%track% - %title%",
-        "%artist% - %title%",
-        "%artist% - %album% - %track% - %title%",
-        "%artist%/%album%/%track% - %title%",
-        "%artist%/%album% (CD %disc%)/%track% - %title%"
-    });
-    lay->addWidget(combo);
     
+    QSettings settings("Amifiles", "Amifiles");
+    QStringList presets = settings.value("rename_presets").toStringList();
+    if (presets.isEmpty()) {
+        presets = {
+            "%track% - %title%",
+            "%artist% - %title%",
+            "%artist% - %album% - %track% - %title%",
+            "%artist%/%album%/%track% - %title%",
+            "%artist%/%album% (CD %disc%)/%track% - %title%"
+        };
+    }
+    combo->addItems(presets);
+    comboLayout->addWidget(combo, 1);
+    
+    QPushButton* btnAddPreset = new QPushButton("+", &dlgPattern);
+    btnAddPreset->setToolTip("Save current pattern as preset");
+    btnAddPreset->setFixedWidth(30);
+    comboLayout->addWidget(btnAddPreset);
+    
+    QPushButton* btnDelPreset = new QPushButton("-", &dlgPattern);
+    btnDelPreset->setToolTip("Delete selected preset");
+    btnDelPreset->setFixedWidth(30);
+    comboLayout->addWidget(btnDelPreset);
+    
+    lay->addLayout(comboLayout);
+    
+    connect(btnAddPreset, &QPushButton::clicked, [&]() {
+        QString text = combo->currentText().trimmed();
+        if (text.isEmpty()) return;
+        
+        int idx = combo->findText(text);
+        if (idx == -1) {
+            combo->addItem(text);
+            combo->setCurrentText(text);
+        }
+        
+        QStringList updated;
+        for (int i = 0; i < combo->count(); ++i) {
+            updated.append(combo->itemText(i));
+        }
+        QSettings s("Amifiles", "Amifiles");
+        s.setValue("rename_presets", updated);
+        QMessageBox::information(&dlgPattern, "Preset Saved", "Pattern saved to your renaming presets!");
+    });
+
+    connect(btnDelPreset, &QPushButton::clicked, [&]() {
+        int idx = combo->currentIndex();
+        if (idx != -1) {
+            combo->removeItem(idx);
+            
+            QStringList updated;
+            for (int i = 0; i < combo->count(); ++i) {
+                updated.append(combo->itemText(i));
+            }
+            QSettings s("Amifiles", "Amifiles");
+            s.setValue("rename_presets", updated);
+        }
+    });
+
     QHBoxLayout* btns = new QHBoxLayout();
     QPushButton* btnOk = new QPushButton("Preview & Rename", &dlgPattern);
     QPushButton* btnCan = new QPushButton("Cancel", &dlgPattern);
