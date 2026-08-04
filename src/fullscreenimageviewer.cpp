@@ -8,6 +8,19 @@
 #include <QTransform>
 #include <QBrush>
 #include <QPen>
+#include <QImageReader>
+
+static QPixmap loadPixmapAutoTransform(const QString& filePath) {
+    QImageReader reader(filePath);
+    reader.setAutoTransform(true);
+    QImage img = reader.read();
+    if (img.isNull()) {
+        QPixmap pix;
+        pix.load(filePath);
+        return pix;
+    }
+    return QPixmap::fromImage(img);
+}
 
 FullscreenImageViewer::FullscreenImageViewer(const QStringList& imageFiles, int startIndex, QWidget* parent)
     : QDialog(parent), m_files(imageFiles), m_currentIndex(startIndex) {
@@ -41,7 +54,7 @@ FullscreenImageViewer::FullscreenImageViewer(const QStringList& imageFiles, int 
 void FullscreenImageViewer::loadImage() {
     if (m_files.isEmpty() || m_currentIndex < 0 || m_currentIndex >= m_files.size()) return;
 
-    m_originalPixmap.load(m_files[m_currentIndex]);
+    m_originalPixmap = loadPixmapAutoTransform(m_files[m_currentIndex]);
     m_transformedPixmap = m_originalPixmap;
     
     // Reapply transformations if needed

@@ -6,6 +6,19 @@
 #include <QStyle>
 #include <QFileInfo>
 #include <QDebug>
+#include <QImageReader>
+
+static QPixmap loadPixmapAutoTransform(const QString& filePath) {
+    QImageReader reader(filePath);
+    reader.setAutoTransform(true);
+    QImage img = reader.read();
+    if (img.isNull()) {
+        QPixmap pix;
+        pix.load(filePath);
+        return pix;
+    }
+    return QPixmap::fromImage(img);
+}
 
 CoverFlowView::CoverFlowView(QWidget* parent) : QWidget(parent) {
     setFocusPolicy(Qt::StrongFocus);
@@ -139,7 +152,7 @@ QPixmap CoverFlowView::getItemPixmap(const QModelIndex& index) {
     if (info.exists() && info.isFile()) {
         QString ext = info.suffix().toLower();
         if (ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "bmp" || ext == "gif" || ext == "webp") {
-            pix.load(filePath);
+            pix = loadPixmapAutoTransform(filePath);
         }
     }
 

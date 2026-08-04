@@ -1,6 +1,7 @@
 #include "previewpanel.h"
 #include "tageditordialog.h"
 #include <QCoreApplication>
+#include <QImageReader>
 #include <QStandardPaths>
 #include <complex>
 #include <vector>
@@ -75,6 +76,18 @@
 #include <QHelpEvent>
 
 #include "metadatahovercard.h"
+
+static QPixmap loadPixmapAutoTransform(const QString& filePath) {
+    QImageReader reader(filePath);
+    reader.setAutoTransform(true);
+    QImage img = reader.read();
+    if (img.isNull()) {
+        QPixmap pix;
+        pix.load(filePath);
+        return pix;
+    }
+    return QPixmap::fromImage(img);
+}
 
 class ResumeOverlay : public QFrame {
 public:
@@ -2289,7 +2302,7 @@ void PreviewPanel::previewFolderArt(const QString& artPath, const QString& folde
     m_previewedFilePath = folderPath;
     
     // Show the art in the image display
-    m_originalPixmap.load(artPath);
+    m_originalPixmap = loadPixmapAutoTransform(artPath);
     if (!m_originalPixmap.isNull()) {
         scaleImage();
         m_stack->setCurrentWidget(m_imageView);
@@ -2334,7 +2347,7 @@ void PreviewPanel::showTextPreview(const QString& filePath) {
 }
 
 void PreviewPanel::showImagePreview(const QString& filePath) {
-    m_originalPixmap.load(filePath);
+    m_originalPixmap = loadPixmapAutoTransform(filePath);
     scaleImage();
     m_stack->setCurrentWidget(m_imageView);
 }
@@ -3587,7 +3600,7 @@ void PreviewPanel::buildFullscreenContent(bool isVideo, const QString& activePat
             for (const QString& name : coverNames) {
                 QString path = dir.filePath(name);
                 if (QFile::exists(path)) {
-                    cover.load(path);
+                    cover = loadPixmapAutoTransform(path);
                     break;
                 }
             }
