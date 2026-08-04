@@ -2831,7 +2831,7 @@ void FilePanel::onSelectionChanged() {
             QFileInfo pathInfo(path);
             m_bottomPanelPath = path;
 
-            if (m_bottomEnterBtn) {
+            if (m_bottomEnterBtn && m_bottomEnterBtn->isVisible() != pathInfo.isDir()) {
                 m_bottomEnterBtn->setVisible(pathInfo.isDir());
             }
 
@@ -2845,19 +2845,35 @@ void FilePanel::onSelectionChanged() {
             } else if (modeIndex == 8 || modeIndex == 9) {
                 panelHeight = 100;
             }
-            m_bottomInfoPanel->setFixedHeight(panelHeight);
+            if (m_bottomInfoPanel->height() != panelHeight) {
+                m_bottomInfoPanel->setFixedHeight(panelHeight);
+            }
 
             // Hide/Show widgets based on view mode index
-            if (m_musicControlsWidget) m_musicControlsWidget->setVisible(modeIndex == 10);
-            if (m_visualizerWidget) m_visualizerWidget->setVisible(modeIndex == 10);
-            if (m_trackListWidget) m_trackListWidget->setVisible(modeIndex >= 7 && modeIndex <= 10);
-            if (m_drawerBtnContainer) m_drawerBtnContainer->setVisible(modeIndex >= 7 && modeIndex <= 10);
-            if (m_cinemaButtonsWidget) m_cinemaButtonsWidget->setVisible(modeIndex == 8 || modeIndex == 9);
+            if (m_musicControlsWidget && m_musicControlsWidget->isVisible() != (modeIndex == 10)) {
+                m_musicControlsWidget->setVisible(modeIndex == 10);
+            }
+            if (m_visualizerWidget && m_visualizerWidget->isVisible() != (modeIndex == 10)) {
+                m_visualizerWidget->setVisible(modeIndex == 10);
+            }
+            if (m_trackListWidget && m_trackListWidget->isVisible() != (modeIndex >= 7 && modeIndex <= 10)) {
+                m_trackListWidget->setVisible(modeIndex >= 7 && modeIndex <= 10);
+            }
+            if (m_drawerBtnContainer && m_drawerBtnContainer->isVisible() != (modeIndex >= 7 && modeIndex <= 10)) {
+                m_drawerBtnContainer->setVisible(modeIndex >= 7 && modeIndex <= 10);
+            }
+            if (m_cinemaButtonsWidget && m_cinemaButtonsWidget->isVisible() != (modeIndex == 8 || modeIndex == 9)) {
+                m_cinemaButtonsWidget->setVisible(modeIndex == 8 || modeIndex == 9);
+            }
 
             if (modeIndex == 7 || modeIndex == 8 || modeIndex == 9) {
                 // Video Showcase
-                m_bottomSynopsis->setVisible(true);
-                m_bottomPlayBtn->setVisible(true);
+                if (m_bottomSynopsis && !m_bottomSynopsis->isVisible()) {
+                    m_bottomSynopsis->setVisible(true);
+                }
+                if (m_bottomPlayBtn && !m_bottomPlayBtn->isVisible()) {
+                    m_bottomPlayBtn->setVisible(true);
+                }
 
                 bool isTvShow = false;
                 bool isSeason = false;
@@ -5599,7 +5615,10 @@ void FilePanel::updateStyles() {
         QString text = colors.text;
         QString accent = colors.accent;
         
+        int modeIndex = viewModeIndex();
+        bool isFullscreenShowcase = (modeIndex >= 8 && modeIndex <= 10);
         QString borderColor = m_isActive ? accent : border;
+        QString borderStyle = isFullscreenShowcase ? "border: none;" : QString("border: 2px solid %1; border-radius: 4px;").arg(borderColor);
 
         if (hasBgImage) {
             stackBgStyle = QString("border-image: url(\"%1\") 0 0 0 0 stretch stretch;").arg(m_customBgImage);
@@ -5611,7 +5630,7 @@ void FilePanel::updateStyles() {
             bgStyle = QString("background-color: %1;").arg(bg);
         }
 
-        m_viewStack->setStyleSheet(QString("QStackedWidget { border: 2px solid %1; border-radius: 4px; %2 }").arg(borderColor).arg(stackBgStyle));
+        m_viewStack->setStyleSheet(QString("QStackedWidget { %1 %2 }").arg(borderStyle).arg(stackBgStyle));
 
         m_treeView->setStyleSheet(QString("QTreeView { border: none; %1 font-size: %2px; }").arg(bgStyle).arg(fontSize));
         m_listView->setStyleSheet(QString("QListView { border: none; %1 font-size: %2px; }").arg(bgStyle).arg(fontSize));
