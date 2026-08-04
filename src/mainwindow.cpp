@@ -1589,6 +1589,7 @@ void MainWindow::onToggleDualPane(bool checked) {
     if (!m_isApplyingFolderProfile) {
         QSettings settings("Amifiles", "Amifiles");
         settings.setValue("preferences/dual_pane", checked);
+        updateActiveRuleLayoutSetting("dualPaneActive", checked);
     }
 
     queueAdjustSplitterSizes();
@@ -1605,6 +1606,9 @@ void MainWindow::onTogglePreview(bool checked) {
     queueAdjustSplitterSizes();
     if (checked) {
         QTimer::singleShot(50, this, &MainWindow::apply5050Layouts);
+    }
+    if (!m_isApplyingFolderProfile) {
+        updateActiveRuleLayoutSetting("previewVisible", checked);
     }
 }
 
@@ -2381,9 +2385,9 @@ void MainWindow::onToggleDrivesToolbar(bool checked) {
         m_tbDrives->setVisible(!m_zenMode && checked);
     }
     if (!m_isApplyingFolderProfile) {
-        // Save to settings
         QSettings settings("Amifiles", "Amifiles");
         settings.setValue("drives/toolbar_visible", checked);
+        updateActiveRuleLayoutSetting("drivesToolbarVisible", checked);
     }
 }
 
@@ -2425,6 +2429,7 @@ void MainWindow::onToggleHorizontalSplit(bool checked) {
     if (!m_isApplyingFolderProfile) {
         QSettings settings("Amifiles", "Amifiles");
         settings.setValue("preferences/horizontal_split", checked);
+        updateActiveRuleLayoutSetting("horizontalSplitActive", checked);
     }
     if (m_dualSplitter) {
         if (checked) {
@@ -2568,6 +2573,7 @@ void MainWindow::onToggleConsole(bool checked) {
     if (!m_isApplyingFolderProfile) {
         QSettings settings("Amifiles", "Amifiles");
         settings.setValue("console/visible", checked);
+        updateActiveRuleLayoutSetting("consoleVisible", checked);
     }
 }
 
@@ -3295,6 +3301,7 @@ void MainWindow::onToggleFavoritesSidebar(bool checked) {
         if (!m_isApplyingFolderProfile) {
             QSettings settings("Amifiles", "Amifiles");
             settings.setValue("favorites/sidebar_visible", checked);
+            updateActiveRuleLayoutSetting("favoritesSidebarVisible", checked);
         }
         queueAdjustSplitterSizes();
     }
@@ -4490,48 +4497,63 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
     }
 
     // 3b. Custom Toolbars visibility overrides
-    if (r.overrideToolbars) {
+    if (r.overrideToolbars || isDefaultProfile) {
         for (QToolBar* tb : m_dynamicToolBars) {
             if (tb->objectName() == "tb_drives" || tb->objectName() == "drivesToolBar") continue;
             tb->setVisible(r.selectedToolbars.contains(tb->objectName()));
         }
     } else {
-        QSettings settings("Amifiles", "Amifiles");
-        QString jsonStr = settings.value("custom_toolbars_v1").toString();
-        if (!jsonStr.isEmpty()) {
-            QJsonDocument doc = QJsonDocument::fromJson(jsonStr.toUtf8());
-            QJsonArray arr = doc.array();
-            for (int i = 0; i < arr.size(); ++i) {
-                QJsonObject tbObj = arr[i].toObject();
-                QString id = tbObj["id"].toString();
-                if (id == "tb_drives" || id == "drivesToolBar") continue;
-                bool visible = tbObj["visible"].toBool(true);
-                for (QToolBar* tb : m_dynamicToolBars) {
-                    if (tb->objectName() == id) {
-                        tb->setVisible(visible);
-                        break;
-                    }
-                }
-            }
-        } else {
+        if (def.overrideToolbars) {
             for (QToolBar* tb : m_dynamicToolBars) {
                 if (tb->objectName() == "tb_drives" || tb->objectName() == "drivesToolBar") continue;
-                tb->setVisible(true);
+                tb->setVisible(def.selectedToolbars.contains(tb->objectName()));
+            }
+        } else {
+            QSettings settings("Amifiles", "Amifiles");
+            QString jsonStr = settings.value("custom_toolbars_v1").toString();
+            if (!jsonStr.isEmpty()) {
+                QJsonDocument doc = QJsonDocument::fromJson(jsonStr.toUtf8());
+                QJsonArray arr = doc.array();
+                for (int i = 0; i < arr.size(); ++i) {
+                    QJsonObject tbObj = arr[i].toObject();
+                    QString id = tbObj["id"].toString();
+                    if (id == "tb_drives" || id == "drivesToolBar") continue;
+                    bool visible = tbObj["visible"].toBool(true);
+                    for (QToolBar* tb : m_dynamicToolBars) {
+                        if (tb->objectName() == id) {
+                            tb->setVisible(visible);
+                            break;
+                        }
+                    }
+                }
+            } else {
+                for (QToolBar* tb : m_dynamicToolBars) {
+                    if (tb->objectName() == "tb_drives" || tb->objectName() == "drivesToolBar") continue;
+                    tb->setVisible(true);
+                }
             }
         }
     }
 
     // 3c. Custom Menus visibility overrides
-    if (r.overrideMenus) {
+    if (r.overrideMenus || isDefaultProfile) {
         for (QMenu* menu : m_customMenus) {
             if (menu->menuAction()) {
                 menu->menuAction()->setVisible(r.selectedMenus.contains(menu->title()));
             }
         }
     } else {
-        for (QMenu* menu : m_customMenus) {
-            if (menu->menuAction()) {
-                menu->menuAction()->setVisible(true);
+        if (def.overrideMenus) {
+            for (QMenu* menu : m_customMenus) {
+                if (menu->menuAction()) {
+                    menu->menuAction()->setVisible(def.selectedMenus.contains(menu->title()));
+                }
+            }
+        } else {
+            for (QMenu* menu : m_customMenus) {
+                if (menu->menuAction()) {
+                    menu->menuAction()->setVisible(true);
+                }
             }
         }
     }
@@ -4777,10 +4799,6 @@ void MainWindow::applyFolderRules(const QString& path, FilePanel* callingPanel) 
         }
 
     if (foundMatch) {
-        if (m_hasActiveFolderRule && m_activeFolderRule.name == matchedRule.name) {
-            return;
-        }
-
         if (!matchedRule.linkedProfile.isEmpty() && matchedRule.linkedProfile != matchedRule.name) {
             FolderLayoutRule inheritedRule = matchedRule;
             bool foundInherited = false;
@@ -4810,10 +4828,6 @@ void MainWindow::applyFolderRules(const QString& path, FilePanel* callingPanel) 
             }
         }
         if (foundDefault) {
-            if (m_hasActiveFolderRule && m_activeFolderRule.name == defaultRule.name) {
-                return;
-            }
-
             if (!defaultRule.linkedProfile.isEmpty() && defaultRule.linkedProfile != defaultRule.name) {
                 FolderLayoutRule inheritedRule = defaultRule;
                 for (const auto& r : m_folderRules) {
@@ -6830,6 +6844,7 @@ void MainWindow::onToggleCenterOps(bool checked) {
     if (!m_isApplyingFolderProfile) {
         QSettings settings("Amifiles", "Amifiles");
         settings.setValue("layout/center_ops_visible", checked);
+        updateActiveRuleLayoutSetting("centerOpsVisible", checked);
     }
 }
 
@@ -8044,6 +8059,67 @@ void MainWindow::onAdvancedTagEditorAction() {
     if (dlg.exec() == QDialog::Accepted) {
         if (m_activePanel) {
             m_activePanel->refresh();
+        }
+    }
+}
+
+void MainWindow::updateActiveRuleLayoutSetting(const QString& field, bool value) {
+    if (m_isApplyingFolderProfile) return;
+    QString targetRuleName = "default";
+    if (m_hasActiveFolderRule) {
+        targetRuleName = m_activeFolderRule.name;
+    }
+    for (auto& r : m_folderRules) {
+        if (r.name.compare(targetRuleName, Qt::CaseInsensitive) == 0) {
+            if (field == "drivesToolbarVisible") {
+                r.drivesToolbarVisible = value;
+                r.overrideDrivesToolbar = true;
+            } else if (field == "centerOpsVisible") {
+                r.centerOpsVisible = value;
+                r.overrideCenterOps = true;
+            } else if (field == "consoleVisible") {
+                r.consoleVisible = value;
+                r.overrideConsole = true;
+            } else if (field == "previewVisible") {
+                r.previewVisible = value;
+                r.overridePreview = true;
+            } else if (field == "favoritesSidebarVisible") {
+                r.favoritesSidebarVisible = value;
+                r.overrideFavoritesSidebar = true;
+            } else if (field == "dualPaneActive") {
+                r.dualPaneActive = value;
+                r.overrideDualPane = true;
+            } else if (field == "horizontalSplitActive") {
+                r.horizontalSplitActive = value;
+                r.overrideHorizontalSplit = true;
+            }
+
+            if (m_hasActiveFolderRule && m_activeFolderRule.name == r.name) {
+                if (field == "drivesToolbarVisible") {
+                    m_activeFolderRule.drivesToolbarVisible = value;
+                    m_activeFolderRule.overrideDrivesToolbar = true;
+                } else if (field == "centerOpsVisible") {
+                    m_activeFolderRule.centerOpsVisible = value;
+                    m_activeFolderRule.overrideCenterOps = true;
+                } else if (field == "consoleVisible") {
+                    m_activeFolderRule.consoleVisible = value;
+                    m_activeFolderRule.overrideConsole = true;
+                } else if (field == "previewVisible") {
+                    m_activeFolderRule.previewVisible = value;
+                    m_activeFolderRule.overridePreview = true;
+                } else if (field == "favoritesSidebarVisible") {
+                    m_activeFolderRule.favoritesSidebarVisible = value;
+                    m_activeFolderRule.overrideFavoritesSidebar = true;
+                } else if (field == "dualPaneActive") {
+                    m_activeFolderRule.dualPaneActive = value;
+                    m_activeFolderRule.overrideDualPane = true;
+                } else if (field == "horizontalSplitActive") {
+                    m_activeFolderRule.horizontalSplitActive = value;
+                    m_activeFolderRule.overrideHorizontalSplit = true;
+                }
+            }
+            saveFolderRules();
+            break;
         }
     }
 }

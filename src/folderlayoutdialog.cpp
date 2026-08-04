@@ -664,8 +664,8 @@ void FolderLayoutDialog::setupUI() {
     btnSave->setToolTip("Save all folder profile assignments and layout templates and update active workspace.");
     connect(btnSave, &QPushButton::clicked, this, &FolderLayoutDialog::onSave);
 
-    QPushButton* btnCancel = new QPushButton("❌ Cancel", this);
-    btnCancel->setToolTip("Discard changes and close dialog.");
+    QPushButton* btnCancel = new QPushButton("❌ Close", this);
+    btnCancel->setToolTip("Close layout profile editor.");
     connect(btnCancel, &QPushButton::clicked, this, &QDialog::reject);
 
     dialogButtons->addWidget(btnSave);
@@ -1466,7 +1466,20 @@ void FolderLayoutDialog::onSave() {
         }
     }
 
-    accept();
+    QWidget* parentW = parentWidget();
+    while (parentW && !parentW->inherits("MainWindow")) {
+        parentW = parentW->parentWidget();
+    }
+    MainWindow* mw = qobject_cast<MainWindow*>(parentW);
+    if (mw) {
+        mw->setFolderRules(m_rules);
+        mw->saveFolderRules();
+        if (mw->activePanel()) {
+            mw->applyFolderRules(mw->activePanel()->currentPath(), mw->activePanel());
+        }
+    }
+
+    QMessageBox::information(this, "Profiles Saved", "Folder profiles successfully saved and applied!");
 }
 
 #include <QFile>

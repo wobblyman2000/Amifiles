@@ -312,10 +312,6 @@ private slots:
     void onResetLayout();
     void onBackupSettings();
     void onRestoreSettings();
-    void onConfigureFolderLayouts();
-    void onSaveFolderProfileForCurrentDir();
-    void onSaveDefaultProfile();
-    void onLoadDefaultProfile();
     void onConfigureBackupSchedule();
     void onConfigureAutoTags();
     void onConfigureAutoOrganizer();
@@ -325,6 +321,10 @@ private slots:
     Q_INVOKABLE void refreshTagsSidebar();
 
 public:
+    void onConfigureFolderLayouts();
+    void onSaveFolderProfileForCurrentDir();
+    void onSaveDefaultProfile();
+    void onLoadDefaultProfile();
     void onApplyProfileToCurrentFolder(const QString& profileName);
     void applyFolderRules(const QString& path, class FilePanel* callingPanel = nullptr);
     QTabWidget* leftTabWidget() const { return m_leftTabWidget; }
@@ -333,6 +333,7 @@ public:
     FilePanel* rightPanel() const;
     FilePanel* activePanel() const { return m_activePanel; }
     const QList<FolderLayoutRule>& folderRules() const { return m_folderRules; }
+    void setFolderRules(const QList<FolderLayoutRule>& rules) { m_folderRules = rules; }
     FilePanel* createTab(QTabWidget* tabWidget, const QString& path);
     void updateSiblingLinks();
     void executeCustomCommand(const QString& commandOrPath);
@@ -567,6 +568,7 @@ private:
                            const QString& type, const QString& actId, const QString& name, const QString& icon,
                            const QString& command, bool isDynamicDrive);
     QJsonObject m_copiedToolbarItem;
+    void updateActiveRuleLayoutSetting(const QString& field, bool value);
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;

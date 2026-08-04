@@ -3805,6 +3805,27 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         return;
     }
 
+    if (command == "app.folder_layouts" || command == "app.save_folder_profile" ||
+        command == "app.save_default_profile" || command == "app.load_default_profile") {
+        QWidget* parentW = parentWidget();
+        while (parentW && !parentW->inherits("MainWindow")) {
+            parentW = parentW->parentWidget();
+        }
+        MainWindow* mw = qobject_cast<MainWindow*>(parentW);
+        if (mw) {
+            if (command == "app.folder_layouts") {
+                mw->onConfigureFolderLayouts();
+            } else if (command == "app.save_folder_profile") {
+                mw->onSaveFolderProfileForCurrentDir();
+            } else if (command == "app.save_default_profile") {
+                mw->onSaveDefaultProfile();
+            } else if (command == "app.load_default_profile") {
+                mw->onLoadDefaultProfile();
+            }
+        }
+        return;
+    }
+
     if (command == "app.open") {
         if (isNewView) {
             if (!selectedPath.isEmpty()) {
