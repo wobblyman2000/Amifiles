@@ -178,6 +178,40 @@ FilePanel::FilePanel(const QString& initialPath, QWidget* parent)
     m_searchUpdateTimer->setSingleShot(true);
     connect(m_searchUpdateTimer, &QTimer::timeout, this, &FilePanel::onSearchUpdateTimeout);
 
+    m_hoverTimer = new QTimer(this);
+    m_hoverTimer->setSingleShot(true);
+    connect(m_hoverTimer, &QTimer::timeout, this, [this]() {
+        if (!m_pendingHoverIndex.isValid()) return;
+        QString filePath = filePathFromIndex(m_pendingHoverIndex);
+        if (!filePath.isEmpty() && QFile::exists(filePath)) {
+            FileMetadata meta = MetadataExtractor::extract(filePath);
+            
+            if (!m_hoverCard) {
+                m_hoverCard = new MetadataHoverCard(nullptr);
+            }
+            m_hoverCard->setMetadata(meta, filePath);
+            m_hoverCard->adjustSize();
+            
+            QPoint pos = m_pendingHoverPos;
+            pos.setX(pos.x() + 15);
+            pos.setY(pos.y() + 15);
+            
+            QScreen* screen = QGuiApplication::primaryScreen();
+            if (screen) {
+                QRect screenGeom = screen->geometry();
+                if (pos.x() + m_hoverCard->width() > screenGeom.right()) {
+                    pos.setX(m_pendingHoverPos.x() - m_hoverCard->width() - 15);
+                }
+                if (pos.y() + m_hoverCard->height() > screenGeom.bottom()) {
+                    pos.setY(m_pendingHoverPos.y() - m_hoverCard->height() - 15);
+                }
+            }
+            m_hoverCard->move(pos);
+            m_hoverCard->show();
+            m_hoverCard->raise();
+        }
+    });
+
     navigateTo(initialPath, true);
 }
 
@@ -1202,60 +1236,46 @@ bool FilePanel::eventFilter(QObject* watched, QEvent* event) {
             QPoint viewportPos = view->viewport()->mapFromGlobal(helpEvent->globalPos());
             QModelIndex index = view->indexAt(viewportPos);
             if (index.isValid()) {
-                QString filePath = filePathFromIndex(index);
-                if (!filePath.isEmpty() && QFile::exists(filePath)) {
-                    FileMetadata meta = MetadataExtractor::extract(filePath);
-                    
-                    if (!m_hoverCard) {
-                        m_hoverCard = new MetadataHoverCard(nullptr);
-                    }
-                    m_hoverCard->setMetadata(meta, filePath);
-                    m_hoverCard->adjustSize();
-                    
-                    QPoint pos = helpEvent->globalPos();
-                    pos.setX(pos.x() + 15);
-                    pos.setY(pos.y() + 15);
-                    
-                    QScreen* screen = QGuiApplication::primaryScreen();
-                    if (screen) {
-                        QRect screenGeom = screen->geometry();
-                        if (pos.x() + m_hoverCard->width() > screenGeom.right()) {
-                            pos.setX(helpEvent->globalPos().x() - m_hoverCard->width() - 15);
-                        }
-                        if (pos.y() + m_hoverCard->height() > screenGeom.bottom()) {
-                            pos.setY(helpEvent->globalPos().y() - m_hoverCard->height() - 15);
-                        }
-                    }
-                    m_hoverCard->move(pos);
-                    m_hoverCard->show();
-                    m_hoverCard->raise();
-                    return true;
-                }
+                m_pendingHoverIndex = index;
+                m_pendingHoverPos = helpEvent->globalPos();
+                m_hoverTimer->start(800); // 800ms delay!
+                return true;
             }
         }
     } else if (event->type() == QEvent::Leave || event->type() == QEvent::MouseButtonPress) {
+        m_hoverTimer->stop();
+        m_pendingHoverIndex = QModelIndex();
         if (m_hoverCard && m_hoverCard->isVisible()) {
             m_hoverCard->hide();
         }
     } else if (event->type() == QEvent::MouseMove) {
-        if (m_hoverCard && m_hoverCard->isVisible()) {
-            QAbstractItemView* view = qobject_cast<QAbstractItemView*>(watched);
-            if (!view && watched) {
-                view = qobject_cast<QAbstractItemView*>(watched->parent());
-            }
-            if (view) {
-                QPoint viewportPos = view->viewport()->mapFromGlobal(QCursor::pos());
-                QModelIndex index = view->indexAt(viewportPos);
-                if (index.isValid()) {
-                    QString filePath = filePathFromIndex(index);
+        QAbstractItemView* view = qobject_cast<QAbstractItemView*>(watched);
+        if (!view && watched) {
+            view = qobject_cast<QAbstractItemView*>(watched->parent());
+        }
+        if (view) {
+            QPoint viewportPos = view->viewport()->mapFromGlobal(QCursor::pos());
+            QModelIndex index = view->indexAt(viewportPos);
+            if (index.isValid()) {
+                QString filePath = filePathFromIndex(index);
+                if (m_hoverCard && m_hoverCard->isVisible()) {
                     if (filePath != m_hoverCard->currentFilePath()) {
                         m_hoverCard->hide();
+                        m_pendingHoverIndex = index;
+                        m_pendingHoverPos = QCursor::pos();
+                        m_hoverTimer->start(800);
                     }
                 } else {
-                    m_hoverCard->hide();
+                    if (index != m_pendingHoverIndex) {
+                        m_pendingHoverIndex = index;
+                        m_pendingHoverPos = QCursor::pos();
+                        m_hoverTimer->start(800);
+                    }
                 }
             } else {
-                m_hoverCard->hide();
+                m_hoverTimer->stop();
+                m_pendingHoverIndex = QModelIndex();
+                if (m_hoverCard) m_hoverCard->hide();
             }
         }
     }

@@ -10,6 +10,8 @@
 #include <QPen>
 #include "metadataextractor.h"
 #include "tagmanager.h"
+#include <QFileInfo>
+#include <QStringList>
 
 class MetadataHoverCard : public QFrame {
 public:
@@ -75,6 +77,29 @@ public:
             lblVal->setWordWrap(true);
             m_infoLayout->addRow(lblName, lblVal);
         };
+        
+        // Determine file type
+        QString fileType = "File";
+        QFileInfo info(filePath);
+        if (info.isDir()) {
+            fileType = "Folder";
+        } else {
+            QString ext = info.suffix().toLower();
+            if (QStringList({"jpg", "jpeg", "png", "webp", "gif", "bmp"}).contains(ext)) {
+                fileType = "Image File";
+            } else if (QStringList({"mp3", "flac", "wav", "ogg", "m4a", "aac", "wma", "mod", "sid", "xm", "it", "s3m"}).contains(ext)) {
+                fileType = "Audio Track";
+            } else if (QStringList({"mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "m4v"}).contains(ext)) {
+                fileType = "Video File";
+            } else if (ext == "pdf") {
+                fileType = "PDF Document";
+            } else if (QStringList({"txt", "nfo", "ini", "log", "md", "cfg", "json", "xml"}).contains(ext)) {
+                fileType = "Text Document";
+            } else {
+                fileType = ext.isEmpty() ? "Unknown Type" : (ext.toUpper() + " File");
+            }
+        }
+        addInfoRow("Type:", fileType);
         
         QString format = meta.imageFormat;
         if (format.isEmpty()) format = meta.extension.toUpper();

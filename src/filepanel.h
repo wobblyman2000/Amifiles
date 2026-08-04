@@ -1143,6 +1143,9 @@ private:
     QTimer* m_rebuildGroupsTimer = nullptr;
     int m_zoomLevel = -1;
     class MetadataHoverCard* m_hoverCard = nullptr;
+    QTimer* m_hoverTimer = nullptr;
+    QModelIndex m_pendingHoverIndex;
+    QPoint m_pendingHoverPos;
 
     // Bottom Filter Bar
     QLineEdit* m_filterEdit = nullptr;
