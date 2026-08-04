@@ -1233,9 +1233,30 @@ bool FilePanel::eventFilter(QObject* watched, QEvent* event) {
                 }
             }
         }
-    } else if (event->type() == QEvent::Leave || event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseMove) {
+    } else if (event->type() == QEvent::Leave || event->type() == QEvent::MouseButtonPress) {
         if (m_hoverCard && m_hoverCard->isVisible()) {
             m_hoverCard->hide();
+        }
+    } else if (event->type() == QEvent::MouseMove) {
+        if (m_hoverCard && m_hoverCard->isVisible()) {
+            QAbstractItemView* view = qobject_cast<QAbstractItemView*>(watched);
+            if (!view && watched) {
+                view = qobject_cast<QAbstractItemView*>(watched->parent());
+            }
+            if (view) {
+                QPoint viewportPos = view->viewport()->mapFromGlobal(QCursor::pos());
+                QModelIndex index = view->indexAt(viewportPos);
+                if (index.isValid()) {
+                    QString filePath = filePathFromIndex(index);
+                    if (filePath != m_hoverCard->currentFilePath()) {
+                        m_hoverCard->hide();
+                    }
+                } else {
+                    m_hoverCard->hide();
+                }
+            } else {
+                m_hoverCard->hide();
+            }
         }
     }
 

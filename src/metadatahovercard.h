@@ -6,24 +6,19 @@
 #include <QLabel>
 #include <QVBoxLayout>
 #include <QFormLayout>
-#include <QGraphicsDropShadowEffect>
 #include "metadataextractor.h"
 #include "tagmanager.h"
 
-class MetadataHoverCard : public QWidget {
+class MetadataHoverCard : public QFrame {
 public:
     explicit MetadataHoverCard(QWidget* parent = nullptr) 
-        : QWidget(parent, Qt::ToolTip | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint) {
+        : QFrame(parent, Qt::ToolTip | Qt::FramelessWindowHint) {
         setAttribute(Qt::WA_TranslucentBackground);
         setAttribute(Qt::WA_ShowWithoutActivating);
         setAttribute(Qt::WA_TransparentForMouseEvents);
         
-        QVBoxLayout* mainLayout = new QVBoxLayout(this);
-        mainLayout->setContentsMargins(12, 12, 12, 12);
-        
-        m_cardFrame = new QFrame(this);
-        m_cardFrame->setObjectName("cardFrame");
-        m_cardFrame->setStyleSheet(
+        setObjectName("cardFrame");
+        setStyleSheet(
             "QFrame#cardFrame { "
             "  background-color: rgba(30, 30, 46, 0.95); "
             "  border: 1px solid rgba(137, 180, 250, 0.4); "
@@ -34,16 +29,16 @@ public:
             "QLabel#ratingLabel { color: #f9e2af; font-size: 15px; }"
         );
         
-        QVBoxLayout* frameLayout = new QVBoxLayout(m_cardFrame);
-        frameLayout->setContentsMargins(10, 10, 10, 10);
+        QVBoxLayout* frameLayout = new QVBoxLayout(this);
+        frameLayout->setContentsMargins(12, 12, 12, 12);
         frameLayout->setSpacing(6);
         
-        m_lblTitle = new QLabel(m_cardFrame);
+        m_lblTitle = new QLabel(this);
         m_lblTitle->setObjectName("titleLabel");
         m_lblTitle->setWordWrap(true);
         frameLayout->addWidget(m_lblTitle);
         
-        m_lblRating = new QLabel(m_cardFrame);
+        m_lblRating = new QLabel(this);
         m_lblRating->setObjectName("ratingLabel");
         frameLayout->addWidget(m_lblRating);
         
@@ -52,17 +47,10 @@ public:
         m_infoLayout->setLabelAlignment(Qt::AlignRight);
         m_infoLayout->setFormAlignment(Qt::AlignLeft | Qt::AlignTop);
         frameLayout->addLayout(m_infoLayout);
-        
-        mainLayout->addWidget(m_cardFrame);
-        
-        QGraphicsDropShadowEffect* shadow = new QGraphicsDropShadowEffect(this);
-        shadow->setBlurRadius(15);
-        shadow->setColor(QColor(0, 0, 0, 150));
-        shadow->setOffset(0, 4);
-        m_cardFrame->setGraphicsEffect(shadow);
     }
     
     void setMetadata(const FileMetadata& meta, const QString& filePath) {
+        m_currentFilePath = filePath;
         m_lblTitle->setText(meta.name);
         
         int rating = TagManager::instance().getFileRating(filePath);
@@ -85,9 +73,9 @@ public:
         
         auto addInfoRow = [this](const QString& labelText, const QString& valueText) {
             if (valueText.isEmpty()) return;
-            QLabel* lblName = new QLabel(labelText, m_cardFrame);
+            QLabel* lblName = new QLabel(labelText, this);
             lblName->setStyleSheet("color: #a6adc8; font-weight: bold;");
-            QLabel* lblVal = new QLabel(valueText, m_cardFrame);
+            QLabel* lblVal = new QLabel(valueText, this);
             lblVal->setWordWrap(true);
             m_infoLayout->addRow(lblName, lblVal);
         };
@@ -123,9 +111,11 @@ public:
         
         adjustSize();
     }
+    
+    QString currentFilePath() const { return m_currentFilePath; }
 
 private:
-    QFrame* m_cardFrame = nullptr;
+    QString m_currentFilePath;
     QLabel* m_lblTitle = nullptr;
     QLabel* m_lblRating = nullptr;
     QFormLayout* m_infoLayout = nullptr;
