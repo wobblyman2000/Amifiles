@@ -468,6 +468,8 @@ private:
     class QLineEdit* m_musicEditTrack = nullptr;
     class QPlainTextEdit* m_musicEditLyrics = nullptr;
     class QPushButton* m_btnSaveMusicTags = nullptr;
+    class MetadataHoverCard* m_hoverCard = nullptr;
+    FileMetadata m_activeMeta;
 
     // Fullscreen support
     FullscreenWidget* m_fullscreenWidget = nullptr;

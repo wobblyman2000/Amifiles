@@ -777,3 +777,8 @@ FS KeyPress: key=16777251 modifiers=402653184 pressed=Meta+Alt+Alt shortcutNext=
 FS KeyPress: key=16777250 modifiers=268435456 pressed=Meta+Meta shortcutNext=N shortcutPrev=P
 FS KeyPress: key=16777216 modifiers=0 pressed=Esc shortcutNext=N shortcutPrev=P
 FS KeyPress: key=16777216 modifiers=0 pressed=Esc shortcutNext=N shortcutPrev=P
+Selected action: nullptr (m_menuCanceled=0)
+FS KeyPress: key=16777216 modifiers=0 pressed=Esc shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777216 modifiers=0 pressed=Esc shortcutNext=N shortcutPrev=P
+FS KeyPress: key=16777216 modifiers=0 pressed=Esc shortcutNext=N shortcutPrev=P
+onNextTrack called: size=1 index=0
