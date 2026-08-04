@@ -937,6 +937,7 @@ void MainWindow::setupActions() {
     m_actToggleZenMode->setShortcut(QKeySequence(Qt::Key_F11));
     m_actToggleZenMode->setToolTip("Toggle distraction-free Zen Mode (F11)");
     m_actToggleZenMode->setStatusTip("Toggle distraction-free Zen Mode (F11)");
+    this->addAction(m_actToggleZenMode);
     connect(m_actToggleZenMode, &QAction::triggered, this, [this]() {
         setZenMode(!m_zenMode);
     });
@@ -7183,13 +7184,32 @@ void MainWindow::onToggleDetailedTooltips(bool enabled) {
 }
 
 void MainWindow::setZenMode(bool enabled) {
+    if (m_actToggleZenMode) {
+        m_actToggleZenMode->blockSignals(true);
+        m_actToggleZenMode->setChecked(enabled);
+        m_actToggleZenMode->blockSignals(false);
+    }
     m_zenMode = enabled;
     if (!m_isApplyingFolderProfile) {
         QSettings settings("Amifiles", "Amifiles");
         settings.setValue("preferences/zen_mode", enabled);
+        QString targetRuleName = "default";
+        if (m_hasActiveFolderRule) {
+            targetRuleName = m_activeFolderRule.name;
+        }
+        for (auto& r : m_folderRules) {
+            if (r.name.compare(targetRuleName, Qt::CaseInsensitive) == 0) {
+                r.zenModeActive = enabled;
+                r.overrideZenMode = true;
+                m_activeFolderRule.zenModeActive = enabled;
+                m_activeFolderRule.overrideZenMode = true;
+                saveFolderRules();
+                break;
+            }
+        }
     }
 
-    // Hide/show main window menu bar, toolbars, center ops, bottom tabs, status bar
+    // Hide/show main window menu bar, toolbars, center ops, bottom tabs, status bar, and sidebar
     if (menuBar()) menuBar()->setVisible(!enabled);
     if (m_tbFile) m_tbFile->setVisible(!enabled);
     if (m_tbView) m_tbView->setVisible(!enabled);
@@ -7197,6 +7217,9 @@ void MainWindow::setZenMode(bool enabled) {
     if (m_tbDrives) m_tbDrives->setVisible(!enabled && m_actToggleDrivesToolbar->isChecked());
     if (m_tbCenterOps) m_tbCenterOps->setVisible(!enabled && m_actToggleCenterOps->isChecked() && m_isDualPane);
     if (m_bottomTabWidget) m_bottomTabWidget->setVisible(!enabled && m_actToggleConsole->isChecked());
+    if (m_sidebarTabWidget && m_actToggleFavoritesSidebar) {
+        m_sidebarTabWidget->setVisible(!enabled && m_actToggleFavoritesSidebar->isChecked());
+    }
     if (statusBar()) statusBar()->setVisible(!enabled);
     for (QToolBar* tb : m_dynamicToolBars) {
         if (tb) {
