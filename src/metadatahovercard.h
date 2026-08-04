@@ -6,6 +6,8 @@
 #include <QLabel>
 #include <QVBoxLayout>
 #include <QFormLayout>
+#include <QPainter>
+#include <QPen>
 #include "metadataextractor.h"
 #include "tagmanager.h"
 
@@ -17,13 +19,7 @@ public:
         setAttribute(Qt::WA_ShowWithoutActivating);
         setAttribute(Qt::WA_TransparentForMouseEvents);
         
-        setObjectName("cardFrame");
         setStyleSheet(
-            "QFrame#cardFrame { "
-            "  background-color: #1e1e2e; "
-            "  border: 1px solid #89b4fa; "
-            "  border-radius: 8px; "
-            "}"
             "QLabel { color: #cdd6f4; font-family: 'Outfit'; font-size: 13px; }"
             "QLabel#titleLabel { color: #89b4fa; font-size: 16px; font-weight: bold; }"
             "QLabel#ratingLabel { color: #f9e2af; font-size: 15px; }"
@@ -113,6 +109,22 @@ public:
     }
     
     QString currentFilePath() const { return m_currentFilePath; }
+
+protected:
+    void paintEvent(QPaintEvent* event) override {
+        Q_UNUSED(event);
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        
+        // Draw solid background
+        painter.setBrush(QColor("#1e1e2e"));
+        // Draw solid borders
+        painter.setPen(QPen(QColor("#89b4fa"), 1));
+        
+        QRectF r = rect();
+        r.adjust(0.5, 0.5, -0.5, -0.5);
+        painter.drawRoundedRect(r, 8, 8);
+    }
 
 private:
     QString m_currentFilePath;
