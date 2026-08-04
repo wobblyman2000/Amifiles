@@ -1578,7 +1578,7 @@ void MainWindow::onToggleDualPane(bool checked) {
     m_isDualPane = checked;
     if (m_rightTabWidget) m_rightTabWidget->setVisible(checked);
     if (m_tbCenterOps) {
-        m_tbCenterOps->setVisible(checked && m_actToggleCenterOps->isChecked());
+        m_tbCenterOps->setVisible(!m_zenMode && checked && m_actToggleCenterOps->isChecked());
     }
     
     if (!checked && m_activePanel && m_rightTabWidget && m_rightTabWidget->indexOf(m_activePanel) != -1) {
@@ -2377,7 +2377,7 @@ void MainWindow::onToggleDrivesMenu(bool checked) {
 
 void MainWindow::onToggleDrivesToolbar(bool checked) {
     if (m_tbDrives) {
-        m_tbDrives->setVisible(checked);
+        m_tbDrives->setVisible(!m_zenMode && checked);
     }
     if (!m_isApplyingFolderProfile) {
         // Save to settings
@@ -2444,7 +2444,7 @@ void MainWindow::onToggleHorizontalSplit(bool checked) {
             m_dualSplitter->insertWidget(1, m_tbCenterOps);
             m_dualSplitter->insertWidget(2, m_rightTabWidget);
             if (m_tbCenterOps) {
-                m_tbCenterOps->setVisible(m_actToggleCenterOps->isChecked() && m_isDualPane);
+                m_tbCenterOps->setVisible(!m_zenMode && m_actToggleCenterOps->isChecked() && m_isDualPane);
             }
         } else {
             m_dualSplitter->setOrientation(Qt::Horizontal);
@@ -2464,7 +2464,7 @@ void MainWindow::onToggleHorizontalSplit(bool checked) {
             m_dualSplitter->insertWidget(1, m_tbCenterOps);
             m_dualSplitter->insertWidget(2, m_rightTabWidget);
             if (m_tbCenterOps) {
-                m_tbCenterOps->setVisible(m_actToggleCenterOps->isChecked() && m_isDualPane);
+                m_tbCenterOps->setVisible(!m_zenMode && m_actToggleCenterOps->isChecked() && m_isDualPane);
             }
         }
     }
@@ -2557,7 +2557,7 @@ void MainWindow::onToggleRightCategoryButtons(bool checked) {
 
 void MainWindow::onToggleConsole(bool checked) {
     if (m_bottomTabWidget) {
-        m_bottomTabWidget->setVisible(checked);
+        m_bottomTabWidget->setVisible(!m_zenMode && checked);
     }
     if (!m_isApplyingFolderProfile) {
         QSettings settings("Amifiles", "Amifiles");
@@ -3285,7 +3285,7 @@ void MainWindow::onSpaceAnalyzerAction() {
 
 void MainWindow::onToggleFavoritesSidebar(bool checked) {
     if (m_sidebarTabWidget) {
-        m_sidebarTabWidget->setVisible(checked);
+        m_sidebarTabWidget->setVisible(!m_zenMode && checked);
         if (!m_isApplyingFolderProfile) {
             QSettings settings("Amifiles", "Amifiles");
             settings.setValue("favorites/sidebar_visible", checked);
@@ -4482,11 +4482,6 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
         m_actToggleFavoritesSidebar->setChecked(def.favoritesSidebarVisible);
         if (m_sidebarTabWidget) m_sidebarTabWidget->setVisible(def.favoritesSidebarVisible);
     }
-    if (r.overrideZenMode || isDefaultProfile) {
-        setZenMode(r.zenModeActive);
-    } else {
-        setZenMode(def.zenModeActive);
-    }
 
     // 3b. Custom Toolbars visibility overrides
     if (r.overrideToolbars) {
@@ -4639,6 +4634,13 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
         isDoubleclickActive = settings.value("preferences/builtin_player_doubleclick", false).toBool();
     }
     emit builtinPlayerDoubleclickChanged(isDoubleclickActive);
+    
+    if (r.overrideZenMode || isDefaultProfile) {
+        setZenMode(r.zenModeActive);
+    } else {
+        setZenMode(def.zenModeActive);
+    }
+
     targetPanel->updateThemeMusic();
     m_isApplyingFolderProfile = false;
     QTimer::singleShot(100, this, &MainWindow::apply5050Layouts);
@@ -6811,7 +6813,7 @@ void MainWindow::onConfigureToolbars() {
 
 void MainWindow::onToggleCenterOps(bool checked) {
     if (m_tbCenterOps) {
-        m_tbCenterOps->setVisible(checked && m_isDualPane);
+        m_tbCenterOps->setVisible(!m_zenMode && checked && m_isDualPane);
     }
     if (!m_isApplyingFolderProfile) {
         QSettings settings("Amifiles", "Amifiles");
