@@ -80,6 +80,7 @@ public:
         : QWidget(parent, Qt::ToolTip | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint) {
         setAttribute(Qt::WA_TranslucentBackground);
         setAttribute(Qt::WA_ShowWithoutActivating);
+        setAttribute(Qt::WA_TransparentForMouseEvents);
         
         QVBoxLayout* mainLayout = new QVBoxLayout(this);
         mainLayout->setContentsMargins(12, 12, 12, 12);
@@ -1448,8 +1449,7 @@ bool PreviewPanel::eventFilter(QObject* watched, QEvent* event) {
     }
 
     if (watched == m_imageLabel || watched == m_audioPlaceholder) {
-        if (event->type() == QEvent::ToolTip) {
-            QHelpEvent* helpEvent = static_cast<QHelpEvent*>(event);
+        if (event->type() == QEvent::Enter) {
             if (m_previewedFilePath.isEmpty()) return false;
             
             if (!m_hoverCard) {
@@ -1457,7 +1457,7 @@ bool PreviewPanel::eventFilter(QObject* watched, QEvent* event) {
             }
             m_hoverCard->setMetadata(m_activeMeta, m_previewedFilePath);
             
-            QPoint pos = helpEvent->globalPos();
+            QPoint pos = QCursor::pos();
             pos.setX(pos.x() + 15);
             pos.setY(pos.y() + 15);
             
@@ -1465,10 +1465,10 @@ bool PreviewPanel::eventFilter(QObject* watched, QEvent* event) {
             if (screen) {
                 QRect screenGeom = screen->geometry();
                 if (pos.x() + m_hoverCard->width() > screenGeom.right()) {
-                    pos.setX(helpEvent->globalPos().x() - m_hoverCard->width() - 15);
+                    pos.setX(QCursor::pos().x() - m_hoverCard->width() - 15);
                 }
                 if (pos.y() + m_hoverCard->height() > screenGeom.bottom()) {
-                    pos.setY(helpEvent->globalPos().y() - m_hoverCard->height() - 15);
+                    pos.setY(QCursor::pos().y() - m_hoverCard->height() - 15);
                 }
             }
             m_hoverCard->move(pos);
