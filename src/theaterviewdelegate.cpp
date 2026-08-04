@@ -95,7 +95,24 @@ void TheaterViewDelegate::paint(QPainter* painter, const QStyleOptionViewItem& o
         painter->drawPixmap(imageRect, currentFrame.scaled(imageRect.size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
         painter->restore();
     } else if (hasCover && !icon.isNull()) {
-        icon.paint(painter, imageRect, Qt::AlignCenter);
+        bool painted = false;
+        if (isHovered && filterModel) {
+            QSettings settings("Amifiles", "Amifiles");
+            QString casingType = settings.value("music_showcase/casing_type", "cd").toString();
+            if (casingType == "vinyl") {
+                QString artPath = filterModel->getCasingArtPath(path);
+                int casingInt = filterModel->getCasingType(path);
+                QString hoverKey = artPath + "_" + QString::number(casingInt) + "_hover";
+                if (filterModel->hasCachedCasingIcon(hoverKey)) {
+                    QIcon hoverIcon = filterModel->getCachedCasingIcon(hoverKey);
+                    hoverIcon.paint(painter, imageRect, Qt::AlignCenter);
+                    painted = true;
+                }
+            }
+        }
+        if (!painted) {
+            icon.paint(painter, imageRect, Qt::AlignCenter);
+        }
     } else {
         QLinearGradient posterGrad(imageRect.topLeft(), imageRect.bottomRight());
         posterGrad.setColorAt(0.0, QColor("#1e1e2e"));
@@ -233,8 +250,20 @@ void TheaterViewDelegate::paint(QPainter* painter, const QStyleOptionViewItem& o
 
     double kb = info.size() / 1024.0;
     double mb = kb / 1024.0;
-    QString sizeStr = info.isDir() ? "Folder" : ((mb >= 1.0) ? QString("%1 MB").arg(mb, 0, 'f', 1) : QString("%1 KB").arg(kb, 0, 'f', 1));
-    painter->drawText(QRect(textX, textY + 16, textW, 14), Qt::AlignCenter, sizeStr);
+    
+    bool drawLabel = true;
+    QString sizeStr;
+    if (info.isDir()) {
+        QSettings settings("Amifiles", "Amifiles");
+        drawLabel = settings.value("theater/show_folder_label", true).toBool();
+        sizeStr = "Folder";
+    } else {
+        sizeStr = (mb >= 1.0) ? QString("%1 MB").arg(mb, 0, 'f', 1) : QString("%1 KB").arg(kb, 0, 'f', 1);
+    }
+    
+    if (drawLabel) {
+        painter->drawText(QRect(textX, textY + 16, textW, 14), Qt::AlignCenter, sizeStr);
+    }
 
     painter->restore();
 }

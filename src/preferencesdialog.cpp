@@ -305,6 +305,10 @@ void PreferencesDialog::setupUI() {
     m_chkCasingOverlays->setToolTip("Appends beautiful glassmorphic physical cover overlays on album directories.");
     layMedia->addWidget(m_chkCasingOverlays);
 
+    m_chkShowMetadataHoverCard = new QCheckBox("Display popup Metadata Hover Cards on file hover", this);
+    m_chkShowMetadataHoverCard->setToolTip("Paints interactive floating card details listing metadata summaries on mouse hovers.");
+    layMedia->addWidget(m_chkShowMetadataHoverCard);
+
     m_chkAudioCoverArt = new QCheckBox("Display Audio Cover Art in Preview dock", this);
     m_chkAudioCoverArt->setToolTip("Searches and renders metadata track covers when playing music.");
     layMedia->addWidget(m_chkAudioCoverArt);
@@ -351,6 +355,10 @@ void PreferencesDialog::setupUI() {
     m_chkAutoQueueSiblings = new QCheckBox("Auto-Queue Sibling Files inside Folders", this);
     m_chkAutoQueueSiblings->setToolTip("Automatically populates the playlist queue with all other audio/video files in the same directory upon playback start.");
     layMedia->addWidget(m_chkAutoQueueSiblings);
+
+    m_chkShowFolderLabel = new QCheckBox("Display 'Folder' text label for directories in Showcase views", this);
+    m_chkShowFolderLabel->setToolTip("Displays the word 'Folder' in small text below directory titles in Theater/Showcase views.");
+    layMedia->addWidget(m_chkShowFolderLabel);
 
     QFrame* lineMedia = new QFrame(this);
     lineMedia->setFrameShape(QFrame::HLine);
@@ -596,6 +604,7 @@ void PreferencesDialog::loadPreferences() {
     m_chkArchiveWrite->setChecked(settings.value("preferences/archive_write", false).toBool());
 
     m_chkCasingOverlays->setChecked(settings.value("preferences/casing_overlays", true).toBool());
+    m_chkShowMetadataHoverCard->setChecked(settings.value("preview/show_metadata_hover_card", true).toBool());
     m_chkAudioCoverArt->setChecked(settings.value("preview/show_audio_cover_art", true).toBool());
     m_chkSpectrumVisualizer->setChecked(settings.value("preview/show_spectrum_visualizer", true).toBool());
     m_chkMutePreview->setChecked(settings.value("preview/muted", false).toBool());
@@ -606,6 +615,7 @@ void PreferencesDialog::loadPreferences() {
     m_chkRememberVideoProgress->setChecked(settings.value("preview/resume_progress", false).toBool());
     m_chkKeyboardRemoteMode->setChecked(settings.value("preferences/keyboard_remote_mode", false).toBool());
     m_chkAutoQueueSiblings->setChecked(settings.value("preview/auto_queue_sibling_files", true).toBool());
+    m_chkShowFolderLabel->setChecked(settings.value("theater/show_folder_label", true).toBool());
 
     QString defaultHide = "folder.jpg, folder.jpeg, folder.png, cover.jpg, cover.jpeg, cover.png, fanart.jpg, fanart.jpeg, fanart.png, backdrop.jpg, backdrop.jpeg, backdrop.png, poster.jpg, poster.jpeg, poster.png, *.nfo, *.xml, *.txt, *.srt, *.sub, *.vtt, *.ini, *.db";
     m_editHidePatterns->setText(settings.value("theater/hide_patterns", defaultHide).toString());
@@ -660,6 +670,7 @@ void PreferencesDialog::savePreferences() {
     settings.setValue("preferences/archive_write", m_chkArchiveWrite->isChecked());
 
     settings.setValue("preferences/casing_overlays", m_chkCasingOverlays->isChecked());
+    settings.setValue("preview/show_metadata_hover_card", m_chkShowMetadataHoverCard->isChecked());
     settings.setValue("preview/show_audio_cover_art", m_chkAudioCoverArt->isChecked());
     settings.setValue("preview/show_spectrum_visualizer", m_chkSpectrumVisualizer->isChecked());
     settings.setValue("preview/muted", m_chkMutePreview->isChecked());
@@ -670,6 +681,7 @@ void PreferencesDialog::savePreferences() {
     settings.setValue("preview/resume_progress", m_chkRememberVideoProgress->isChecked());
     settings.setValue("preferences/keyboard_remote_mode", m_chkKeyboardRemoteMode->isChecked());
     settings.setValue("preview/auto_queue_sibling_files", m_chkAutoQueueSiblings->isChecked());
+    settings.setValue("theater/show_folder_label", m_chkShowFolderLabel->isChecked());
     settings.setValue("theater/hide_patterns", m_editHidePatterns->text().trimmed());
 
     settings.setValue("services/tmdb_api_key", m_editTmdbApiKey->text().trimmed());

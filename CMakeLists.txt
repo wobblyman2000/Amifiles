@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(Amifiles VERSION 1.2.4.80 LANGUAGES CXX)
+project(Amifiles VERSION 1.2.4.96 LANGUAGES CXX)
 
 configure_file(
     "${PROJECT_SOURCE_DIR}/src/version.h.in"
@@ -93,6 +93,10 @@ add_executable(Amifiles
     src/remotemountdialog.cpp
     src/imageconverterdialog.h
     src/imageconverterdialog.cpp
+    src/metadatacasingdialog.h
+    src/metadatacasingdialog.cpp
+    src/diskspaceanalyzerdialog.h
+    src/diskspaceanalyzerdialog.cpp
     src/tagmanager.h
     src/tagmanager.cpp
     src/processmanagerdialog.h

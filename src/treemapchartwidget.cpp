@@ -1,4 +1,5 @@
 #include "treemapchartwidget.h"
+#include <QFileInfo>
 #include <QPainter>
 #include <QMouseEvent>
 #include <QToolTip>
@@ -26,7 +27,7 @@ void TreeMapChartWidget::layoutTreeMap() {
     m_nodes.clear();
     if (m_entries.isEmpty() || m_totalSize <= 0) return;
 
-    QRect r = rect().adjusted(2, 2, -2, -2);
+    QRect r = rect().adjusted(2, 2, -2, -27); // Leave 25px at the bottom for legend
     if (r.width() <= 0 || r.height() <= 0) return;
 
     // Squarified/Slice-and-Dice: We alternate vertical/horizontal split based on aspect ratio
@@ -39,12 +40,6 @@ void TreeMapChartWidget::layoutTreeMap() {
     int curY = r.y();
     int curW = r.width();
     int curH = r.height();
-
-    static const QColor palette[] = {
-        QColor("#89b4fa"), QColor("#f5c2e7"), QColor("#a6e3a1"), QColor("#f9e2af"),
-        QColor("#fab387"), QColor("#b4befe"), QColor("#cba6f7"), QColor("#f2cdcd"),
-        QColor("#94e2d5"), QColor("#89dceb"), QColor("#74c7ec"), QColor("#a6adc8")
-    };
 
     for (int i = 0; i < m_entries.size(); ++i) {
         const auto& entry = m_entries[i];
@@ -74,7 +69,26 @@ void TreeMapChartWidget::layoutTreeMap() {
         node.isDir = entry.isDir;
         node.size = entry.size;
         node.rect = childRect;
-        node.color = palette[i % 12];
+
+        QColor nodeCol;
+        if (node.isDir) {
+            nodeCol = QColor("#89b4fa"); // Blue for Folders
+        } else {
+            // Check file extension to categorize
+            QString ext = QFileInfo(node.name).suffix().toLower();
+            if (QStringList{"mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "m4v"}.contains(ext)) {
+                nodeCol = QColor("#f5c2e7"); // Pink for Videos
+            } else if (QStringList{"mp3", "flac", "wav", "ogg", "m4a", "wma", "aac", "mod", "sid", "s3m", "xm", "it"}.contains(ext)) {
+                nodeCol = QColor("#a6e3a1"); // Green for Audio
+            } else if (QStringList{"png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "tiff"}.contains(ext)) {
+                nodeCol = QColor("#f9e2af"); // Yellow for Images
+            } else if (QStringList{"zip", "rar", "7z", "tar", "gz", "bz2", "xz"}.contains(ext)) {
+                nodeCol = QColor("#fab387"); // Orange for Archives
+            } else {
+                nodeCol = QColor("#cba6f7"); // Purple for Other Files
+            }
+        }
+        node.color = nodeCol;
         m_nodes.append(node);
 
         subsetTotal -= entry.size;
@@ -131,6 +145,51 @@ void TreeMapChartWidget::paintEvent(QPaintEvent* /*event*/) {
             painter.drawText(rect.adjusted(4, 2, -4, -2), Qt::AlignBottom | Qt::AlignRight, sizeLabel);
         }
     }
+
+    // Draw Legend at the bottom
+    int legendY = height() - 24;
+    int legendH = 20;
+    QRect legendRect(2, legendY, width() - 4, legendH);
+
+    painter.save();
+    // Legend background panel
+    painter.fillRect(legendRect, QColor("#1e1e2e"));
+    painter.setPen(QPen(QColor("#313244"), 1));
+    painter.drawRect(legendRect);
+
+    struct LegendItem {
+        QString label;
+        QColor color;
+    };
+    QList<LegendItem> legendItems = {
+        {"Folder", QColor("#89b4fa")},
+        {"Video", QColor("#f5c2e7")},
+        {"Audio", QColor("#a6e3a1")},
+        {"Image", QColor("#f9e2af")},
+        {"Archive", QColor("#fab387")},
+        {"Other", QColor("#cba6f7")}
+    };
+
+    int itemWidth = legendRect.width() / legendItems.size();
+    QFont legendFont = painter.font();
+    legendFont.setPointSize(8);
+    legendFont.setBold(true);
+    painter.setFont(legendFont);
+
+    for (int idx = 0; idx < legendItems.size(); ++idx) {
+        int itemX = legendRect.x() + idx * itemWidth;
+        // Color block
+        QRect boxRect(itemX + 12, legendY + 5, 10, 10);
+        painter.fillRect(boxRect, legendItems[idx].color);
+        painter.setPen(QPen(QColor("#11111b"), 1));
+        painter.drawRect(boxRect);
+
+        // Label text
+        painter.setPen(QColor("#cdd6f4"));
+        QRect textRect(itemX + 26, legendY, itemWidth - 28, legendH);
+        painter.drawText(textRect, Qt::AlignVCenter | Qt::AlignLeft, legendItems[idx].label);
+    }
+    painter.restore();
 }
 
 void TreeMapChartWidget::mouseMoveEvent(QMouseEvent* event) {

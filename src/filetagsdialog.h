@@ -13,6 +13,7 @@ public:
 
 private slots:
     void onSaveClicked();
+    void onManageTagsClicked();
 
 private:
     void setupUI();
@@ -23,4 +24,19 @@ private:
     QComboBox* m_ratingCombo = nullptr;
     QLineEdit* m_commentEdit = nullptr;
     class QCompleter* m_completer = nullptr;
+};
+
+class ManageTagsDialog : public QDialog {
+    Q_OBJECT
+public:
+    ManageTagsDialog(QWidget* parent = nullptr);
+    ~ManageTagsDialog() override = default;
+
+private slots:
+    void onRenameClicked();
+    void onDeleteClicked();
+    void refreshList();
+
+private:
+    class QListWidget* m_listWidget = nullptr;
 };

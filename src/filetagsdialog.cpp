@@ -8,6 +8,9 @@
 #include <QCompleter>
 #include <QStringListModel>
 #include <QFileInfo>
+#include <QListWidget>
+#include <QMessageBox>
+#include <QInputDialog>
 
 FileTagsDialog::FileTagsDialog(const QStringList& filePaths, QWidget* parent)
     : QDialog(parent), m_filePaths(filePaths) {
@@ -121,6 +124,11 @@ void FileTagsDialog::setupUI() {
 
     // Buttons
     QHBoxLayout* btnLayout = new QHBoxLayout();
+    
+    QPushButton* btnManage = new QPushButton("Manage Tags...", this);
+    connect(btnManage, &QPushButton::clicked, this, &FileTagsDialog::onManageTagsClicked);
+    btnLayout->addWidget(btnManage);
+
     btnLayout->addStretch();
 
     QPushButton* btnCancel = new QPushButton("Cancel", this);
@@ -159,4 +167,85 @@ void FileTagsDialog::onSaveClicked() {
     }
 
     accept();
+}
+
+void FileTagsDialog::onManageTagsClicked() {
+    ManageTagsDialog dlg(this);
+    dlg.exec();
+}
+
+ManageTagsDialog::ManageTagsDialog(QWidget* parent) : QDialog(parent) {
+    setWindowTitle("Manage Global Tags");
+    resize(400, 350);
+
+    setStyleSheet(
+        "QDialog { background-color: #1e1e2e; color: #cdd6f4; }"
+        "QLabel { color: #cdd6f4; font-size: 13px; }"
+        "QListWidget { background-color: #11111b; color: #cdd6f4; border: 1px solid #45475a; border-radius: 4px; padding: 4px; }"
+        "QPushButton { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 4px; padding: 6px 12px; font-weight: bold; }"
+        "QPushButton:hover { background-color: #45475a; }"
+    );
+
+    QHBoxLayout* mainLayout = new QHBoxLayout(this);
+    mainLayout->setSpacing(10);
+    mainLayout->setContentsMargins(15, 15, 15, 15);
+
+    m_listWidget = new QListWidget(this);
+    mainLayout->addWidget(m_listWidget, 1);
+
+    QVBoxLayout* btnLayout = new QVBoxLayout();
+    btnLayout->setSpacing(8);
+
+    QPushButton* btnRename = new QPushButton("Rename...", this);
+    connect(btnRename, &QPushButton::clicked, this, &ManageTagsDialog::onRenameClicked);
+    btnLayout->addWidget(btnRename);
+
+    QPushButton* btnDelete = new QPushButton("Delete Globally", this);
+    connect(btnDelete, &QPushButton::clicked, this, &ManageTagsDialog::onDeleteClicked);
+    btnLayout->addWidget(btnDelete);
+
+    btnLayout->addStretch();
+
+    QPushButton* btnClose = new QPushButton("Close", this);
+    connect(btnClose, &QPushButton::clicked, this, &QDialog::accept);
+    btnLayout->addWidget(btnClose);
+
+    mainLayout->addLayout(btnLayout);
+
+    refreshList();
+}
+
+void ManageTagsDialog::refreshList() {
+    m_listWidget->clear();
+    QStringList allTags = TagManager::instance().getAllTags();
+    m_listWidget->addItems(allTags);
+}
+
+void ManageTagsDialog::onRenameClicked() {
+    QListWidgetItem* item = m_listWidget->currentItem();
+    if (!item) {
+        QMessageBox::warning(this, "Rename Tag", "Please select a tag to rename.");
+        return;
+    }
+    QString oldTag = item->text();
+    bool ok;
+    QString newTag = QInputDialog::getText(this, "Rename Tag", QString("Rename tag '%1' to:").arg(oldTag), QLineEdit::Normal, oldTag, &ok);
+    if (ok && !newTag.trimmed().isEmpty() && newTag != oldTag) {
+        TagManager::instance().renameTagGlobally(oldTag, newTag);
+        refreshList();
+    }
+}
+
+void ManageTagsDialog::onDeleteClicked() {
+    QListWidgetItem* item = m_listWidget->currentItem();
+    if (!item) {
+        QMessageBox::warning(this, "Delete Tag", "Please select a tag to delete.");
+        return;
+    }
+    QString tag = item->text();
+    auto result = QMessageBox::question(this, "Delete Tag", QString("Are you sure you want to delete the tag '%1' globally from all files and folders?").arg(tag), QMessageBox::Yes | QMessageBox::No);
+    if (result == QMessageBox::Yes) {
+        TagManager::instance().deleteTagGlobally(tag);
+        refreshList();
+    }
 }

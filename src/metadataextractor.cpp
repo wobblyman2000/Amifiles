@@ -7,6 +7,16 @@
 #include <QDebug>
 #include <QTextStream>
 #include <QRegularExpression>
+#include <QMutex>
+#include <QMutexLocker>
+
+struct CachedMetadata {
+    FileMetadata metadata;
+    QDateTime lastModified;
+};
+
+static QHash<QString, CachedMetadata> s_metadataCache;
+static QMutex s_metadataCacheMutex;
 
 // Helper to read 16-bit word depending on endianness
 static quint16 read16(const char* data, bool intel) {
@@ -224,10 +234,21 @@ static bool isRemotePath(const QString& path) {
 }
 
 FileMetadata MetadataExtractor::extract(const QString& filePath) {
+    QFileInfo info(filePath);
+    QDateTime lastMod = info.lastModified();
+
+    {
+        QMutexLocker locker(&s_metadataCacheMutex);
+        auto it = s_metadataCache.find(filePath);
+        if (it != s_metadataCache.end() && it.value().lastModified == lastMod) {
+            return it.value().metadata;
+        }
+    }
+
     FileMetadata meta;
     meta.path = filePath;
-    meta.name = QFileInfo(filePath).fileName();
-    meta.extension = QFileInfo(filePath).suffix().toLower();
+    meta.name = info.fileName();
+    meta.extension = info.suffix().toLower();
 
     if (isRemotePath(filePath)) {
         return meta;
@@ -235,7 +256,6 @@ FileMetadata MetadataExtractor::extract(const QString& filePath) {
 
     extractBasic(filePath, meta);
 
-    QFileInfo info(filePath);
     if (!info.exists()) {
         return meta;
     }
@@ -291,6 +311,14 @@ FileMetadata MetadataExtractor::extract(const QString& filePath) {
                 }
             }
         }
+    }
+
+    {
+        QMutexLocker locker(&s_metadataCacheMutex);
+        CachedMetadata cached;
+        cached.metadata = meta;
+        cached.lastModified = lastMod;
+        s_metadataCache.insert(filePath, cached);
     }
 
     return meta;

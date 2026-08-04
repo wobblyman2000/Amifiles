@@ -325,6 +325,7 @@ private slots:
 
 public:
     void onApplyProfileToCurrentFolder(const QString& profileName);
+    void applyFolderRules(const QString& path);
     QTabWidget* leftTabWidget() const { return m_leftTabWidget; }
     QTabWidget* rightTabWidget() const { return m_rightTabWidget; }
     FilePanel* leftPanel() const;
@@ -349,7 +350,6 @@ private:
     void rebuildCustomToolBar();
     void loadFolderRules();
     void saveFolderRules();
-    void applyFolderRules(const QString& path);
     void applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel = nullptr);
     QString detectFolderCategory(const QString& path);
     void adjustSplitterSizes();

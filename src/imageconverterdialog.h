@@ -76,6 +76,7 @@ private slots:
     void onConvertProgress(int percentage, const QString& currentFile);
     void onConvertFinished(int totalProcessed);
     void onConvertError(const QString& errorMsg);
+    void updateLivePreview();
 
 private:
     void setupUI();
@@ -122,6 +123,7 @@ private:
     QProgressBar* m_progress = nullptr;
     QPushButton* m_btnConvert = nullptr;
     QPushButton* m_btnCancel = nullptr;
+    QLabel* m_lblPreview = nullptr;
 };
 
 #endif // IMAGECONVERTERDIALOG_H

@@ -258,6 +258,16 @@ public:
         invalidate();
     }
 
+    void setRatingFilter(int rating) {
+        m_filterRating = rating;
+        invalidate();
+    }
+
+    void setCommentFilter(const QString& comment) {
+        m_filterComment = comment;
+        invalidate();
+    }
+
     void setShowRecentOnly(bool enabled) {
         if (m_showRecentOnly != enabled) {
             m_showRecentOnly = enabled;
@@ -272,6 +282,8 @@ public:
         m_minDate = QDateTime();
         m_maxDate = QDateTime();
         m_filterTag = QString();
+        m_filterRating = -1;
+        m_filterComment = QString();
         m_showRecentOnly = false;
         invalidate();
     }
@@ -339,6 +351,22 @@ public:
 
     bool hasCasingCover(const QString& path) const {
         return m_casingCache.contains(path) && !m_casingCache.value(path).first.isEmpty();
+    }
+
+    QString getCasingArtPath(const QString& path) const {
+        return m_casingCache.contains(path) ? m_casingCache.value(path).first : QString();
+    }
+
+    int getCasingType(const QString& path) const {
+        return m_casingCache.contains(path) ? m_casingCache.value(path).second : 0;
+    }
+
+    bool hasCachedCasingIcon(const QString& cacheKey) const {
+        return m_iconCache.contains(cacheKey);
+    }
+
+    QIcon getCachedCasingIcon(const QString& cacheKey) const {
+        return m_iconCache.value(cacheKey);
     }
 
     // Overriding data() to support dynamic file age text coloring and icon badges
@@ -706,10 +734,45 @@ protected:
 
         // 2.5. Apply Tag Filter
         if (!m_filterTag.isEmpty()) {
-            if (isDir) {
-                // Keep directories navigable
-            } else {
-                if (!TagManager::instance().getFileTags(filePath).contains(m_filterTag, Qt::CaseInsensitive)) {
+            if (!TagManager::instance().getFileTags(filePath).contains(m_filterTag, Qt::CaseInsensitive)) {
+                return false;
+            }
+        }
+
+        // Apply Rating Filter
+        if (m_filterRating != -1) {
+            if (TagManager::instance().getFileRating(filePath) != m_filterRating) {
+                return false;
+            }
+        }
+
+        // Apply Comment Filter
+        if (!m_filterComment.isEmpty()) {
+            QString fileComment = TagManager::instance().getFileComment(filePath);
+            
+            // Split filter text by space, comma, or semicolon
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+            QStringList keywords = m_filterComment.split(QRegularExpression("[,;\\s]+"), Qt::SkipEmptyParts);
+#else
+            QStringList keywords = m_filterComment.split(QRegularExpression("[,;\\s]+"), QString::SkipEmptyParts);
+#endif
+            if (!keywords.isEmpty()) {
+                bool matchAny = false;
+                for (const QString& kw : keywords) {
+                    if (kw.contains('*') || kw.contains('?')) {
+                        QRegularExpression re(QRegularExpression::wildcardToRegularExpression(kw), QRegularExpression::CaseInsensitiveOption);
+                        if (re.match(fileComment).hasMatch()) {
+                            matchAny = true;
+                            break;
+                        }
+                    } else {
+                        if (fileComment.contains(kw, Qt::CaseInsensitive)) {
+                            matchAny = true;
+                            break;
+                        }
+                    }
+                }
+                if (!matchAny) {
                     return false;
                 }
             }
@@ -794,6 +857,8 @@ private:
     QDateTime m_minDate;
     QDateTime m_maxDate;
     QString m_filterTag;
+    int m_filterRating = -1;
+    QString m_filterComment;
     bool m_showRecentOnly = false;
     mutable QHash<QString, QPair<QString, int>> m_casingCache;
     mutable QHash<QString, QIcon> m_iconCache;
@@ -802,7 +867,7 @@ private:
     mutable QSet<QString> m_pendingCasingChecks;
 
 private slots:
-    void onCasingRendered(const QString& path, const QString& artPath, int casingType, const QImage& image);
+    void onCasingRendered(const QString& path, const QString& artPath, int casingType, const QImage& image, const QImage& hoverImage = QImage());
 };
 
 class FilePanel : public QWidget {
@@ -975,6 +1040,12 @@ private slots:
     void onDoubleClickedPath(const QString& path);
     void updateFavoritesUI();
     void updateCloneButtonIcon();
+    void onRatingFilterClicked();
+    void onTagFilterComboChanged(int index);
+    void onCommentFilterChanged(const QString& text);
+    void onCloseTagsRatingsFilterBar();
+    void onToggleTagsRatingsFilterBar();
+    void populateFilterTagsCombo();
     void onCustomContextMenu(const QPoint& pos);
     void showAudioShowcaseContextMenu(const QPoint& pos);
     void showMusicShowcaseContextMenu(const QPoint& pos);
@@ -1165,6 +1236,14 @@ private:
     QWidget* m_categoryWidget = nullptr;
     QWidget* m_filterTextWidget = nullptr;
     QWidget* m_statusWidget = nullptr;
+    
+    // Tag & Rating Filter Bar
+    QToolButton* m_btnToggleTRFilter = nullptr;
+    QWidget* m_tagsRatingsFilterWidget = nullptr;
+    QToolButton* m_btnRateAll = nullptr;
+    QList<QToolButton*> m_btnStars;
+    QComboBox* m_comboFilterTag = nullptr;
+    class QLineEdit* m_editFilterComment = nullptr;
     FilePanel* m_siblingPanel = nullptr;
 
     QString m_folderArtPath;

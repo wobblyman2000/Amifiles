@@ -4,6 +4,9 @@
 #include <QFormLayout>
 #include <QFileInfo>
 #include <QImage>
+#include <QImageReader>
+#include <QScrollArea>
+#include <QSplitter>
 #include <QTransform>
 #include <QMessageBox>
 #include <QTabWidget>
@@ -27,7 +30,10 @@ void ImageWorker::run() {
         emit progress((i * 100) / total, QFileInfo(path).fileName());
 
         QImage img;
-        if (!img.load(path)) {
+        QImageReader reader(path);
+        reader.setAutoTransform(true);
+        img = reader.read();
+        if (img.isNull()) {
             continue; // Skip failed loads
         }
 
@@ -180,7 +186,7 @@ ImageConverterDialog::~ImageConverterDialog() {
 
 void ImageConverterDialog::setupUI() {
     setWindowTitle("Batch Image Processing Suite");
-    resize(520, 480);
+    resize(1000, 600);
     setStyleSheet(
         "QDialog { background-color: #1e1e2e; color: #cdd6f4; }"
         "QTabWidget::pane { border: 1px solid #313244; border-radius: 4px; background-color: #181825; }"
@@ -333,7 +339,35 @@ void ImageConverterDialog::setupUI() {
     layDest->addStretch();
     tabs->addTab(tabDest, "Destination");
 
-    mainLayout->addWidget(tabs);
+    // Layout Splitter setup
+    QSplitter* splitter = new QSplitter(Qt::Horizontal, this);
+    
+    QWidget* leftWidget = new QWidget(this);
+    QVBoxLayout* leftLayout = new QVBoxLayout(leftWidget);
+    leftLayout->setContentsMargins(0, 0, 0, 0);
+    leftLayout->addWidget(tabs);
+    splitter->addWidget(leftWidget);
+
+    QWidget* rightWidget = new QWidget(this);
+    QVBoxLayout* rightLayout = new QVBoxLayout(rightWidget);
+    rightLayout->setContentsMargins(0, 0, 0, 0);
+
+    QLabel* lblPreviewHeader = new QLabel("Live Preview (First Image)", this);
+    lblPreviewHeader->setStyleSheet("font-weight: bold; color: #89b4fa; padding-bottom: 4px;");
+    rightLayout->addWidget(lblPreviewHeader);
+
+    QScrollArea* previewScroll = new QScrollArea(this);
+    previewScroll->setWidgetResizable(true);
+    previewScroll->setStyleSheet("QScrollArea { border: 1px solid #313244; border-radius: 6px; background-color: #11111b; }");
+    m_lblPreview = new QLabel(this);
+    m_lblPreview->setAlignment(Qt::AlignCenter);
+    m_lblPreview->setStyleSheet("background-color: transparent;");
+    previewScroll->setWidget(m_lblPreview);
+    rightLayout->addWidget(previewScroll);
+    
+    splitter->addWidget(rightWidget);
+    splitter->setSizes({400, 600});
+    mainLayout->addWidget(splitter);
 
     // Progress Indicator & Action Buttons
     m_lblStatus = new QLabel(QString("Ready to process %1 selected images.").arg(m_inputPaths.size()), this);
@@ -359,6 +393,26 @@ void ImageConverterDialog::setupUI() {
 
     mainLayout->addWidget(m_progress);
     mainLayout->addLayout(btnLayout);
+
+    // Wire up live preview triggers on control updates
+    connect(m_chkResize, &QCheckBox::toggled, this, &ImageConverterDialog::updateLivePreview);
+    connect(m_spinWidth, QOverload<int>::of(&QSpinBox::valueChanged), this, &ImageConverterDialog::updateLivePreview);
+    connect(m_spinHeight, QOverload<int>::of(&QSpinBox::valueChanged), this, &ImageConverterDialog::updateLivePreview);
+    connect(m_chkAspect, &QCheckBox::toggled, this, &ImageConverterDialog::updateLivePreview);
+    connect(m_comboFormat, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &ImageConverterDialog::updateLivePreview);
+    connect(m_comboRotate, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &ImageConverterDialog::updateLivePreview);
+    connect(m_sliderQuality, &QSlider::valueChanged, this, &ImageConverterDialog::updateLivePreview);
+    connect(m_chkWatermark, &QCheckBox::toggled, this, &ImageConverterDialog::updateLivePreview);
+    connect(m_txtWatermark, &QLineEdit::textChanged, this, &ImageConverterDialog::updateLivePreview);
+    connect(m_comboPosition, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &ImageConverterDialog::updateLivePreview);
+    connect(m_spinWatermarkSize, QOverload<int>::of(&QSpinBox::valueChanged), this, &ImageConverterDialog::updateLivePreview);
+    connect(m_sliderOpacity, &QSlider::valueChanged, this, &ImageConverterDialog::updateLivePreview);
+    connect(m_chkFilters, &QCheckBox::toggled, this, &ImageConverterDialog::updateLivePreview);
+    connect(m_chkGrayscale, &QCheckBox::toggled, this, &ImageConverterDialog::updateLivePreview);
+    connect(m_chkSepia, &QCheckBox::toggled, this, &ImageConverterDialog::updateLivePreview);
+    connect(m_chkInvert, &QCheckBox::toggled, this, &ImageConverterDialog::updateLivePreview);
+    connect(m_sliderBrightness, &QSlider::valueChanged, this, &ImageConverterDialog::updateLivePreview);
+    connect(m_sliderContrast, &QSlider::valueChanged, this, &ImageConverterDialog::updateLivePreview);
 }
 
 void ImageConverterDialog::onResizeToggled(bool checked) {
@@ -398,6 +452,7 @@ void ImageConverterDialog::onSelectColor() {
         m_btnColor->setStyleSheet(QString("QPushButton { background-color: %1; color: %2; }")
                                   .arg(col.name())
                                   .arg((col.lightness() > 128) ? "#000000" : "#ffffff"));
+        updateLivePreview();
     }
 }
 
@@ -467,4 +522,149 @@ void ImageConverterDialog::onConvertError(const QString& errorMsg) {
     m_lblStatus->setText("Bulk processing failed.");
     m_btnConvert->setEnabled(true);
     QMessageBox::critical(this, "Error", QString("An error occurred during batch image operations:\n%1").arg(errorMsg));
+}
+
+void ImageConverterDialog::updateLivePreview() {
+    if (m_inputPaths.isEmpty() || !m_lblPreview) return;
+
+    QString firstPath = m_inputPaths[0];
+    QImage image;
+    QImageReader reader(firstPath);
+    reader.setAutoTransform(true);
+    image = reader.read();
+
+    if (image.isNull()) {
+        m_lblPreview->setText("Failed to load image preview.");
+        return;
+    }
+
+    ImageProcessOptions opts = getOptions();
+
+    // 1. Resize if enabled
+    if (opts.resizeEnabled) {
+        QSize targetSize(opts.resizeWidth, opts.resizeHeight);
+        if (opts.keepAspect) {
+            image = image.scaled(targetSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        } else {
+            image = image.scaled(targetSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+        }
+    } else {
+        // Limit preview size to maximum 800x600 for performance/display
+        image = image.scaled(800, 600, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    }
+
+    // 2. Rotate if requested
+    if (opts.rotateAngle != 0) {
+        QTransform trans;
+        trans.rotate(opts.rotateAngle);
+        image = image.transformed(trans);
+    }
+
+    // 3. Filters
+    if (opts.filtersEnabled) {
+        if (opts.grayscale) {
+            image = image.convertToFormat(QImage::Format_Grayscale8);
+        }
+        if (opts.sepia) {
+            for (int y = 0; y < image.height(); ++y) {
+                QRgb* line = reinterpret_cast<QRgb*>(image.scanLine(y));
+                for (int x = 0; x < image.width(); ++x) {
+                    QRgb pixel = line[x];
+                    int r = qRed(pixel);
+                    int g = qGreen(pixel);
+                    int b = qBlue(pixel);
+                    int a = qAlpha(pixel);
+
+                    int tr = static_cast<int>(0.393 * r + 0.769 * g + 0.189 * b);
+                    int tg = static_cast<int>(0.349 * r + 0.686 * g + 0.168 * b);
+                    int tb = static_cast<int>(0.272 * r + 0.534 * g + 0.131 * b);
+
+                    r = qBound(0, tr, 255);
+                    g = qBound(0, tg, 255);
+                    b = qBound(0, b, 255);
+
+                    line[x] = qRgba(r, g, b, a);
+                }
+            }
+        }
+        if (opts.invert) {
+            image.invertPixels();
+        }
+        if (opts.brightness != 0 || opts.contrast != 0) {
+            for (int y = 0; y < image.height(); ++y) {
+                QRgb* line = reinterpret_cast<QRgb*>(image.scanLine(y));
+                for (int x = 0; x < image.width(); ++x) {
+                    QRgb pixel = line[x];
+                    int r = qRed(pixel);
+                    int g = qGreen(pixel);
+                    int b = qBlue(pixel);
+                    int a = qAlpha(pixel);
+
+                    r += opts.brightness;
+                    g += opts.brightness;
+                    b += opts.brightness;
+
+                    if (opts.contrast != 0) {
+                        double factor = (259.0 * (opts.contrast + 255.0)) / (255.0 * (259.0 - opts.contrast));
+                        r = static_cast<int>(factor * (r - 128) + 128);
+                        g = static_cast<int>(factor * (g - 128) + 128);
+                        b = static_cast<int>(factor * (b - 128) + 128);
+                    }
+
+                    r = qBound(0, r, 255);
+                    g = qBound(0, g, 255);
+                    b = qBound(0, b, 255);
+
+                    line[x] = qRgba(r, g, b, a);
+                }
+            }
+        }
+    }
+
+    // 4. Watermark
+    if (opts.watermarkEnabled && !opts.watermarkText.isEmpty()) {
+        QPixmap pix = QPixmap::fromImage(image);
+        QPainter painter(&pix);
+        painter.setRenderHint(QPainter::Antialiasing);
+
+        QColor wColor = opts.watermarkColor;
+        wColor.setAlphaF(static_cast<double>(m_sliderOpacity->value()) / 100.0);
+        painter.setPen(wColor);
+
+        QFont font = painter.font();
+        font.setBold(true);
+        font.setPixelSize(opts.watermarkSize);
+        painter.setFont(font);
+
+        QFontMetrics fm(font);
+        int textW = fm.horizontalAdvance(opts.watermarkText);
+        int textH = fm.height();
+        
+        int x = 10;
+        int y = textH + 10;
+
+        QString pos = m_comboPosition->currentText();
+        if (pos == "bottom-right") {
+            x = pix.width() - textW - 15;
+            y = pix.height() - 15;
+        } else if (pos == "bottom-left") {
+            x = 15;
+            y = pix.height() - 15;
+        } else if (pos == "top-right") {
+            x = pix.width() - textW - 15;
+            y = textH + 15;
+        } else if (pos == "top-left") {
+            x = 15;
+            y = textH + 15;
+        } else if (pos == "center") {
+            x = (pix.width() - textW) / 2;
+            y = (pix.height() + textH) / 2;
+        }
+
+        painter.drawText(x, y, opts.watermarkText);
+        painter.end();
+        image = pix.toImage();
+    }
+
+    m_lblPreview->setPixmap(QPixmap::fromImage(image).scaled(m_lblPreview->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
 }

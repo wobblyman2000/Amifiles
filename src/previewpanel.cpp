@@ -23,6 +23,7 @@
 #include <QComboBox>
 #include <QCheckBox>
 #include <QToolButton>
+#include <QColorDialog>
 #include <QFile>
 #include <QTextStream>
 #include <QImageReader>
@@ -3664,7 +3665,11 @@ void PreviewPanel::buildFullscreenContent(bool isVideo, const QString& activePat
         m_lblBottomLyricsCurrent = new QLabel(m_fullscreenBottomLyricsWidget);
         m_lblBottomLyricsCurrent->setWordWrap(true);
         m_lblBottomLyricsCurrent->setAlignment(Qt::AlignCenter);
-        m_lblBottomLyricsCurrent->setStyleSheet("QLabel { color: #a6e3a1; font-size: 26px; font-family: 'Outfit'; font-weight: bold; background: transparent; }");
+        
+        QSettings settings("Amifiles", "Amifiles");
+        QString colorStr = settings.value("preview/lyrics_font_color", "#a6e3a1").toString();
+        m_lblBottomLyricsCurrent->setStyleSheet(QString("QLabel { color: %1; font-size: 26px; font-family: 'Outfit'; font-weight: bold; background: transparent; }").arg(colorStr));
+        
         m_lblBottomLyricsNext = new QLabel(m_fullscreenBottomLyricsWidget);
         m_lblBottomLyricsNext->setWordWrap(true);
         m_lblBottomLyricsNext->setAlignment(Qt::AlignCenter);
@@ -3938,10 +3943,10 @@ void SpectrumVisualizerWidget::onAnimate() {
     int sampleIndex = static_cast<int>((positionMs / 1000.0) * m_sampleRate);
 
     if (m_mode == VisualizerBars || m_mode == VisualizerRadial) {
-        int fftSize = 512;
-        std::vector<std::complex<double>> fftInput(fftSize, 0.0);
-
+        int numBars = 15;
         if (m_playing && m_samples && m_numSamples > 0) {
+            int fftSize = 512;
+            std::vector<std::complex<double>> fftInput(fftSize, 0.0);
             int start = sampleIndex - fftSize / 2;
             for (int i = 0; i < fftSize; ++i) {
                 int idx = (start + i) * m_numChannels;
@@ -3953,21 +3958,18 @@ void SpectrumVisualizerWidget::onAnimate() {
                     fftInput[i] = 0.0;
                 }
             }
-        }
 
-        fft_iterative(fftInput);
+            fft_iterative(fftInput);
 
-        std::vector<double> magnitudes(fftSize / 2, 0.0);
-        for (int i = 0; i < fftSize / 2; ++i) {
-            magnitudes[i] = std::abs(fftInput[i]);
-        }
+            std::vector<double> magnitudes(fftSize / 2, 0.0);
+            for (int i = 0; i < fftSize / 2; ++i) {
+                magnitudes[i] = std::abs(fftInput[i]);
+            }
 
-        int numBars = 15;
-        double startFreq = 20.0;
-        double endFreq = 8000.0;
+            double startFreq = 20.0;
+            double endFreq = 8000.0;
 
-        for (int b = 0; b < numBars; ++b) {
-            if (m_playing) {
+            for (int b = 0; b < numBars; ++b) {
                 double fStart = startFreq * std::pow(endFreq / startFreq, static_cast<double>(b) / numBars);
                 double fEnd = startFreq * std::pow(endFreq / startFreq, static_cast<double>(b + 1) / numBars);
 
@@ -3990,11 +3992,40 @@ void SpectrumVisualizerWidget::onAnimate() {
                 if (height < 2.0) height = 2.0;
 
                 m_targetHeights[b] = height;
-            } else {
-                m_targetHeights[b] = 0.0;
+                m_barHeights[b] = m_barHeights[b] * 0.6 + m_targetHeights[b] * 0.4;
             }
-
-            m_barHeights[b] = m_barHeights[b] * 0.6 + m_targetHeights[b] * 0.4;
+        } else if (m_playing) {
+            // Simulated visualizer for non-WAV formats!
+            static double step = 0;
+            step += 0.15;
+            for (int b = 0; b < numBars; ++b) {
+                double wave1 = std::sin((step + b * 2) * 0.12);
+                double wave2 = std::cos((step * 1.5 - b * 3) * 0.08);
+                double wave3 = std::sin((step * 0.6 + b * 4) * 0.15);
+                double combined = (wave1 + wave2 + wave3) / 3.0; // [-1, 1]
+                double height = 15.0 + (combined + 1.0) * 0.5 * 65.0;
+                
+                // Add some random activity
+                if (QRandomGenerator::global()->bounded(100) < 15) {
+                    height += QRandomGenerator::global()->bounded(15);
+                }
+                
+                double boost = 1.0;
+                if (b < 5) boost = m_bassBoost;
+                else if (b < 10) boost = m_midBoost;
+                else boost = m_trebleBoost;
+                
+                height *= boost;
+                height = qBound(2.0, height, 100.0);
+                
+                m_targetHeights[b] = height;
+                m_barHeights[b] = m_barHeights[b] * 0.65 + m_targetHeights[b] * 0.35;
+            }
+        } else {
+            for (int b = 0; b < numBars; ++b) {
+                m_targetHeights[b] = 0.0;
+                m_barHeights[b] = m_barHeights[b] * 0.6 + m_targetHeights[b] * 0.4;
+            }
         }
     } else if (m_mode == VisualizerWaveform) {
         m_waveformHistory.clear();
@@ -4008,6 +4039,16 @@ void SpectrumVisualizerWidget::onAnimate() {
                 } else {
                     m_waveformHistory.append(0.0);
                 }
+            }
+        } else if (m_playing) {
+            // Simulated waveform for non-WAV formats!
+            static double step = 0;
+            step += 0.25;
+            for (int i = 0; i < 80; ++i) {
+                double val = std::sin(step + i * 0.15) * 30.0 + std::cos(step * 0.5 - i * 0.08) * 15.0;
+                // Add random frequency vibration
+                val += (QRandomGenerator::global()->generateDouble() - 0.5) * 6.0;
+                m_waveformHistory.append(val);
             }
         } else {
             for (int i = 0; i < 80; ++i) {
@@ -4646,9 +4687,13 @@ void PreviewPanel::updateLyricsPosition(qint64 positionMs) {
         return;
     }
 
+    QSettings settings("Amifiles", "Amifiles");
+    double offsetSec = settings.value("preview/lyrics_time_offset", 0.0).toDouble();
+    qint64 adjustedPositionMs = positionMs + static_cast<qint64>(offsetSec * 1000.0);
+
     int activeIdx = -1;
     for (int i = 0; i < m_syncedLyrics.size(); ++i) {
-        if (positionMs >= m_syncedLyrics[i].timestampMs) {
+        if (adjustedPositionMs >= m_syncedLyrics[i].timestampMs) {
             activeIdx = i;
         } else {
             break;
@@ -4658,12 +4703,15 @@ void PreviewPanel::updateLyricsPosition(qint64 positionMs) {
     if (activeIdx != m_currentLyricLineIndex) {
         m_currentLyricLineIndex = activeIdx;
 
+        QSettings settings("Amifiles", "Amifiles");
+        QString colorStr = settings.value("preview/lyrics_font_color", "#a6e3a1").toString();
+
         // 1. Update side panel scrolling labels (if visible/used)
         if (m_useScrollingLyrics && !m_lyricLabels.isEmpty()) {
             for (int i = 0; i < m_lyricLabels.size(); ++i) {
                 QLabel* lbl = m_lyricLabels[i];
                 if (i == activeIdx) {
-                    lbl->setStyleSheet("QLabel { color: #a6e3a1; font-size: 30px; font-family: 'Outfit'; font-weight: bold; background: transparent; padding: 6px; }");
+                    lbl->setStyleSheet(QString("QLabel { color: %1; font-size: 30px; font-family: 'Outfit'; font-weight: bold; background: transparent; padding: 6px; }").arg(colorStr));
                 } else {
                     lbl->setStyleSheet("QLabel { color: rgba(205, 214, 244, 0.35); font-size: 22px; font-family: 'Outfit'; font-weight: 500; background: transparent; padding: 4px; }");
                 }
@@ -4824,8 +4872,22 @@ void PreviewPanel::onShowLyricsMenu() {
         actPlain->setChecked(true);
     }
 
+    menu.addSeparator();
+    QAction* actColor = menu.addAction("🎨 Change Font Color...");
+
+    menu.addSeparator();
+    double currentOffset = settings.value("preview/lyrics_time_offset", 0.0).toDouble();
+    QString offsetHeaderStr = QString("Delay Timing (%1%2s):").arg(currentOffset >= 0.0 ? "+" : "").arg(currentOffset, 0, 'f', 1);
+    QAction* lblDelayHeader = menu.addAction(offsetHeaderStr);
+    lblDelayHeader->setEnabled(false);
+    lblDelayHeader->setFont(f);
+
+    QAction* actDelayMinus = menu.addAction("⏳ Shift Lyrics Earlier (-0.5s)");
+    QAction* actDelayPlus = menu.addAction("⏳ Shift Lyrics Later (+0.5s)");
+    QAction* actDelayReset = menu.addAction("⏳ Reset Lyrics Offset");
+
     QPoint pos = m_fullscreenWidget->hudLyricsButton()->mapToGlobal(QPoint(0, 0));
-    pos.setY(pos.y() - 210);
+    pos.setY(pos.y() - 320); // slightly higher to fit the new items
     QAction* selected = menu.exec(pos);
     if (!selected) return;
 
@@ -4846,6 +4908,43 @@ void PreviewPanel::onShowLyricsMenu() {
     } else if (selected == actPlain) {
         m_useScrollingLyrics = false;
         rebuildLyricsView();
+    } else if (selected == actDelayMinus) {
+        settings.setValue("preview/lyrics_time_offset", currentOffset - 0.5);
+        if (m_player) {
+            m_currentLyricLineIndex = -1;
+            updateLyricsPosition(m_player->position());
+        }
+    } else if (selected == actDelayPlus) {
+        settings.setValue("preview/lyrics_time_offset", currentOffset + 0.5);
+        if (m_player) {
+            m_currentLyricLineIndex = -1;
+            updateLyricsPosition(m_player->position());
+        }
+    } else if (selected == actDelayReset) {
+        settings.setValue("preview/lyrics_time_offset", 0.0);
+        if (m_player) {
+            m_currentLyricLineIndex = -1;
+            updateLyricsPosition(m_player->position());
+        }
+    } else if (selected == actColor) {
+        QColor defaultColor("#a6e3a1");
+        QString savedColor = settings.value("preview/lyrics_font_color", "#a6e3a1").toString();
+        QColor initialColor(savedColor);
+        if (!initialColor.isValid()) initialColor = defaultColor;
+        
+        QColor chosenColor = QColorDialog::getColor(initialColor, m_fullscreenWidget, "Select Lyrics Font Color");
+        if (chosenColor.isValid()) {
+            settings.setValue("preview/lyrics_font_color", chosenColor.name());
+            
+            if (m_lblBottomLyricsCurrent) {
+                m_lblBottomLyricsCurrent->setStyleSheet(QString("QLabel { color: %1; font-size: 26px; font-family: 'Outfit'; font-weight: bold; background: transparent; }").arg(chosenColor.name()));
+            }
+            
+            if (m_player) {
+                m_currentLyricLineIndex = -1; // Force stylesheet update
+                updateLyricsPosition(m_player->position());
+            }
+        }
     }
 
     updateLyricsLayout();

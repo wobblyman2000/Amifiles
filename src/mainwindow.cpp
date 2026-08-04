@@ -2461,6 +2461,13 @@ void MainWindow::onToggleCasingOverlays(bool checked) {
     if (!m_isApplyingFolderProfile) {
         QSettings settings("Amifiles", "Amifiles");
         settings.setValue("preferences/casing_overlays", checked);
+        for (auto& r : m_folderRules) {
+            if (r.name.toLower() == "default") {
+                r.casingOverlaysActive = checked;
+                saveFolderRules();
+                break;
+            }
+        }
     }
     for (int i = 0; i < m_leftTabWidget->count(); ++i) {
         FilePanel* p = qobject_cast<FilePanel*>(m_leftTabWidget->widget(i));
@@ -4601,6 +4608,7 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
 }
 
 void MainWindow::applyFolderRules(const QString& path) {
+    if (m_isApplyingFolderProfile) return;
     if (!m_activePanel) return;
 
     if (m_previewDockAutoShownForPlayback) {
@@ -5624,6 +5632,15 @@ void MainWindow::onPreferencesAction() {
         }
         setBuiltinPlayerDoubleclickActive(settings.value("preferences/builtin_player_doubleclick", false).toBool());
         
+        bool casingOverlays = settings.value("preferences/casing_overlays", true).toBool();
+        if (m_actToggleCasingOverlays) m_actToggleCasingOverlays->setChecked(casingOverlays);
+        onToggleCasingOverlays(casingOverlays);
+        
+        loadFolderRules();
+        loadCustomButtons();
+        rebuildCustomToolBar();
+        rebuildCustomMenus();
+        
         for (int i = 0; i < m_leftTabWidget->count(); ++i) {
             FilePanel* p = qobject_cast<FilePanel*>(m_leftTabWidget->widget(i));
             if (p) p->refresh();
@@ -5669,6 +5686,15 @@ void MainWindow::onMediaPreferences() {
             m_previewPanel->loadPreferences();
         }
         setBuiltinPlayerDoubleclickActive(settings.value("preferences/builtin_player_doubleclick", false).toBool());
+        
+        bool casingOverlays = settings.value("preferences/casing_overlays", true).toBool();
+        if (m_actToggleCasingOverlays) m_actToggleCasingOverlays->setChecked(casingOverlays);
+        onToggleCasingOverlays(casingOverlays);
+        
+        loadFolderRules();
+        loadCustomButtons();
+        rebuildCustomToolBar();
+        rebuildCustomMenus();
         
         for (int i = 0; i < m_leftTabWidget->count(); ++i) {
             FilePanel* p = qobject_cast<FilePanel*>(m_leftTabWidget->widget(i));
@@ -6278,7 +6304,7 @@ void MainWindow::onConfigureCustomMenus() {
 }
 
 void MainWindow::onConfigureContextMenu() {
-    CustomMenuEditorDialog dlg("custom_context_menu_v3", this);
+    CustomMenuEditorDialog dlg("custom_context_menu_v4", this);
     dlg.exec();
 }
 

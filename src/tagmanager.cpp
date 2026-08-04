@@ -302,3 +302,25 @@ void TagManager::setAutoTagRules(const QList<AutoTagRule>& rules) {
     m_autoRules = rules;
     saveAutoRules();
 }
+
+void TagManager::deleteTagGlobally(const QString& tag) {
+    for (auto it = m_db.begin(); it != m_db.end(); ++it) {
+        if (it.value().tags.removeAll(tag) > 0) {
+            m_db[it.key()] = it.value();
+        }
+    }
+    saveDatabase();
+}
+
+void TagManager::renameTagGlobally(const QString& oldTag, const QString& newTag) {
+    if (newTag.trimmed().isEmpty() || oldTag == newTag) return;
+    for (auto it = m_db.begin(); it != m_db.end(); ++it) {
+        int idx = it.value().tags.indexOf(oldTag);
+        if (idx != -1) {
+            it.value().tags[idx] = newTag;
+            it.value().tags.removeDuplicates();
+            m_db[it.key()] = it.value();
+        }
+    }
+    saveDatabase();
+}

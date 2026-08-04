@@ -64,6 +64,7 @@ private:
 
     // Media & Previews
     QCheckBox* m_chkCasingOverlays = nullptr;
+    QCheckBox* m_chkShowMetadataHoverCard = nullptr;
     QCheckBox* m_chkAudioCoverArt = nullptr;
     QCheckBox* m_chkSpectrumVisualizer = nullptr;
     QCheckBox* m_chkMutePreview = nullptr;
@@ -74,6 +75,7 @@ private:
     QCheckBox* m_chkRememberVideoProgress = nullptr;
     QCheckBox* m_chkKeyboardRemoteMode = nullptr;
     QCheckBox* m_chkAutoQueueSiblings = nullptr;
+    QCheckBox* m_chkShowFolderLabel = nullptr;
     
     // Shortcuts Mapping
     class QKeySequenceEdit* m_keyPlayCollection = nullptr;

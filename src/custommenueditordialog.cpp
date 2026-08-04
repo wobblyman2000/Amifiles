@@ -18,7 +18,7 @@ CustomMenuEditorDialog::CustomMenuEditorDialog(QWidget* parent)
 
 CustomMenuEditorDialog::CustomMenuEditorDialog(const QString& settingsKey, QWidget* parent) 
     : QDialog(parent), m_settingsKey(settingsKey) {
-    if (m_settingsKey == "custom_context_menu_v3") {
+    if (m_settingsKey == "custom_context_menu_v4") {
         setWindowTitle("Custom Context Menu Configuration Center");
     } else {
         setWindowTitle("Custom Menu Configuration Center");
@@ -176,7 +176,7 @@ void CustomMenuEditorDialog::loadMenuStructure() {
     QJsonArray arr;
     
     if (jsonStr.isEmpty()) {
-        if (m_settingsKey == "custom_context_menu_v3") {
+        if (m_settingsKey == "custom_context_menu_v4") {
             arr = getDefaultContextMenuJson();
         } else {
             // Fallback default structure
@@ -604,6 +604,7 @@ QJsonArray CustomMenuEditorDialog::getDefaultContextMenuJson() const {
         
         QJsonArray mediaKids;
         mediaKids.append(makeAction("Edit Audio Tags...", "app.edit_tags", ""));
+        mediaKids.append(makeAction("Batch Tag/Filename Casing Wizard...", "app.metadata_casing_wizard", ""));
         mediaKids.append(makeAction("Advanced Tag Editor...", "app.advanced_tag_editor", ""));
         mediaKids.append(makeAction("Fetch MusicBrainz Album Info...", "app.fetch_musicbrainz", ""));
         mediaKids.append(makeAction("Scrape Video Metadata...", "app.scrape_video", ""));
@@ -638,6 +639,7 @@ QJsonArray CustomMenuEditorDialog::getDefaultContextMenuJson() const {
         sysKids.append(makeAction("Calculate Checksum Hash...", "app.calculate_checksum", ""));
         sysKids.append(makeAction("Secure Shred (Delete Permanently)...", "app.secure_shred", "user-trash"));
         sysKids.append(makeAction("Batch Convert/Resize Images...", "app.image_convert", ""));
+        sysKids.append(makeAction("Explore Directory Disk Space (TreeMap)...", "app.disk_space_analyzer", ""));
         
         sysMenu["children"] = sysKids;
         arr.append(sysMenu);

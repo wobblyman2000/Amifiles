@@ -40,6 +40,8 @@ public:
     QString getCustomAttribute(const QString& filePath, const QString& key) const;
 
     QStringList getAllTags() const;
+    void deleteTagGlobally(const QString& tag);
+    void renameTagGlobally(const QString& oldTag, const QString& newTag);
     QStringList getFilesWithTag(const QString& tag) const;
 
     // Auto-Tagging Rules

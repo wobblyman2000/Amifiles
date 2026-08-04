@@ -23,6 +23,8 @@
 #include <QComboBox>
 #include "searchworker.h"
 #include "metadataextractor.h"
+#include "metadatacasingdialog.h"
+#include "diskspaceanalyzerdialog.h"
 #include "bulkrename.h"
 #include "diffdialog.h"
 #include "tageditordialog.h"
@@ -181,6 +183,10 @@ FilePanel::FilePanel(const QString& initialPath, QWidget* parent)
     m_hoverTimer = new QTimer(this);
     m_hoverTimer->setSingleShot(true);
     connect(m_hoverTimer, &QTimer::timeout, this, [this]() {
+        QSettings settings("Amifiles", "Amifiles");
+        if (!settings.value("preview/show_metadata_hover_card", true).toBool()) {
+            return;
+        }
         if (!m_pendingHoverIndex.isValid()) return;
         QString filePath = filePathFromIndex(m_pendingHoverIndex);
         if (!filePath.isEmpty() && QFile::exists(filePath)) {
@@ -327,7 +333,7 @@ void FilePanel::setupUI() {
     m_btnToggleSidePane = new QToolButton(this);
     m_btnToggleSidePane->setText("📋 Playlist");
     m_btnToggleSidePane->setCheckable(true);
-    m_btnToggleSidePane->setChecked(true);
+    m_btnToggleSidePane->setChecked(false);
     m_btnToggleSidePane->setToolTip("Toggle Playlist Drawer");
     m_btnToggleSidePane->setStyleSheet("QToolButton { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 4px; padding: 2px 6px; font-weight: bold; } QToolButton:hover { background-color: #45475a; } QToolButton:checked { background-color: #a6e3a1; color: #11111b; }");
     connect(m_btnToggleSidePane, &QToolButton::toggled, this, &FilePanel::onToggleSidePane);
@@ -1162,6 +1168,14 @@ void FilePanel::setupUI() {
     connect(m_btnToggleSearchMode, &QToolButton::clicked, this, &FilePanel::onToggleSearchFilterMode);
     categoryLayout->addWidget(m_btnToggleSearchMode);
 
+    m_btnToggleTRFilter = new QToolButton(this);
+    m_btnToggleTRFilter->setText("★/🏷️");
+    m_btnToggleTRFilter->setCheckable(true);
+    m_btnToggleTRFilter->setToolTip("Toggle Tags & Ratings Filter Bar");
+    m_btnToggleTRFilter->setStyleSheet("QToolButton { padding: 4px 8px; font-weight: bold; color: #f9e2af; }");
+    connect(m_btnToggleTRFilter, &QToolButton::toggled, this, &FilePanel::onToggleTagsRatingsFilterBar);
+    categoryLayout->addWidget(m_btnToggleTRFilter);
+
     categoryLayout->addStretch(1); // Push buttons to the left
 
     // Wrap Text filter row in a container widget to make it toggleable
@@ -1204,9 +1218,100 @@ void FilePanel::setupUI() {
     connect(m_comboGrouping, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &FilePanel::onGroupingChanged);
     statusLayout->addWidget(m_comboGrouping);
 
+    // 5. Smart Tag & Rating Filter Bar
+    m_tagsRatingsFilterWidget = new QWidget(this);
+    m_tagsRatingsFilterWidget->setStyleSheet("QWidget { background-color: #242535; border-radius: 6px; }");
+    QHBoxLayout* trLayout = new QHBoxLayout(m_tagsRatingsFilterWidget);
+    trLayout->setSpacing(6);
+    trLayout->setContentsMargins(6, 4, 6, 4);
+
+    QLabel* lblRate = new QLabel("★ Rating:", this);
+    lblRate->setStyleSheet("font-weight: bold; color: #f9e2af;");
+    trLayout->addWidget(lblRate);
+
+    QString rateAllStyle = 
+        "QToolButton { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 4px; padding: 2px 8px; font-weight: bold; }"
+        "QToolButton:hover { background-color: #45475a; color: #cdd6f4; }"
+        "QToolButton:checked { background-color: #a6e3a1; color: #11111b; border: 1px solid #a6e3a1; }";
+
+    m_btnRateAll = new QToolButton(this);
+    m_btnRateAll->setText("All");
+    m_btnRateAll->setCheckable(true);
+    m_btnRateAll->setChecked(true);
+    m_btnRateAll->setToolTip("Show all ratings");
+    m_btnRateAll->setStyleSheet(rateAllStyle);
+    connect(m_btnRateAll, &QToolButton::clicked, this, &FilePanel::onRatingFilterClicked);
+    trLayout->addWidget(m_btnRateAll);
+
+    QButtonGroup* rateGroup = new QButtonGroup(this);
+    rateGroup->setExclusive(false);
+    rateGroup->addButton(m_btnRateAll);
+
+    QString btnStyle = 
+        "QToolButton { background-color: #313244; color: #f9e2af; border: 1px solid #45475a; border-radius: 4px; padding: 2px 6px; font-weight: bold; }"
+        "QToolButton:hover { background-color: #45475a; color: #f9e2af; }"
+        "QToolButton:checked { background-color: #f9e2af; color: #11111b; border: 1px solid #f9e2af; }";
+
+    m_btnStars.clear();
+    for (int i = 1; i <= 5; ++i) {
+        QToolButton* btn = new QToolButton(this);
+        btn->setText(QString("★").repeated(i));
+        btn->setCheckable(true);
+        btn->setToolTip(QString("Filter by %1 Stars").arg(i));
+        btn->setStyleSheet(btnStyle);
+        btn->setProperty("ratingValue", i);
+        connect(btn, &QToolButton::clicked, this, &FilePanel::onRatingFilterClicked);
+        trLayout->addWidget(btn);
+        m_btnStars.append(btn);
+        rateGroup->addButton(btn);
+    }
+
+    trLayout->addSpacing(10);
+
+    QLabel* lblTag = new QLabel("🏷️ Tag:", this);
+    lblTag->setStyleSheet("font-weight: bold; color: #89b4fa;");
+    trLayout->addWidget(lblTag);
+
+    m_comboFilterTag = new QComboBox(this);
+    m_comboFilterTag->addItem("All Tags", "");
+    m_comboFilterTag->setFixedWidth(130);
+    connect(m_comboFilterTag, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &FilePanel::onTagFilterComboChanged);
+    trLayout->addWidget(m_comboFilterTag);
+
+    trLayout->addSpacing(10);
+
+    QLabel* lblComment = new QLabel("💬 Comment:", this);
+    lblComment->setStyleSheet("font-weight: bold; color: #a6e3a1;");
+    trLayout->addWidget(lblComment);
+
+    m_editFilterComment = new QLineEdit(this);
+    m_editFilterComment->setPlaceholderText("Filter by comment...");
+    m_editFilterComment->setFixedWidth(130);
+    m_editFilterComment->setStyleSheet("QLineEdit { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 4px; padding: 2px 6px; }");
+    connect(m_editFilterComment, &QLineEdit::textChanged, this, &FilePanel::onCommentFilterChanged);
+    trLayout->addWidget(m_editFilterComment);
+
+    trLayout->addStretch(1);
+
+    // Close button
+    QToolButton* btnCloseTR = new QToolButton(this);
+    btnCloseTR->setText("✕");
+    btnCloseTR->setToolTip("Close Tags & Ratings Filter Bar");
+    btnCloseTR->setStyleSheet("QToolButton { background-color: transparent; border: none; font-weight: bold; color: #a6adc8; } QToolButton:hover { color: #f38ba8; }");
+    connect(btnCloseTR, &QToolButton::clicked, this, &FilePanel::onCloseTagsRatingsFilterBar);
+    trLayout->addWidget(btnCloseTR);
+
+    // Initial state: load preferences
+    bool showTR = settings.value("preferences/show_tags_ratings_filter_bar", false).toBool();
+    m_tagsRatingsFilterWidget->setVisible(showTR);
+    if (m_btnToggleTRFilter) {
+        m_btnToggleTRFilter->setChecked(showTR);
+    }
+
     QVBoxLayout* panelBottomLayout = new QVBoxLayout();
     panelBottomLayout->setContentsMargins(0, 0, 0, 0);
     panelBottomLayout->setSpacing(4);
+    panelBottomLayout->addWidget(m_tagsRatingsFilterWidget);
     panelBottomLayout->addWidget(m_categoryWidget);
     panelBottomLayout->addWidget(m_filterTextWidget);
     panelBottomLayout->addWidget(m_statusWidget);
@@ -2044,6 +2149,16 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
 
     QString prevPath = m_currentPath;
 
+    // Pre-apply folder rules to configure view layout and casing settings before loading files
+    QWidget* parentW = parentWidget();
+    while (parentW && !parentW->inherits("MainWindow")) {
+        parentW = parentW->parentWidget();
+    }
+    MainWindow* mw = qobject_cast<MainWindow*>(parentW);
+    if (mw) {
+        mw->applyFolderRules(path);
+    }
+
     if (m_isSearchModeActive) {
         onToggleSearchFilterMode();
     }
@@ -2854,9 +2969,37 @@ void FilePanel::onSelectionChanged() {
                         QString targetDir = pathInfo.isDir() ? path : pathInfo.absolutePath();
                         QDir dir(targetDir);
                         QStringList audioExts = { "mp3", "flac", "wav", "ogg", "m4a", "wma", "aac", "mod", "sid", "s3m", "xm", "it" };
+                        
                         QFileInfoList trackFiles = dir.entryInfoList(QDir::Files, QDir::Name);
+                        
+                        // Check if the top-level directory contains any playable audio files
+                        bool hasAudioFiles = false;
+                        for (const QFileInfo& fi : trackFiles) {
+                            if (audioExts.contains(fi.suffix().toLower())) {
+                                hasAudioFiles = true;
+                                break;
+                            }
+                        }
+
+                        QFileInfoList allTracks;
+                        if (hasAudioFiles) {
+                            allTracks = trackFiles;
+                        } else {
+                            // Go down one level to subdirectories (e.g. CD1, CD2) to populate the queue
+                            QFileInfoList subDirs = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+                            for (const QFileInfo& subDirFi : subDirs) {
+                                QDir subDir(subDirFi.absoluteFilePath());
+                                QFileInfoList subFiles = subDir.entryInfoList(QDir::Files, QDir::Name);
+                                for (const QFileInfo& fi : subFiles) {
+                                    if (audioExts.contains(fi.suffix().toLower())) {
+                                        allTracks.append(fi);
+                                    }
+                                }
+                            }
+                        }
+
                         int selectIndex = -1;
-                        for (const QFileInfo& trackFi : trackFiles) {
+                        for (const QFileInfo& trackFi : allTracks) {
                             if (audioExts.contains(trackFi.suffix().toLower())) {
                                 QString pathVal = trackFi.absoluteFilePath();
                                 QString filename = trackFi.fileName();
@@ -3109,6 +3252,7 @@ void FilePanel::updateStatusText() {
 }
 
 void FilePanel::refresh() {
+    updateTheaterGridSize();
     QSettings settings("Amifiles", "Amifiles");
     bool detailsFullRowSelect = settings.value("preferences/details_full_row_select", true).toBool();
     if (m_treeView) {
@@ -3131,6 +3275,7 @@ void FilePanel::refresh() {
         m_fileModel->setRootPath(m_currentPath);
     }
     checkFolderArt();
+    populateFilterTagsCombo();
     updateStatusText();
 }
 
@@ -3606,7 +3751,7 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     bool isNewView = (activeViewWidget == m_millerView || activeViewWidget == m_timelineView || activeViewWidget == m_filmstripView || activeViewWidget == m_theaterListView || activeViewWidget == m_theaterContainer);
 
     QSettings settings("Amifiles", "Amifiles");
-    QString jsonStr = settings.value("custom_context_menu_v3").toString();
+    QString jsonStr = settings.value("custom_context_menu_v4").toString();
     QJsonArray arr;
     if (jsonStr.isEmpty()) {
         arr = getDefaultContextMenuJson();
@@ -3865,6 +4010,11 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         bool isWatched = settings.value("watched/" + selectedPath, false).toBool();
         settings.setValue("watched/" + selectedPath, !isWatched);
         notifyPathDataChanged(selectedPath);
+    } else if (command == "app.metadata_casing_wizard") {
+        MetadataCasingDialog dlg(curSelected, this);
+        if (dlg.exec() == QDialog::Accepted) {
+            refresh();
+        }
     } else if (command == "app.edit_tags") {
         TagEditorDialog dlg(curSelected, this);
         if (dlg.exec() == QDialog::Accepted) {
@@ -4036,6 +4186,10 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         if (dlg.exec() == QDialog::Accepted) {
             refresh();
         }
+    } else if (command == "app.disk_space_analyzer") {
+        DiskSpaceAnalyzerDialog dlg(m_currentPath, this);
+        connect(&dlg, &DiskSpaceAnalyzerDialog::locateFileRequested, this, &FilePanel::selectFilePath);
+        dlg.exec();
     } else if (command == "app.image_convert") {
         QStringList imageExts = { "jpg", "jpeg", "png", "webp", "bmp" };
         QStringList selectedImages;
@@ -5355,9 +5509,15 @@ void FilePanel::updateTheaterGridSize() {
 
     int gw, gh;
     if (index == 10) {
-        // Perfect square music/audio showcase (Image width = gw - 16, Image height = gh - 40. Lock gh = gw + 24 for 1:1 image area)
-        gw = qRound(160.0 * factor);
-        gh = gw + 24;
+        QSettings settings("Amifiles", "Amifiles");
+        QString casingType = settings.value("music_showcase/casing_type", "cd").toString();
+        if (casingType == "vinyl") {
+            gw = qRound(190.0 * factor);
+            gh = qRound(160.0 * factor) + 24;
+        } else {
+            gw = qRound(160.0 * factor);
+            gh = gw + 24;
+        }
     } else {
         // 2:3 widescreen posters for Movie/TV
         gw = qRound(155.0 * factor);
@@ -6789,18 +6949,23 @@ void CasingRunnable::run() {
         return;
     }
 
+    QString casingType = settings.value("music_showcase/casing_type", "cd").toString();
+
     int caseW = qRound(256.0 * scaleFactor);
     int caseH = qRound(256.0 * scaleFactor);
     if (casingInt == 1) { // DVD
         caseW = qRound(170.0 * scaleFactor);
     } else if (casingInt == 2) { // BluRay
         caseW = qRound(180.0 * scaleFactor);
+    } else if (casingInt == 0 && casingType == "vinyl") {
+        caseW = qRound(300.0 * scaleFactor);
     }
 
     double s = (256.0 / 48.0) * scaleFactor;
 
     QImage caseImage(caseW, caseH, QImage::Format_ARGB32_Premultiplied);
     caseImage.fill(Qt::transparent);
+    QImage hoverImage;
 
     QPainter painter(&caseImage);
     painter.setRenderHint(QPainter::Antialiasing);
@@ -6810,62 +6975,92 @@ void CasingRunnable::run() {
         QString casingType = settings.value("music_showcase/casing_type", "cd").toString();
 
         if (casingType == "vinyl") {
-            // Render a premium Vinyl Record Sleeve Mockup
-            // 1. Paint the black vinyl record disk partially sticking out from the right
-            int diskX = caseW - qRound(60.0 * s);
-            int diskY = caseH / 2;
-            int diskR = qRound(95.0 * s);
+            painter.end();
 
-            painter.setBrush(QColor("#0d0d0d")); // Charcoal black vinyl body
-            painter.setPen(Qt::NoPen);
-            painter.drawEllipse(diskX - diskR, diskY - diskR, diskR * 2, diskR * 2);
+            auto renderVinyl = [&](bool hovered) {
+                QImage img(caseW, caseH, QImage::Format_ARGB32_Premultiplied);
+                img.fill(Qt::transparent);
+                QPainter p(&img);
+                p.setRenderHint(QPainter::Antialiasing);
 
-            // Groove lines
-            painter.setBrush(Qt::NoBrush);
-            painter.setPen(QPen(QColor(255, 255, 255, 12), 1));
-            int startR = qRound(35.0 * s);
-            int stepR = qRound(10.0 * s);
-            for (int r = startR; r < diskR - 5; r += stepR) {
-                painter.drawEllipse(diskX - r, diskY - r, r * 2, r * 2);
-            }
+                // 1. Paint the black vinyl record disk partially sticking out from the right
+                int diskX = caseW - qRound((hovered ? 25.0 : 60.0) * scaleFactor);
+                int diskY = caseH / 2;
+                int diskR = qRound(95.0 * scaleFactor);
 
-            // Sticker label in the middle of vinyl disk
-            int labelR = qRound(32.0 * s);
-            painter.setBrush(QColor("#b4befe")); // Beautiful pastel purple label background
-            painter.setPen(Qt::NoPen);
-            painter.drawEllipse(diskX - labelR, diskY - labelR, labelR * 2, labelR * 2);
+                p.save();
+                p.translate(diskX, diskY);
+                if (hovered) {
+                    p.rotate(25.0); // Spin 25 degrees on hover!
+                }
 
-            // Draw micro sticker text
-            painter.setPen(QColor("#11111b"));
-            QFont microFont = painter.font();
-            microFont.setPointSize(qRound(1.5 * s));
-            microFont.setBold(true);
-            painter.setFont(microFont);
-            painter.drawText(QRect(diskX - labelR, diskY - labelR, labelR * 2, labelR * 2), Qt::AlignCenter, "LP");
+                p.setBrush(QColor("#0d0d0d")); // Charcoal black vinyl body
+                p.setPen(Qt::NoPen);
+                p.drawEllipse(-diskR, -diskR, diskR * 2, diskR * 2);
 
-            // Vinyl center spindle hole
-            painter.setBrush(QColor("#1e1e2e"));
-            painter.setPen(Qt::NoPen);
-            int holeR = qRound(5.0 * s);
-            painter.drawEllipse(diskX - holeR, diskY - holeR, holeR * 2, holeR * 2);
+                // Groove lines
+                p.setBrush(Qt::NoBrush);
+                p.setPen(QPen(QColor(255, 255, 255, 12), 1));
+                int startR = qRound(35.0 * scaleFactor);
+                int stepR = qRound(10.0 * scaleFactor);
+                for (int r = startR; r < diskR - 5; r += stepR) {
+                    p.drawEllipse(-r, -r, r * 2, r * 2);
+                }
 
-            // 2. Paint the cardboard outer sleeve on the left covering the disk
-            int sleeveW = caseW - qRound(55.0 * s);
-            int sleeveH = caseH;
-            painter.setBrush(QColor("#181825"));
-            painter.setPen(QPen(QColor("#313244"), qMax(1, qRound(1.5 * s))));
-            painter.drawRoundedRect(0, 0, sleeveW, sleeveH, qRound(3.0 * s), qRound(3.0 * s));
+                // Sticker label in the middle of vinyl disk
+                int labelR = qRound(32.0 * scaleFactor);
+                p.setBrush(QColor("#b4befe")); // Beautiful pastel purple label background
+                p.setPen(Qt::NoPen);
+                p.drawEllipse(-labelR, -labelR, labelR * 2, labelR * 2);
 
-            int coverX = qRound(4 * s);
-            int coverY = qRound(4 * s);
-            int coverW = sleeveW - qRound(8 * s);
-            int coverH = caseH - qRound(8 * s);
-            painter.drawImage(QRect(coverX, coverY, coverW, coverH), cover.scaled(coverW, coverH, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+                // Draw micro sticker text
+                p.setPen(QColor("#11111b"));
+                QFont microFont = p.font();
+                microFont.setPointSize(qMax(6, qRound(8.0 * scaleFactor)));
+                microFont.setBold(true);
+                p.setFont(microFont);
+                p.drawText(QRect(-labelR, -labelR, labelR * 2, labelR * 2), Qt::AlignCenter, "LP");
 
-            // Draw inner shadow/edge highlight on the cardboard sleeve
-            painter.setBrush(Qt::NoBrush);
-            painter.setPen(QPen(QColor(255, 255, 255, 45), qMax(1, qRound(1 * s))));
-            painter.drawRoundedRect(qRound(2 * s), qRound(2 * s), sleeveW - qRound(4 * s), caseH - qRound(4 * s), qRound(2 * s), qRound(2 * s));
+                // Vinyl center spindle hole
+                p.setBrush(QColor("#1e1e2e"));
+                p.setPen(Qt::NoPen);
+                int holeR = qRound(5.0 * scaleFactor);
+                p.drawEllipse(-holeR, -holeR, holeR * 2, holeR * 2);
+
+                p.restore();
+
+                // 2. Paint the cardboard outer sleeve on the left covering the disk
+                int sleeveW = caseW - qRound(99.0 * scaleFactor); // 300 - 99 = 201 wide cardboard sleeve
+                int sleeveH = caseH;
+                p.setBrush(QColor("#181825"));
+                p.setPen(QPen(QColor("#313244"), qMax(1, qRound(1.5 * scaleFactor))));
+                p.drawRoundedRect(0, 0, sleeveW, sleeveH, qRound(3.0 * scaleFactor), qRound(3.0 * scaleFactor));
+
+                int coverX = qRound(4 * scaleFactor);
+                int coverY = qRound(4 * scaleFactor);
+                int coverW = sleeveW - qRound(8 * scaleFactor);
+                int coverH = caseH - qRound(8 * scaleFactor);
+                p.drawImage(QRect(coverX, coverY, coverW, coverH), cover.scaled(coverW, coverH, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+
+                // Draw inner shadow/edge highlight on the cardboard sleeve
+                p.setBrush(Qt::NoBrush);
+                p.setPen(QPen(QColor(255, 255, 255, 45), qMax(1, qRound(1.0 * scaleFactor))));
+                p.drawRoundedRect(qRound(2 * scaleFactor), qRound(2 * scaleFactor), sleeveW - qRound(4 * scaleFactor), caseH - qRound(4 * scaleFactor), qRound(2 * scaleFactor), qRound(2 * scaleFactor));
+
+                p.end();
+                return img;
+            };
+
+            caseImage = renderVinyl(false);
+            hoverImage = renderVinyl(true);
+
+            QString path = m_path;
+            QMetaObject::invokeMethod(model.data(), [model, path, artPath, casingInt, caseImage, hoverImage]() {
+                if (model) {
+                    model->onCasingRendered(path, artPath, casingInt, caseImage, hoverImage);
+                }
+            }, Qt::QueuedConnection);
+            return;
         } else {
             // High-fidelity 3D CD Jewel Case using template PNG with procedural fallback
             QSettings settings("Amifiles", "Amifiles");
@@ -7391,13 +7586,16 @@ void CasingRunnable::run() {
     }, Qt::QueuedConnection);
 }
 
-void FileFilterProxyModel::onCasingRendered(const QString& path, const QString& artPath, int casingType, const QImage& image) {
+void FileFilterProxyModel::onCasingRendered(const QString& path, const QString& artPath, int casingType, const QImage& image, const QImage& hoverImage) {
     m_pendingCasingChecks.remove(path);
     m_casingCache.insert(path, qMakePair(artPath, casingType));
     
     if (!artPath.isEmpty() && !image.isNull()) {
         QString cacheKey = artPath + "_" + QString::number(casingType);
         m_iconCache.insert(cacheKey, QIcon(QPixmap::fromImage(image)));
+        if (!hoverImage.isNull()) {
+            m_iconCache.insert(cacheKey + "_hover", QIcon(QPixmap::fromImage(hoverImage)));
+        }
     }
     
     QFileSystemModel* fileModel = qobject_cast<QFileSystemModel*>(sourceModel());
@@ -8634,6 +8832,7 @@ QJsonArray FilePanel::getDefaultContextMenuJson() const {
         
         QJsonArray mediaKids;
         mediaKids.append(makeAction("Edit Audio Tags...", "app.edit_tags", ""));
+        mediaKids.append(makeAction("Batch Tag/Filename Casing Wizard...", "app.metadata_casing_wizard", ""));
         mediaKids.append(makeAction("Advanced Tag Editor...", "app.advanced_tag_editor", ""));
         mediaKids.append(makeAction("Fetch MusicBrainz Album Info...", "app.fetch_musicbrainz", ""));
         mediaKids.append(makeAction("Scrape Video Metadata...", "app.scrape_video", ""));
@@ -8668,6 +8867,7 @@ QJsonArray FilePanel::getDefaultContextMenuJson() const {
         sysKids.append(makeAction("Calculate Checksum Hash...", "app.calculate_checksum", ""));
         sysKids.append(makeAction("Secure Shred (Delete Permanently)...", "app.secure_shred", "user-trash"));
         sysKids.append(makeAction("Batch Convert/Resize Images...", "app.image_convert", ""));
+        sysKids.append(makeAction("Explore Directory Disk Space (TreeMap)...", "app.disk_space_analyzer", ""));
         
         sysMenu["children"] = sysKids;
         arr.append(sysMenu);
@@ -8812,6 +9012,7 @@ QAction* FilePanel::createContextMenuAction(QMenu* parentMenu, const QJsonObject
             command == "app.iso_toggle" || command == "app.vhd_toggle" ||
             command == "app.create_archive" || command == "app.create_secure_archive" || command == "app.extract_archive" ||
             command == "app.calculate_checksum" || command == "app.secure_shred" || command == "app.image_convert" ||
+            command == "app.disk_space_analyzer" ||
             command == "app.folder_layouts" || command == "app.save_folder_profile" ||
             command == "app.save_default_profile" || command == "app.load_default_profile" ||
             command == "app.toggle_executable" || command == "app.change_permissions" ||
@@ -8939,6 +9140,8 @@ QAction* FilePanel::createContextMenuAction(QMenu* parentMenu, const QJsonObject
         act = parentMenu->addAction(style->standardIcon(QStyle::SP_MessageBoxInformation), "🎬 Media Info Sheet... (ℹ)");
     } else if (command == "app.toggle_watch") {
         act = parentMenu->addAction(icon, "✔ Toggle Watch Status (Watched/Unwatched)");
+    } else if (command == "app.metadata_casing_wizard") {
+        act = parentMenu->addAction(icon, "Batch Tag/Filename Casing Wizard...");
     } else if (command == "app.edit_tags") {
         act = parentMenu->addAction(icon, "Edit Audio Tags...");
     } else if (command == "app.advanced_tag_editor") {
@@ -9023,6 +9226,8 @@ QAction* FilePanel::createContextMenuAction(QMenu* parentMenu, const QJsonObject
         act = parentMenu->addAction(icon, "Calculate Checksum Hash...");
     } else if (command == "app.secure_shred") {
         act = parentMenu->addAction(style->standardIcon(QStyle::SP_TrashIcon), "Secure Shred (Delete Permanently)...");
+    } else if (command == "app.disk_space_analyzer") {
+        act = parentMenu->addAction(icon, "Explore Directory Disk Space (TreeMap)...");
     } else if (command == "app.image_convert") {
         QStringList imageExts = { "jpg", "jpeg", "png", "webp", "bmp" };
         QStringList selectedImages;
@@ -9084,3 +9289,137 @@ QAction* FilePanel::createContextMenuAction(QMenu* parentMenu, const QJsonObject
     
     return act;
 }
+
+void FilePanel::populateFilterTagsCombo() {
+    if (!m_comboFilterTag) return;
+    m_comboFilterTag->blockSignals(true);
+    QString currentSelected = m_comboFilterTag->currentData().toString();
+    
+    m_comboFilterTag->clear();
+    m_comboFilterTag->addItem("All Tags", "");
+    
+    QStringList allTags = TagManager::instance().getAllTags();
+    allTags.sort(Qt::CaseInsensitive);
+    for (const QString& tag : allTags) {
+        if (!tag.trimmed().isEmpty()) {
+            m_comboFilterTag->addItem(tag, tag);
+        }
+    }
+    
+    int index = m_comboFilterTag->findData(currentSelected);
+    if (index != -1) {
+        m_comboFilterTag->setCurrentIndex(index);
+    } else {
+        m_comboFilterTag->setCurrentIndex(0);
+    }
+    m_comboFilterTag->blockSignals(false);
+}
+
+void FilePanel::onRatingFilterClicked() {
+    QToolButton* clicked = qobject_cast<QToolButton*>(sender());
+    if (!clicked) return;
+
+    bool isChecked = clicked->isChecked();
+
+    if (clicked == m_btnRateAll) {
+        if (!isChecked) {
+            // Force "All" to remain checked if the user tries to uncheck it directly
+            m_btnRateAll->setChecked(true);
+        } else {
+            // Uncheck all star buttons
+            for (QToolButton* btn : m_btnStars) {
+                btn->blockSignals(true);
+                btn->setChecked(false);
+                btn->blockSignals(false);
+            }
+        }
+    } else {
+        if (isChecked) {
+            // Uncheck "All" and all other star buttons
+            m_btnRateAll->blockSignals(true);
+            m_btnRateAll->setChecked(false);
+            m_btnRateAll->blockSignals(false);
+
+            for (QToolButton* btn : m_btnStars) {
+                if (btn != clicked) {
+                    btn->blockSignals(true);
+                    btn->setChecked(false);
+                    btn->blockSignals(false);
+                }
+            }
+        } else {
+            // Checked star button was toggled off, so revert to "All"
+            m_btnRateAll->blockSignals(true);
+            m_btnRateAll->setChecked(true);
+            m_btnRateAll->blockSignals(false);
+        }
+    }
+
+    int rating = -1;
+    for (QToolButton* btn : m_btnStars) {
+        if (btn->isChecked()) {
+            rating = btn->property("ratingValue").toInt();
+            break;
+        }
+    }
+
+    if (m_proxyModel) m_proxyModel->setRatingFilter(rating);
+    if (m_flatProxyModel) m_flatProxyModel->setRatingFilter(rating);
+
+    updateStatusText();
+}
+
+void FilePanel::onTagFilterComboChanged(int index) {
+    if (!m_comboFilterTag) return;
+    QString tag = m_comboFilterTag->itemData(index).toString();
+    
+    if (m_proxyModel) m_proxyModel->setTagFilter(tag);
+    if (m_flatProxyModel) m_flatProxyModel->setTagFilter(tag);
+    
+    updateStatusText();
+}
+
+void FilePanel::onCommentFilterChanged(const QString& text) {
+    if (m_proxyModel) m_proxyModel->setCommentFilter(text);
+    if (m_flatProxyModel) m_flatProxyModel->setCommentFilter(text);
+    updateStatusText();
+}
+
+void FilePanel::onCloseTagsRatingsFilterBar() {
+    if (m_btnToggleTRFilter) {
+        m_btnToggleTRFilter->setChecked(false); // Triggers onToggleTagsRatingsFilterBar()
+    }
+}
+
+void FilePanel::onToggleTagsRatingsFilterBar() {
+    bool checked = m_btnToggleTRFilter ? m_btnToggleTRFilter->isChecked() : false;
+    
+    if (m_tagsRatingsFilterWidget) {
+        m_tagsRatingsFilterWidget->setVisible(checked);
+    }
+    
+    QSettings settings("Amifiles", "Amifiles");
+    settings.setValue("preferences/show_tags_ratings_filter_bar", checked);
+    
+    if (checked) {
+        populateFilterTagsCombo();
+    } else {
+        // Clear filters when closing the bar
+        if (m_btnRateAll) m_btnRateAll->setChecked(true);
+        if (m_comboFilterTag) m_comboFilterTag->setCurrentIndex(0);
+        if (m_editFilterComment) m_editFilterComment->clear();
+        
+        if (m_proxyModel) {
+            m_proxyModel->setRatingFilter(-1);
+            m_proxyModel->setTagFilter("");
+            m_proxyModel->setCommentFilter("");
+        }
+        if (m_flatProxyModel) {
+            m_flatProxyModel->setRatingFilter(-1);
+            m_flatProxyModel->setTagFilter("");
+            m_flatProxyModel->setCommentFilter("");
+        }
+        updateStatusText();
+    }
+}
+
