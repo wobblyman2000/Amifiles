@@ -326,7 +326,7 @@ private slots:
 
 public:
     void onApplyProfileToCurrentFolder(const QString& profileName);
-    void applyFolderRules(const QString& path);
+    void applyFolderRules(const QString& path, class FilePanel* callingPanel = nullptr);
     QTabWidget* leftTabWidget() const { return m_leftTabWidget; }
     QTabWidget* rightTabWidget() const { return m_rightTabWidget; }
     FilePanel* leftPanel() const;

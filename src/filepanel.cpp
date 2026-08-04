@@ -2158,7 +2158,7 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
     }
     MainWindow* mw = qobject_cast<MainWindow*>(parentW);
     if (mw) {
-        mw->applyFolderRules(path);
+        mw->applyFolderRules(path, this);
     }
 
     if (m_isSearchModeActive) {

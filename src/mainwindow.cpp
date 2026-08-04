@@ -1502,7 +1502,7 @@ void MainWindow::onPanelActivated(FilePanel* panel) {
             m_actToggleFlatView->blockSignals(false);
         }
         if (m_activePanel) {
-            applyFolderRules(m_activePanel->currentPath());
+            applyFolderRules(m_activePanel->currentPath(), m_activePanel);
             m_activePanel->updateThemeMusic();
         }
         onActivePanelViewModeChanged();
@@ -1962,7 +1962,7 @@ void MainWindow::updateFavoritesMenu() {
             m_folderRules = dlg.rules();
             saveFolderRules();
             if (m_activePanel) {
-                applyFolderRules(m_activePanel->currentPath());
+                applyFolderRules(m_activePanel->currentPath(), m_activePanel);
             }
         }
     });
@@ -4646,9 +4646,10 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
     QTimer::singleShot(100, this, &MainWindow::apply5050Layouts);
 }
 
-void MainWindow::applyFolderRules(const QString& path) {
+void MainWindow::applyFolderRules(const QString& path, FilePanel* callingPanel) {
     if (m_isApplyingFolderProfile) return;
-    if (!m_activePanel) return;
+    if (!callingPanel) callingPanel = m_activePanel;
+    if (!callingPanel) return;
 
     if (m_previewDockAutoShownForPlayback) {
         m_previewDockAutoShownForPlayback = false;
@@ -4785,9 +4786,9 @@ void MainWindow::applyFolderRules(const QString& path) {
                     break;
                 }
             }
-            applyProfile(inheritedRule, m_activePanel);
+            applyProfile(inheritedRule, callingPanel);
         } else {
-            applyProfile(matchedRule, m_activePanel);
+            applyProfile(matchedRule, callingPanel);
         }
     } else {
         FolderLayoutRule defaultRule;
@@ -4816,9 +4817,9 @@ void MainWindow::applyFolderRules(const QString& path) {
                         break;
                     }
                 }
-                applyProfile(inheritedRule, m_activePanel);
+                applyProfile(inheritedRule, callingPanel);
             } else {
-                applyProfile(defaultRule, m_activePanel);
+                applyProfile(defaultRule, callingPanel);
             }
         } else {
             m_hasActiveFolderRule = false;
@@ -4831,7 +4832,7 @@ void MainWindow::applyFolderRules(const QString& path) {
                 onActivePanelViewModeChanged();
             }
 
-            m_activePanel->setCustomBgColor("");
+            callingPanel->setCustomBgColor("");
             if (!m_activeToolbarFilter.isEmpty()) {
                 m_activeToolbarFilter.clear();
                 rebuildCustomToolBar();
@@ -4839,7 +4840,7 @@ void MainWindow::applyFolderRules(const QString& path) {
             
             // Revert View Mode to default preferred view mode
             int defaultViewMode = settings.value("file_panel/view_mode_index", 0).toInt();
-            m_activePanel->setViewModeIndex(defaultViewMode);
+            callingPanel->setViewModeIndex(defaultViewMode);
 
             // Revert Toolbars to default config visibility
             QString tbJsonStr = settings.value("custom_toolbars_v1").toString();
@@ -4981,7 +4982,7 @@ void MainWindow::onConfigureFolderLayouts() {
         saveFolderRules();
         m_hasActiveFolderRule = false;
         if (m_activePanel) {
-            applyFolderRules(m_activePanel->currentPath());
+            applyFolderRules(m_activePanel->currentPath(), m_activePanel);
         }
     }
 }
