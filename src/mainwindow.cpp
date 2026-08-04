@@ -2474,9 +2474,14 @@ void MainWindow::onToggleCasingOverlays(bool checked) {
     if (!m_isApplyingFolderProfile) {
         QSettings settings("Amifiles", "Amifiles");
         settings.setValue("preferences/casing_overlays", checked);
+        QString targetRuleName = "default";
+        if (m_hasActiveFolderRule) {
+            targetRuleName = m_activeFolderRule.name;
+        }
         for (auto& r : m_folderRules) {
-            if (r.name.toLower() == "default") {
+            if (r.name.compare(targetRuleName, Qt::CaseInsensitive) == 0) {
                 r.casingOverlaysActive = checked;
+                m_activeFolderRule.casingOverlaysActive = checked;
                 saveFolderRules();
                 break;
             }
