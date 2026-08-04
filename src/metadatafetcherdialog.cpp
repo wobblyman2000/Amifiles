@@ -15,6 +15,7 @@
 #include <QMessageBox>
 #include <QNetworkRequest>
 #include <QSettings>
+#include <QTimer>
 
 MetadataFetcherDialog::MetadataFetcherDialog(const QStringList& filePaths, QWidget* parent)
     : QDialog(parent), m_filePaths(filePaths) {
@@ -161,10 +162,10 @@ void MetadataFetcherDialog::setupUI() {
     m_lblStatus->setStyleSheet("color: #a6adc8;");
     bottomLayout->addWidget(m_lblStatus, 1);
 
-    QPushButton* btnApply = new QPushButton("Apply Tags", this);
-    btnApply->setStyleSheet("background-color: #a6e3a1; color: #11111b;");
-    connect(btnApply, &QPushButton::clicked, this, &MetadataFetcherDialog::onApply);
-    bottomLayout->addWidget(btnApply);
+    m_btnApply = new QPushButton("Apply Tags", this);
+    m_btnApply->setStyleSheet("background-color: #a6e3a1; color: #11111b;");
+    connect(m_btnApply, &QPushButton::clicked, this, &MetadataFetcherDialog::onApply);
+    bottomLayout->addWidget(m_btnApply);
 
     QPushButton* btnCancel = new QPushButton("Cancel", this);
     connect(btnCancel, &QPushButton::clicked, this, &QDialog::reject);
@@ -466,6 +467,8 @@ void MetadataFetcherDialog::onApply() {
     ReleaseInfo relInfo = m_releases[row];
 
     m_matchedResults.clear();
+    QList<PendingLyricsFetch> pending;
+
     for (int i = 0; i < m_filePaths.size(); ++i) {
         QComboBox* combo = qobject_cast<QComboBox*>(m_tableMapping->cellWidget(i, 1));
         if (combo && combo->currentIndex() > 0) {
@@ -484,6 +487,7 @@ void MetadataFetcherDialog::onApply() {
                 track.mimeType = m_artworkMimeType;
 
                 m_matchedResults[i] = track;
+                pending.append({i, tInfo.title, relInfo.artist, relInfo.title});
             }
         }
     }
@@ -493,7 +497,54 @@ void MetadataFetcherDialog::onApply() {
         return;
     }
 
-    accept();
+    if (m_btnApply) m_btnApply->setEnabled(false);
+    if (m_btnSearch) m_btnSearch->setEnabled(false);
+
+    fetchNextLyrics(pending, 0);
+}
+
+void MetadataFetcherDialog::fetchNextLyrics(const QList<PendingLyricsFetch>& pending, int index) {
+    if (index >= pending.size()) {
+        accept();
+        return;
+    }
+
+    m_lblStatus->setText(QString("Fetching lyrics from LRCLib (%1/%2)...").arg(index + 1).arg(pending.size()));
+
+    PendingLyricsFetch item = pending[index];
+    
+    QUrl url("https://lrclib.net/api/get");
+    QUrlQuery query;
+    query.addQueryItem("artist_name", item.artist);
+    query.addQueryItem("track_name", item.title);
+    if (!item.album.isEmpty()) {
+        query.addQueryItem("album_name", item.album);
+    }
+    url.setQuery(query);
+    
+    QNetworkRequest req(url);
+    req.setRawHeader("User-Agent", "Amifiles/" AMIFILES_VERSION_STRING " ( dave@example.com )");
+    
+    QNetworkReply* reply = m_networkManager->get(req);
+    connect(reply, &QNetworkReply::finished, this, [this, reply, pending, index, item]() {
+        reply->deleteLater();
+        if (reply->error() == QNetworkReply::NoError) {
+            QByteArray data = reply->readAll();
+            QJsonDocument doc = QJsonDocument::fromJson(data);
+            QJsonObject obj = doc.object();
+            QString lyrics = obj["syncedLyrics"].toString();
+            if (lyrics.isEmpty()) {
+                lyrics = obj["plainLyrics"].toString();
+            }
+            if (!lyrics.isEmpty()) {
+                m_matchedResults[item.fileIndex].lyrics = lyrics;
+            }
+        }
+        
+        QTimer::singleShot(250, this, [this, pending, index]() {
+            fetchNextLyrics(pending, index + 1);
+        });
+    });
 }
 
 void MetadataFetcherDialog::onSourceChanged(int index) {

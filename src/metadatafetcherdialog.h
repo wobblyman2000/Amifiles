@@ -20,6 +20,7 @@ struct FetchedTrack {
     int trackCount = 0;
     QByteArray artworkData;
     QString mimeType;
+    QString lyrics;
 };
 
 class MetadataFetcherDialog : public QDialog {
@@ -63,6 +64,7 @@ private:
     QLineEdit* m_editArtistSearch = nullptr;
     QLineEdit* m_editAlbumSearch = nullptr;
     QPushButton* m_btnSearch = nullptr;
+    QPushButton* m_btnApply = nullptr;
 
     QTableWidget* m_tableReleases = nullptr;
     QTableWidget* m_tableTracks = nullptr;
@@ -89,6 +91,14 @@ private:
     };
     QList<TrackInfo> m_currentReleaseTracks;
     QString m_selectedReleaseMbid;
+
+    struct PendingLyricsFetch {
+        int fileIndex;
+        QString title;
+        QString artist;
+        QString album;
+    };
+    void fetchNextLyrics(const QList<PendingLyricsFetch>& pending, int index);
 };
 
 #endif // METADATAFETCHERDIALOG_H

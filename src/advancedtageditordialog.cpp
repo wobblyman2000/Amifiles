@@ -1580,6 +1580,7 @@ void AdvancedTagEditorDialog::onOnlineScrape() {
                 if (!track.lockedFields.contains("genre")) { track.metadata.genre = ft.genre.isEmpty() ? track.metadata.genre : ft.genre; modified = true; }
                 if (!track.lockedFields.contains("track")) { track.metadata.track = QString::number(ft.trackNumber); modified = true; }
                 if (!track.lockedFields.contains("trackTotal")) { track.metadata.trackTotal = QString::number(ft.trackCount); modified = true; }
+                if (!track.lockedFields.contains("lyrics") && !ft.lyrics.isEmpty()) { track.metadata.lyrics = ft.lyrics; modified = true; }
                 
                 if (!fetchedArtwork.isEmpty() && !track.lockedFields.contains("artwork")) {
                     track.coverData = fetchedArtwork;
