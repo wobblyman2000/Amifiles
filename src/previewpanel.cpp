@@ -1311,9 +1311,6 @@ PreviewPanel::PreviewPanel(QWidget* parent) : QWidget(parent) {
 
 PreviewPanel::~PreviewPanel() {
     m_player->stop();
-    if (m_hoverCard) {
-        m_hoverCard->deleteLater();
-    }
 }
 
 bool PreviewPanel::eventFilter(QObject* watched, QEvent* event) {
@@ -1329,39 +1326,6 @@ bool PreviewPanel::eventFilter(QObject* watched, QEvent* event) {
         }
     }
 
-    if (watched == m_imageLabel || watched == m_audioPlaceholder) {
-        if (event->type() == QEvent::Enter) {
-            if (m_previewedFilePath.isEmpty()) return QWidget::eventFilter(watched, event);
-            
-            if (!m_hoverCard) {
-                m_hoverCard = new MetadataHoverCard(nullptr);
-            }
-            m_hoverCard->setMetadata(m_activeMeta, m_previewedFilePath);
-            m_hoverCard->adjustSize();
-            
-            QPoint pos = QCursor::pos();
-            pos.setX(pos.x() + 15);
-            pos.setY(pos.y() + 15);
-            
-            QScreen* screen = QGuiApplication::primaryScreen();
-            if (screen) {
-                QRect screenGeom = screen->geometry();
-                if (pos.x() + m_hoverCard->width() > screenGeom.right()) {
-                    pos.setX(QCursor::pos().x() - m_hoverCard->width() - 15);
-                }
-                if (pos.y() + m_hoverCard->height() > screenGeom.bottom()) {
-                    pos.setY(QCursor::pos().y() - m_hoverCard->height() - 15);
-                }
-            }
-            m_hoverCard->move(pos);
-            m_hoverCard->show();
-            m_hoverCard->raise();
-        } else if (event->type() == QEvent::Leave || event->type() == QEvent::MouseButtonPress) {
-            if (m_hoverCard) {
-                m_hoverCard->hide();
-            }
-        }
-    }
 
     return QWidget::eventFilter(watched, event);
 }
@@ -2113,7 +2077,6 @@ void PreviewPanel::clearPreview() {
     m_stack->setCurrentWidget(m_emptyView);
 
     m_metadataTable->setRowCount(0);
-    if (m_hoverCard) m_hoverCard->hide();
 }
 
 static bool isLikelyTextFile(const QString& filePath) {
