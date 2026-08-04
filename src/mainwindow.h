@@ -263,7 +263,7 @@ private slots:
     void onCompareSyncAction();
     void onDuplicateFinderAction();
     void onToggleFavoritesSidebar(bool checked);
-    void onFavoritesSidebarDoubleClicked(class QListWidgetItem* item);
+    void onFavoritesSidebarClicked(class QListWidgetItem* item);
     void refreshFavoritesSidebar();
     void refreshRecentsSidebar();
     void addToRecentFolders(const QString& path);

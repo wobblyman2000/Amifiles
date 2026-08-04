@@ -357,11 +357,11 @@ void MainWindow::setupCentralWidget() {
         "QListWidget::item:hover { background-color: #313244; color: #f5c2e7; }"
         "QListWidget::item:selected { background-color: #89b4fa; color: #11111b; font-weight: bold; }"
     );
-    connect(m_favoritesSidebar, &QListWidget::itemDoubleClicked, this, &MainWindow::onFavoritesSidebarDoubleClicked);
+    connect(m_favoritesSidebar, &QListWidget::itemClicked, this, &MainWindow::onFavoritesSidebarClicked);
 
     m_recentsSidebar = new QListWidget(m_sidebarTabWidget);
     m_recentsSidebar->setStyleSheet(m_favoritesSidebar->styleSheet());
-    connect(m_recentsSidebar, &QListWidget::itemDoubleClicked, this, &MainWindow::onFavoritesSidebarDoubleClicked);
+    connect(m_recentsSidebar, &QListWidget::itemClicked, this, &MainWindow::onFavoritesSidebarClicked);
 
     m_filtersSidebar = new QListWidget(m_sidebarTabWidget);
     m_filtersSidebar->setStyleSheet(m_favoritesSidebar->styleSheet());
@@ -3294,7 +3294,7 @@ void MainWindow::onToggleFavoritesSidebar(bool checked) {
     }
 }
 
-void MainWindow::onFavoritesSidebarDoubleClicked(QListWidgetItem* item) {
+void MainWindow::onFavoritesSidebarClicked(QListWidgetItem* item) {
     if (!item) return;
     QString path = item->data(Qt::UserRole).toString();
     if (path.isEmpty()) return;
