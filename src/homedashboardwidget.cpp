@@ -19,6 +19,7 @@
 #include <QFileDialog>
 #include <QInputDialog>
 #include <QMessageBox>
+#include <QMenu>
 #include <QDesktopServices>
 #include <QUrl>
 #include <QMouseEvent>
@@ -686,6 +687,24 @@ void HomeDashboardWidget::populatePinnedFolders() {
         card->setStyleSheet(QString("QFrame#cardFrame { %1 border-radius: 12px; } QFrame#cardFrame:hover { background-color: rgba(255, 255, 255, 0.05); }").arg(theme.bgStyle));
         connect(card, &ClickableCardFrame::doubleClickedWithLayout, this, &HomeDashboardWidget::onPinnedFolderClicked);
 
+        card->setContextMenuPolicy(Qt::CustomContextMenu);
+        connect(card, &QWidget::customContextMenuRequested, this, [this, path, card](const QPoint& pos) {
+            QMenu menu(card);
+            QAction* actUnpin = menu.addAction("📌 Unpin from Home Screen");
+            QAction* selected = menu.exec(card->mapToGlobal(pos));
+            if (selected == actUnpin) {
+                QMessageBox::StandardButton reply = QMessageBox::question(
+                    this,
+                    "Unpin Folder",
+                    QString("Are you sure you want to unpin '%1' from the Home Screen?").arg(QFileInfo(path).fileName()),
+                    QMessageBox::Yes | QMessageBox::No
+                );
+                if (reply == QMessageBox::Yes) {
+                    onUnpinFolderClicked(path);
+                }
+            }
+        });
+
         QHBoxLayout* layout = new QHBoxLayout(card);
         layout->setContentsMargins(12, 10, 12, 10);
         layout->setSpacing(8);
@@ -724,14 +743,6 @@ void HomeDashboardWidget::populatePinnedFolders() {
         QColor accentColor(theme.textStyle.split(';').first().split(' ').last().trimmed());
         FolderGraphicWidget* graphic = new FolderGraphicWidget(path, layoutIndex, accentColor, card);
         layout->addWidget(graphic);
-
-        QPushButton* btnUnpin = new QPushButton("✖", card);
-        btnUnpin->setProperty("class", "unpinButton");
-        btnUnpin->setCursor(Qt::PointingHandCursor);
-        btnUnpin->setToolTip("Unpin Folder");
-        btnUnpin->setFixedSize(16, 16);
-        connect(btnUnpin, &QPushButton::clicked, this, [this, path]() { onUnpinFolderClicked(path); });
-        layout->addWidget(btnUnpin);
 
         m_pinnedLayout->addWidget(card, row, col, Qt::AlignLeft | Qt::AlignVCenter);
 
