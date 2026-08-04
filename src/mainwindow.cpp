@@ -4486,6 +4486,7 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
     // 3b. Custom Toolbars visibility overrides
     if (r.overrideToolbars) {
         for (QToolBar* tb : m_dynamicToolBars) {
+            if (tb->objectName() == "tb_drives" || tb->objectName() == "drivesToolBar") continue;
             tb->setVisible(r.selectedToolbars.contains(tb->objectName()));
         }
     } else {
@@ -4497,6 +4498,7 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
             for (int i = 0; i < arr.size(); ++i) {
                 QJsonObject tbObj = arr[i].toObject();
                 QString id = tbObj["id"].toString();
+                if (id == "tb_drives" || id == "drivesToolBar") continue;
                 bool visible = tbObj["visible"].toBool(true);
                 for (QToolBar* tb : m_dynamicToolBars) {
                     if (tb->objectName() == id) {
@@ -4507,6 +4509,7 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
             }
         } else {
             for (QToolBar* tb : m_dynamicToolBars) {
+                if (tb->objectName() == "tb_drives" || tb->objectName() == "drivesToolBar") continue;
                 tb->setVisible(true);
             }
         }
@@ -4850,6 +4853,7 @@ void MainWindow::applyFolderRules(const QString& path, FilePanel* callingPanel) 
                 for (int i = 0; i < arr.size(); ++i) {
                     QJsonObject tbObj = arr[i].toObject();
                     QString id = tbObj["id"].toString();
+                    if (id == "tb_drives" || id == "drivesToolBar") continue;
                     bool visible = tbObj["visible"].toBool(true);
                     for (QToolBar* tb : m_dynamicToolBars) {
                         if (tb->objectName() == id) {
@@ -4860,6 +4864,7 @@ void MainWindow::applyFolderRules(const QString& path, FilePanel* callingPanel) 
                 }
             } else {
                 for (QToolBar* tb : m_dynamicToolBars) {
+                    if (tb->objectName() == "tb_drives" || tb->objectName() == "drivesToolBar") continue;
                     tb->setVisible(true);
                 }
             }
