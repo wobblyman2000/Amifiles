@@ -1450,12 +1450,13 @@ bool PreviewPanel::eventFilter(QObject* watched, QEvent* event) {
 
     if (watched == m_imageLabel || watched == m_audioPlaceholder) {
         if (event->type() == QEvent::Enter) {
-            if (m_previewedFilePath.isEmpty()) return false;
+            if (m_previewedFilePath.isEmpty()) return QWidget::eventFilter(watched, event);
             
             if (!m_hoverCard) {
                 m_hoverCard = new MetadataHoverCard(nullptr);
             }
             m_hoverCard->setMetadata(m_activeMeta, m_previewedFilePath);
+            m_hoverCard->adjustSize();
             
             QPoint pos = QCursor::pos();
             pos.setX(pos.x() + 15);
@@ -1473,7 +1474,7 @@ bool PreviewPanel::eventFilter(QObject* watched, QEvent* event) {
             }
             m_hoverCard->move(pos);
             m_hoverCard->show();
-            return true;
+            m_hoverCard->raise();
         } else if (event->type() == QEvent::Leave || event->type() == QEvent::MouseButtonPress) {
             if (m_hoverCard) {
                 m_hoverCard->hide();
