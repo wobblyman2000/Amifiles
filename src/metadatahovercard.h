@@ -103,8 +103,6 @@ public:
             addInfoRow("Tags:", tags.join(", "));
         }
         
-        addInfoRow("Location:", filePath);
-        
         adjustSize();
     }
     
