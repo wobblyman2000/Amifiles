@@ -466,6 +466,7 @@ private:
     class QLineEdit* m_musicEditGenre = nullptr;
     class QLineEdit* m_musicEditYear = nullptr;
     class QLineEdit* m_musicEditTrack = nullptr;
+    class QPlainTextEdit* m_musicEditLyrics = nullptr;
     class QPushButton* m_btnSaveMusicTags = nullptr;
 
     // Fullscreen support

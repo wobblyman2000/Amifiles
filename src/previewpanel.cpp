@@ -1745,6 +1745,11 @@ void PreviewPanel::setupUI() {
     m_musicEditTrack->setStyleSheet(editStyle);
     musicTagsForm->addRow("Track:", m_musicEditTrack);
 
+    m_musicEditLyrics = new QPlainTextEdit(m_musicTagsContainer);
+    m_musicEditLyrics->setStyleSheet("QPlainTextEdit { background-color: #11111b; color: #cdd6f4; border: 1px solid #45475a; border-radius: 4px; padding: 3px; }");
+    m_musicEditLyrics->setMaximumHeight(70);
+    musicTagsForm->addRow("Lyrics:", m_musicEditLyrics);
+
     musicTagsLayout->addLayout(musicTagsForm);
 
     m_btnSaveMusicTags = new QPushButton("Save Tags", m_musicTagsContainer);
@@ -2816,6 +2821,7 @@ void PreviewPanel::updateMetadataDisplay(const FileMetadata& meta) {
         m_musicEditGenre->setText(meta.genre);
         m_musicEditYear->setText(meta.year);
         m_musicEditTrack->setText(meta.track);
+        m_musicEditLyrics->setPlainText(meta.lyrics);
 
         if (m_bottomTab->indexOf(m_musicTagsContainer) == -1) {
             m_bottomTab->insertTab(1, m_musicTagsContainer, "Music Tags");
@@ -4498,16 +4504,18 @@ void PreviewPanel::onSaveMusicTags() {
     QString genre = m_musicEditGenre->text();
     QString year = m_musicEditYear->text();
     QString track = m_musicEditTrack->text();
+    QString lyrics = m_musicEditLyrics->toPlainText();
 
     if (ext == "mp3") {
         success = TagEditorDialog::writeMp3Tags(
             m_previewedFilePath, title, artist, album, genre, year,
-            "", "", false, false, QByteArray(), "image/jpeg", track
+            "", "", false, false, QByteArray(), "image/jpeg", track,
+            "", "", "", "", "", lyrics
         );
     } else if (ext == "flac") {
         success = TagEditorDialog::writeFlacTags(
             m_previewedFilePath, title, artist, album, genre, year,
-            "", "", false, track
+            "", "", false, track, "", "", "", "", "", lyrics
         );
     }
 
