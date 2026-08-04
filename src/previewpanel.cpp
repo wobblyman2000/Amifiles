@@ -603,6 +603,36 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(nullptr, Qt::Windo
     m_btnToggleAutoFS->setToolTip(autoFS ? "Auto Full Screen: ON (Accent Blue)" : "Auto Full Screen: OFF (Dim Gray)");
     row2Layout->addWidget(m_btnToggleAutoFS);
 
+    m_btnToggleVisualizer = new QPushButton(m_hudWidget);
+    m_btnToggleVisualizer->setCheckable(true);
+    m_btnToggleVisualizer->setFocusPolicy(Qt::NoFocus);
+    m_btnToggleVisualizer->setFixedSize(36, 36);
+    m_btnToggleVisualizer->setIconSize(QSize(20, 20));
+    {
+        QSettings settings("Amifiles", "Amifiles");
+        bool showVis = settings.value("preview/show_spectrum_visualizer", true).toBool();
+        m_btnToggleVisualizer->setChecked(showVis);
+        m_btnToggleVisualizer->setIcon(createVisualizerIcon(showVis ? QColor("#89b4fa") : QColor("#585b70")));
+        m_btnToggleVisualizer->setToolTip(showVis ? "Spectrum Visualizer: ON (Accent Blue)" : "Spectrum Visualizer: OFF (Dim Gray)");
+    }
+    connect(m_btnToggleVisualizer, &QPushButton::clicked, this, [this](bool checked) {
+        QSettings settings("Amifiles", "Amifiles");
+        settings.setValue("preview/show_spectrum_visualizer", checked);
+        m_btnToggleVisualizer->setIcon(createVisualizerIcon(checked ? QColor("#89b4fa") : QColor("#585b70")));
+        m_btnToggleVisualizer->setToolTip(checked ? "Spectrum Visualizer: ON (Accent Blue)" : "Spectrum Visualizer: OFF (Dim Gray)");
+        emit visualizerToggled(checked);
+    });
+    connect(this, &FullscreenWidget::visualizerToggled, this, [this](bool checked) {
+        if (m_btnToggleVisualizer) {
+            m_btnToggleVisualizer->blockSignals(true);
+            m_btnToggleVisualizer->setChecked(checked);
+            m_btnToggleVisualizer->setIcon(createVisualizerIcon(checked ? QColor("#89b4fa") : QColor("#585b70")));
+            m_btnToggleVisualizer->setToolTip(checked ? "Spectrum Visualizer: ON (Accent Blue)" : "Spectrum Visualizer: OFF (Dim Gray)");
+            m_btnToggleVisualizer->blockSignals(false);
+        }
+    });
+    row2Layout->addWidget(m_btnToggleVisualizer);
+
     row2Layout->addSpacing(10);
     row2Layout->addWidget(lblVol);
     row2Layout->addWidget(m_sliderVolume);

@@ -198,6 +198,7 @@ private:
     class QLabel* m_lblTime = nullptr;
     class QSlider* m_sliderVolume = nullptr;
     class QPushButton* m_btnToggleAutoFS = nullptr;
+    class QPushButton* m_btnToggleVisualizer = nullptr;
     class QTimer* m_hideTimer = nullptr;
     class QTimer* m_mousePollTimer = nullptr;
     QPoint m_lastMousePos;
