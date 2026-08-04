@@ -217,6 +217,7 @@ private:
 public:
     QPushButton* hudShuffleButton() const { return m_btnShuffle; }
     QPushButton* hudRepeatButton() const { return m_btnRepeat; }
+    QPushButton* hudLyricsButton() const { return m_btnToggleLyrics; }
 };
 
 class SpectrumVisualizerWidget : public QWidget {
@@ -489,10 +490,16 @@ private:
     QWidget* m_lyricContainerWidget = nullptr;
     bool m_hasSyncData = false;
     QString m_rawLyricsText;
+    QWidget* m_fullscreenBottomLyricsWidget = nullptr;
+    QLabel* m_lblBottomLyricsCurrent = nullptr;
+    QLabel* m_lblBottomLyricsNext = nullptr;
+    QWidget* m_fullscreenLeftPanel = nullptr;
 
     void updateLyricsPosition(qint64 positionMs);
     void onToggleLyricsMode();
     void rebuildLyricsView();
+    void updateLyricsLayout();
+    void onShowLyricsMenu();
 
     void buildFullscreenContent(bool isVideo, const QString& activePath, class QVBoxLayout* mainLayout);
 

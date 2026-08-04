@@ -52,6 +52,7 @@
 #include <QMenu>
 #include <QContextMenuEvent>
 #include <QAction>
+#include <QActionGroup>
 #include <QProcess>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -475,20 +476,7 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(nullptr, Qt::Windo
             m_btnToggleLyrics->setStyleSheet("QPushButton { font-weight: bold; color: #cdd6f4; font-family: 'Outfit'; font-size: 11px; background-color: transparent; border: none; } QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); }");
         }
     }
-    connect(m_btnToggleLyrics, &QPushButton::clicked, this, [this]() {
-        QSettings settings("Amifiles", "Amifiles");
-        bool lyricsEnabled = settings.value("preview/show_lyrics", true).toBool();
-        lyricsEnabled = !lyricsEnabled;
-        settings.setValue("preview/show_lyrics", lyricsEnabled);
-        
-        if (lyricsEnabled) {
-            m_btnToggleLyrics->setStyleSheet("QPushButton { font-weight: bold; color: #a6e3a1; font-family: 'Outfit'; font-size: 11px; background-color: transparent; border: none; } QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); }");
-        } else {
-            m_btnToggleLyrics->setStyleSheet("QPushButton { font-weight: bold; color: #cdd6f4; font-family: 'Outfit'; font-size: 11px; background-color: transparent; border: none; } QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); }");
-        }
-        
-        emit lyricsToggled(lyricsEnabled);
-    });
+    // Click is handled by parent PreviewPanel directly
 
     QPushButton* btnExit = new QPushButton(m_hudWidget);
     btnExit->setIcon(style->standardIcon(QStyle::SP_TitleBarNormalButton));
@@ -3429,11 +3417,7 @@ void PreviewPanel::toggleFullscreen() {
     connect(m_fullscreenWidget, &FullscreenWidget::repeatRequested, this, &PreviewPanel::onRepeatClicked);
     connect(m_fullscreenWidget, &FullscreenWidget::builtinPlayerDoubleclickToggled, this, &PreviewPanel::builtinPlayerDoubleclickToggled);
     connect(m_fullscreenWidget, &FullscreenWidget::playlistItemSelected, this, &PreviewPanel::playPlaylistIndex);
-    connect(m_fullscreenWidget, &FullscreenWidget::lyricsToggled, this, [this](bool visible) {
-        if (m_fullscreenLyricsPanel) {
-            m_fullscreenLyricsPanel->setVisible(visible);
-        }
-    });
+    connect(m_fullscreenWidget->hudLyricsButton(), &QPushButton::clicked, this, &PreviewPanel::onShowLyricsMenu);
 
     // Synchronize initial Auto-FS toggle state to HUD
     bool autoFS = false;
@@ -3632,6 +3616,7 @@ void PreviewPanel::buildFullscreenContent(bool isVideo, const QString& activePat
         contentHorizontal->setSpacing(40);
 
         QWidget* leftPanel = new QWidget(m_fullscreenWidget);
+        m_fullscreenLeftPanel = leftPanel;
         QVBoxLayout* leftLayout = new QVBoxLayout(leftPanel);
         leftLayout->setContentsMargins(0, 0, 0, 0);
         leftLayout->addStretch();
@@ -3639,6 +3624,23 @@ void PreviewPanel::buildFullscreenContent(bool isVideo, const QString& activePat
         leftLayout->addSpacing(10);
         leftLayout->addWidget(m_fullscreenTextLabel);
         leftLayout->addSpacing(20);
+
+        m_fullscreenBottomLyricsWidget = new QWidget(leftPanel);
+        QVBoxLayout* bottomLyricsLayout = new QVBoxLayout(m_fullscreenBottomLyricsWidget);
+        bottomLyricsLayout->setContentsMargins(10, 10, 10, 10);
+        bottomLyricsLayout->setSpacing(8);
+        m_lblBottomLyricsCurrent = new QLabel(m_fullscreenBottomLyricsWidget);
+        m_lblBottomLyricsCurrent->setWordWrap(true);
+        m_lblBottomLyricsCurrent->setAlignment(Qt::AlignCenter);
+        m_lblBottomLyricsCurrent->setStyleSheet("QLabel { color: #a6e3a1; font-size: 26px; font-family: 'Outfit'; font-weight: bold; background: transparent; }");
+        m_lblBottomLyricsNext = new QLabel(m_fullscreenBottomLyricsWidget);
+        m_lblBottomLyricsNext->setWordWrap(true);
+        m_lblBottomLyricsNext->setAlignment(Qt::AlignCenter);
+        m_lblBottomLyricsNext->setStyleSheet("QLabel { color: rgba(205, 214, 244, 0.4); font-size: 18px; font-family: 'Outfit'; font-weight: 500; background: transparent; }");
+        bottomLyricsLayout->addWidget(m_lblBottomLyricsCurrent);
+        bottomLyricsLayout->addWidget(m_lblBottomLyricsNext);
+        leftLayout->addWidget(m_fullscreenBottomLyricsWidget);
+
         leftLayout->addWidget(m_fullscreenVisualizer);
         leftLayout->addStretch();
         contentHorizontal->addWidget(leftPanel, 1);
@@ -3706,9 +3708,8 @@ void PreviewPanel::buildFullscreenContent(bool isVideo, const QString& activePat
 
         contentHorizontal->addWidget(m_fullscreenLyricsPanel, 1);
 
-        // Set initial visibility from settings
-        bool lyricsEnabled = QSettings("Amifiles", "Amifiles").value("preview/show_lyrics", true).toBool();
-        m_fullscreenLyricsPanel->setVisible(lyricsEnabled);
+        // Update to initial layout from settings
+        updateLyricsLayout();
 
         mainLayout->addLayout(contentHorizontal);
 
@@ -4607,7 +4608,7 @@ void PreviewPanel::onToggleLyricsMode() {
 }
 
 void PreviewPanel::updateLyricsPosition(qint64 positionMs) {
-    if (!m_fullscreenWidget || !m_fullscreenLyricsScroll || !m_useScrollingLyrics || !m_hasSyncData || m_syncedLyrics.isEmpty()) {
+    if (!m_fullscreenWidget || m_syncedLyrics.isEmpty() || !m_hasSyncData) {
         return;
     }
 
@@ -4623,38 +4624,195 @@ void PreviewPanel::updateLyricsPosition(qint64 positionMs) {
     if (activeIdx != m_currentLyricLineIndex) {
         m_currentLyricLineIndex = activeIdx;
 
-        for (int i = 0; i < m_lyricLabels.size(); ++i) {
-            QLabel* lbl = m_lyricLabels[i];
-            if (i == activeIdx) {
-                lbl->setStyleSheet(
-                    "QLabel { color: #a6e3a1; font-size: 30px; font-family: 'Outfit'; font-weight: bold; background: transparent; padding: 6px; }"
-                );
-            } else {
-                lbl->setStyleSheet(
-                    "QLabel { color: rgba(205, 214, 244, 0.35); font-size: 22px; font-family: 'Outfit'; font-weight: 500; background: transparent; padding: 4px; }"
-                );
+        // 1. Update side panel scrolling labels (if visible/used)
+        if (m_useScrollingLyrics && !m_lyricLabels.isEmpty()) {
+            for (int i = 0; i < m_lyricLabels.size(); ++i) {
+                QLabel* lbl = m_lyricLabels[i];
+                if (i == activeIdx) {
+                    lbl->setStyleSheet("QLabel { color: #a6e3a1; font-size: 30px; font-family: 'Outfit'; font-weight: bold; background: transparent; padding: 6px; }");
+                } else {
+                    lbl->setStyleSheet("QLabel { color: rgba(205, 214, 244, 0.35); font-size: 22px; font-family: 'Outfit'; font-weight: 500; background: transparent; padding: 4px; }");
+                }
+            }
+
+            if (activeIdx >= 0 && activeIdx < m_lyricLabels.size()) {
+                QLabel* activeLabel = m_lyricLabels[activeIdx];
+                int labelCenterY = activeLabel->geometry().center().y();
+                int viewportHeight = m_fullscreenLyricsScroll->viewport()->height();
+                int targetY = labelCenterY - (viewportHeight / 2);
+                
+                QScrollBar* scrollBar = m_fullscreenLyricsScroll->verticalScrollBar();
+                if (scrollBar) {
+                    targetY = qMax(0, qMin(targetY, scrollBar->maximum()));
+                    
+                    QVariantAnimation* anim = new QVariantAnimation(this);
+                    anim->setDuration(350);
+                    anim->setStartValue(scrollBar->value());
+                    anim->setEndValue(targetY);
+                    connect(anim, &QVariantAnimation::valueChanged, this, [scrollBar](const QVariant& val) {
+                        scrollBar->setValue(val.toInt());
+                    });
+                    anim->start(QAbstractAnimation::DeleteWhenStopped);
+                }
             }
         }
 
-        if (activeIdx >= 0 && activeIdx < m_lyricLabels.size()) {
-            QLabel* activeLabel = m_lyricLabels[activeIdx];
-            int labelCenterY = activeLabel->geometry().center().y();
-            int viewportHeight = m_fullscreenLyricsScroll->viewport()->height();
-            int targetY = labelCenterY - (viewportHeight / 2);
+        // 2. Update bottom panel labels (if visible/used)
+        if (m_lblBottomLyricsCurrent && m_lblBottomLyricsNext) {
+            QString curText = (activeIdx >= 0 && activeIdx < m_syncedLyrics.size()) ? m_syncedLyrics[activeIdx].text : "";
+            QString nextText = (activeIdx + 1 >= 0 && activeIdx + 1 < m_syncedLyrics.size()) ? m_syncedLyrics[activeIdx + 1].text : "";
             
-            QScrollBar* scrollBar = m_fullscreenLyricsScroll->verticalScrollBar();
-            if (scrollBar) {
-                targetY = qMax(0, qMin(targetY, scrollBar->maximum()));
-                
-                QVariantAnimation* anim = new QVariantAnimation(this);
-                anim->setDuration(350);
-                anim->setStartValue(scrollBar->value());
-                anim->setEndValue(targetY);
-                connect(anim, &QVariantAnimation::valueChanged, this, [scrollBar](const QVariant& val) {
-                    scrollBar->setValue(val.toInt());
-                });
-                anim->start(QAbstractAnimation::DeleteWhenStopped);
-            }
+            m_lblBottomLyricsCurrent->setText(curText);
+            m_lblBottomLyricsNext->setText(nextText);
         }
     }
+}
+
+void PreviewPanel::updateLyricsLayout() {
+    if (!m_fullscreenWidget) return;
+
+    QSettings settings("Amifiles", "Amifiles");
+    bool showLyrics = settings.value("preview/show_lyrics", true).toBool();
+    QString layoutType = settings.value("preview/lyrics_layout", "side").toString();
+
+    // 1. Update HUD button stylesheet to reflect active status
+    if (m_fullscreenWidget->hudLyricsButton()) {
+        if (showLyrics) {
+            m_fullscreenWidget->hudLyricsButton()->setStyleSheet("QPushButton { font-weight: bold; color: #a6e3a1; font-family: 'Outfit'; font-size: 11px; background-color: transparent; border: none; } QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); }");
+        } else {
+            m_fullscreenWidget->hudLyricsButton()->setStyleSheet("QPushButton { font-weight: bold; color: #cdd6f4; font-family: 'Outfit'; font-size: 11px; background-color: transparent; border: none; } QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); }");
+        }
+    }
+
+    // 2. Apply show/hide to side panel, bottom widget, and left panel
+    if (!showLyrics) {
+        if (m_fullscreenLeftPanel) m_fullscreenLeftPanel->setVisible(true);
+        if (m_fullscreenLyricsPanel) m_fullscreenLyricsPanel->setVisible(false);
+        if (m_fullscreenBottomLyricsWidget) m_fullscreenBottomLyricsWidget->setVisible(false);
+    } else {
+        if (layoutType == "bottom") {
+            if (m_fullscreenLeftPanel) m_fullscreenLeftPanel->setVisible(true);
+            if (m_fullscreenLyricsPanel) m_fullscreenLyricsPanel->setVisible(false);
+            if (m_fullscreenBottomLyricsWidget) {
+                m_fullscreenBottomLyricsWidget->setVisible(true);
+                if (m_rawLyricsText.trimmed().isEmpty()) {
+                    m_lblBottomLyricsCurrent->setText("No lyrics available.");
+                    m_lblBottomLyricsNext->setText("");
+                } else if (!m_hasSyncData) {
+                    m_lblBottomLyricsCurrent->setText("No timing sync data available.");
+                    m_lblBottomLyricsNext->setText("Switch to 'Side' layout to read plain text lyrics.");
+                } else if (m_player) {
+                    m_currentLyricLineIndex = -2; // Force refresh
+                    updateLyricsPosition(m_player->position());
+                }
+            }
+        } else if (layoutType == "entire") {
+            if (m_fullscreenLeftPanel) m_fullscreenLeftPanel->setVisible(false);
+            if (m_fullscreenLyricsPanel) m_fullscreenLyricsPanel->setVisible(true);
+            if (m_fullscreenBottomLyricsWidget) m_fullscreenBottomLyricsWidget->setVisible(false);
+        } else { // "side"
+            if (m_fullscreenLeftPanel) m_fullscreenLeftPanel->setVisible(true);
+            if (m_fullscreenLyricsPanel) m_fullscreenLyricsPanel->setVisible(true);
+            if (m_fullscreenBottomLyricsWidget) m_fullscreenBottomLyricsWidget->setVisible(false);
+        }
+    }
+}
+
+void PreviewPanel::onShowLyricsMenu() {
+    if (!m_fullscreenWidget || !m_fullscreenWidget->hudLyricsButton()) return;
+
+    QMenu menu(m_fullscreenWidget);
+    menu.setStyleSheet(
+        "QMenu { background-color: #1e1e2e; color: #cdd6f4; border: 1px solid #45475a; border-radius: 6px; padding: 4px; }"
+        "QMenu::item { padding: 6px 20px; border-radius: 4px; }"
+        "QMenu::item:selected { background-color: #313244; color: #a6e3a1; }"
+        "QMenu::item:checked { color: #a6e3a1; }"
+    );
+
+    QSettings settings("Amifiles", "Amifiles");
+    bool showLyrics = settings.value("preview/show_lyrics", true).toBool();
+    QString layoutType = settings.value("preview/lyrics_layout", "side").toString();
+
+    QAction* lblLayoutHeader = menu.addAction("Style Layout:");
+    lblLayoutHeader->setEnabled(false);
+    QFont f = lblLayoutHeader->font();
+    f.setBold(true);
+    lblLayoutHeader->setFont(f);
+
+    QActionGroup* layoutGroup = new QActionGroup(&menu);
+    
+    QAction* actSide = menu.addAction("📋 To the Side");
+    actSide->setCheckable(true);
+    actSide->setActionGroup(layoutGroup);
+    
+    QAction* actBottom = menu.addAction("👇 To the Bottom");
+    actBottom->setCheckable(true);
+    actBottom->setActionGroup(layoutGroup);
+    
+    QAction* actEntire = menu.addAction("📖 Entire Lyrics");
+    actEntire->setCheckable(true);
+    actEntire->setActionGroup(layoutGroup);
+
+    QAction* actHide = menu.addAction("❌ Hide Lyrics");
+    actHide->setCheckable(true);
+    actHide->setActionGroup(layoutGroup);
+
+    if (!showLyrics) {
+        actHide->setChecked(true);
+    } else if (layoutType == "bottom") {
+        actBottom->setChecked(true);
+    } else if (layoutType == "entire") {
+        actEntire->setChecked(true);
+    } else {
+        actSide->setChecked(true);
+    }
+
+    menu.addSeparator();
+
+    QAction* lblSyncHeader = menu.addAction("Sync Mode:");
+    lblSyncHeader->setEnabled(false);
+    lblSyncHeader->setFont(f);
+
+    QActionGroup* syncGroup = new QActionGroup(&menu);
+    
+    QAction* actSync = menu.addAction("🎤 Synced (Scrolling)");
+    actSync->setCheckable(true);
+    actSync->setActionGroup(syncGroup);
+    actSync->setEnabled(m_hasSyncData);
+
+    QAction* actPlain = menu.addAction("📝 Plain Text");
+    actPlain->setCheckable(true);
+    actPlain->setActionGroup(syncGroup);
+
+    if (m_useScrollingLyrics && m_hasSyncData) {
+        actSync->setChecked(true);
+    } else {
+        actPlain->setChecked(true);
+    }
+
+    QPoint pos = m_fullscreenWidget->hudLyricsButton()->mapToGlobal(QPoint(0, 0));
+    pos.setY(pos.y() - 210);
+    QAction* selected = menu.exec(pos);
+    if (!selected) return;
+
+    if (selected == actHide) {
+        settings.setValue("preview/show_lyrics", false);
+    } else if (selected == actSide) {
+        settings.setValue("preview/show_lyrics", true);
+        settings.setValue("preview/lyrics_layout", "side");
+    } else if (selected == actBottom) {
+        settings.setValue("preview/show_lyrics", true);
+        settings.setValue("preview/lyrics_layout", "bottom");
+    } else if (selected == actEntire) {
+        settings.setValue("preview/show_lyrics", true);
+        settings.setValue("preview/lyrics_layout", "entire");
+    } else if (selected == actSync) {
+        m_useScrollingLyrics = true;
+        rebuildLyricsView();
+    } else if (selected == actPlain) {
+        m_useScrollingLyrics = false;
+        rebuildLyricsView();
+    }
+
+    updateLyricsLayout();
 }
