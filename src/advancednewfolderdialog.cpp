@@ -5,6 +5,7 @@
 #include <QMessageBox>
 #include <QDir>
 #include <QApplication>
+#include <QInputDialog>
 
 AdvancedNewFolderDialog::AdvancedNewFolderDialog(const QString& basePath, QWidget* parent)
     : QDialog(parent), m_basePath(basePath) {
@@ -42,7 +43,8 @@ void AdvancedNewFolderDialog::setupUI() {
         "Months of the Year (01-Jan to 12-Dec)",
         "Numbered Folders (01 to 10)",
         "Numbered Folders (01 to 100)",
-        "Days of the Week (Monday-Sunday)"
+        "Days of the Week (Monday-Sunday)",
+        "Season Folders (Season 01, Season 02...)"
     });
     form->addRow("Choose Template:", m_comboTemplates);
     mainLayout->addLayout(form);
@@ -101,6 +103,30 @@ void AdvancedNewFolderDialog::onTemplateChanged(int index) {
         case 6: // Days of week
             items = {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"};
             break;
+        case 7: { // Seasons
+            bool ok;
+            int numSeasons = QInputDialog::getInt(this, "Season Folders",
+                                                  "Number of seasons to create:", 4, 1, 100, 1, &ok);
+            if (ok) {
+                QMessageBox::StandardButton reply = QMessageBox::question(
+                    this, "Season 00 Specials",
+                    "Would you also like to include Season 00 (Specials)?",
+                    QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
+                
+                QStringList seasons;
+                if (reply == QMessageBox::Yes) {
+                    seasons.append("Season 00");
+                }
+                for (int i = 1; i <= numSeasons; ++i) {
+                    seasons.append(QString("Season %1").arg(i, 2, 10, QChar('0')));
+                }
+                items = seasons;
+            } else {
+                m_comboTemplates->setCurrentIndex(0);
+                return;
+            }
+            break;
+        }
         default:
             return;
     }

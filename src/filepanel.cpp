@@ -3365,7 +3365,15 @@ void FilePanel::onNewFolder() {
             }
         } else {
             QDir dir(m_currentPath);
-            if (dir.mkdir(folderName)) {
+            QString finalName = folderName;
+            if (dir.exists(finalName)) {
+                int index = 2;
+                while (dir.exists(QString("%1 (%2)").arg(folderName).arg(index))) {
+                    index++;
+                }
+                finalName = QString("%1 (%2)").arg(folderName).arg(index);
+            }
+            if (dir.mkdir(finalName)) {
                 refresh();
             } else {
                 QMessageBox::warning(this, "Error", "Could not create folder.");
