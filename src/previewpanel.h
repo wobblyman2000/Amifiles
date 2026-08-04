@@ -160,6 +160,7 @@ signals:
     void builtinPlayerDoubleclickToggled(bool active);
     void playlistItemSelected(int index);
     void lyricsToggled(bool visible);
+    void visualizerToggled(bool visible);
 
 public slots:
     void setBuiltinPlayerDoubleclickActive(bool active);

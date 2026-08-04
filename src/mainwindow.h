@@ -259,6 +259,7 @@ private slots:
     void onToggleRightCategoryButtons(bool checked);
     void onToggleConsole(bool checked);
     void onToggleFlatView(bool checked);
+    void onToggleShowHiddenFiles(bool checked);
     void onCompareSyncAction();
     void onDuplicateFinderAction();
     void onToggleFavoritesSidebar(bool checked);
@@ -463,6 +464,7 @@ private:
     QAction* m_actToggleDrivesToolbar = nullptr;
     QAction* m_actToggleConsole = nullptr;
     QAction* m_actToggleFlatView = nullptr;
+    QAction* m_actShowHiddenFiles = nullptr;
     QAction* m_actShowAudioCoverArt = nullptr;
     QAction* m_actToggleSpectrum = nullptr;
     QAction* m_actAutoSaveLayout = nullptr;

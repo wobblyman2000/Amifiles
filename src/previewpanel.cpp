@@ -1127,6 +1127,11 @@ void FullscreenWidget::keyPressEvent(QKeyEvent* event) {
     } else if (pressed == shortcutPrev || event->key() == Qt::Key_B) {
         emit prevRequested();
         event->accept();
+    } else if (event->key() == Qt::Key_V) {
+        bool showVisualizer = !settings.value("preview/show_spectrum_visualizer", true).toBool();
+        settings.setValue("preview/show_spectrum_visualizer", showVisualizer);
+        emit visualizerToggled(showVisualizer);
+        event->accept();
     } else if (pressed == shortcutMenu || event->key() == Qt::Key_Menu) {
         event->accept();
         if (!event->isAutoRepeat()) {
@@ -1181,6 +1186,11 @@ void FullscreenWidget::contextMenuEvent(QContextMenuEvent* event) {
     QAction* actAutoQueue = menu.addAction("Auto-Queue Sibling Files");
     actAutoQueue->setCheckable(true);
     actAutoQueue->setChecked(settings.value("preview/auto_queue_sibling_files", true).toBool());
+    
+    QAction* actToggleVisualizer = menu.addAction("Show Spectrum Visualizer");
+    actToggleVisualizer->setCheckable(true);
+    actToggleVisualizer->setChecked(settings.value("preview/show_spectrum_visualizer", true).toBool());
+    
     menu.addSeparator();
 
     QAction* actPlayPause = menu.addAction("Play / Pause (Space)");
@@ -1239,6 +1249,10 @@ void FullscreenWidget::contextMenuEvent(QContextMenuEvent* event) {
     if (selected) {
         if (selected == actExit) {
             emit exitRequested();
+        } else if (selected == actToggleVisualizer) {
+            bool checked = actToggleVisualizer->isChecked();
+            settings.setValue("preview/show_spectrum_visualizer", checked);
+            emit visualizerToggled(checked);
         } else if (selected == actResume) {
             if (m_player) {
                 m_player->setPosition(savedPos);
@@ -3450,6 +3464,7 @@ void PreviewPanel::toggleFullscreen() {
     connect(m_fullscreenWidget, &FullscreenWidget::repeatRequested, this, &PreviewPanel::onRepeatClicked);
     connect(m_fullscreenWidget, &FullscreenWidget::builtinPlayerDoubleclickToggled, this, &PreviewPanel::builtinPlayerDoubleclickToggled);
     connect(m_fullscreenWidget, &FullscreenWidget::playlistItemSelected, this, &PreviewPanel::playPlaylistIndex);
+    connect(m_fullscreenWidget, &FullscreenWidget::visualizerToggled, this, &PreviewPanel::setSpectrumVisualizerVisible);
     connect(m_fullscreenWidget->hudLyricsButton(), &QPushButton::clicked, this, &PreviewPanel::onShowLyricsMenu);
 
     // Synchronize initial Auto-FS toggle state to HUD

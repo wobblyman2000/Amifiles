@@ -124,6 +124,10 @@ void PreferencesDialog::setupUI() {
     m_chkEnableSmartHome->setToolTip("If enabled, Amifiles defaults to the Smart Home Dashboard. If disabled, clicking Home or entering smart://home loads your local physical home directory.");
     layGen->addWidget(m_chkEnableSmartHome);
 
+    m_chkShowHiddenFiles = new QCheckBox("Show Hidden Files & Folders", this);
+    m_chkShowHiddenFiles->setToolTip("Show files and folders that have the hidden attribute or start with a dot (Ctrl+H).");
+    layGen->addWidget(m_chkShowHiddenFiles);
+
     layGen->addStretch(1);
     m_stackPages->addWidget(pageGeneral);
 
@@ -597,6 +601,7 @@ void PreferencesDialog::loadPreferences() {
     m_chkLockLayoutInShowcase->setChecked(settings.value("preferences/lock_layout_in_showcase", true).toBool());
     m_chkDetailsFullRowSelect->setChecked(settings.value("preferences/details_full_row_select", true).toBool());
     m_chkEnableSmartHome->setChecked(settings.value("preferences/enable_smart_home", true).toBool());
+    m_chkShowHiddenFiles->setChecked(settings.value("preferences/show_hidden_files", false).toBool());
 
     m_chkAgeColoring->setChecked(settings.value("preferences/age_coloring_enabled", true).toBool());
 
@@ -663,6 +668,7 @@ void PreferencesDialog::savePreferences() {
     settings.setValue("preferences/lock_layout_in_showcase", m_chkLockLayoutInShowcase->isChecked());
     settings.setValue("preferences/details_full_row_select", m_chkDetailsFullRowSelect->isChecked());
     settings.setValue("preferences/enable_smart_home", m_chkEnableSmartHome->isChecked());
+    settings.setValue("preferences/show_hidden_files", m_chkShowHiddenFiles->isChecked());
 
     settings.setValue("preferences/age_coloring_enabled", m_chkAgeColoring->isChecked());
 

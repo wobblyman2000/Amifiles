@@ -53,6 +53,7 @@ private:
     QCheckBox* m_chkLockLayoutInShowcase = nullptr;
     QCheckBox* m_chkDetailsFullRowSelect = nullptr;
     QCheckBox* m_chkEnableSmartHome = nullptr;
+    QCheckBox* m_chkShowHiddenFiles = nullptr;
 
     // View & Style Colors
     QCheckBox* m_chkAgeColoring = nullptr;

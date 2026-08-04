@@ -30,6 +30,7 @@
 #include "tageditordialog.h"
 #include "advancedtageditordialog.h"
 #include "filetagsdialog.h"
+#include "comicbookviewerdialog.h"
 #include "iconpickerdialog.h"
 #include "theaterviewdelegate.h"
 #include "renameitemdelegate.h"
@@ -433,6 +434,7 @@ void FilePanel::setupUI() {
     // File Model & Proxy Model Setup
     m_fileModel = new CustomFileSystemModel(this);
     m_fileModel->setReadOnly(false);
+    updateFileSystemFilters();
     m_fileModel->setRootPath("");
     connect(m_fileModel, &QFileSystemModel::fileRenamed, this, [](const QString& path, const QString& oldName, const QString& newName) {
         Q_UNUSED(oldName);
@@ -3260,6 +3262,7 @@ void FilePanel::refresh() {
     }
 
     if (m_fileModel) {
+        updateFileSystemFilters();
         m_fileModel->clearCache();
     }
     if (m_proxyModel) {
@@ -5233,6 +5236,20 @@ void FilePanel::updateHideSettings() {
     if (m_flatProxyModel) m_flatProxyModel->setHiddenExtensions(hiddenExts);
 }
 
+void FilePanel::updateFileSystemFilters() {
+    if (!m_fileModel) return;
+
+    QSettings settings("Amifiles", "Amifiles");
+    bool showHidden = settings.value("preferences/show_hidden_files", false).toBool();
+
+    QDir::Filters filters = QDir::AllDirs | QDir::Files | QDir::Drives | QDir::NoDotAndDotDot;
+    if (showHidden) {
+        filters |= QDir::Hidden | QDir::System;
+    }
+
+    m_fileModel->setFilter(filters);
+}
+
 void FilePanel::setFilterTextBarVisible(bool visible) {
     m_filterTextBarVisible = visible;
     if (m_filterTextWidget) {
@@ -6452,6 +6469,9 @@ void FilePanel::onDoubleClickedPath(const QString& path) {
             } else {
                 QMessageBox::warning(this, "Load Archive", "Failed to parse archive file listing.");
             }
+        } else if (ext == "cbz" || ext == "cbr") {
+            ComicBookViewerDialog dlg(path, this);
+            dlg.exec();
         } else {
             QDesktopServices::openUrl(QUrl::fromLocalFile(path));
         }

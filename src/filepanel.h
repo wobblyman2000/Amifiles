@@ -1256,6 +1256,7 @@ private:
 
     void promptHideExtensions();
     void updateHideSettings();
+    void updateFileSystemFilters();
 
 public:
     void focusFirstItemInActiveView();

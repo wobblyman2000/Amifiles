@@ -202,6 +202,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     bool syncScroll = settings.value("preferences/sync_scroll", false).toBool();
     m_actToggleSyncScroll->setChecked(syncScroll);
 
+    bool showHidden = settings.value("preferences/show_hidden_files", false).toBool();
+    m_actShowHiddenFiles->setChecked(showHidden);
+
     bool showAudioCover = settings.value("preview/show_audio_cover_art", true).toBool();
     m_actShowAudioCoverArt->setChecked(showAudioCover);
 
@@ -987,6 +990,14 @@ void MainWindow::setupActions() {
     m_actToggleFlatView->setToolTip("Toggle flat list representation recursively showing subdirectories");
     connect(m_actToggleFlatView, &QAction::toggled, this, &MainWindow::onToggleFlatView);
 
+    // Show Hidden Files Action
+    m_actShowHiddenFiles = new QAction("Show Hidden Files & Folders", this);
+    m_actShowHiddenFiles->setCheckable(true);
+    m_actShowHiddenFiles->setChecked(false);
+    m_actShowHiddenFiles->setShortcut(QKeySequence("Ctrl+H"));
+    m_actShowHiddenFiles->setToolTip("Toggle showing hidden files and folders");
+    connect(m_actShowHiddenFiles, &QAction::toggled, this, &MainWindow::onToggleShowHiddenFiles);
+
     // Individual panel filter toggle actions
     m_actLeftShowFilterText = new QAction("Left Panel Text Filter Bar", this);
     m_actLeftShowFilterText->setCheckable(true);
@@ -1056,6 +1067,7 @@ void MainWindow::setupActions() {
     addAction(m_actRightShowCategoryButtons);
     addAction(m_actToggleConsole);
     addAction(m_actToggleFlatView);
+    addAction(m_actShowHiddenFiles);
     addAction(m_actCompareSync);
     addAction(m_actDuplicateFinder);
     addAction(m_actNewTab);
@@ -1287,6 +1299,7 @@ void MainWindow::setupMenus() {
     m_menuView->addAction(m_actToggleFavoritesSidebar);
     m_menuView->addAction(m_actToggleConsole);
     m_menuView->addAction(m_actToggleFlatView);
+    m_menuView->addAction(m_actShowHiddenFiles);
     m_menuView->addAction(m_actToggleSyncScroll);
     m_menuView->addAction(m_actToggleCasingOverlays);
     
@@ -2555,6 +2568,25 @@ void MainWindow::onToggleConsole(bool checked) {
 void MainWindow::onToggleFlatView(bool checked) {
     if (m_activePanel) {
         m_activePanel->setFlatViewEnabled(checked);
+    }
+}
+
+void MainWindow::onToggleShowHiddenFiles(bool checked) {
+    QSettings settings("Amifiles", "Amifiles");
+    settings.setValue("preferences/show_hidden_files", checked);
+
+    if (m_actShowHiddenFiles && m_actShowHiddenFiles->isChecked() != checked) {
+        m_actShowHiddenFiles->setChecked(checked);
+    }
+
+    // Refresh all panels
+    for (int i = 0; i < m_leftTabWidget->count(); ++i) {
+        FilePanel* p = qobject_cast<FilePanel*>(m_leftTabWidget->widget(i));
+        if (p) p->refresh();
+    }
+    for (int i = 0; i < m_rightTabWidget->count(); ++i) {
+        FilePanel* p = qobject_cast<FilePanel*>(m_rightTabWidget->widget(i));
+        if (p) p->refresh();
     }
 }
 
@@ -5635,6 +5667,9 @@ void MainWindow::onPreferencesAction() {
         bool casingOverlays = settings.value("preferences/casing_overlays", true).toBool();
         if (m_actToggleCasingOverlays) m_actToggleCasingOverlays->setChecked(casingOverlays);
         onToggleCasingOverlays(casingOverlays);
+
+        bool showHidden = settings.value("preferences/show_hidden_files", false).toBool();
+        if (m_actShowHiddenFiles) m_actShowHiddenFiles->setChecked(showHidden);
         
         loadFolderRules();
         loadCustomButtons();
@@ -5690,6 +5725,9 @@ void MainWindow::onMediaPreferences() {
         bool casingOverlays = settings.value("preferences/casing_overlays", true).toBool();
         if (m_actToggleCasingOverlays) m_actToggleCasingOverlays->setChecked(casingOverlays);
         onToggleCasingOverlays(casingOverlays);
+
+        bool showHidden = settings.value("preferences/show_hidden_files", false).toBool();
+        if (m_actShowHiddenFiles) m_actShowHiddenFiles->setChecked(showHidden);
         
         loadFolderRules();
         loadCustomButtons();
