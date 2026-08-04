@@ -188,7 +188,11 @@ QVariant CustomFileSystemModel::data(const QModelIndex& index, int role) const {
             QString baseName = QFileSystemModel::data(index, role).toString();
             QFileInfo fi(filePath);
             if (fi.isFile() && fi.isExecutable()) {
-                baseName = "[>_] " + baseName;
+                QString ext = fi.suffix().toLower();
+                static const QStringList execExts = {"sh", "py", "pl", "rb", "run", "bin", "exe", "bat", "cmd", "com", "msi", ""};
+                if (execExts.contains(ext)) {
+                    baseName = "[>_] " + baseName;
+                }
             }
             QStringList tags = TagManager::instance().getFileTags(filePath);
             if (!tags.isEmpty()) {

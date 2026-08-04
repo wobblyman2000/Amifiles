@@ -4599,6 +4599,7 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
 
     // 5. Tabs Snapshot
     if (r.hasTabsSnapshot && !r.leftPaths.isEmpty()) {
+        m_activePanel = nullptr;
         while (m_leftTabWidget->count() > 0) {
             QWidget* w = m_leftTabWidget->widget(0);
             m_leftTabWidget->removeTab(0);
@@ -4623,6 +4624,10 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
             m_rightTabWidget->setCurrentIndex(qBound(0, r.rightActiveIndex, m_rightTabWidget->count() - 1));
         }
         updateSiblingLinks();
+
+        m_activePanel = leftPanel();
+        if (!m_activePanel) m_activePanel = rightPanel();
+        targetPanel = m_activePanel;
     }
 
     // 6. Doubleclick playback preference override
