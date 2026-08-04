@@ -1569,7 +1569,7 @@ void FolderLayoutDialog::onEditMenusShortcut() {
  
 void FolderLayoutDialog::onEditContextMenusShortcut() {
     MainWindow* mainWin = qobject_cast<MainWindow*>(parentWidget());
-    CustomMenuEditorDialog dlg("custom_context_menu_v2", this);
+    CustomMenuEditorDialog dlg("custom_context_menu_v3", this);
     if (dlg.exec() == QDialog::Accepted) {
         if (mainWin) {
             mainWin->rebuildCustomMenus();

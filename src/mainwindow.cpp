@@ -6278,7 +6278,7 @@ void MainWindow::onConfigureCustomMenus() {
 }
 
 void MainWindow::onConfigureContextMenu() {
-    CustomMenuEditorDialog dlg("custom_context_menu_v2", this);
+    CustomMenuEditorDialog dlg("custom_context_menu_v3", this);
     dlg.exec();
 }
 

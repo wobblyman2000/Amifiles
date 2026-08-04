@@ -3588,7 +3588,7 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
     bool isNewView = (activeViewWidget == m_millerView || activeViewWidget == m_timelineView || activeViewWidget == m_filmstripView || activeViewWidget == m_theaterListView || activeViewWidget == m_theaterContainer);
 
     QSettings settings("Amifiles", "Amifiles");
-    QString jsonStr = settings.value("custom_context_menu_v2").toString();
+    QString jsonStr = settings.value("custom_context_menu_v3").toString();
     QJsonArray arr;
     if (jsonStr.isEmpty()) {
         arr = getDefaultContextMenuJson();
@@ -8503,133 +8503,217 @@ QIcon FilePanel::getIconForPathOrTheme(const QString& pathOrTheme) {
 
 QJsonArray FilePanel::getDefaultContextMenuJson() const {
     QJsonArray arr;
-    struct CmdItem {
-        QString type;
-        QString title;
-        QString command;
-        QString icon;
+    
+    auto makeAction = [](const QString& title, const QString& command, const QString& icon = "") {
+        QJsonObject obj;
+        obj["type"] = "action";
+        obj["title"] = title;
+        obj["command"] = command;
+        obj["icon"] = icon;
+        obj["color"] = "";
+        obj["mode"] = "Normal";
+        return obj;
     };
     
-    QList<CmdItem> items = {
-        {"action", "Open", "app.open", "document-open"},
-        {"action", "Open in Full Screen View", "app.open_fullscreen", "media-playback-start"},
-        {"separator", "", "", ""},
-        {"action", "Cut", "app.cut", "edit-cut"},
-        {"action", "Copy", "app.copy", "edit-copy"},
-        {"action", "Paste", "app.paste", "edit-paste"},
-        {"action", "Copy to Sibling Panel", "app.copy_sibling", "go-next"},
-        {"action", "Move to Sibling Panel", "app.move_sibling", "go-jump"},
-        {"action", "Delete", "app.delete", "user-trash"},
-        {"action", "Rename", "app.rename", "edit-rename"},
-        {"action", "Bulk Rename...", "app.bulk_rename", ""},
-        {"separator", "", "", ""},
-        {"action", "New Folder", "app.new_folder", "folder-new"},
-        {"action", "Advanced New Folder...", "app.advanced_new_folder", ""},
-        {"separator", "", "", ""},
-        {"action", "Toggle Executable Status", "app.toggle_executable", ""},
-        {"action", "Change File Permissions (chmod)...", "app.change_permissions", ""},
-        {"action", "Remove Green Screen 🟢", "app.remove_green_screen", ""},
-        {"separator", "", "", ""},
-        {"action", "Add/Remove Favorites", "app.favorites", ""},
-        {"action", "Pin/Unpin Home Screen", "app.pin_home", ""},
-        {"separator", "", "", ""},
-        {"action", "Play Folder/Album in Preview", "app.play_preview", "media-playback-start"},
-        {"action", "Play Folder/Album in Fullscreen", "app.play_fullscreen_playlist", "media-playback-start"},
-        {"separator", "", "", ""},
-        {"action", "Compare Selected Files", "app.compare_selected", ""},
-        {"action", "Compare with Sibling Pane File", "app.compare_sibling", ""},
-        {"separator", "", "", ""},
-        {"action", "🎬 Media Info Sheet... (ℹ)", "app.media_info_sheet", "dialog-information"},
-        {"action", "✔ Toggle Watch Status (Watched/Unwatched)", "app.toggle_watch", ""},
-        {"separator", "", "", ""},
-        {"action", "Edit Audio Tags...", "app.edit_tags", ""},
-        {"action", "Advanced Tag Editor...", "app.advanced_tag_editor", ""},
-        {"action", "Fetch MusicBrainz Album Info...", "app.fetch_musicbrainz", ""},
-        {"action", "Scrape Video Metadata...", "app.scrape_video", ""},
-        {"action", "Fetch Cover Art & Wallpaper...", "app.fetch_folder_art", ""},
-        {"separator", "", "", ""},
-        {"action", "File Tags...", "app.file_tags", ""},
-        {"separator", "", "", ""},
-        {"action", "Vault Encryption/Decryption", "app.vault_toggle", ""},
-        {"action", "ISO Virtual Drive", "app.iso_toggle", ""},
-        {"action", "VHD Virtual Drive", "app.vhd_toggle", ""},
-        {"action", "Create Archive...", "app.create_archive", ""},
-        {"action", "Create Secure Archive (AES-256)...", "app.create_secure_archive", ""},
-        {"action", "Extract Archive...", "app.extract_archive", ""},
-        {"separator", "", "", ""},
-        {"action", "Calculate Checksum Hash...", "app.calculate_checksum", ""},
-        {"action", "Secure Shred (Delete Permanently)...", "app.secure_shred", "user-trash"},
-        {"action", "Batch Convert/Resize Images...", "app.image_convert", ""},
-        {"separator", "", "", ""},
-        {"action", "Folder Profiles & Layouts...", "app.folder_layouts", ""},
-        {"action", "Save Current Layout as Folder Profile...", "app.save_folder_profile", ""},
-        {"action", "Save Current Layout as Default Profile", "app.save_default_profile", ""},
-        {"action", "Load Default Profile", "app.load_default_profile", ""}
+    auto makeSeparator = []() {
+        QJsonObject obj;
+        obj["type"] = "separator";
+        return obj;
     };
 
-    for (const auto& item : items) {
-        QJsonObject obj;
-        obj["type"] = item.type;
-        if (item.type != "separator") {
-            obj["title"] = item.title;
-            obj["command"] = item.command;
-            obj["icon"] = item.icon;
-            obj["color"] = "";
-            obj["mode"] = "Normal";
-        }
-        arr.append(obj);
+    // 1. Top-level essential commands
+    arr.append(makeAction("Open", "app.open", "document-open"));
+    arr.append(makeSeparator());
+    arr.append(makeAction("Cut", "app.cut", "edit-cut"));
+    arr.append(makeAction("Copy", "app.copy", "edit-copy"));
+    arr.append(makeAction("Paste", "app.paste", "edit-paste"));
+    arr.append(makeAction("Delete", "app.delete", "user-trash"));
+    arr.append(makeAction("Rename", "app.rename", "edit-rename"));
+    arr.append(makeAction("Bulk Rename...", "app.bulk_rename", ""));
+    arr.append(makeSeparator());
+
+    // 2. New Folder / Files Submenu
+    {
+        QJsonObject newMenu;
+        newMenu["type"] = "menu";
+        newMenu["title"] = "New";
+        newMenu["icon"] = "folder-new";
+        
+        QJsonArray newKids;
+        newKids.append(makeAction("New Folder", "app.new_folder", "folder-new"));
+        newKids.append(makeAction("Advanced New Folder...", "app.advanced_new_folder", ""));
+        newKids.append(makeSeparator());
+        
+        QJsonObject newFileMenu;
+        newFileMenu["type"] = "menu";
+        newFileMenu["title"] = "New File";
+        newFileMenu["icon"] = "document-new";
+        
+        QJsonArray fileKids;
+        fileKids.append(makeAction("Text Document (.txt)", "app.new_file_txt", ""));
+        fileKids.append(makeAction("Markdown Document (.md)", "app.new_file_md", ""));
+        fileKids.append(makeAction("HTML Document (.html)", "app.new_file_html", ""));
+        fileKids.append(makeAction("Python Script (.py)", "app.new_file_py", ""));
+        fileKids.append(makeAction("Blank PNG Image (.png)", "app.new_file_png", ""));
+        
+        newFileMenu["children"] = fileKids;
+        newKids.append(newFileMenu);
+        
+        newMenu["children"] = newKids;
+        arr.append(newMenu);
+    }
+    arr.append(makeSeparator());
+
+    // 3. Clipboard Actions Submenu
+    {
+        QJsonObject clipMenu;
+        clipMenu["type"] = "menu";
+        clipMenu["title"] = "Clipboard Actions";
+        clipMenu["icon"] = "edit-copy";
+        
+        QJsonArray clipKids;
+        clipKids.append(makeAction("Copy File Name(s)", "app.copy_filename", ""));
+        clipKids.append(makeAction("Copy Full Path(s)", "app.copy_path", ""));
+        clipKids.append(makeAction("Copy Folder Contents (Paths List)", "app.copy_folder_contents", ""));
+        clipKids.append(makeSeparator());
+        clipKids.append(makeAction("Copy to Sibling Panel", "app.copy_sibling", "go-next"));
+        clipKids.append(makeAction("Move to Sibling Panel", "app.move_sibling", "go-jump"));
+        
+        clipMenu["children"] = clipKids;
+        arr.append(clipMenu);
     }
 
-    // Add Copy to Clipboard Submenu
-    QJsonObject cSub;
-    cSub["type"] = "menu";
-    cSub["title"] = "Copy to Clipboard";
-    cSub["icon"] = "";
-    QJsonArray cKids;
-    QJsonObject ck1; ck1["type"] = "action"; ck1["title"] = "Copy File Name(s)"; ck1["command"] = "app.copy_filename"; cKids.append(ck1);
-    QJsonObject ck2; ck2["type"] = "action"; ck2["title"] = "Copy Full Path(s)"; ck2["command"] = "app.copy_path"; cKids.append(ck2);
-    QJsonObject ck3; ck3["type"] = "action"; ck3["title"] = "Copy Folder Contents (Paths List)"; ck3["command"] = "app.copy_folder_contents"; cKids.append(ck3);
-    cSub["children"] = cKids;
-    arr.append(cSub);
+    // 4. Color Label & Overlay Submenu
+    {
+        QJsonObject colMenu;
+        colMenu["type"] = "menu";
+        colMenu["title"] = "Color Label & Overlay";
+        colMenu["icon"] = "preferences-desktop-color";
+        
+        QJsonArray colKids;
+        colKids.append(makeAction("None", "app.color_none", ""));
+        colKids.append(makeAction("Red", "app.color_red", ""));
+        colKids.append(makeAction("Orange", "app.color_orange", ""));
+        colKids.append(makeAction("Yellow", "app.color_yellow", ""));
+        colKids.append(makeAction("Green", "app.color_green", ""));
+        colKids.append(makeAction("Blue", "app.color_blue", ""));
+        colKids.append(makeAction("Purple", "app.color_purple", ""));
+        colKids.append(makeSeparator());
+        colKids.append(makeAction("Custom Icon Overlay...", "app.color_custom_overlay", ""));
+        colKids.append(makeAction("Clear Icon Overlay", "app.color_clear_overlay", ""));
+        
+        colMenu["children"] = colKids;
+        arr.append(colMenu);
+    }
+    arr.append(makeSeparator());
 
-    // Add New File Submenu
-    QJsonObject fSub;
-    fSub["type"] = "menu";
-    fSub["title"] = "New File";
-    fSub["icon"] = "document-new";
-    QJsonArray fKids;
-    QJsonObject fk1; fk1["type"] = "action"; fk1["title"] = "Text Document (.txt)"; fk1["command"] = "app.new_file_txt"; fKids.append(fk1);
-    QJsonObject fk2; fk2["type"] = "action"; fk2["title"] = "Markdown Document (.md)"; fk2["command"] = "app.new_file_md"; fKids.append(fk2);
-    QJsonObject fk3; fk3["type"] = "action"; fk3["title"] = "HTML Document (.html)"; fk3["command"] = "app.new_file_html"; fKids.append(fk3);
-    QJsonObject fk4; fk4["type"] = "action"; fk4["title"] = "Python Script (.py)"; fk4["command"] = "app.new_file_py"; fKids.append(fk4);
-    QJsonObject fk5; fk5["type"] = "action"; fk5["title"] = "Blank PNG Image (.png)"; fk5["command"] = "app.new_file_png"; fKids.append(fk5);
-    fSub["children"] = fKids;
-    arr.append(fSub);
+    // 5. Media & Tagging Tools Submenu
+    {
+        QJsonObject mediaMenu;
+        mediaMenu["type"] = "menu";
+        mediaMenu["title"] = "Media & Tagging Tools";
+        mediaMenu["icon"] = "applications-multimedia";
+        
+        QJsonArray mediaKids;
+        mediaKids.append(makeAction("Edit Audio Tags...", "app.edit_tags", ""));
+        mediaKids.append(makeAction("Advanced Tag Editor...", "app.advanced_tag_editor", ""));
+        mediaKids.append(makeAction("Fetch MusicBrainz Album Info...", "app.fetch_musicbrainz", ""));
+        mediaKids.append(makeAction("Scrape Video Metadata...", "app.scrape_video", ""));
+        mediaKids.append(makeAction("Fetch Cover Art & Wallpaper...", "app.fetch_folder_art", ""));
+        mediaKids.append(makeSeparator());
+        mediaKids.append(makeAction("File Tags...", "app.file_tags", ""));
+        mediaKids.append(makeAction("🎬 Media Info Sheet... (ℹ)", "app.media_info_sheet", "dialog-information"));
+        mediaKids.append(makeAction("✔ Toggle Watch Status (Watched/Unwatched)", "app.toggle_watch", ""));
+        mediaKids.append(makeSeparator());
+        mediaKids.append(makeAction("Play Folder/Album in Preview", "app.play_preview", "media-playback-start"));
+        mediaKids.append(makeAction("Play Folder/Album in Fullscreen", "app.play_fullscreen_playlist", "media-playback-start"));
+        
+        mediaMenu["children"] = mediaKids;
+        arr.append(mediaMenu);
+    }
 
-    // Add Color Label Submenu
-    QJsonObject colSub;
-    colSub["type"] = "menu";
-    colSub["title"] = "Color Label";
-    QJsonArray colKids;
-    QJsonObject colNone; colNone["type"] = "action"; colNone["title"] = "None"; colNone["command"] = "app.color_none"; colKids.append(colNone);
-    QJsonObject colRed; colRed["type"] = "action"; colRed["title"] = "Red"; colRed["command"] = "app.color_red"; colKids.append(colRed);
-    QJsonObject colOrange; colOrange["type"] = "action"; colOrange["title"] = "Orange"; colOrange["command"] = "app.color_orange"; colKids.append(colOrange);
-    QJsonObject colYellow; colYellow["type"] = "action"; colYellow["title"] = "Yellow"; colYellow["command"] = "app.color_yellow"; colKids.append(colYellow);
-    QJsonObject colGreen; colGreen["type"] = "action"; colGreen["title"] = "Green"; colGreen["command"] = "app.color_green"; colKids.append(colGreen);
-    QJsonObject colBlue; colBlue["type"] = "action"; colBlue["title"] = "Blue"; colBlue["command"] = "app.color_blue"; colKids.append(colBlue);
-    QJsonObject colPurple; colPurple["type"] = "action"; colPurple["title"] = "Purple"; colPurple["command"] = "app.color_purple"; colKids.append(colPurple);
-    QJsonObject colSep; colSep["type"] = "separator"; colKids.append(colSep);
-    QJsonObject colCust; colCust["type"] = "action"; colCust["title"] = "Custom Icon Overlay..."; colCust["command"] = "app.color_custom_overlay"; colKids.append(colCust);
-    QJsonObject colClr; colClr["type"] = "action"; colClr["title"] = "Clear Icon Overlay"; colClr["command"] = "app.color_clear_overlay"; colKids.append(colClr);
-    colSub["children"] = colKids;
-    arr.append(colSub);
+    // 6. System & Advanced Tools Submenu
+    {
+        QJsonObject sysMenu;
+        sysMenu["type"] = "menu";
+        sysMenu["title"] = "System & Advanced Tools";
+        sysMenu["icon"] = "applications-system";
+        
+        QJsonArray sysKids;
+        sysKids.append(makeAction("Toggle Executable Status", "app.toggle_executable", ""));
+        sysKids.append(makeAction("Change File Permissions (chmod)...", "app.change_permissions", ""));
+        sysKids.append(makeAction("Remove Green Screen 🟢", "app.remove_green_screen", ""));
+        sysKids.append(makeSeparator());
+        sysKids.append(makeAction("Compare Selected Files", "app.compare_selected", ""));
+        sysKids.append(makeAction("Compare with Sibling Pane File", "app.compare_sibling", ""));
+        sysKids.append(makeSeparator());
+        sysKids.append(makeAction("Calculate Checksum Hash...", "app.calculate_checksum", ""));
+        sysKids.append(makeAction("Secure Shred (Delete Permanently)...", "app.secure_shred", "user-trash"));
+        sysKids.append(makeAction("Batch Convert/Resize Images...", "app.image_convert", ""));
+        
+        sysMenu["children"] = sysKids;
+        arr.append(sysMenu);
+    }
 
-    // Add Apply Profile Submenu
-    QJsonObject profSub;
-    profSub["type"] = "menu";
-    profSub["title"] = "Apply Profile Layout to Current Folder";
-    profSub["command"] = "app.apply_profile_submenu";
-    arr.append(profSub);
+    // 7. Virtual Drives & Archives Submenu
+    {
+        QJsonObject archiveMenu;
+        archiveMenu["type"] = "menu";
+        archiveMenu["title"] = "Virtual Drives & Archives";
+        archiveMenu["icon"] = "package-x-generic";
+        
+        QJsonArray archiveKids;
+        archiveKids.append(makeAction("Vault Encryption/Decryption", "app.vault_toggle", ""));
+        archiveKids.append(makeAction("ISO Virtual Drive", "app.iso_toggle", ""));
+        archiveKids.append(makeAction("VHD Virtual Drive", "app.vhd_toggle", ""));
+        archiveKids.append(makeSeparator());
+        archiveKids.append(makeAction("Create Archive...", "app.create_archive", ""));
+        archiveKids.append(makeAction("Create Secure Archive (AES-256)...", "app.create_secure_archive", ""));
+        archiveKids.append(makeAction("Extract Archive...", "app.extract_archive", ""));
+        
+        archiveMenu["children"] = archiveKids;
+        arr.append(archiveMenu);
+    }
+
+    // 8. Favorites & Pins Submenu
+    {
+        QJsonObject favMenu;
+        favMenu["type"] = "menu";
+        favMenu["title"] = "Favorites & Pins";
+        favMenu["icon"] = "emblem-favorite";
+        
+        QJsonArray favKids;
+        favKids.append(makeAction("Add/Remove Favorites", "app.favorites", ""));
+        favKids.append(makeAction("Pin/Unpin Home Screen", "app.pin_home", ""));
+        
+        favMenu["children"] = favKids;
+        arr.append(favMenu);
+    }
+    arr.append(makeSeparator());
+
+    // 9. Folder Layout Profiles Submenu
+    {
+        QJsonObject profSub;
+        profSub["type"] = "menu";
+        profSub["title"] = "Folder Layout Profiles";
+        profSub["icon"] = "preferences-other";
+        
+        QJsonArray profKids;
+        
+        QJsonObject applySub;
+        applySub["type"] = "menu";
+        applySub["title"] = "Apply Profile Layout to Current Folder";
+        applySub["command"] = "app.apply_profile_submenu";
+        profKids.append(applySub);
+        
+        profKids.append(makeSeparator());
+        profKids.append(makeAction("Save Current Layout as Folder Profile...", "app.save_folder_profile", ""));
+        profKids.append(makeAction("Save Current Layout as Default Profile", "app.save_default_profile", ""));
+        profKids.append(makeAction("Load Default Profile", "app.load_default_profile", ""));
+        
+        profSub["children"] = profKids;
+        arr.append(profSub);
+    }
 
     return arr;
 }
