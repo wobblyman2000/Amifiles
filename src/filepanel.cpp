@@ -1,4 +1,5 @@
 #include "filepanel.h"
+#include "metadatahovercard.h"
 #include <QWidgetAction>
 #include <QJsonArray>
 #include <QJsonObject>
@@ -42,6 +43,9 @@
 #include <QProcess>
 #include "showcaseinfodialog.h"
 #include "showcasesettingsdialog.h"
+#include <QAbstractItemView>
+#include <QScreen>
+#include <QHelpEvent>
 #include "copyqueue.h"
 #include "archivedialog.h"
 #include <QHBoxLayout>
@@ -184,6 +188,9 @@ FilePanel::~FilePanel() {
     if (m_searchThread) {
         m_searchThread->quit();
         m_searchThread->wait();
+    }
+    if (m_hoverCard) {
+        m_hoverCard->deleteLater();
     }
 }
 
@@ -1184,6 +1191,54 @@ void FilePanel::setupUI() {
 }
 
 bool FilePanel::eventFilter(QObject* watched, QEvent* event) {
+    if (event->type() == QEvent::ToolTip) {
+        QHelpEvent* helpEvent = static_cast<QHelpEvent*>(event);
+        QAbstractItemView* view = qobject_cast<QAbstractItemView*>(watched);
+        if (!view && watched) {
+            view = qobject_cast<QAbstractItemView*>(watched->parent());
+        }
+        
+        if (view) {
+            QPoint viewportPos = view->viewport()->mapFromGlobal(helpEvent->globalPos());
+            QModelIndex index = view->indexAt(viewportPos);
+            if (index.isValid()) {
+                QString filePath = filePathFromIndex(index);
+                if (!filePath.isEmpty() && QFile::exists(filePath)) {
+                    FileMetadata meta = MetadataExtractor::extract(filePath);
+                    
+                    if (!m_hoverCard) {
+                        m_hoverCard = new MetadataHoverCard(nullptr);
+                    }
+                    m_hoverCard->setMetadata(meta, filePath);
+                    m_hoverCard->adjustSize();
+                    
+                    QPoint pos = helpEvent->globalPos();
+                    pos.setX(pos.x() + 15);
+                    pos.setY(pos.y() + 15);
+                    
+                    QScreen* screen = QGuiApplication::primaryScreen();
+                    if (screen) {
+                        QRect screenGeom = screen->geometry();
+                        if (pos.x() + m_hoverCard->width() > screenGeom.right()) {
+                            pos.setX(helpEvent->globalPos().x() - m_hoverCard->width() - 15);
+                        }
+                        if (pos.y() + m_hoverCard->height() > screenGeom.bottom()) {
+                            pos.setY(helpEvent->globalPos().y() - m_hoverCard->height() - 15);
+                        }
+                    }
+                    m_hoverCard->move(pos);
+                    m_hoverCard->show();
+                    m_hoverCard->raise();
+                    return true;
+                }
+            }
+        }
+    } else if (event->type() == QEvent::Leave || event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseMove) {
+        if (m_hoverCard && m_hoverCard->isVisible()) {
+            m_hoverCard->hide();
+        }
+    }
+
     if (event->type() == QEvent::KeyPress) {
         QKeyEvent* ke = static_cast<QKeyEvent*>(event);
         QListView* grid = nullptr;

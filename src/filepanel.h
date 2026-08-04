@@ -1142,6 +1142,7 @@ private:
     QList<QListView*> m_theaterGrids;
     QTimer* m_rebuildGroupsTimer = nullptr;
     int m_zoomLevel = -1;
+    class MetadataHoverCard* m_hoverCard = nullptr;
 
     // Bottom Filter Bar
     QLineEdit* m_filterEdit = nullptr;
