@@ -1531,6 +1531,8 @@ void PreviewPanel::setupUI() {
 
     m_imageLabel = new QLabel(m_imageScrollArea);
     m_imageLabel->setAlignment(Qt::AlignCenter);
+    m_imageLabel->setMouseTracking(true);
+    m_imageLabel->setToolTip(" ");
     m_imageLabel->installEventFilter(this);
     m_imageScrollArea->setWidget(m_imageLabel);
 
