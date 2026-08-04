@@ -20,8 +20,8 @@ public:
         setObjectName("cardFrame");
         setStyleSheet(
             "QFrame#cardFrame { "
-            "  background-color: rgba(30, 30, 46, 0.95); "
-            "  border: 1px solid rgba(137, 180, 250, 0.4); "
+            "  background-color: #1e1e2e; "
+            "  border: 1px solid #89b4fa; "
             "  border-radius: 8px; "
             "}"
             "QLabel { color: #cdd6f4; font-family: 'Outfit'; font-size: 13px; }"
