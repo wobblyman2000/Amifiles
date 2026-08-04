@@ -2878,8 +2878,9 @@ void FilePanel::onSelectionChanged() {
 QString FilePanel::filePathFromIndex(const QModelIndex& index) const {
     if (!index.isValid()) return "";
     
-    QModelIndex srcIdx = index;
-    const QAbstractItemModel* m = index.model();
+    QModelIndex col0 = index.sibling(index.row(), 0);
+    QModelIndex srcIdx = col0;
+    const QAbstractItemModel* m = col0.model();
     while (m) {
         if (const QAbstractProxyModel* proxy = qobject_cast<const QAbstractProxyModel*>(m)) {
             srcIdx = proxy->mapToSource(srcIdx);
