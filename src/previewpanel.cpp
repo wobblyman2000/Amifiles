@@ -1444,12 +1444,16 @@ bool PreviewPanel::eventFilter(QObject* watched, QEvent* event) {
         if (event->type() == QEvent::MouseButtonDblClick) {
             openFullscreenImage();
             return true;
-        } else if (event->type() == QEvent::ToolTip) {
+        }
+    }
+
+    if (watched == m_imageLabel || watched == m_audioPlaceholder) {
+        if (event->type() == QEvent::ToolTip) {
             QHelpEvent* helpEvent = static_cast<QHelpEvent*>(event);
             if (m_previewedFilePath.isEmpty()) return false;
             
             if (!m_hoverCard) {
-                m_hoverCard = new MetadataHoverCard(this);
+                m_hoverCard = new MetadataHoverCard(nullptr);
             }
             m_hoverCard->setMetadata(m_activeMeta, m_previewedFilePath);
             
@@ -1476,6 +1480,7 @@ bool PreviewPanel::eventFilter(QObject* watched, QEvent* event) {
             }
         }
     }
+
     return QWidget::eventFilter(watched, event);
 }
 
@@ -1564,6 +1569,8 @@ void PreviewPanel::setupUI() {
     m_audioPlaceholder = new AudioPlaceholderWidget(m_mediaView);
     m_audioPlaceholder->setMinimumHeight(150);
     m_audioPlaceholder->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
+    m_audioPlaceholder->setMouseTracking(true);
+    m_audioPlaceholder->setToolTip(" ");
 
     QSettings settings("Amifiles", "Amifiles");
     bool showAudioCover = settings.value("preview/show_audio_cover_art", true).toBool();
