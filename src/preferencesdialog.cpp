@@ -21,6 +21,9 @@
 #include <QRegularExpression>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
+#include <QProcess>
+#include <QCoreApplication>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QGroupBox>
@@ -746,24 +749,26 @@ void PreferencesDialog::onResetDefaults() {
     auto res = QMessageBox::question(
         this,
         "Reset All Settings to Factory Defaults",
-        "Are you sure you want to completely reset all preferences, layout rules, toolbars, and options to factory defaults?\n\nThis will restore all default settings without needing to manually remove config files.",
+        "Are you sure you want to completely reset all preferences, layout rules, toolbars, and options to factory defaults?\n\nThis will delete all configuration files and restart the application automatically to guarantee a completely clean state.",
         QMessageBox::Yes | QMessageBox::No,
         QMessageBox::No
     );
 
     if (res == QMessageBox::Yes) {
         QSettings settings("Amifiles", "Amifiles");
+        QString configDir = QFileInfo(settings.fileName()).absolutePath();
+        
         settings.clear();
         settings.sync();
 
-        loadPreferences();
-        emit preferencesChanged();
+        QDir dir(configDir);
+        if (dir.exists()) {
+            dir.removeRecursively();
+        }
 
-        QMessageBox::information(
-            this,
-            "Reset Complete",
-            "All settings, layout rules, and preferences have been successfully reset to factory defaults!"
-        );
+        // Restart the application immediately to avoid in-memory variables writing back config on close
+        qApp->quit();
+        QProcess::startDetached(qApp->applicationFilePath(), qApp->arguments());
     }
 }
 
