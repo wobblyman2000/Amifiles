@@ -21,7 +21,11 @@ QStringList FavoritesManager::getFavorites() const {
 }
 
 void FavoritesManager::addFavorite(const QString& path) {
-    QString cleanPath = QDir::cleanPath(path);
+    QString resolved = path;
+    if (resolved.startsWith("smart://")) {
+        resolved = QDir::homePath();
+    }
+    QString cleanPath = QDir::cleanPath(resolved);
     if (!m_favorites.contains(cleanPath)) {
         m_favorites.append(cleanPath);
         saveFavorites();
@@ -30,7 +34,11 @@ void FavoritesManager::addFavorite(const QString& path) {
 }
 
 void FavoritesManager::removeFavorite(const QString& path) {
-    QString cleanPath = QDir::cleanPath(path);
+    QString resolved = path;
+    if (resolved.startsWith("smart://")) {
+        resolved = QDir::homePath();
+    }
+    QString cleanPath = QDir::cleanPath(resolved);
     if (m_favorites.contains(cleanPath)) {
         m_favorites.removeAll(cleanPath);
         saveFavorites();
@@ -39,7 +47,11 @@ void FavoritesManager::removeFavorite(const QString& path) {
 }
 
 bool FavoritesManager::isFavorite(const QString& path) const {
-    return m_favorites.contains(QDir::cleanPath(path));
+    QString resolved = path;
+    if (resolved.startsWith("smart://")) {
+        resolved = QDir::homePath();
+    }
+    return m_favorites.contains(QDir::cleanPath(resolved));
 }
 
 void FavoritesManager::loadFavorites() {

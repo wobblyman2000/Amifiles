@@ -1236,6 +1236,24 @@ void FolderLayoutDialog::onBrowseFolder() {
     if (startDir.startsWith("smart://") || startDir.isEmpty()) {
         startDir = QDir::homePath();
     }
+
+    // Prune startDir to the nearest existing directory so QFileDialog doesn't pre-populate the non-existent folder segment
+    while (!startDir.isEmpty() && !QDir(startDir).exists()) {
+        int lastSlash = startDir.lastIndexOf('/');
+        if (lastSlash < 0) {
+            startDir = QDir::homePath();
+            break;
+        }
+        if (lastSlash == 0) {
+            startDir = "/";
+            break;
+        }
+        startDir = startDir.left(lastSlash);
+    }
+    if (startDir.isEmpty()) {
+        startDir = QDir::homePath();
+    }
+
     QString dir = QFileDialog::getExistingDirectory(this, "Select Target Folder", startDir);
     if (!dir.isEmpty()) {
         m_editValue->setText(dir);
