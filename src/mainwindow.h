@@ -167,6 +167,7 @@ class MainWindow : public QMainWindow {
     Q_OBJECT
     Q_PROPERTY(bool casingOverlaysEnabled READ isCasingOverlaysEnabled)
     friend class FolderLayoutDialog;
+    friend class FilePanel;
 public:
     explicit MainWindow(QWidget* parent = nullptr);
     Q_INVOKABLE bool isBuiltinPlayerDoubleclickActive() const;

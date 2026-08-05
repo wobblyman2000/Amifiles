@@ -503,7 +503,22 @@ void FilePanel::setupUI() {
         }
         MainWindow* mw = qobject_cast<MainWindow*>(parentW);
         if (mw) {
-            mw->onApplyProfileToCurrentFolder(profileName);
+            FolderLayoutRule targetRule;
+            bool found = false;
+            for (const auto& r : mw->folderRules()) {
+                if (r.name.trimmed().compare(profileName, Qt::CaseInsensitive) == 0) {
+                    targetRule = r;
+                    found = true;
+                    break;
+                }
+            }
+            if (found) {
+                if (targetRule.ruleType == "Path" && !targetRule.value.isEmpty()) {
+                    setPath(targetRule.value);
+                } else {
+                    mw->applyProfile(targetRule, this);
+                }
+            }
         }
     });
     m_theaterListView = new TheaterListView(this);

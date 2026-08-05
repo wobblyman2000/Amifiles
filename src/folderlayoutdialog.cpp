@@ -1232,7 +1232,11 @@ void FolderLayoutDialog::onRuleTypeChanged(const QString& type) {
 }
 
 void FolderLayoutDialog::onBrowseFolder() {
-    QString dir = QFileDialog::getExistingDirectory(this, "Select Target Folder", m_editValue->text());
+    QString startDir = m_editValue->text();
+    if (startDir.startsWith("smart://") || startDir.isEmpty()) {
+        startDir = QDir::homePath();
+    }
+    QString dir = QFileDialog::getExistingDirectory(this, "Select Target Folder", startDir);
     if (!dir.isEmpty()) {
         m_editValue->setText(dir);
     }
@@ -1241,7 +1245,11 @@ void FolderLayoutDialog::onBrowseFolder() {
 void FolderLayoutDialog::onUseActivePath() {
     MainWindow* mw = qobject_cast<MainWindow*>(parent());
     if (mw && mw->m_activePanel) {
-        m_editValue->setText(mw->m_activePanel->currentPath());
+        QString path = mw->m_activePanel->currentPath();
+        if (path.startsWith("smart://") || path.isEmpty()) {
+            path = QDir::homePath();
+        }
+        m_editValue->setText(path);
     }
 }
 

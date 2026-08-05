@@ -72,6 +72,7 @@ public:
         
         m_label = new QLabel(name, this);
         m_label->setStyleSheet("font-weight: bold; color: #cdd6f4;");
+        m_label->setAttribute(Qt::WA_TransparentForMouseEvents);
         layout->addWidget(m_label);
         
         layout->addStretch();
