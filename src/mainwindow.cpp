@@ -2788,6 +2788,11 @@ void MainWindow::rebuildCustomToolBar() {
         act->setProperty("isCustom", true);
         connect(act, &QAction::triggered, this, &MainWindow::onCustomButtonClicked);
     }
+
+    // Install event filter on all children buttons to capture right-clicks for the Home context menu
+    for (QToolButton* btn : m_customToolBar->findChildren<QToolButton*>()) {
+        btn->installEventFilter(this);
+    }
 }
 
 void MainWindow::onAddCustomButton() {
@@ -4687,9 +4692,15 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
 
 void MainWindow::applyFolderRules(const QString& path, FilePanel* callingPanel) {
     if (m_isApplyingFolderProfile) return;
-    if (path.startsWith("smart://")) return;
     if (!callingPanel) callingPanel = m_activePanel;
     if (!callingPanel) return;
+
+    if (path.startsWith("smart://")) {
+        // Reset to Default profile so layout remnants from other profiles (like preview pane) don't leak onto the dashboard
+        FolderLayoutRule def = getDefaultRule();
+        applyProfile(def, callingPanel);
+        return;
+    }
 
     if (m_previewDockAutoShownForPlayback) {
         m_previewDockAutoShownForPlayback = false;
@@ -5850,6 +5861,40 @@ QIcon MainWindow::getFolderIcon(const QString& folderName) {
 
 bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
     if (QToolButton* btn = qobject_cast<QToolButton*>(watched)) {
+        if (!m_toolbarEditMode) {
+            if (event->type() == QEvent::MouseButtonPress) {
+                QMouseEvent* me = static_cast<QMouseEvent*>(event);
+                if (me->button() == Qt::RightButton) {
+                    QAction* act = btn->defaultAction();
+                    if (act) {
+                        QString actId = act->property("id").toString();
+                        QString cmd = act->property("script").toString();
+                        if (act == m_actHome || act == m_actSmartHome || 
+                            actId == "Home" || actId == "SmartHome" || 
+                            cmd == "Home" || cmd == "SmartHome" || 
+                            act->text() == "Home Directory" || act->text() == "Smart Home") {
+                            
+                            QMenu menu(this);
+                            QAction* actSmart = menu.addAction(style()->standardIcon(QStyle::SP_ComputerIcon), "🏠 Go to Smart Home Dashboard");
+                            QAction* actPhys = menu.addAction(style()->standardIcon(QStyle::SP_DirHomeIcon), "📁 Go to Physical Home Directory (/home/dave)");
+                            
+                            QAction* selected = menu.exec(btn->mapToGlobal(me->pos()));
+                            if (selected == actSmart) {
+                                if (m_activePanel) {
+                                    m_activePanel->setSmartHomeEnabled(true);
+                                    m_activePanel->setPath("smart://home");
+                                }
+                            } else if (selected == actPhys) {
+                                if (m_activePanel) {
+                                    m_activePanel->setPath(QDir::homePath());
+                                }
+                            }
+                            return true; // Consume event
+                        }
+                    }
+                }
+            }
+        }
         if (m_toolbarEditMode) {
             if (event->type() == QEvent::MouseButtonPress) {
                 QMouseEvent* me = static_cast<QMouseEvent*>(event);
