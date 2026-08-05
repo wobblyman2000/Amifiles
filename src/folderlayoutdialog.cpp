@@ -506,6 +506,12 @@ void FolderLayoutDialog::setupUI() {
     visGrid->addWidget(new QLabel("CD Artwork Overlay", this), 10, 0);
     visGrid->addWidget(m_stateCasingOverlays, 10, 1);
 
+    // Smart Home Dashboard
+    m_stateSmartHome = new ToggleSwitch(this);
+    m_stateSmartHome->setToolTip("Enforce Smart Home Dashboard: ON = Enable dashboard, OFF = Disable dashboard and show standard home folder.");
+    visGrid->addWidget(new QLabel("Smart Home Dashboard", this), 11, 0);
+    visGrid->addWidget(m_stateSmartHome, 11, 1);
+
     // Toolbars
     m_stateToolbars = new ToggleSwitch(this);
     m_stateToolbars->setToolTip("Enforce active toolbars list.");
@@ -859,6 +865,7 @@ void FolderLayoutDialog::populateFields(const FolderLayoutRule& r) {
     m_stateDualPane->setChecked(r.dualPaneActive);
     m_stateHorizontalSplit->setChecked(r.horizontalSplitActive);
     m_stateCasingOverlays->setChecked(r.casingOverlaysActive);
+    m_stateSmartHome->setChecked(r.smartHomeEnabled);
 
     // Toolbar & Menu Overrides
     m_stateToolbars->setChecked(r.overrideToolbars);
@@ -946,6 +953,9 @@ void FolderLayoutDialog::harvestCurrentProfile(int index) {
 
     r.overrideCasingOverlays = true;
     r.casingOverlaysActive = m_stateCasingOverlays->isChecked();
+
+    r.overrideSmartHome = true;
+    r.smartHomeEnabled = m_stateSmartHome->isChecked();
 
     r.overrideToolbars = m_stateToolbars->isChecked();
     r.selectedToolbars = m_selectedToolbars;
@@ -1366,6 +1376,7 @@ void FolderLayoutDialog::onCaptureUI() {
     m_stateDualPane->setChecked(mw->m_actToggleDualPane && mw->m_actToggleDualPane->isChecked());
     m_stateHorizontalSplit->setChecked(mw->m_actToggleHorizontalSplit && mw->m_actToggleHorizontalSplit->isChecked());
     m_stateCasingOverlays->setChecked(mw->m_actToggleCasingOverlays && mw->m_actToggleCasingOverlays->isChecked());
+    m_stateSmartHome->setChecked(mw->m_activePanel ? mw->m_activePanel->isSmartHomeEnabled() : true);
 
     m_capturedWindowState = mw->saveState();
 }

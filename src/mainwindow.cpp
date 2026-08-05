@@ -2855,7 +2855,10 @@ void MainWindow::onCustomButtonClicked() {
         } else if (cmd.startsWith("QuickRename_")) {
             onQuickRenameAction(cmd.mid(12));
         } else if (cmd == "SmartHome") {
-            if (m_activePanel) m_activePanel->setPath("smart://home");
+            if (m_activePanel) {
+                m_activePanel->setSmartHomeEnabled(true);
+                m_activePanel->setPath("smart://home");
+            }
         } else if (cmd == "Home" || cmd == "GoHome") {
             if (m_activePanel) m_activePanel->setPath(QDir::homePath());
         } else if (cmd.startsWith("Go ") || cmd == "Go") {
@@ -4087,6 +4090,8 @@ QJsonObject MainWindow::ruleToJson(const FolderLayoutRule& r) {
     obj["horizontalSplitActive"] = r.horizontalSplitActive;
     obj["overrideCasingOverlays"] = r.overrideCasingOverlays;
     obj["casingOverlaysActive"] = r.casingOverlaysActive;
+    obj["overrideSmartHome"] = r.overrideSmartHome;
+    obj["smartHomeEnabled"] = r.smartHomeEnabled;
 
     obj["overrideToolbars"] = r.overrideToolbars;
     obj["selectedToolbars"] = QJsonArray::fromStringList(r.selectedToolbars);
@@ -4150,6 +4155,8 @@ FolderLayoutRule MainWindow::jsonToRule(const QJsonObject& obj) {
     r.horizontalSplitActive = obj["horizontalSplitActive"].toBool(false);
     r.overrideCasingOverlays = obj["overrideCasingOverlays"].toBool(false);
     r.casingOverlaysActive = obj["casingOverlaysActive"].toBool(false);
+    r.overrideSmartHome = obj["overrideSmartHome"].toBool(false);
+    r.smartHomeEnabled = obj["smartHomeEnabled"].toBool(true);
 
     r.overrideToolbars = obj["overrideToolbars"].toBool(false);
     QJsonArray tbs = obj["selectedToolbars"].toArray();
@@ -4300,6 +4307,8 @@ void MainWindow::loadFolderRules() {
         r.horizontalSplitActive = false;
         r.overrideCasingOverlays = true;
         r.casingOverlaysActive = true;
+        r.overrideSmartHome = true;
+        r.smartHomeEnabled = true;
         m_folderRules.prepend(r); // Keep Default at the very top
         addedPreset = true;
     }
@@ -4606,6 +4615,19 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
         if (m_actToggleCasingOverlays) {
             m_actToggleCasingOverlays->setChecked(def.casingOverlaysActive);
             onToggleCasingOverlays(def.casingOverlaysActive);
+        }
+    }
+
+    // 4f. Smart Home Dashboard override
+    if (r.overrideSmartHome || isDefaultProfile) {
+        targetPanel->setSmartHomeEnabled(r.smartHomeEnabled);
+        if (!r.smartHomeEnabled && targetPanel->currentPath() == "smart://home") {
+            targetPanel->setPath(QDir::homePath());
+        }
+    } else {
+        targetPanel->setSmartHomeEnabled(def.smartHomeEnabled);
+        if (!def.smartHomeEnabled && targetPanel->currentPath() == "smart://home") {
+            targetPanel->setPath(QDir::homePath());
         }
     }
 
@@ -5141,6 +5163,9 @@ void MainWindow::onSaveFolderProfileForCurrentDir() {
     r.overrideCasingOverlays = true;
     r.casingOverlaysActive = (m_actToggleCasingOverlays && m_actToggleCasingOverlays->isChecked());
 
+    r.overrideSmartHome = true;
+    r.smartHomeEnabled = m_activePanel ? m_activePanel->isSmartHomeEnabled() : true;
+
     // 4. Capture Custom Background Color
     QString customBg = m_activePanel->customBgColor();
     if (!customBg.isEmpty()) {
@@ -5277,6 +5302,9 @@ void MainWindow::onSaveDefaultProfile() {
 
     r.overrideCasingOverlays = true;
     r.casingOverlaysActive = (m_actToggleCasingOverlays && m_actToggleCasingOverlays->isChecked());
+
+    r.overrideSmartHome = true;
+    r.smartHomeEnabled = m_activePanel ? m_activePanel->isSmartHomeEnabled() : true;
 
     // 5. Capture Custom Toolbars visibility
     r.overrideToolbars = true;
@@ -5458,6 +5486,8 @@ FolderLayoutRule MainWindow::getDefaultRule() {
     r.horizontalSplitActive = false;
     r.overrideCasingOverlays = true;
     r.casingOverlaysActive = true;
+    r.overrideSmartHome = true;
+    r.smartHomeEnabled = true;
     return r;
 }
 
@@ -6413,7 +6443,10 @@ void MainWindow::executeCustomCommand(const QString& commandOrPath) {
         } else if (cmd == "SpaceAnalyzer") {
             onSpaceAnalyzerAction();
         } else if (cmd == "SmartHome") {
-            if (m_activePanel) m_activePanel->setPath("smart://home");
+            if (m_activePanel) {
+                m_activePanel->setSmartHomeEnabled(true);
+                m_activePanel->setPath("smart://home");
+            }
         } else if (cmd == "BulkRename") {
             onBulkRenameAction();
         } else if (cmd == "SyncScheduler") {
@@ -6507,7 +6540,10 @@ void MainWindow::executeCustomCommand(const QString& commandOrPath) {
         } else if (cmd.startsWith("QuickRename_")) {
             onQuickRenameAction(cmd.mid(12));
         } else if (cmd == "SmartHome") {
-            if (m_activePanel) m_activePanel->setPath("smart://home");
+            if (m_activePanel) {
+                m_activePanel->setSmartHomeEnabled(true);
+                m_activePanel->setPath("smart://home");
+            }
         } else if (cmd == "Home" || cmd == "GoHome") {
             if (m_activePanel) m_activePanel->setPath(QDir::homePath());
         } else if (cmd.startsWith("Go ") || cmd == "Go") {

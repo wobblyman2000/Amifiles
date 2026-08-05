@@ -881,6 +881,8 @@ public:
     void setViewModeIndex(int index);
 
     QString currentPath() const;
+    bool isSmartHomeEnabled() const { return m_smartHomeEnabled; }
+    void setSmartHomeEnabled(bool enabled) { m_smartHomeEnabled = enabled; }
     void syncPlaylist(const QStringList& playlistPaths, int currentIndex);
     void setCustomBgColor(const QString& hexColor);
     QString customBgColor() const { return m_customBgColor; }
@@ -1106,6 +1108,7 @@ private:
     double m_customBgOpacity = 1.0;
     QStringList m_history;
     int m_historyIndex = -1;
+    bool m_smartHomeEnabled = true;
 
     bool m_isPinned = false;
     bool m_isPathLocked = false;
