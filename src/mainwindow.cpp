@@ -7184,11 +7184,22 @@ void MainWindow::setZenMode(bool enabled) {
     }
 
     // Hide/show main window menu bar, toolbars, center ops, bottom tabs, status bar, and sidebar
-    if (menuBar()) menuBar()->setVisible(!enabled);
+    bool menuBarVisible = !enabled;
+    if (m_hasActiveFolderRule) {
+        menuBarVisible = !enabled && m_activeFolderRule.overrideMenus;
+    }
+    if (menuBar()) menuBar()->setVisible(menuBarVisible);
+
     if (m_tbFile) m_tbFile->setVisible(!enabled);
     if (m_tbView) m_tbView->setVisible(!enabled);
     if (m_customToolBar) m_customToolBar->setVisible(!enabled);
-    if (m_tbDrives) m_tbDrives->setVisible(!enabled && m_actToggleDrivesToolbar->isChecked());
+
+    bool showDrives = !enabled && m_actToggleDrivesToolbar->isChecked();
+    if (m_hasActiveFolderRule) {
+        showDrives = !enabled && m_activeFolderRule.overrideToolbars && m_activeFolderRule.selectedToolbars.contains("tb_drives");
+    }
+    if (m_tbDrives) m_tbDrives->setVisible(showDrives);
+
     if (m_tbCenterOps) m_tbCenterOps->setVisible(!enabled && m_actToggleCenterOps->isChecked() && m_isDualPane);
     if (m_bottomTabWidget) m_bottomTabWidget->setVisible(!enabled && m_actToggleConsole->isChecked());
     if (m_sidebarTabWidget && m_actToggleFavoritesSidebar) {
@@ -7198,8 +7209,8 @@ void MainWindow::setZenMode(bool enabled) {
     for (QToolBar* tb : m_dynamicToolBars) {
         if (tb) {
             bool shouldBeVisible = false;
-            if (m_hasActiveFolderRule && m_activeFolderRule.overrideToolbars) {
-                shouldBeVisible = m_activeFolderRule.selectedToolbars.contains(tb->objectName());
+            if (m_hasActiveFolderRule) {
+                shouldBeVisible = m_activeFolderRule.overrideToolbars && m_activeFolderRule.selectedToolbars.contains(tb->objectName());
             } else {
                 shouldBeVisible = isToolbarDefaultVisible(tb->objectName());
             }

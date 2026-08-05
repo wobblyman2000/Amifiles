@@ -1466,6 +1466,12 @@ void FolderLayoutDialog::onSave() {
         }
     }
 
+    QString profileName = "All profiles";
+    if (m_currentIndex >= 0 && m_currentIndex < m_rules.size()) {
+        harvestCurrentProfile(m_currentIndex);
+        profileName = QString("Profile '%1'").arg(m_rules[m_currentIndex].name);
+    }
+
     QWidget* parentW = parentWidget();
     while (parentW && !parentW->inherits("MainWindow")) {
         parentW = parentW->parentWidget();
@@ -1479,7 +1485,7 @@ void FolderLayoutDialog::onSave() {
         }
     }
 
-    QMessageBox::information(this, "Profiles Saved", "Folder profiles successfully saved and applied!");
+    QMessageBox::information(this, "Profiles Saved", QString("Folder profiles successfully saved and applied!\nSaved/updated: %1").arg(profileName));
 }
 
 #include <QFile>
