@@ -4497,62 +4497,58 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
     }
 
     // 3b. Custom Toolbars visibility overrides
-    if (r.overrideToolbars || isDefaultProfile) {
+    if (r.overrideToolbars) {
         for (QToolBar* tb : m_dynamicToolBars) {
             if (tb->objectName() == "tb_drives" || tb->objectName() == "drivesToolBar") continue;
             tb->setVisible(r.selectedToolbars.contains(tb->objectName()));
         }
     } else {
-        if (def.overrideToolbars) {
+        if (isDefaultProfile) {
             for (QToolBar* tb : m_dynamicToolBars) {
                 if (tb->objectName() == "tb_drives" || tb->objectName() == "drivesToolBar") continue;
-                tb->setVisible(def.selectedToolbars.contains(tb->objectName()));
+                tb->setVisible(false);
             }
         } else {
-            QSettings settings("Amifiles", "Amifiles");
-            QString jsonStr = settings.value("custom_toolbars_v1").toString();
-            if (!jsonStr.isEmpty()) {
-                QJsonDocument doc = QJsonDocument::fromJson(jsonStr.toUtf8());
-                QJsonArray arr = doc.array();
-                for (int i = 0; i < arr.size(); ++i) {
-                    QJsonObject tbObj = arr[i].toObject();
-                    QString id = tbObj["id"].toString();
-                    if (id == "tb_drives" || id == "drivesToolBar") continue;
-                    bool visible = tbObj["visible"].toBool(true);
-                    for (QToolBar* tb : m_dynamicToolBars) {
-                        if (tb->objectName() == id) {
-                            tb->setVisible(visible);
-                            break;
-                        }
-                    }
+            if (def.overrideToolbars) {
+                for (QToolBar* tb : m_dynamicToolBars) {
+                    if (tb->objectName() == "tb_drives" || tb->objectName() == "drivesToolBar") continue;
+                    tb->setVisible(def.selectedToolbars.contains(tb->objectName()));
                 }
             } else {
                 for (QToolBar* tb : m_dynamicToolBars) {
                     if (tb->objectName() == "tb_drives" || tb->objectName() == "drivesToolBar") continue;
-                    tb->setVisible(true);
+                    tb->setVisible(false);
                 }
             }
         }
     }
 
     // 3c. Custom Menus visibility overrides
-    if (r.overrideMenus || isDefaultProfile) {
+    if (r.overrideMenus) {
         for (QMenu* menu : m_customMenus) {
             if (menu->menuAction()) {
                 menu->menuAction()->setVisible(r.selectedMenus.contains(menu->title()));
             }
         }
     } else {
-        if (def.overrideMenus) {
+        if (isDefaultProfile) {
             for (QMenu* menu : m_customMenus) {
                 if (menu->menuAction()) {
-                    menu->menuAction()->setVisible(def.selectedMenus.contains(menu->title()));
+                    menu->menuAction()->setVisible(false);
                 }
             }
         } else {
-            for (QMenu* menu : m_customMenus) {
-                if (menu->menuAction()) {
-                    menu->menuAction()->setVisible(true);
+            if (def.overrideMenus) {
+                for (QMenu* menu : m_customMenus) {
+                    if (menu->menuAction()) {
+                        menu->menuAction()->setVisible(def.selectedMenus.contains(menu->title()));
+                    }
+                }
+            } else {
+                for (QMenu* menu : m_customMenus) {
+                    if (menu->menuAction()) {
+                        menu->menuAction()->setVisible(false);
+                    }
                 }
             }
         }
