@@ -4383,6 +4383,7 @@ void MainWindow::saveFolderRules() {
     }
     QJsonDocument doc(arr);
     settings.setValue("folder_profiles_v1", QString::fromUtf8(doc.toJson(QJsonDocument::Compact)));
+    settings.sync();
 }
 
 bool MainWindow::isToolbarDefaultVisible(const QString& toolbarId) {

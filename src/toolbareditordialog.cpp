@@ -685,5 +685,6 @@ void ToolbarEditorDialog::onSave() {
 
     QSettings settings("Amifiles", "Amifiles");
     settings.setValue("custom_toolbars_v1", jsonStr);
+    settings.sync();
     accept();
 }

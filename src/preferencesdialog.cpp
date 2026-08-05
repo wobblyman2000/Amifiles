@@ -1,4 +1,5 @@
 #include "preferencesdialog.h"
+#include "mainwindow.h"
 #include "agestylingdialog.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -717,6 +718,12 @@ void PreferencesDialog::savePreferences() {
     settings.setValue("theme/sidebar_opacity", m_sliderThemeOpacity->value() / 100.0);
 
     emit preferencesChanged();
+
+    MainWindow* mw = qobject_cast<MainWindow*>(parent());
+    if (mw) {
+        mw->saveFolderRules();
+    }
+    settings.sync();
 }
 
 void PreferencesDialog::onApplyClicked() {

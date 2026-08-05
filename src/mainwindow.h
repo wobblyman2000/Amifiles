@@ -334,6 +334,7 @@ public:
     FilePanel* activePanel() const { return m_activePanel; }
     const QList<FolderLayoutRule>& folderRules() const { return m_folderRules; }
     void setFolderRules(const QList<FolderLayoutRule>& rules) { m_folderRules = rules; }
+    void saveFolderRules();
     FilePanel* createTab(QTabWidget* tabWidget, const QString& path);
     void updateSiblingLinks();
     void executeCustomCommand(const QString& commandOrPath);
@@ -351,7 +352,6 @@ private:
     void saveCustomButtons();
     void rebuildCustomToolBar();
     void loadFolderRules();
-    void saveFolderRules();
     void applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel = nullptr);
     QString detectFolderCategory(const QString& path);
     void adjustSplitterSizes();

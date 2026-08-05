@@ -486,6 +486,7 @@ void CustomMenuEditorDialog::onSave() {
 
     QSettings settings("Amifiles", "Amifiles");
     settings.setValue(m_settingsKey, jsonStr);
+    settings.sync();
     accept();
 }
 
