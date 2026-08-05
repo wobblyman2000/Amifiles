@@ -4194,7 +4194,8 @@ void MainWindow::loadFolderRules() {
     m_folderRules.clear();
     QSettings settings("Amifiles", "Amifiles");
     
-    if (settings.contains("folder_profiles_v1")) {
+    bool forceInitv129 = !settings.value("folder_profiles_initialized_v129", false).toBool();
+    if (settings.contains("folder_profiles_v1") && !forceInitv129) {
         QString jsonStr = settings.value("folder_profiles_v1").toString();
         QJsonDocument doc = QJsonDocument::fromJson(jsonStr.toUtf8());
         QJsonArray arr = doc.array();
@@ -4626,6 +4627,7 @@ void MainWindow::loadFolderRules() {
             m_folderRules.append(jsonToRule(arr[i].toObject()));
         }
         saveFolderRules();
+        settings.setValue("folder_profiles_initialized_v129", true);
     }
 }
 
