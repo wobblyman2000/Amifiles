@@ -4461,34 +4461,37 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
     }
 
     FolderLayoutRule def = isDefaultProfile ? r : getDefaultRule();
+    bool isSmart = targetPanel->currentPath().startsWith("smart://");
 
-    // 1. View Mode
-    if (r.viewMode != "No Change" && !r.viewMode.isEmpty()) {
-        if (r.viewMode == "List") targetPanel->setViewModeIndex(0);
-        else if (r.viewMode == "Grid") targetPanel->setViewModeIndex(1);
-        else if (r.viewMode == "Card") targetPanel->setViewModeIndex(2);
-        else if (r.viewMode == "Miller") targetPanel->setViewModeIndex(3);
-        else if (r.viewMode == "Timeline") targetPanel->setViewModeIndex(4);
-        else if (r.viewMode == "Filmstrip") targetPanel->setViewModeIndex(5);
-        else if (r.viewMode == "Theater" || r.viewMode == "Music Showcase" || r.viewMode == "Audio Showcase" || r.viewMode == "Audio Showcase (Classic)") targetPanel->setViewModeIndex(6);
-        else if (r.viewMode == "Cinema Showcase" || r.viewMode == "Video Showcase" || r.viewMode == "Video Showcase (Classic)") targetPanel->setViewModeIndex(7);
-        else if (r.viewMode == "Movies Full Screen" || r.viewMode == "Movie Showcase (v2)") targetPanel->setViewModeIndex(8);
-        else if (r.viewMode == "TV Shows Full Screen" || r.viewMode == "TV Show Showcase (v2)") targetPanel->setViewModeIndex(9);
-        else if (r.viewMode == "Music Full Screen" || r.viewMode == "Music Showcase (v2)") targetPanel->setViewModeIndex(10);
-        else if (r.viewMode == "Cover Flow Carousel") targetPanel->setViewModeIndex(11);
-    } else if (!isDefaultProfile && def.viewMode != "No Change" && !def.viewMode.isEmpty()) {
-        if (def.viewMode == "List") targetPanel->setViewModeIndex(0);
-        else if (def.viewMode == "Grid") targetPanel->setViewModeIndex(1);
-        else if (def.viewMode == "Card") targetPanel->setViewModeIndex(2);
-        else if (def.viewMode == "Miller") targetPanel->setViewModeIndex(3);
-        else if (def.viewMode == "Timeline") targetPanel->setViewModeIndex(4);
-        else if (def.viewMode == "Filmstrip") targetPanel->setViewModeIndex(5);
-        else if (def.viewMode == "Theater" || def.viewMode == "Music Showcase" || def.viewMode == "Audio Showcase" || def.viewMode == "Audio Showcase (Classic)") targetPanel->setViewModeIndex(6);
-        else if (def.viewMode == "Cinema Showcase" || def.viewMode == "Video Showcase" || def.viewMode == "Video Showcase (Classic)") targetPanel->setViewModeIndex(7);
-        else if (def.viewMode == "Movies Full Screen" || def.viewMode == "Movie Showcase (v2)") targetPanel->setViewModeIndex(8);
-        else if (def.viewMode == "TV Shows Full Screen" || def.viewMode == "TV Show Showcase (v2)") targetPanel->setViewModeIndex(9);
-        else if (def.viewMode == "Music Full Screen" || def.viewMode == "Music Showcase (v2)") targetPanel->setViewModeIndex(10);
-        else if (def.viewMode == "Cover Flow Carousel") targetPanel->setViewModeIndex(11);
+    // 1. View Mode (Bypass for smart dashboard views to prevent switching view stacks and crashing)
+    if (!isSmart) {
+        if (r.viewMode != "No Change" && !r.viewMode.isEmpty()) {
+            if (r.viewMode == "List") targetPanel->setViewModeIndex(0);
+            else if (r.viewMode == "Grid") targetPanel->setViewModeIndex(1);
+            else if (r.viewMode == "Card") targetPanel->setViewModeIndex(2);
+            else if (r.viewMode == "Miller") targetPanel->setViewModeIndex(3);
+            else if (r.viewMode == "Timeline") targetPanel->setViewModeIndex(4);
+            else if (r.viewMode == "Filmstrip") targetPanel->setViewModeIndex(5);
+            else if (r.viewMode == "Theater" || r.viewMode == "Music Showcase" || r.viewMode == "Audio Showcase" || r.viewMode == "Audio Showcase (Classic)") targetPanel->setViewModeIndex(6);
+            else if (r.viewMode == "Cinema Showcase" || r.viewMode == "Video Showcase" || r.viewMode == "Video Showcase (Classic)") targetPanel->setViewModeIndex(7);
+            else if (r.viewMode == "Movies Full Screen" || r.viewMode == "Movie Showcase (v2)") targetPanel->setViewModeIndex(8);
+            else if (r.viewMode == "TV Shows Full Screen" || r.viewMode == "TV Show Showcase (v2)") targetPanel->setViewModeIndex(9);
+            else if (r.viewMode == "Music Full Screen" || r.viewMode == "Music Showcase (v2)") targetPanel->setViewModeIndex(10);
+            else if (r.viewMode == "Cover Flow Carousel") targetPanel->setViewModeIndex(11);
+        } else if (!isDefaultProfile && def.viewMode != "No Change" && !def.viewMode.isEmpty()) {
+            if (def.viewMode == "List") targetPanel->setViewModeIndex(0);
+            else if (def.viewMode == "Grid") targetPanel->setViewModeIndex(1);
+            else if (def.viewMode == "Card") targetPanel->setViewModeIndex(2);
+            else if (def.viewMode == "Miller") targetPanel->setViewModeIndex(3);
+            else if (def.viewMode == "Timeline") targetPanel->setViewModeIndex(4);
+            else if (def.viewMode == "Filmstrip") targetPanel->setViewModeIndex(5);
+            else if (def.viewMode == "Theater" || def.viewMode == "Music Showcase" || def.viewMode == "Audio Showcase" || def.viewMode == "Audio Showcase (Classic)") targetPanel->setViewModeIndex(6);
+            else if (def.viewMode == "Cinema Showcase" || def.viewMode == "Video Showcase" || def.viewMode == "Video Showcase (Classic)") targetPanel->setViewModeIndex(7);
+            else if (def.viewMode == "Movies Full Screen" || def.viewMode == "Movie Showcase (v2)") targetPanel->setViewModeIndex(8);
+            else if (def.viewMode == "TV Shows Full Screen" || def.viewMode == "TV Show Showcase (v2)") targetPanel->setViewModeIndex(9);
+            else if (def.viewMode == "Music Full Screen" || def.viewMode == "Music Showcase (v2)") targetPanel->setViewModeIndex(10);
+            else if (def.viewMode == "Cover Flow Carousel") targetPanel->setViewModeIndex(11);
+        }
     }
 
     // 2. Toolbar filter
@@ -4636,8 +4639,8 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
         }
     }
 
-    // 5. Tabs Snapshot
-    if (r.hasTabsSnapshot && !r.leftPaths.isEmpty()) {
+    // 5. Tabs Snapshot (Bypass for smart dashboard views to prevent tabs replacement and navigation)
+    if (!isSmart && r.hasTabsSnapshot && !r.leftPaths.isEmpty()) {
         m_activePanel = nullptr;
         while (m_leftTabWidget->count() > 0) {
             QWidget* w = m_leftTabWidget->widget(0);
