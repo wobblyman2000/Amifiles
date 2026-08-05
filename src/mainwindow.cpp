@@ -4861,12 +4861,12 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
     // 4f. Smart Home Dashboard override
     if (r.overrideSmartHome || isDefaultProfile) {
         targetPanel->setSmartHomeEnabled(r.smartHomeEnabled);
-        if (!r.smartHomeEnabled && targetPanel->currentPath() == "smart://home") {
+        if (!isSmart && !r.smartHomeEnabled && targetPanel->currentPath() == "smart://home") {
             targetPanel->setPath(QDir::homePath());
         }
     } else {
         targetPanel->setSmartHomeEnabled(def.smartHomeEnabled);
-        if (!def.smartHomeEnabled && targetPanel->currentPath() == "smart://home") {
+        if (!isSmart && !def.smartHomeEnabled && targetPanel->currentPath() == "smart://home") {
             targetPanel->setPath(QDir::homePath());
         }
     }
