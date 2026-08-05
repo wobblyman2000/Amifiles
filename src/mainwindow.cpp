@@ -25,6 +25,7 @@
 #include "agestylingdialog.h"
 #include "autoorganizerdialog.h"
 #include "folderlayoutdialog.h"
+#include "folderimagerenamerdialog.h"
 #include "toolbareditordialog.h"
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -1133,6 +1134,12 @@ void MainWindow::setupActions() {
     connect(m_actImageConvert, &QAction::triggered, this, &MainWindow::onImageConvert);
     addAction(m_actImageConvert);
 
+    m_actFolderImageRenamer = new QAction("Recursive Folder Image Renamer...", this);
+    m_actFolderImageRenamer->setToolTip("Recursively find and rename images (e.g., folder.jpg to poster.png) across all subfolders");
+    m_actFolderImageRenamer->setStatusTip("Recursively find and rename images (e.g., folder.jpg to poster.png) across all subfolders");
+    connect(m_actFolderImageRenamer, &QAction::triggered, this, &MainWindow::onFolderImageRenamer);
+    addAction(m_actFolderImageRenamer);
+
     m_actProcessManager = new QAction("System Monitor...", this);
     m_actProcessManager->setToolTip("Monitor CPU/Memory and manage running processes");
     m_actProcessManager->setStatusTip("Monitor CPU/Memory and manage running processes");
@@ -1203,6 +1210,7 @@ void MainWindow::setupActions() {
     registerKeybindableAction("remote_mount", m_actRemoteMount);
     registerKeybindableAction("cloud_mount", m_actCloudMount);
     registerKeybindableAction("batch_images", m_actImageConvert);
+    registerKeybindableAction("folder_image_renamer", m_actFolderImageRenamer);
     registerKeybindableAction("process_manager", m_actProcessManager);
     registerKeybindableAction("vault_encrypt", m_actEncryptVault);
     registerKeybindableAction("vault_decrypt", m_actDecryptVault);
@@ -1345,6 +1353,7 @@ void MainWindow::setupMenus() {
     m_menuTools->addAction(m_actCloudMount);
     m_menuTools->addAction(m_actCreateVhd);
     m_menuTools->addAction(m_actImageConvert);
+    m_menuTools->addAction(m_actFolderImageRenamer);
     m_menuTools->addAction(m_actProcessManager);
     m_menuTools->addSeparator();
     m_menuTools->addAction(m_actEncryptVault);
@@ -3503,6 +3512,7 @@ void MainWindow::loadKeybindings() {
     m_keybindings["remote_mount"] = QKeySequence("Ctrl+R");
     m_keybindings["cloud_mount"] = QKeySequence("Ctrl+Shift+G");
     m_keybindings["batch_images"] = QKeySequence("Ctrl+I");
+    m_keybindings["folder_image_renamer"] = QKeySequence("Ctrl+Alt+I");
     m_keybindings["process_manager"] = QKeySequence("Ctrl+Alt+P");
     m_keybindings["vault_encrypt"] = QKeySequence("Ctrl+Shift+E");
     m_keybindings["vault_decrypt"] = QKeySequence("Ctrl+Shift+D");
@@ -3937,6 +3947,20 @@ void MainWindow::onImageConvert() {
     if (dlg.exec() == QDialog::Accepted) {
         m_activePanel->refresh();
     }
+}
+
+void MainWindow::onFolderImageRenamer() {
+    QString initialDir = QDir::homePath();
+    if (m_activePanel) {
+        initialDir = m_activePanel->currentPath();
+    }
+
+    FolderImageRenamerDialog dlg(initialDir, this);
+    dlg.exec();
+    
+    // Always refresh panels afterwards to reflect disk changes
+    if (leftPanel()) leftPanel()->refresh();
+    if (rightPanel()) rightPanel()->refresh();
 }
 
 void MainWindow::onTagsSidebarClicked(QListWidgetItem* item) {

@@ -303,6 +303,7 @@ private slots:
     void onCloudMount();
     void onCreateVhd();
     void onImageConvert();
+    void onFolderImageRenamer();
     void onConfigureDynamicBookmarks();
     void onImportCustomButtons();
     void onExportCustomButtons();
@@ -526,6 +527,7 @@ private:
     QAction* m_actCloudMount = nullptr;
     QAction* m_actCreateVhd = nullptr;
     QAction* m_actImageConvert = nullptr;
+    QAction* m_actFolderImageRenamer = nullptr;
     QAction* m_actProcessManager = nullptr;
     QAction* m_actEncryptVault = nullptr;
     QAction* m_actDecryptVault = nullptr;

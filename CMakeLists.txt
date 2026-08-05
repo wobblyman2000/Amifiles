@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(Amifiles VERSION 1.5.0.0 LANGUAGES CXX)
+project(Amifiles VERSION 1.5.0.1 LANGUAGES CXX)
 
 configure_file(
     "${PROJECT_SOURCE_DIR}/src/version.h.in"
@@ -123,6 +123,8 @@ add_executable(Amifiles
     src/preferencesdialog.cpp
     src/folderlayoutdialog.h
     src/folderlayoutdialog.cpp
+    src/folderimagerenamerdialog.h
+    src/folderimagerenamerdialog.cpp
     src/folderartscraperdialog.h
     src/folderartscraperdialog.cpp
     src/dynamicfavoritesdialog.h
