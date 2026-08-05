@@ -4498,12 +4498,17 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
 
     // 3b. Custom Toolbars visibility overrides
     for (QToolBar* tb : m_dynamicToolBars) {
-        if (tb->objectName() == "tb_drives" || tb->objectName() == "drivesToolBar") continue;
         bool visible = r.overrideToolbars && r.selectedToolbars.contains(tb->objectName());
         tb->setVisible(visible);
+        if (tb->objectName() == "tb_drives" || tb->objectName() == "drivesToolBar") {
+            m_actToggleDrivesToolbar->setChecked(visible);
+        }
     }
 
     // 3c. Custom Menus visibility overrides
+    if (menuBar()) {
+        menuBar()->setVisible(r.overrideMenus);
+    }
     for (QMenu* menu : m_customMenus) {
         if (menu->menuAction()) {
             bool visible = r.overrideMenus && r.selectedMenus.contains(menu->title());
