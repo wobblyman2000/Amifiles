@@ -367,28 +367,34 @@ void HomeDashboardWidget::setupUi() {
     QScrollArea* scrollArea = new QScrollArea(this);
     scrollArea->setWidgetResizable(true);
     QWidget* scrollContent = new QWidget(scrollArea);
+    scrollContent->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(scrollContent, &QWidget::customContextMenuRequested, this, &HomeDashboardWidget::onDashboardContextMenu);
     scrollArea->setWidget(scrollContent);
 
     QVBoxLayout* contentLayout = new QVBoxLayout(scrollContent);
     contentLayout->setContentsMargins(25, 20, 25, 20);
     contentLayout->setSpacing(8);
 
+    QSettings settings("Amifiles", "Amifiles");
+    bool showBanner = settings.value("dashboard/show_welcome_banner", true).toBool();
+
     // Welcome Banner Header
-    QFrame* bannerFrame = new QFrame(scrollContent);
-    bannerFrame->setStyleSheet("background-color: rgba(17, 17, 27, 0.5); border: 1px solid rgba(255, 255, 255, 0.04); border-radius: 12px; padding: 12px;");
-    QVBoxLayout* bannerLayout = new QVBoxLayout(bannerFrame);
+    m_bannerFrame = new QFrame(scrollContent);
+    m_bannerFrame->setStyleSheet("background-color: rgba(17, 17, 27, 0.5); border: 1px solid rgba(255, 255, 255, 0.04); border-radius: 12px; padding: 12px;");
+    m_bannerFrame->setVisible(showBanner);
+    QVBoxLayout* bannerLayout = new QVBoxLayout(m_bannerFrame);
     bannerLayout->setContentsMargins(15, 8, 15, 8);
     bannerLayout->setSpacing(3);
 
-    QLabel* titleLabel = new QLabel("Welcome to Amifiles", bannerFrame);
+    QLabel* titleLabel = new QLabel("Welcome to Amifiles", m_bannerFrame);
     titleLabel->setStyleSheet("font-size: 18px; font-weight: bold; color: #cba6f7;");
     bannerLayout->addWidget(titleLabel);
 
-    QLabel* subLabel = new QLabel("Your ultimate dual-pane Amiga & Linux file manager. Double-click storage cards or folders to jump straight in.", bannerFrame);
+    QLabel* subLabel = new QLabel("Your ultimate dual-pane Amiga & Linux file manager. Double-click storage cards or folders to jump straight in.", m_bannerFrame);
     subLabel->setStyleSheet("font-size: 11px; color: #a6adc8;");
     bannerLayout->addWidget(subLabel);
 
-    contentLayout->addWidget(bannerFrame);
+    contentLayout->addWidget(m_bannerFrame);
 
     // 1. Storage Drives Section
     QLabel* drivesTitle = new QLabel("Storage Drive", scrollContent);
@@ -923,6 +929,35 @@ void HomeDashboardWidget::populatePinnedProfiles() {
         }
     }
     m_pinnedProfilesLayout->setColumnStretch(4, 1);
+}
+
+void HomeDashboardWidget::onDashboardContextMenu(const QPoint& pos) {
+    QMenu menu(this);
+    menu.setStyleSheet(
+        "QMenu { background-color: #11111b; color: #cdd6f4; border: 1px solid #313244; border-radius: 4px; padding: 4px; }"
+        "QMenu::item { padding: 4px 20px 4px 20px; border-radius: 2px; }"
+        "QMenu::item:selected { background-color: #313244; color: #a6e3a1; }"
+    );
+
+    QSettings settings("Amifiles", "Amifiles");
+    bool showBanner = settings.value("dashboard/show_welcome_banner", true).toBool();
+
+    QAction* actToggleBanner = menu.addAction("Show Welcome Banner Header");
+    actToggleBanner->setCheckable(true);
+    actToggleBanner->setChecked(showBanner);
+
+    QWidget* scrollContent = qobject_cast<QWidget*>(sender());
+    QPoint globalPos = scrollContent ? scrollContent->mapToGlobal(pos) : QCursor::pos();
+    QAction* selected = menu.exec(globalPos);
+
+    if (selected == actToggleBanner) {
+        bool newValue = !showBanner;
+        settings.setValue("dashboard/show_welcome_banner", newValue);
+        settings.sync();
+        if (m_bannerFrame) {
+            m_bannerFrame->setVisible(newValue);
+        }
+    }
 }
 
 #include "homedashboardwidget.moc"

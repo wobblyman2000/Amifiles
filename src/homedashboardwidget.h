@@ -6,6 +6,7 @@
 
 class QGridLayout;
 class QVBoxLayout;
+class QFrame;
 
 class HomeDashboardWidget : public QWidget {
     Q_OBJECT
@@ -26,6 +27,7 @@ private slots:
     void onPinnedFolderClicked(const QString& path, int layoutIndex);
     void onUnpinFolderClicked(const QString& path);
     void onToolButtonClicked(const QString& action);
+    void onDashboardContextMenu(const QPoint& pos);
 
 private:
     void setupUi();
@@ -34,6 +36,7 @@ private:
     void populatePinnedFolders();
     void populatePinnedProfiles();
 
+    QFrame* m_bannerFrame = nullptr;
     QGridLayout* m_drivesLayout = nullptr;
     QGridLayout* m_quickAccessLayout = nullptr;
     QGridLayout* m_pinnedLayout = nullptr;
