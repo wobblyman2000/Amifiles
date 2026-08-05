@@ -282,7 +282,7 @@ void FilePanel::setupUI() {
 
     m_btnHome = new QToolButton(this);
     m_btnHome->setIcon(style->standardIcon(QStyle::SP_DirHomeIcon));
-    m_btnHome->setToolTip("Go Home (Right-click to set current folder as Home)");
+    m_btnHome->setToolTip("Go Home (Right-click for options)");
     m_btnHome->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(m_btnHome, &QToolButton::clicked, this, &FilePanel::onHomeClicked);
     connect(m_btnHome, &QToolButton::customContextMenuRequested, this, &FilePanel::onHomeContextMenu);
@@ -2593,9 +2593,18 @@ void FilePanel::onHomeContextMenu(const QPoint& pos) {
         "QMenu::item { padding: 4px 20px 4px 20px; border-radius: 2px; }"
         "QMenu::item:selected { background-color: #313244; color: #a6e3a1; }"
     );
+    QAction* actSmart = menu.addAction(style()->standardIcon(QStyle::SP_ComputerIcon), "🏠 Go to Smart Home Dashboard");
+    QAction* actPhys = menu.addAction(style()->standardIcon(QStyle::SP_DirHomeIcon), "📁 Go to User Home Directory (/home/dave)");
+    menu.addSeparator();
     QAction* actSetHome = menu.addAction("Set Current Folder as Home");
+
     QAction* selected = menu.exec(m_btnHome->mapToGlobal(pos));
-    if (selected == actSetHome) {
+    if (selected == actSmart) {
+        setSmartHomeEnabled(true);
+        setPath("smart://home");
+    } else if (selected == actPhys) {
+        setPath(QDir::homePath());
+    } else if (selected == actSetHome) {
         QSettings settings("Amifiles", "Amifiles");
         settings.setValue("preferences/home_path", m_currentPath);
         QMessageBox::information(this, "Set Home Directory", QString("Home directory set to:\n%1").arg(m_currentPath));
