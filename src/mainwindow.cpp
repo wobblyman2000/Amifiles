@@ -1974,6 +1974,7 @@ void MainWindow::updateFavoritesMenu() {
         if (dlg.exec() == QDialog::Accepted) {
             m_folderRules = dlg.rules();
             saveFolderRules();
+            refreshAllDashboards();
             if (m_activePanel) {
                 applyFolderRules(m_activePanel->currentPath(), m_activePanel);
             }
