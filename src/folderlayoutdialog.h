@@ -120,6 +120,7 @@ private slots:
     void onProfileSelected(int row);
     void onAddProfile();
     void onAddTemplate();
+    void onDuplicateProfile();
     void onDeleteProfile();
     void onMoveUpProfile();
     void onMoveDownProfile();
@@ -158,6 +159,7 @@ private:
     QListWidget* m_listWidget = nullptr;
     QPushButton* m_btnAdd = nullptr;
     QPushButton* m_btnAddTemplate = nullptr;
+    QPushButton* m_btnDuplicate = nullptr;
     QPushButton* m_btnDelete = nullptr;
     QPushButton* m_btnMoveUp = nullptr;
     QPushButton* m_btnMoveDown = nullptr;

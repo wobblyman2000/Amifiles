@@ -4326,7 +4326,7 @@ void MainWindow::loadFolderRules() {
         r.autoApply = true;
         r.viewMode = "Music Showcase";
         r.overridePreview = true;
-        r.previewVisible = true;
+        r.previewVisible = false;
         r.overrideDrivesToolbar = true;
         r.drivesToolbarVisible = false;
         r.overrideConsole = true;
@@ -4345,7 +4345,7 @@ void MainWindow::loadFolderRules() {
         r.autoApply = true;
         r.viewMode = "Cinema Showcase";
         r.overridePreview = true;
-        r.previewVisible = true;
+        r.previewVisible = false;
         r.overrideDrivesToolbar = true;
         r.drivesToolbarVisible = false;
         r.overrideConsole = true;
@@ -4364,7 +4364,7 @@ void MainWindow::loadFolderRules() {
         r.autoApply = true;
         r.viewMode = "Cinema Showcase";
         r.overridePreview = true;
-        r.previewVisible = true;
+        r.previewVisible = false;
         r.overrideDrivesToolbar = true;
         r.drivesToolbarVisible = false;
         r.overrideConsole = true;

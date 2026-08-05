@@ -158,6 +158,7 @@ FolderLayoutDialog::FolderLayoutDialog(const QList<FolderLayoutRule>& existingRu
         m_listWidget->setCurrentRow(0);
     } else {
         m_editorWidget->setEnabled(false);
+        m_btnDuplicate->setEnabled(false);
     }
 }
 
@@ -195,7 +196,13 @@ void FolderLayoutDialog::setupUI() {
     m_btnAddTemplate->setToolTip("Create a new standalone Layout Template preset (view mode, toolbars, visualizer settings).");
     connect(m_btnAddTemplate, &QPushButton::clicked, this, &FolderLayoutDialog::onAddTemplate);
 
-    m_btnDelete = new QPushButton("🗑 Delete Profile / Template", this);
+    m_btnDuplicate = new QPushButton("👯 Duplicate Selected", this);
+    m_btnDuplicate->setStyleSheet("QPushButton { background-color: #313244; color: #f9e2af; border: 1px solid #45475a; }"
+                                  "QPushButton:hover { background-color: #f9e2af; color: #11111b; }");
+    m_btnDuplicate->setToolTip("Duplicate the currently selected layout profile or template, keeping all layout options identical.");
+    connect(m_btnDuplicate, &QPushButton::clicked, this, &FolderLayoutDialog::onDuplicateProfile);
+
+    m_btnDelete = new QPushButton("🗑 Delete Selected", this);
     m_btnDelete->setStyleSheet("QPushButton { background-color: #313244; color: #f38ba8; border: 1px solid #45475a; }"
                                "QPushButton:hover { background-color: #f38ba8; color: #11111b; }");
     m_btnDelete->setToolTip("Delete the selected profile or layout template. (Prompts for confirmation before deleting).");
@@ -204,7 +211,11 @@ void FolderLayoutDialog::setupUI() {
     addButtonsLayout->addWidget(m_btnAdd);
     addButtonsLayout->addWidget(m_btnAddTemplate);
     leftLayout->addLayout(addButtonsLayout);
-    leftLayout->addWidget(m_btnDelete);
+
+    QHBoxLayout* actionLayout = new QHBoxLayout();
+    actionLayout->addWidget(m_btnDuplicate);
+    actionLayout->addWidget(m_btnDelete);
+    leftLayout->addLayout(actionLayout);
 
     QHBoxLayout* orderButtons = new QHBoxLayout();
     m_btnMoveUp = new QPushButton("▲ Move Up", this);
@@ -795,6 +806,7 @@ void FolderLayoutDialog::populateList() {
     if (m_listWidget->count() == 0) {
         m_currentIndex = -1;
         m_editorWidget->setEnabled(false);
+        m_btnDuplicate->setEnabled(false);
     }
 }
 
@@ -1039,6 +1051,7 @@ void FolderLayoutDialog::onProfileSelected(int row) {
     if (row < 0 || row >= m_listWidget->count()) {
         m_currentIndex = -1;
         m_editorWidget->setEnabled(false);
+        m_btnDuplicate->setEnabled(false);
         return;
     }
 
@@ -1046,6 +1059,7 @@ void FolderLayoutDialog::onProfileSelected(int row) {
     if (!item || (item->flags() & Qt::ItemIsSelectable) == 0) {
         m_currentIndex = -1;
         m_editorWidget->setEnabled(false);
+        m_btnDuplicate->setEnabled(false);
         return;
     }
 
@@ -1056,11 +1070,13 @@ void FolderLayoutDialog::onProfileSelected(int row) {
         populateFields(m_rules[realIndex]);
 
         bool isDefault = (m_rules[realIndex].name.toLower() == "default");
+        m_btnDuplicate->setEnabled(true);
         m_btnDelete->setEnabled(!isDefault);
         m_btnMoveUp->setEnabled(!isDefault);
         m_btnMoveDown->setEnabled(!isDefault);
     } else {
         m_editorWidget->setEnabled(false);
+        m_btnDuplicate->setEnabled(false);
         m_btnDelete->setEnabled(false);
         m_btnMoveUp->setEnabled(false);
         m_btnMoveDown->setEnabled(false);
@@ -1099,6 +1115,33 @@ void FolderLayoutDialog::onAddTemplate() {
     r.value = "";
     r.linkedProfile = "";
     r.viewMode = "Music Showcase";
+    m_rules.append(r);
+    
+    populateList();
+    for (int i = 0; i < m_listWidget->count(); ++i) {
+        QListWidgetItem* item = m_listWidget->item(i);
+        if (item && item->data(Qt::UserRole).toInt() == m_rules.size() - 1) {
+            m_listWidget->setCurrentRow(i);
+            break;
+        }
+    }
+}
+
+void FolderLayoutDialog::onDuplicateProfile() {
+    if (m_currentIndex < 0 || m_currentIndex >= m_rules.size()) return;
+    
+    harvestCurrentProfile(m_currentIndex);
+    
+    FolderLayoutRule r = m_rules[m_currentIndex];
+    r.name = r.name + " (Copy)";
+    
+    if (r.name.toLower().startsWith("default (copy)")) {
+        r.name = "Default Profile (Copy)";
+        r.ruleType = "Path";
+        r.value = "/path/to/folder";
+        r.autoApply = true;
+    }
+    
     m_rules.append(r);
     
     populateList();
