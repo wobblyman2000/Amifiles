@@ -1682,10 +1682,10 @@ void FolderLayoutDialog::onListWidgetContextMenu(const QPoint& pos) {
     QListWidgetItem* item = m_listWidget->itemAt(pos);
     if (!item) return;
 
-    int row = m_listWidget->row(item);
-    if (row < 0 || row >= m_rules.size()) return;
+    int realIndex = item->data(Qt::UserRole).toInt();
+    if (realIndex < 0 || realIndex >= m_rules.size()) return;
 
-    QString profileName = m_rules[row].name;
+    QString profileName = m_rules[realIndex].name;
 
     QMenu menu(this);
     QSettings settings("Amifiles", "Amifiles");
