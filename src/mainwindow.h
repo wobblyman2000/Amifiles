@@ -123,8 +123,6 @@ struct FolderLayoutRule {
     bool horizontalSplitActive = false;
     bool overrideCasingOverlays = false;
     bool casingOverlaysActive = false;
-    bool overrideSmartHome = false;
-    bool smartHomeEnabled = true;
 
     // Toolbar & Menu Overrides
     bool overrideToolbars = false;
@@ -515,6 +513,7 @@ private:
     QAction* m_actShowHelp = nullptr;
     QAction* m_actSpaceAnalyzer = nullptr;
     QAction* m_actSmartHome = nullptr;
+    QAction* m_actHome = nullptr;
     QAction* m_actKeybindings = nullptr;
     QAction* m_actCalculateChecksum = nullptr;
     QAction* m_actAdvancedSearch = nullptr;
