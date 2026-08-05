@@ -123,6 +123,8 @@ struct FolderLayoutRule {
     bool horizontalSplitActive = false;
     bool overrideCasingOverlays = false;
     bool casingOverlaysActive = false;
+    bool overrideSmartHome = false;
+    bool smartHomeEnabled = true;
 
     // Toolbar & Menu Overrides
     bool overrideToolbars = false;

@@ -4077,6 +4077,8 @@ QJsonObject MainWindow::ruleToJson(const FolderLayoutRule& r) {
     obj["horizontalSplitActive"] = r.horizontalSplitActive;
     obj["overrideCasingOverlays"] = r.overrideCasingOverlays;
     obj["casingOverlaysActive"] = r.casingOverlaysActive;
+    obj["overrideSmartHome"] = r.overrideSmartHome;
+    obj["smartHomeEnabled"] = r.smartHomeEnabled;
 
     obj["overrideToolbars"] = r.overrideToolbars;
     obj["selectedToolbars"] = QJsonArray::fromStringList(r.selectedToolbars);
@@ -4140,6 +4142,8 @@ FolderLayoutRule MainWindow::jsonToRule(const QJsonObject& obj) {
     r.horizontalSplitActive = obj["horizontalSplitActive"].toBool(false);
     r.overrideCasingOverlays = obj["overrideCasingOverlays"].toBool(false);
     r.casingOverlaysActive = obj["casingOverlaysActive"].toBool(false);
+    r.overrideSmartHome = obj["overrideSmartHome"].toBool(false);
+    r.smartHomeEnabled = obj["smartHomeEnabled"].toBool(true);
 
     r.overrideToolbars = obj["overrideToolbars"].toBool(false);
     QJsonArray tbs = obj["selectedToolbars"].toArray();
@@ -4290,6 +4294,8 @@ void MainWindow::loadFolderRules() {
         r.horizontalSplitActive = false;
         r.overrideCasingOverlays = true;
         r.casingOverlaysActive = true;
+        r.overrideSmartHome = true;
+        r.smartHomeEnabled = true;
         m_folderRules.prepend(r); // Keep Default at the very top
         addedPreset = true;
     }
@@ -4596,6 +4602,23 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
         if (m_actToggleCasingOverlays) {
             m_actToggleCasingOverlays->setChecked(def.casingOverlaysActive);
             onToggleCasingOverlays(def.casingOverlaysActive);
+        }
+    }
+
+    // 4f. Smart Home Dashboard override
+    if (r.overrideSmartHome || isDefaultProfile) {
+        QSettings settings("Amifiles", "Amifiles");
+        settings.setValue("preferences/enable_smart_home", r.smartHomeEnabled);
+        settings.sync();
+        if (!r.smartHomeEnabled && targetPanel && targetPanel->currentPath() == "smart://home") {
+            targetPanel->setPath(QDir::homePath());
+        }
+    } else {
+        QSettings settings("Amifiles", "Amifiles");
+        settings.setValue("preferences/enable_smart_home", def.smartHomeEnabled);
+        settings.sync();
+        if (!def.smartHomeEnabled && targetPanel && targetPanel->currentPath() == "smart://home") {
+            targetPanel->setPath(QDir::homePath());
         }
     }
 
@@ -5130,6 +5153,9 @@ void MainWindow::onSaveFolderProfileForCurrentDir() {
     r.overrideCasingOverlays = true;
     r.casingOverlaysActive = (m_actToggleCasingOverlays && m_actToggleCasingOverlays->isChecked());
 
+    r.overrideSmartHome = true;
+    r.smartHomeEnabled = settings.value("preferences/enable_smart_home", true).toBool();
+
     // 4. Capture Custom Background Color
     QString customBg = m_activePanel->customBgColor();
     if (!customBg.isEmpty()) {
@@ -5266,6 +5292,9 @@ void MainWindow::onSaveDefaultProfile() {
 
     r.overrideCasingOverlays = true;
     r.casingOverlaysActive = (m_actToggleCasingOverlays && m_actToggleCasingOverlays->isChecked());
+
+    r.overrideSmartHome = true;
+    r.smartHomeEnabled = settings.value("preferences/enable_smart_home", true).toBool();
 
     // 5. Capture Custom Toolbars visibility
     r.overrideToolbars = true;
@@ -5447,6 +5476,8 @@ FolderLayoutRule MainWindow::getDefaultRule() {
     r.horizontalSplitActive = false;
     r.overrideCasingOverlays = true;
     r.casingOverlaysActive = true;
+    r.overrideSmartHome = true;
+    r.smartHomeEnabled = true;
     return r;
 }
 

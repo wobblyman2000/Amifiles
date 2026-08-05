@@ -195,6 +195,7 @@ private:
     QAbstractButton* m_stateDualPane = nullptr;
     QAbstractButton* m_stateHorizontalSplit = nullptr;
     QAbstractButton* m_stateCasingOverlays = nullptr;
+    QAbstractButton* m_stateSmartHome = nullptr;
 
     // Toolbar & Menu overrides
     QAbstractButton* m_stateToolbars = nullptr;
