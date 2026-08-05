@@ -4202,199 +4202,429 @@ void MainWindow::loadFolderRules() {
             m_folderRules.append(jsonToRule(arr[i].toObject()));
         }
     } else {
-        // Migrate old folder layout rules
-        QStringList serialized = settings.value("folder_layout_rules").toStringList();
-        for (const QString& s : serialized) {
-            QStringList parts = s.split(';');
-            if (parts.size() >= 4) {
-                FolderLayoutRule r;
-                r.name = QString("Migrated Rule: %1").arg(parts[1]);
-                r.ruleType = parts[0];
-                r.value = parts[1];
-                r.viewMode = parts[2];
-                r.customButtons = parts[3].isEmpty() ? QStringList() : parts[3].split(',');
-                r.autoApply = true;
-                m_folderRules.append(r);
-            }
+        QString jsonStr = R"JSON([
+    {
+        "autoApply": true,
+        "bgColor": "",
+        "bgImage": "",
+        "bgOpacity": 1,
+        "builtinPlayerDoubleclick": false,
+        "casingOverlaysActive": true,
+        "centerOpsVisible": true,
+        "consoleVisible": false,
+        "customButtons": [],
+        "drivesToolbarVisible": true,
+        "dualPaneActive": false,
+        "entryCommand": "",
+        "favoritesSidebarVisible": false,
+        "fullScreenPlayerActive": true,
+        "hasTabsSnapshot": false,
+        "horizontalSplitActive": false,
+        "leftActiveIndex": 0,
+        "leftPaths": [],
+        "linkedProfile": "",
+        "name": "Default",
+        "overrideBuiltinPlayerDoubleclick": true,
+        "overrideCasingOverlays": true,
+        "overrideCenterOps": true,
+        "overrideConsole": true,
+        "overrideDrivesToolbar": true,
+        "overrideDualPane": true,
+        "overrideFavoritesSidebar": true,
+        "overrideFullScreenPlayer": true,
+        "overrideHorizontalSplit": true,
+        "overrideMenus": true,
+        "overridePreview": true,
+        "overrideSmartHome": true,
+        "overrideToolbars": true,
+        "overrideVisualizer": true,
+        "overrideZenMode": true,
+        "previewVisible": false,
+        "rightActiveIndex": 0,
+        "rightPaths": [],
+        "ruleType": "Path",
+        "selectedMenus": ["Main Menu"],
+        "selectedToolbars": ["tb_file_ops", "tb_drives"],
+        "smartHomeEnabled": false,
+        "subfolderDepth": 0,
+        "useBgColor": false,
+        "useBgImage": false,
+        "value": "",
+        "viewMode": "No Change",
+        "visualizerActive": false,
+        "windowState": "",
+        "zenModeActive": false
+    },
+    {
+        "autoApply": true,
+        "bgColor": "",
+        "bgImage": "",
+        "bgOpacity": 1,
+        "builtinPlayerDoubleclick": false,
+        "casingOverlaysActive": false,
+        "centerOpsVisible": false,
+        "consoleVisible": false,
+        "customButtons": [],
+        "drivesToolbarVisible": false,
+        "dualPaneActive": false,
+        "entryCommand": "",
+        "favoritesSidebarVisible": false,
+        "fullScreenPlayerActive": false,
+        "hasTabsSnapshot": false,
+        "horizontalSplitActive": false,
+        "leftActiveIndex": 0,
+        "leftPaths": [],
+        "linkedProfile": "",
+        "name": "Movies",
+        "overrideBuiltinPlayerDoubleclick": true,
+        "overrideCasingOverlays": true,
+        "overrideCenterOps": false,
+        "overrideConsole": true,
+        "overrideDrivesToolbar": true,
+        "overrideDualPane": true,
+        "overrideFavoritesSidebar": true,
+        "overrideFullScreenPlayer": true,
+        "overrideHorizontalSplit": true,
+        "overrideMenus": false,
+        "overridePreview": true,
+        "overrideSmartHome": true,
+        "overrideToolbars": false,
+        "overrideVisualizer": true,
+        "overrideZenMode": true,
+        "previewVisible": true,
+        "rightActiveIndex": 0,
+        "rightPaths": [],
+        "ruleType": "Category",
+        "selectedMenus": [],
+        "selectedToolbars": [],
+        "smartHomeEnabled": true,
+        "subfolderDepth": 1,
+        "useBgColor": false,
+        "useBgImage": false,
+        "value": "Videos",
+        "viewMode": "TV Shows Full Screen",
+        "visualizerActive": false,
+        "windowState": "",
+        "zenModeActive": false
+    },
+    {
+        "autoApply": true,
+        "bgColor": "",
+        "bgImage": "",
+        "bgOpacity": 1,
+        "builtinPlayerDoubleclick": false,
+        "casingOverlaysActive": false,
+        "centerOpsVisible": false,
+        "consoleVisible": false,
+        "customButtons": [],
+        "drivesToolbarVisible": false,
+        "dualPaneActive": false,
+        "entryCommand": "",
+        "favoritesSidebarVisible": false,
+        "fullScreenPlayerActive": false,
+        "hasTabsSnapshot": false,
+        "horizontalSplitActive": false,
+        "leftActiveIndex": 0,
+        "leftPaths": [],
+        "linkedProfile": "",
+        "name": "TV Shows",
+        "overrideBuiltinPlayerDoubleclick": true,
+        "overrideCasingOverlays": true,
+        "overrideCenterOps": false,
+        "overrideConsole": true,
+        "overrideDrivesToolbar": true,
+        "overrideDualPane": true,
+        "overrideFavoritesSidebar": true,
+        "overrideFullScreenPlayer": true,
+        "overrideHorizontalSplit": true,
+        "overrideMenus": false,
+        "overridePreview": true,
+        "overrideSmartHome": true,
+        "overrideToolbars": false,
+        "overrideVisualizer": true,
+        "overrideZenMode": true,
+        "previewVisible": true,
+        "rightActiveIndex": 0,
+        "rightPaths": [],
+        "ruleType": "Category",
+        "selectedMenus": [],
+        "selectedToolbars": [],
+        "smartHomeEnabled": true,
+        "subfolderDepth": 3,
+        "useBgColor": false,
+        "useBgImage": false,
+        "value": "Videos",
+        "viewMode": "TV Shows Full Screen",
+        "visualizerActive": false,
+        "windowState": "",
+        "zenModeActive": false
+    },
+    {
+        "autoApply": true,
+        "bgColor": "",
+        "bgImage": "",
+        "bgOpacity": 1,
+        "builtinPlayerDoubleclick": false,
+        "casingOverlaysActive": false,
+        "centerOpsVisible": false,
+        "consoleVisible": false,
+        "customButtons": [],
+        "drivesToolbarVisible": true,
+        "dualPaneActive": false,
+        "entryCommand": "",
+        "favoritesSidebarVisible": true,
+        "fullScreenPlayerActive": false,
+        "hasTabsSnapshot": false,
+        "horizontalSplitActive": false,
+        "leftActiveIndex": 0,
+        "leftPaths": [],
+        "linkedProfile": "",
+        "name": "Pictures",
+        "overrideBuiltinPlayerDoubleclick": true,
+        "overrideCasingOverlays": true,
+        "overrideCenterOps": false,
+        "overrideConsole": true,
+        "overrideDrivesToolbar": true,
+        "overrideDualPane": true,
+        "overrideFavoritesSidebar": true,
+        "overrideFullScreenPlayer": true,
+        "overrideHorizontalSplit": true,
+        "overrideMenus": true,
+        "overridePreview": true,
+        "overrideSmartHome": true,
+        "overrideToolbars": false,
+        "overrideVisualizer": true,
+        "overrideZenMode": true,
+        "previewVisible": false,
+        "rightActiveIndex": 0,
+        "rightPaths": [],
+        "ruleType": "Category",
+        "selectedMenus": ["Main Menu"],
+        "selectedToolbars": [],
+        "smartHomeEnabled": true,
+        "subfolderDepth": 0,
+        "useBgColor": false,
+        "useBgImage": false,
+        "value": "Images",
+        "viewMode": "Filmstrip",
+        "visualizerActive": false,
+        "windowState": "",
+        "zenModeActive": false
+    },
+    {
+        "autoApply": true,
+        "bgColor": "",
+        "bgImage": "",
+        "bgOpacity": 1,
+        "builtinPlayerDoubleclick": false,
+        "casingOverlaysActive": false,
+        "centerOpsVisible": false,
+        "consoleVisible": false,
+        "customButtons": [],
+        "drivesToolbarVisible": false,
+        "dualPaneActive": false,
+        "entryCommand": "",
+        "favoritesSidebarVisible": false,
+        "fullScreenPlayerActive": false,
+        "hasTabsSnapshot": false,
+        "horizontalSplitActive": false,
+        "leftActiveIndex": 0,
+        "leftPaths": [],
+        "linkedProfile": "",
+        "name": "Music Full Screen",
+        "overrideBuiltinPlayerDoubleclick": true,
+        "overrideCasingOverlays": true,
+        "overrideCenterOps": false,
+        "overrideConsole": true,
+        "overrideDrivesToolbar": false,
+        "overrideDualPane": true,
+        "overrideFavoritesSidebar": true,
+        "overrideFullScreenPlayer": true,
+        "overrideHorizontalSplit": true,
+        "overrideMenus": false,
+        "overridePreview": true,
+        "overrideSmartHome": true,
+        "overrideToolbars": false,
+        "overrideVisualizer": true,
+        "overrideZenMode": true,
+        "previewVisible": false,
+        "rightActiveIndex": 0,
+        "rightPaths": [],
+        "ruleType": "Category",
+        "selectedMenus": [],
+        "selectedToolbars": [],
+        "smartHomeEnabled": true,
+        "subfolderDepth": 0,
+        "useBgColor": false,
+        "useBgImage": false,
+        "value": "music",
+        "viewMode": "Music Full Screen",
+        "visualizerActive": false,
+        "windowState": "",
+        "zenModeActive": false
+    },
+    {
+        "autoApply": true,
+        "bgColor": "",
+        "bgImage": "",
+        "bgOpacity": 1,
+        "builtinPlayerDoubleclick": false,
+        "casingOverlaysActive": false,
+        "centerOpsVisible": false,
+        "consoleVisible": false,
+        "customButtons": [],
+        "drivesToolbarVisible": false,
+        "dualPaneActive": true,
+        "entryCommand": "",
+        "favoritesSidebarVisible": false,
+        "fullScreenPlayerActive": false,
+        "hasTabsSnapshot": false,
+        "horizontalSplitActive": false,
+        "leftActiveIndex": 0,
+        "leftPaths": [],
+        "linkedProfile": "",
+        "name": "Dual Pain View",
+        "overrideBuiltinPlayerDoubleclick": true,
+        "overrideCasingOverlays": true,
+        "overrideCenterOps": false,
+        "overrideConsole": true,
+        "overrideDrivesToolbar": false,
+        "overrideDualPane": true,
+        "overrideFavoritesSidebar": true,
+        "overrideFullScreenPlayer": true,
+        "overrideHorizontalSplit": true,
+        "overrideMenus": true,
+        "overridePreview": true,
+        "overrideSmartHome": true,
+        "overrideToolbars": true,
+        "overrideVisualizer": true,
+        "overrideZenMode": true,
+        "previewVisible": false,
+        "rightActiveIndex": 0,
+        "rightPaths": [],
+        "ruleType": "Category",
+        "selectedMenus": ["Main Menu"],
+        "selectedToolbars": ["tb_file_ops", "tb_view_ops", "tb_drives", "tb_center_ops"],
+        "smartHomeEnabled": true,
+        "subfolderDepth": 0,
+        "useBgColor": false,
+        "useBgImage": false,
+        "value": "",
+        "viewMode": "List",
+        "visualizerActive": false,
+        "windowState": "",
+        "zenModeActive": false
+    },
+    {
+        "autoApply": true,
+        "bgColor": "",
+        "bgImage": "",
+        "bgOpacity": 1,
+        "builtinPlayerDoubleclick": false,
+        "casingOverlaysActive": false,
+        "centerOpsVisible": false,
+        "consoleVisible": false,
+        "customButtons": [],
+        "drivesToolbarVisible": false,
+        "dualPaneActive": false,
+        "entryCommand": "",
+        "favoritesSidebarVisible": false,
+        "fullScreenPlayerActive": false,
+        "hasTabsSnapshot": false,
+        "horizontalSplitActive": false,
+        "leftActiveIndex": 0,
+        "leftPaths": [],
+        "linkedProfile": "",
+        "name": "Movies Night",
+        "overrideBuiltinPlayerDoubleclick": true,
+        "overrideCasingOverlays": true,
+        "overrideCenterOps": false,
+        "overrideConsole": true,
+        "overrideDrivesToolbar": true,
+        "overrideDualPane": true,
+        "overrideFavoritesSidebar": true,
+        "overrideFullScreenPlayer": true,
+        "overrideHorizontalSplit": true,
+        "overrideMenus": false,
+        "overridePreview": true,
+        "overrideSmartHome": true,
+        "overrideToolbars": false,
+        "overrideVisualizer": true,
+        "overrideZenMode": true,
+        "previewVisible": false,
+        "rightActiveIndex": 0,
+        "rightPaths": [],
+        "ruleType": "Category",
+        "selectedMenus": [],
+        "selectedToolbars": [],
+        "smartHomeEnabled": true,
+        "subfolderDepth": 1,
+        "useBgColor": false,
+        "useBgImage": false,
+        "value": "Videos",
+        "viewMode": "Movies Full Screen",
+        "visualizerActive": false,
+        "windowState": "",
+        "zenModeActive": true
+    },
+    {
+        "autoApply": true,
+        "bgColor": "",
+        "bgImage": "",
+        "bgOpacity": 1,
+        "builtinPlayerDoubleclick": false,
+        "casingOverlaysActive": false,
+        "centerOpsVisible": false,
+        "consoleVisible": false,
+        "customButtons": [],
+        "drivesToolbarVisible": false,
+        "dualPaneActive": true,
+        "entryCommand": "",
+        "favoritesSidebarVisible": false,
+        "fullScreenPlayerActive": false,
+        "hasTabsSnapshot": false,
+        "horizontalSplitActive": false,
+        "leftActiveIndex": 0,
+        "leftPaths": [],
+        "linkedProfile": "",
+        "name": "Lift Side File with Preview pain",
+        "overrideBuiltinPlayerDoubleclick": true,
+        "overrideCasingOverlays": true,
+        "overrideCenterOps": false,
+        "overrideConsole": true,
+        "overrideDrivesToolbar": false,
+        "overrideDualPane": true,
+        "overrideFavoritesSidebar": true,
+        "overrideFullScreenPlayer": true,
+        "overrideHorizontalSplit": true,
+        "overrideMenus": true,
+        "overridePreview": true,
+        "overrideSmartHome": true,
+        "overrideToolbars": true,
+        "overrideVisualizer": true,
+        "overrideZenMode": true,
+        "previewVisible": true,
+        "rightActiveIndex": 0,
+        "rightPaths": [],
+        "ruleType": "Category",
+        "selectedMenus": ["Main Menu"],
+        "selectedToolbars": ["tb_file_ops", "tb_view_ops", "tb_drives", "tb_center_ops"],
+        "smartHomeEnabled": true,
+        "subfolderDepth": 0,
+        "useBgColor": false,
+        "useBgImage": false,
+        "value": "",
+        "viewMode": "List",
+        "visualizerActive": false,
+        "windowState": "",
+        "zenModeActive": false
+    }
+])JSON";
+        QJsonDocument doc = QJsonDocument::fromJson(jsonStr.toUtf8());
+        QJsonArray arr = doc.array();
+        for (int i = 0; i < arr.size(); ++i) {
+            m_folderRules.append(jsonToRule(arr[i].toObject()));
         }
-        
-        // Migrate old workspace profiles
-        QStringList profiles = settings.value("workspace_profiles/profile_list").toStringList();
-        for (const QString& name : profiles) {
-            FolderLayoutRule r;
-            r.name = name;
-            r.ruleType = "Path";
-            r.value = "";
-            r.autoApply = false; // Manual apply only
-            
-            r.leftPaths = settings.value(QString("workspace_profiles/%1/left_paths").arg(name)).toStringList();
-            r.leftActiveIndex = settings.value(QString("workspace_profiles/%1/left_active").arg(name), 0).toInt();
-            int leftViewMode = settings.value(QString("workspace_profiles/%1/left_view_mode").arg(name), 0).toInt();
-            if (leftViewMode == 0) r.viewMode = "List";
-            else if (leftViewMode == 1) r.viewMode = "Grid";
-            else if (leftViewMode == 2) r.viewMode = "Card";
-            else if (leftViewMode == 3) r.viewMode = "Miller";
-            else if (leftViewMode == 4) r.viewMode = "Timeline";
-            else if (leftViewMode == 5) r.viewMode = "Filmstrip";
-            else if (leftViewMode == 6) r.viewMode = "Theater";
-            
-            r.rightPaths = settings.value(QString("workspace_profiles/%1/right_paths").arg(name)).toStringList();
-            r.rightActiveIndex = settings.value(QString("workspace_profiles/%1/right_active").arg(name), 0).toInt();
-            
-            r.overrideDrivesToolbar = true;
-            r.drivesToolbarVisible = true;
-            
-            r.overrideCenterOps = true;
-            r.centerOpsVisible = true;
-            
-            r.overrideConsole = true;
-            r.consoleVisible = settings.value(QString("workspace_profiles/%1/console_visible").arg(name), true).toBool();
-            
-            r.overridePreview = true;
-            r.previewVisible = settings.value(QString("workspace_profiles/%1/right_visible").arg(name), true).toBool();
-            
-            r.overrideFavoritesSidebar = true;
-            r.favoritesSidebarVisible = settings.value(QString("workspace_profiles/%1/sidebar_visible").arg(name), true).toBool();
-            
-            r.hasTabsSnapshot = true;
-            m_folderRules.append(r);
-        }
-        
-        saveFolderRules();
-    }
-
-    // Ensure "Default" profile and helper preset profiles exist
-    bool defaultExists = false;
-    bool musicExists = false;
-    bool moviesExists = false;
-    bool tvShowsExists = false;
-    bool picturesExists = false;
-
-    for (const auto& r : m_folderRules) {
-        QString name = r.name.toLower().trimmed();
-        if (name == "default") defaultExists = true;
-        else if (name == "music") musicExists = true;
-        else if (name == "movies") moviesExists = true;
-        else if (name == "tv shows") tvShowsExists = true;
-        else if (name == "pictures") picturesExists = true;
-    }
-
-    bool addedPreset = false;
-
-    if (!defaultExists) {
-        FolderLayoutRule r;
-        r.name = "Default";
-        r.ruleType = "Path";
-        r.value = "";
-        r.autoApply = true;
-        r.viewMode = "No Change";
-        r.overrideConsole = true;
-        r.consoleVisible = false;
-        r.overrideDrivesToolbar = true;
-        r.drivesToolbarVisible = true;
-        r.overridePreview = true;
-        r.previewVisible = false;
-        r.overrideCenterOps = true;
-        r.centerOpsVisible = true;
-        r.overrideFavoritesSidebar = true;
-        r.favoritesSidebarVisible = true;
-        r.overrideZenMode = true;
-        r.zenModeActive = false;
-        r.overrideBuiltinPlayerDoubleclick = true;
-        r.builtinPlayerDoubleclick = false;
-        r.overrideFullScreenPlayer = true;
-        r.fullScreenPlayerActive = true;
-        r.overrideVisualizer = true;
-        r.visualizerActive = true;
-        r.overrideDualPane = true;
-        r.dualPaneActive = true;
-        r.overrideHorizontalSplit = true;
-        r.horizontalSplitActive = false;
-        r.overrideCasingOverlays = true;
-        r.casingOverlaysActive = true;
-        r.overrideSmartHome = true;
-        r.smartHomeEnabled = true;
-        m_folderRules.prepend(r); // Keep Default at the very top
-        addedPreset = true;
-    }
-
-    if (!musicExists) {
-        FolderLayoutRule r;
-        r.name = "Music";
-        r.ruleType = "Category";
-        r.value = "Music";
-        r.autoApply = true;
-        r.viewMode = "Music Showcase";
-        r.overridePreview = true;
-        r.previewVisible = false;
-        r.overrideDrivesToolbar = true;
-        r.drivesToolbarVisible = false;
-        r.overrideConsole = true;
-        r.consoleVisible = false;
-        r.overrideFavoritesSidebar = true;
-        r.favoritesSidebarVisible = false;
-        m_folderRules.append(r);
-        addedPreset = true;
-    }
-
-    if (!moviesExists) {
-        FolderLayoutRule r;
-        r.name = "Movies";
-        r.ruleType = "Category";
-        r.value = "Videos";
-        r.autoApply = true;
-        r.viewMode = "Cinema Showcase";
-        r.overridePreview = true;
-        r.previewVisible = false;
-        r.overrideDrivesToolbar = true;
-        r.drivesToolbarVisible = false;
-        r.overrideConsole = true;
-        r.consoleVisible = false;
-        r.overrideFavoritesSidebar = true;
-        r.favoritesSidebarVisible = false;
-        m_folderRules.append(r);
-        addedPreset = true;
-    }
-
-    if (!tvShowsExists) {
-        FolderLayoutRule r;
-        r.name = "TV Shows";
-        r.ruleType = "Category";
-        r.value = "Videos";
-        r.autoApply = true;
-        r.viewMode = "Cinema Showcase";
-        r.overridePreview = true;
-        r.previewVisible = false;
-        r.overrideDrivesToolbar = true;
-        r.drivesToolbarVisible = false;
-        r.overrideConsole = true;
-        r.consoleVisible = false;
-        r.overrideFavoritesSidebar = true;
-        r.favoritesSidebarVisible = false;
-        m_folderRules.append(r);
-        addedPreset = true;
-    }
-
-    if (!picturesExists) {
-        FolderLayoutRule r;
-        r.name = "Pictures";
-        r.ruleType = "Category";
-        r.value = "Images";
-        r.autoApply = true;
-        r.viewMode = "Grid";
-        r.overridePreview = true;
-        r.previewVisible = false;
-        r.overrideDrivesToolbar = true;
-        r.drivesToolbarVisible = true;
-        r.overrideConsole = true;
-        r.consoleVisible = false;
-        r.overrideFavoritesSidebar = true;
-        r.favoritesSidebarVisible = true;
-        m_folderRules.append(r);
-        addedPreset = true;
-    }
-
-    if (addedPreset) {
         saveFolderRules();
     }
 }
