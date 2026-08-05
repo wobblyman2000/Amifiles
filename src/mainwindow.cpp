@@ -4497,60 +4497,17 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
     }
 
     // 3b. Custom Toolbars visibility overrides
-    if (r.overrideToolbars) {
-        for (QToolBar* tb : m_dynamicToolBars) {
-            if (tb->objectName() == "tb_drives" || tb->objectName() == "drivesToolBar") continue;
-            tb->setVisible(r.selectedToolbars.contains(tb->objectName()));
-        }
-    } else {
-        if (isDefaultProfile) {
-            for (QToolBar* tb : m_dynamicToolBars) {
-                if (tb->objectName() == "tb_drives" || tb->objectName() == "drivesToolBar") continue;
-                tb->setVisible(false);
-            }
-        } else {
-            if (def.overrideToolbars) {
-                for (QToolBar* tb : m_dynamicToolBars) {
-                    if (tb->objectName() == "tb_drives" || tb->objectName() == "drivesToolBar") continue;
-                    tb->setVisible(def.selectedToolbars.contains(tb->objectName()));
-                }
-            } else {
-                for (QToolBar* tb : m_dynamicToolBars) {
-                    if (tb->objectName() == "tb_drives" || tb->objectName() == "drivesToolBar") continue;
-                    tb->setVisible(false);
-                }
-            }
-        }
+    for (QToolBar* tb : m_dynamicToolBars) {
+        if (tb->objectName() == "tb_drives" || tb->objectName() == "drivesToolBar") continue;
+        bool visible = r.overrideToolbars && r.selectedToolbars.contains(tb->objectName());
+        tb->setVisible(visible);
     }
 
     // 3c. Custom Menus visibility overrides
-    if (r.overrideMenus) {
-        for (QMenu* menu : m_customMenus) {
-            if (menu->menuAction()) {
-                menu->menuAction()->setVisible(r.selectedMenus.contains(menu->title()));
-            }
-        }
-    } else {
-        if (isDefaultProfile) {
-            for (QMenu* menu : m_customMenus) {
-                if (menu->menuAction()) {
-                    menu->menuAction()->setVisible(false);
-                }
-            }
-        } else {
-            if (def.overrideMenus) {
-                for (QMenu* menu : m_customMenus) {
-                    if (menu->menuAction()) {
-                        menu->menuAction()->setVisible(def.selectedMenus.contains(menu->title()));
-                    }
-                }
-            } else {
-                for (QMenu* menu : m_customMenus) {
-                    if (menu->menuAction()) {
-                        menu->menuAction()->setVisible(false);
-                    }
-                }
-            }
+    for (QMenu* menu : m_customMenus) {
+        if (menu->menuAction()) {
+            bool visible = r.overrideMenus && r.selectedMenus.contains(menu->title());
+            menu->menuAction()->setVisible(visible);
         }
     }
 
