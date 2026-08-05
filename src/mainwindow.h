@@ -173,6 +173,7 @@ public:
     Q_INVOKABLE bool isBuiltinPlayerDoubleclickActive() const;
     Q_INVOKABLE void setBuiltinPlayerDoubleclickActive(bool active);
     bool isApplyingFolderProfile() const { return m_isApplyingFolderProfile; }
+    void setApplyingFolderProfile(bool applying) { m_isApplyingFolderProfile = applying; }
     bool hasActiveFolderRule() const { return m_hasActiveFolderRule; }
     FolderLayoutRule activeFolderRule() const { return m_activeFolderRule; }
     class PreviewPanel* previewPanel() const { return m_previewPanel; }

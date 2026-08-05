@@ -514,7 +514,9 @@ void FilePanel::setupUI() {
             }
             if (found) {
                 if (targetRule.ruleType == "Path" && !targetRule.value.isEmpty()) {
+                    mw->setApplyingFolderProfile(true);
                     setPath(targetRule.value);
+                    mw->applyProfile(targetRule, this);
                 } else {
                     mw->applyProfile(targetRule, this);
                 }
