@@ -4386,6 +4386,17 @@ void MainWindow::saveFolderRules() {
     settings.sync();
 }
 
+void MainWindow::refreshAllDashboards() {
+    for (int i = 0; i < m_leftTabWidget->count(); ++i) {
+        FilePanel* p = qobject_cast<FilePanel*>(m_leftTabWidget->widget(i));
+        if (p) p->refreshHomeDashboard();
+    }
+    for (int i = 0; i < m_rightTabWidget->count(); ++i) {
+        FilePanel* p = qobject_cast<FilePanel*>(m_rightTabWidget->widget(i));
+        if (p) p->refreshHomeDashboard();
+    }
+}
+
 bool MainWindow::isToolbarDefaultVisible(const QString& toolbarId) {
     QSettings settings("Amifiles", "Amifiles");
     QString jsonStr = settings.value("custom_toolbars_v1").toString();
@@ -4498,17 +4509,23 @@ void MainWindow::applyProfile(const FolderLayoutRule& r, FilePanel* targetPanel)
     }
 
     // 3b. Custom Toolbars visibility overrides
+    bool showCenterOps = r.overrideToolbars && (r.selectedToolbars.contains("tb_center_ops") || r.selectedToolbars.contains("centerOpsBarWidget"));
+    m_actToggleCenterOps->setChecked(showCenterOps);
+    if (m_tbCenterOps) m_tbCenterOps->setVisible(showCenterOps && m_isDualPane);
+
     for (QToolBar* tb : m_dynamicToolBars) {
-        bool visible = r.overrideToolbars && r.selectedToolbars.contains(tb->objectName());
+        bool isDrives = (tb->objectName() == "tb_drives" || tb->objectName() == "drivesToolBar");
+        bool visible = r.overrideToolbars && (r.selectedToolbars.contains(tb->objectName()) || (isDrives && (r.selectedToolbars.contains("tb_drives") || r.selectedToolbars.contains("drivesToolBar"))));
         tb->setVisible(visible);
-        if (tb->objectName() == "tb_drives" || tb->objectName() == "drivesToolBar") {
+        if (isDrives) {
             m_actToggleDrivesToolbar->setChecked(visible);
         }
     }
 
     // 3c. Custom Menus visibility overrides
+    bool showMenuBar = r.overrideMenus && (r.selectedMenus.contains("Main Menu") || r.selectedMenus.contains("main_menu") || r.selectedMenus.contains("menuBar"));
     if (menuBar()) {
-        menuBar()->setVisible(r.overrideMenus);
+        menuBar()->setVisible(showMenuBar);
     }
     for (QMenu* menu : m_customMenus) {
         if (menu->menuAction()) {
@@ -7186,7 +7203,10 @@ void MainWindow::setZenMode(bool enabled) {
     // Hide/show main window menu bar, toolbars, center ops, bottom tabs, status bar, and sidebar
     bool menuBarVisible = !enabled;
     if (m_hasActiveFolderRule) {
-        menuBarVisible = !enabled && m_activeFolderRule.overrideMenus;
+        menuBarVisible = !enabled && m_activeFolderRule.overrideMenus &&
+                         (m_activeFolderRule.selectedMenus.contains("Main Menu") ||
+                          m_activeFolderRule.selectedMenus.contains("main_menu") ||
+                          m_activeFolderRule.selectedMenus.contains("menuBar"));
     }
     if (menuBar()) menuBar()->setVisible(menuBarVisible);
 
@@ -7196,11 +7216,21 @@ void MainWindow::setZenMode(bool enabled) {
 
     bool showDrives = !enabled && m_actToggleDrivesToolbar->isChecked();
     if (m_hasActiveFolderRule) {
-        showDrives = !enabled && m_activeFolderRule.overrideToolbars && m_activeFolderRule.selectedToolbars.contains("tb_drives");
+        showDrives = !enabled && m_activeFolderRule.overrideToolbars &&
+                     (m_activeFolderRule.selectedToolbars.contains("tb_drives") ||
+                      m_activeFolderRule.selectedToolbars.contains("drivesToolBar"));
     }
     if (m_tbDrives) m_tbDrives->setVisible(showDrives);
 
-    if (m_tbCenterOps) m_tbCenterOps->setVisible(!enabled && m_actToggleCenterOps->isChecked() && m_isDualPane);
+    bool showCenterOps = !enabled && m_actToggleCenterOps->isChecked() && m_isDualPane;
+    if (m_hasActiveFolderRule) {
+        showCenterOps = !enabled && m_activeFolderRule.overrideToolbars &&
+                        (m_activeFolderRule.selectedToolbars.contains("tb_center_ops") ||
+                         m_activeFolderRule.selectedToolbars.contains("centerOpsBarWidget")) &&
+                        m_isDualPane;
+    }
+    if (m_tbCenterOps) m_tbCenterOps->setVisible(showCenterOps);
+
     if (m_bottomTabWidget) m_bottomTabWidget->setVisible(!enabled && m_actToggleConsole->isChecked());
     if (m_sidebarTabWidget && m_actToggleFavoritesSidebar) {
         m_sidebarTabWidget->setVisible(!enabled && m_actToggleFavoritesSidebar->isChecked());
@@ -7210,7 +7240,10 @@ void MainWindow::setZenMode(bool enabled) {
         if (tb) {
             bool shouldBeVisible = false;
             if (m_hasActiveFolderRule) {
-                shouldBeVisible = m_activeFolderRule.overrideToolbars && m_activeFolderRule.selectedToolbars.contains(tb->objectName());
+                bool isDrives = (tb->objectName() == "tb_drives" || tb->objectName() == "drivesToolBar");
+                shouldBeVisible = m_activeFolderRule.overrideToolbars &&
+                                  (m_activeFolderRule.selectedToolbars.contains(tb->objectName()) ||
+                                   (isDrives && (m_activeFolderRule.selectedToolbars.contains("tb_drives") || m_activeFolderRule.selectedToolbars.contains("drivesToolBar"))));
             } else {
                 shouldBeVisible = isToolbarDefaultVisible(tb->objectName());
             }

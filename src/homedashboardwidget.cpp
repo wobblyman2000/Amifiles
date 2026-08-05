@@ -157,6 +157,11 @@ protected:
             font.setPointSize(13);
             p.setFont(font);
             p.drawText(rect, Qt::AlignCenter, "🎬");
+        } else if (m_layoutIndex == -2) {
+            QFont font = p.font();
+            font.setPointSize(13);
+            p.setFont(font);
+            p.drawText(rect, Qt::AlignCenter, "⚙️");
         } else { // Standard folder
             QFont font = p.font();
             font.setPointSize(13);
@@ -418,6 +423,17 @@ void HomeDashboardWidget::setupUi() {
     m_pinnedLayout->setSpacing(12);
     contentLayout->addWidget(pinnedContainer);
 
+    // 4. Pinned Layout Profiles Section
+    QLabel* profilesTitle = new QLabel("Pinned Layout Profiles", scrollContent);
+    profilesTitle->setObjectName("sectionTitle");
+    contentLayout->addWidget(profilesTitle);
+
+    QFrame* profilesContainer = new QFrame(scrollContent);
+    m_pinnedProfilesLayout = new QGridLayout(profilesContainer);
+    m_pinnedProfilesLayout->setContentsMargins(0, 0, 0, 0);
+    m_pinnedProfilesLayout->setSpacing(12);
+    contentLayout->addWidget(profilesContainer);
+
     contentLayout->addStretch(1);
     mainLayout->addWidget(scrollArea, 1);
 
@@ -499,6 +515,7 @@ void HomeDashboardWidget::refreshDashboard() {
     populateDrives();
     populateQuickAccess();
     populatePinnedFolders();
+    populatePinnedProfiles();
 }
 
 void HomeDashboardWidget::populateDrives() {
@@ -813,6 +830,99 @@ void HomeDashboardWidget::onToolButtonClicked(const QString& action) {
     } else if (action == "preferences") {
         QMetaObject::invokeMethod(mw, "onOpenPreferences");
     }
+}
+
+void HomeDashboardWidget::populatePinnedProfiles() {
+    clearLayout(m_pinnedProfilesLayout);
+    m_pinnedProfilesLayout->setSpacing(6);
+    for (int i = 0; i < 10; ++i) m_pinnedProfilesLayout->setColumnStretch(i, 0);
+
+    QSettings settings("Amifiles", "Amifiles");
+    QStringList pinned = settings.value("dashboard/pinned_profiles").toStringList();
+
+    if (pinned.isEmpty()) {
+        QLabel* emptyLabel = new QLabel("No layout profiles pinned yet. Right-click any profile inside the Folder Profiles & Layouts Dialog and click '📌 Pin to Smart Home' to create shortcuts.", this);
+        emptyLabel->setStyleSheet("color: #a6adc8; font-size: 11px; font-style: italic; padding: 10px;");
+        m_pinnedProfilesLayout->addWidget(emptyLabel, 0, 0);
+        return;
+    }
+
+    int row = 0;
+    int col = 0;
+
+    for (const QString& profileName : pinned) {
+        CardTheme theme = getCardTheme(col + row * 4, 0);
+        theme.symbol = "⚙️";
+
+        ClickableCardFrame* card = new ClickableCardFrame(profileName, -1, this);
+        card->setFixedSize(190, 74);
+        card->setStyleSheet(QString("QFrame#cardFrame { %1 border-radius: 12px; } QFrame#cardFrame:hover { background-color: rgba(255, 255, 255, 0.05); }").arg(theme.bgStyle));
+        
+        connect(card, &ClickableCardFrame::doubleClicked, this, [this](const QString& name) {
+            emit applyProfileRequested(name);
+        });
+
+        card->setContextMenuPolicy(Qt::CustomContextMenu);
+        connect(card, &QWidget::customContextMenuRequested, this, [this, profileName, card](const QPoint& pos) {
+            QMenu menu(card);
+            QAction* actUnpin = menu.addAction("📌 Unpin from Home Screen");
+            QAction* selected = menu.exec(card->mapToGlobal(pos));
+            if (selected == actUnpin) {
+                QMessageBox::StandardButton reply = QMessageBox::question(
+                    this,
+                    "Unpin Profile",
+                    QString("Are you sure you want to unpin layout profile '%1' from the Home Screen?").arg(profileName),
+                    QMessageBox::Yes | QMessageBox::No
+                );
+                if (reply == QMessageBox::Yes) {
+                    QSettings settings("Amifiles", "Amifiles");
+                    QStringList pinnedProfs = settings.value("dashboard/pinned_profiles").toStringList();
+                    pinnedProfs.removeAll(profileName);
+                    settings.setValue("dashboard/pinned_profiles", pinnedProfs);
+                    settings.sync();
+                    populatePinnedProfiles();
+                }
+            }
+        });
+
+        QHBoxLayout* layout = new QHBoxLayout(card);
+        layout->setContentsMargins(12, 10, 12, 10);
+        layout->setSpacing(8);
+
+        QVBoxLayout* details = new QVBoxLayout();
+        details->setSpacing(4);
+
+        QLabel* nameLabel = new QLabel(profileName, card);
+        nameLabel->setStyleSheet(theme.textStyle + " font-size: 13px;");
+        details->addWidget(nameLabel);
+
+        QLabel* subLabel = new QLabel("Layout Profile", card);
+        subLabel->setStyleSheet("font-size: 11px; color: #a6adc8;");
+        details->addWidget(subLabel);
+
+        QHBoxLayout* badgeLayout = new QHBoxLayout();
+        badgeLayout->setContentsMargins(0, 0, 0, 0);
+        QLabel* layoutBadge = new QLabel("Double-Click to Apply", card);
+        layoutBadge->setStyleSheet(theme.badgeStyle + " font-size: 9px; font-weight: bold; border-radius: 9px; padding: 3px 8px; " + theme.badgeBgStyle);
+        badgeLayout->addWidget(layoutBadge);
+        badgeLayout->addStretch(1);
+        details->addLayout(badgeLayout);
+
+        layout->addLayout(details, 1);
+
+        QColor accentColor(theme.textStyle.split(';').first().split(' ').last().trimmed());
+        FolderGraphicWidget* graphic = new FolderGraphicWidget("", -2, accentColor, card);
+        layout->addWidget(graphic);
+
+        m_pinnedProfilesLayout->addWidget(card, row, col, Qt::AlignLeft | Qt::AlignVCenter);
+
+        col++;
+        if (col >= 4) {
+            col = 0;
+            row++;
+        }
+    }
+    m_pinnedProfilesLayout->setColumnStretch(4, 1);
 }
 
 #include "homedashboardwidget.moc"

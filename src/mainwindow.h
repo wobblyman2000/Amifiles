@@ -335,6 +335,7 @@ public:
     const QList<FolderLayoutRule>& folderRules() const { return m_folderRules; }
     void setFolderRules(const QList<FolderLayoutRule>& rules) { m_folderRules = rules; }
     void saveFolderRules();
+    void refreshAllDashboards();
     FilePanel* createTab(QTabWidget* tabWidget, const QString& path);
     void updateSiblingLinks();
     void executeCustomCommand(const QString& commandOrPath);

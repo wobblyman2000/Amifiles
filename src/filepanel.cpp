@@ -496,6 +496,16 @@ void FilePanel::setupUI() {
         
         setViewModeIndex(layoutIdx);
     });
+    connect(m_homeDashboardWidget, &HomeDashboardWidget::applyProfileRequested, this, [this](const QString& profileName) {
+        QWidget* parentW = parentWidget();
+        while (parentW && !parentW->inherits("MainWindow")) {
+            parentW = parentW->parentWidget();
+        }
+        MainWindow* mw = qobject_cast<MainWindow*>(parentW);
+        if (mw) {
+            mw->onApplyProfileToCurrentFolder(profileName);
+        }
+    });
     m_theaterListView = new TheaterListView(this);
     m_theaterListView->setMinimumHeight(50);
     m_theaterListView->setEditTriggers(QAbstractItemView::EditKeyPressed | QAbstractItemView::SelectedClicked);
@@ -3296,6 +3306,12 @@ void FilePanel::refresh() {
     checkFolderArt();
     populateFilterTagsCombo();
     updateStatusText();
+}
+
+void FilePanel::refreshHomeDashboard() {
+    if (m_homeDashboardWidget) {
+        m_homeDashboardWidget->refreshDashboard();
+    }
 }
 
 void FilePanel::writeTempFileToArchive(const QString& tempPath) {

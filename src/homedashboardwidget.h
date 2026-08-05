@@ -18,6 +18,7 @@ public:
 signals:
     void navigateRequested(const QString& path);
     void navigateWithLayoutRequested(const QString& path, int layoutIndex);
+    void applyProfileRequested(const QString& profileName);
 
 private slots:
     void onDriveDoubleClicked(const QString& path);
@@ -31,10 +32,12 @@ private:
     void populateDrives();
     void populateQuickAccess();
     void populatePinnedFolders();
+    void populatePinnedProfiles();
 
     QGridLayout* m_drivesLayout = nullptr;
     QGridLayout* m_quickAccessLayout = nullptr;
     QGridLayout* m_pinnedLayout = nullptr;
+    QGridLayout* m_pinnedProfilesLayout = nullptr;
 };
 
 #endif // HOMEDASHBOARDWIDGET_H

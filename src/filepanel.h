@@ -918,6 +918,7 @@ public:
     QString folderArtPath() const { return m_folderArtPath; }
 
     void refresh();
+    void refreshHomeDashboard();
     void writeTempFileToArchive(const QString& tempPath);
     void updateStyles();
     void autoSizeAllColumns();

@@ -140,6 +140,7 @@ private slots:
     void onEditMenusShortcut();
     void onEditContextMenusShortcut();
     void onSave();
+    void onListWidgetContextMenu(const QPoint& pos);
 
 private:
     void setupUI();
@@ -184,8 +185,6 @@ private:
     class QGroupBox* m_tabsGroup = nullptr;
 
     // Visibility States (One Switch per component)
-    QAbstractButton* m_stateDrives = nullptr;
-    QAbstractButton* m_stateCenterOps = nullptr;
     QAbstractButton* m_stateConsole = nullptr;
     QAbstractButton* m_statePreview = nullptr;
     QAbstractButton* m_stateFavorites = nullptr;
