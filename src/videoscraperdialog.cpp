@@ -47,7 +47,24 @@ VideoScraperDialog::VideoScraperDialog(const QStringList& filePaths, QWidget* pa
     if (!m_filePaths.isEmpty()) {
         QString first = m_filePaths.first();
         QFileInfo info(first);
-        QString name = info.completeBaseName();
+        QString name;
+        QFileInfo parentDir(info.absolutePath());
+        QRegularExpression seasonFolderRegex(R"((?i)\bseason\s*(\d+)\b|\bs\s*(\d+)\b)");
+
+        if (info.isDir()) {
+            if (seasonFolderRegex.match(info.fileName()).hasMatch()) {
+                name = parentDir.fileName();
+            } else {
+                name = info.fileName();
+            }
+        } else {
+            if (seasonFolderRegex.match(parentDir.fileName()).hasMatch()) {
+                name = QFileInfo(parentDir.absolutePath()).fileName();
+            } else {
+                name = info.completeBaseName();
+            }
+        }
+
         // Remove year in brackets like (1984) or [1984]
         name.remove(QRegularExpression(R"(\(\d{4}\))"));
         name.remove(QRegularExpression(R"(\[\d{4}\])"));
@@ -877,12 +894,18 @@ VideoScraperDialog::SeasonEpisode VideoScraperDialog::parseSeasonEpisode(const Q
         return se;
     }
 
-    // 5. Check if inside a Season folder
+    // 5. Check if inside a Season folder (search up to 3 levels)
     int folderSeason = -1;
     QRegularExpression seasonFolderRegex(R"((?i)\bseason\s*(\d+)\b|\bs\s*(\d+)\b)");
-    QRegularExpressionMatch folderMatch = seasonFolderRegex.match(fileInfo.absoluteDir().dirName());
-    if (folderMatch.hasMatch()) {
-        folderSeason = !folderMatch.captured(1).isEmpty() ? folderMatch.captured(1).toInt() : folderMatch.captured(2).toInt();
+    QDir d = fileInfo.absoluteDir();
+    for (int depth = 0; depth < 3; ++depth) {
+        QRegularExpressionMatch folderMatch = seasonFolderRegex.match(d.dirName());
+        if (folderMatch.hasMatch()) {
+            folderSeason = !folderMatch.captured(1).isEmpty() ? folderMatch.captured(1).toInt() : folderMatch.captured(2).toInt();
+            break;
+        }
+        if (d.isRoot()) break;
+        d.cdUp();
     }
 
     if (folderSeason != -1) {
@@ -1021,15 +1044,37 @@ void VideoScraperDialog::processTVShowEpisodes(const QString& targetFolder, cons
     // Scan recursively for video files to match and prepare tasks
     QDirIterator it(targetFolder, { "*.mp4", "*.mkv", "*.avi", "*.mov", "*.webm", "*.flv", "*.wmv", "*.m4v", "*.mpg", "*.mpeg" }, QDir::Files, QDirIterator::Subdirectories);
     QList<FileRenameTask> tasks;
+    struct LocalFile {
+        QString filePath;
+        QFileInfo fileInfo;
+        int detectedSeason = -1;
+        int detectedEpisode = -1;
+        bool matched = false;
+    };
 
+    QList<LocalFile> localFiles;
     while (it.hasNext()) {
         QString filePath = it.next();
         QFileInfo fileInfo(filePath);
-
         SeasonEpisode se = parseSeasonEpisode(fileInfo);
-        if (se.season != -1 && se.episode != -1) {
+
+        LocalFile lf;
+        lf.filePath = filePath;
+        lf.fileInfo = fileInfo;
+        lf.detectedSeason = se.season;
+        lf.detectedEpisode = se.episode;
+        lf.matched = false;
+
+        localFiles.append(lf);
+    }
+
+    // Pass 1: Explicit matching (SxxExx etc.)
+    for (LocalFile& lf : localFiles) {
+        if (lf.detectedSeason != -1 && lf.detectedEpisode != -1) {
             for (const EpisodeInfo& ep : episodes) {
-                if (ep.season == se.season && ep.episode == se.episode) {
+                if (ep.season == lf.detectedSeason && ep.episode == lf.detectedEpisode) {
+                    lf.matched = true;
+
                     QString sStr = QString("S%1").arg(ep.season, 2, 10, QChar('0'));
                     QString eStr = QString("E%1").arg(ep.episode, 2, 10, QChar('0'));
                     QString sanitizedEpTitle = ep.title;
@@ -1040,20 +1085,113 @@ void VideoScraperDialog::processTVShowEpisodes(const QString& targetFolder, cons
                         .arg(sStr)
                         .arg(eStr)
                         .arg(sanitizedEpTitle)
-                        .arg(fileInfo.suffix());
+                        .arg(lf.fileInfo.suffix());
 
                     FileRenameTask task;
-                    task.oldPath = filePath;
+                    task.oldPath = lf.filePath;
                     task.fileName = newFileName;
                     task.showTitle = showTitle;
                     task.ep = ep;
-                    
-                    // Default proposed path (without season folder)
                     task.newPath = dir.filePath(newFileName);
                     tasks.append(task);
                     break;
                 }
             }
+        }
+    }
+
+    // Pass 2: Sequential matching fallback for remaining files grouped by season
+    QMap<int, QList<LocalFile*>> unmatchedBySeason;
+    for (LocalFile& lf : localFiles) {
+        if (!lf.matched && lf.detectedSeason != -1) {
+            unmatchedBySeason[lf.detectedSeason].append(&lf);
+        }
+    }
+
+    auto naturalCompare = [](const QString& s1, const QString& s2) -> bool {
+        int i = 0, j = 0;
+        while (i < s1.length() && j < s2.length()) {
+            if (s1[i].isDigit() && s2[j].isDigit()) {
+                QString n1, n2;
+                while (i < s1.length() && s1[i].isDigit()) {
+                    n1 += s1[i++];
+                }
+                while (j < s2.length() && s2[j].isDigit()) {
+                    n2 += s2[j++];
+                }
+                int val1 = n1.toInt();
+                int val2 = n2.toInt();
+                if (val1 != val2) {
+                    return val1 < val2;
+                }
+            } else {
+                if (s1[i].toLower() != s2[j].toLower()) {
+                    return s1[i].toLower() < s2[j].toLower();
+                }
+                i++;
+                j++;
+            }
+        }
+        return s1.length() < s2.length();
+    };
+
+    QMapIterator<int, QList<LocalFile*>> seasonIt(unmatchedBySeason);
+    while (seasonIt.hasNext()) {
+        seasonIt.next();
+        int seasonNum = seasonIt.key();
+        QList<LocalFile*> files = seasonIt.value();
+
+        // Sort files naturally by filename
+        std::sort(files.begin(), files.end(), [&](LocalFile* a, LocalFile* b) {
+            return naturalCompare(a->fileInfo.fileName(), b->fileInfo.fileName());
+        });
+
+        // Find unmatched online episodes for this season
+        QList<EpisodeInfo> unmatchedEpisodes;
+        for (const EpisodeInfo& ep : episodes) {
+            if (ep.season == seasonNum) {
+                bool alreadyMatched = false;
+                for (const FileRenameTask& t : tasks) {
+                    if (t.ep.season == ep.season && t.ep.episode == ep.episode) {
+                        alreadyMatched = true;
+                        break;
+                    }
+                }
+                if (!alreadyMatched) {
+                    unmatchedEpisodes.append(ep);
+                }
+            }
+        }
+
+        std::sort(unmatchedEpisodes.begin(), unmatchedEpisodes.end(), [](const EpisodeInfo& a, const EpisodeInfo& b) {
+            return a.episode < b.episode;
+        });
+
+        int count = std::min(files.size(), unmatchedEpisodes.size());
+        for (int i = 0; i < count; ++i) {
+            LocalFile* lf = files[i];
+            const EpisodeInfo& ep = unmatchedEpisodes[i];
+            lf->matched = true;
+
+            QString sStr = QString("S%1").arg(ep.season, 2, 10, QChar('0'));
+            QString eStr = QString("E%1").arg(ep.episode, 2, 10, QChar('0'));
+            QString sanitizedEpTitle = ep.title;
+            sanitizedEpTitle.remove(QRegularExpression(R"([\\\/\:\*\?\"\<\>\|])"));
+
+            QString newFileName = QString("%1 - %2%3 - %4.%5")
+                .arg(sanitizedShowTitle)
+                .arg(sStr)
+                .arg(eStr)
+                .arg(sanitizedEpTitle)
+                .arg(lf->fileInfo.suffix());
+
+            FileRenameTask task;
+            task.oldPath = lf->filePath;
+            task.fileName = newFileName;
+            task.showTitle = showTitle;
+            task.ep = ep;
+            task.newPath = dir.filePath(newFileName);
+            tasks.append(task);
         }
     }
 
