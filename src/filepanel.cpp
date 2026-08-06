@@ -3865,6 +3865,50 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         createContextMenuAction(&menu, arr[i].toObject(), curSelected, index, actionCommands);
     }
 
+    if (!isFolder && !selectedPath.isEmpty()) {
+        QString ext = QFileInfo(selectedPath).suffix().toLower();
+        QStringList archiveExts = { "zip", "tar", "gz", "xz", "bz2", "tgz", "rar", "7z", "adf", "adz", "d64", "d71", "d81", "g64", "iso", "img" };
+        if (archiveExts.contains(ext)) {
+            bool hasExtract = false;
+            for (QAction* act : menu.actions()) {
+                if (actionCommands.value(act) == "app.extract_archive") {
+                    hasExtract = true;
+                    break;
+                }
+            }
+            if (!hasExtract) {
+                QAction* extractAct = new QAction(QIcon::fromTheme("package-x-generic"), "Extract Archive...", &menu);
+                actionCommands[extractAct] = "app.extract_archive";
+                
+                QAction* openAct = nullptr;
+                for (QAction* act : menu.actions()) {
+                    if (actionCommands.value(act) == "app.open" || actionCommands.value(act) == "app.open_fullscreen") {
+                        openAct = act;
+                        break;
+                    }
+                }
+                if (openAct) {
+                    int idx = menu.actions().indexOf(openAct);
+                    if (idx != -1) {
+                        if (idx + 1 < menu.actions().size()) {
+                            menu.insertAction(menu.actions().at(idx + 1), extractAct);
+                            menu.insertSeparator(menu.actions().at(idx + 2));
+                        } else {
+                            menu.addAction(extractAct);
+                        }
+                    }
+                } else {
+                    if (!menu.actions().isEmpty()) {
+                        menu.insertAction(menu.actions().first(), extractAct);
+                        menu.insertSeparator(menu.actions().at(1));
+                    } else {
+                        menu.addAction(extractAct);
+                    }
+                }
+            }
+        }
+    }
+
     // Execute menu on the active view layout widget
     QPoint globalPos = QCursor::pos();
     QAction* selected = menu.exec(globalPos);
