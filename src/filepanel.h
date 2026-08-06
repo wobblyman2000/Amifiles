@@ -883,6 +883,7 @@ public:
     QString currentPath() const;
     bool isSmartHomeEnabled() const { return m_smartHomeEnabled; }
     void setSmartHomeEnabled(bool enabled) { m_smartHomeEnabled = enabled; }
+    bool isSecondPane() const;
     void syncPlaylist(const QStringList& playlistPaths, int currentIndex);
     void setCustomBgColor(const QString& hexColor);
     QString customBgColor() const { return m_customBgColor; }

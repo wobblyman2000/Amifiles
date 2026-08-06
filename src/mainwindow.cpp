@@ -3048,7 +3048,7 @@ FilePanel* MainWindow::rightPanel() const {
 }
 
 FilePanel* MainWindow::createTab(QTabWidget* tabWidget, const QString& path) {
-    FilePanel* panel = new FilePanel(path, this);
+    FilePanel* panel = new FilePanel(path, tabWidget);
 
     connect(panel, &FilePanel::panelActivated, this, &MainWindow::onPanelActivated);
     connect(panel, &FilePanel::fileSelected, this, &MainWindow::onFileSelected);
@@ -6000,11 +6000,23 @@ void MainWindow::onPreferencesAction() {
         
         for (int i = 0; i < m_leftTabWidget->count(); ++i) {
             FilePanel* p = qobject_cast<FilePanel*>(m_leftTabWidget->widget(i));
-            if (p) p->refresh();
+            if (p) {
+                if (p->currentPath() == "smart://home") {
+                    p->setPath("smart://home");
+                } else {
+                    p->refresh();
+                }
+            }
         }
         for (int i = 0; i < m_rightTabWidget->count(); ++i) {
             FilePanel* p = qobject_cast<FilePanel*>(m_rightTabWidget->widget(i));
-            if (p) p->refresh();
+            if (p) {
+                if (p->currentPath() == "smart://home") {
+                    p->setPath("smart://home");
+                } else {
+                    p->refresh();
+                }
+            }
         }
         queueAdjustSplitterSizes();
         apply5050Layouts();
@@ -6058,11 +6070,23 @@ void MainWindow::onMediaPreferences() {
         
         for (int i = 0; i < m_leftTabWidget->count(); ++i) {
             FilePanel* p = qobject_cast<FilePanel*>(m_leftTabWidget->widget(i));
-            if (p) p->refresh();
+            if (p) {
+                if (p->currentPath() == "smart://home") {
+                    p->setPath("smart://home");
+                } else {
+                    p->refresh();
+                }
+            }
         }
         for (int i = 0; i < m_rightTabWidget->count(); ++i) {
             FilePanel* p = qobject_cast<FilePanel*>(m_rightTabWidget->widget(i));
-            if (p) p->refresh();
+            if (p) {
+                if (p->currentPath() == "smart://home") {
+                    p->setPath("smart://home");
+                } else {
+                    p->refresh();
+                }
+            }
         }
         queueAdjustSplitterSizes();
         apply5050Layouts();

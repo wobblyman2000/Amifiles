@@ -2065,6 +2065,20 @@ QString FilePanel::currentPath() const {
     return m_currentPath;
 }
 
+bool FilePanel::isSecondPane() const {
+    QWidget* p = parentWidget();
+    while (p) {
+        if (p->objectName() == "rightTabWidget") {
+            return true;
+        }
+        if (p->objectName() == "leftTabWidget") {
+            return false;
+        }
+        p = p->parentWidget();
+    }
+    return false;
+}
+
 void FilePanel::setCustomBgColor(const QString& hexColor) {
     if (m_customBgColor != hexColor) {
         m_customBgColor = hexColor;
@@ -2214,6 +2228,13 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
         if (!enableSmartHome) {
             navigateTo(QDir::homePath(), addHistory);
             return;
+        }
+        if (isSecondPane()) {
+            bool enableSmartHomeSecond = settings.value("preferences/enable_smart_home_second_pane", true).toBool();
+            if (!enableSmartHomeSecond) {
+                navigateTo(QDir::homePath(), addHistory);
+                return;
+            }
         }
         m_smartHomeEnabled = true;
 
