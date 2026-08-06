@@ -11,6 +11,9 @@
 #include <QSettings>
 #include <QDir>
 #include <QApplication>
+#include <QImage>
+#include <QPixmap>
+#include <QTextEdit>
 
 FolderImageRenamerDialog::FolderImageRenamerDialog(const QString& initialDir, QWidget* parent)
     : QDialog(parent), m_initialDir(initialDir)
@@ -130,7 +133,10 @@ void FolderImageRenamerDialog::setupUI() {
                             "QPushButton:hover { background-color: #a6e3a1; color: #11111b; }");
     mainLayout->addWidget(m_btnScan);
 
-    // Preview area
+    // Preview area & Side Preview Panel
+    QHBoxLayout* previewPanelLayout = new QHBoxLayout();
+    previewPanelLayout->setSpacing(10);
+
     m_tablePreview = new QTableWidget(this);
     m_tablePreview->setColumnCount(4);
     m_tablePreview->setHorizontalHeaderLabels({"Rename?", "Directory", "Original File", "Proposed Renamed File"});
@@ -139,7 +145,34 @@ void FolderImageRenamerDialog::setupUI() {
     m_tablePreview->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
     m_tablePreview->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
     m_tablePreview->verticalHeader()->setVisible(false);
-    mainLayout->addWidget(m_tablePreview, 1);
+    m_tablePreview->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_tablePreview->setSelectionMode(QAbstractItemView::SingleSelection);
+    previewPanelLayout->addWidget(m_tablePreview, 3);
+
+    m_grpPreviewDetails = new QGroupBox("Selected Image Preview", this);
+    m_grpPreviewDetails->setFixedWidth(240);
+    QVBoxLayout* previewDetailsLayout = new QVBoxLayout(m_grpPreviewDetails);
+    previewDetailsLayout->setContentsMargins(10, 10, 10, 10);
+    previewDetailsLayout->setSpacing(8);
+
+    m_lblThumbnail = new QLabel(m_grpPreviewDetails);
+    m_lblThumbnail->setFixedSize(220, 220);
+    m_lblThumbnail->setAlignment(Qt::AlignCenter);
+    m_lblThumbnail->setStyleSheet("background-color: #11111b; border: 1px solid #313244; border-radius: 4px;");
+    m_lblThumbnail->setText("No Image Selected");
+
+    m_lblDimensions = new QLabel("Dimensions: N/A", m_grpPreviewDetails);
+    m_lblSize = new QLabel("File Size: N/A", m_grpPreviewDetails);
+    m_lblFormat = new QLabel("Format: N/A", m_grpPreviewDetails);
+
+    previewDetailsLayout->addWidget(m_lblThumbnail);
+    previewDetailsLayout->addWidget(m_lblDimensions);
+    previewDetailsLayout->addWidget(m_lblSize);
+    previewDetailsLayout->addWidget(m_lblFormat);
+    previewDetailsLayout->addStretch(1);
+
+    previewPanelLayout->addWidget(m_grpPreviewDetails);
+    mainLayout->addLayout(previewPanelLayout, 1);
 
     // Status bar & select/deselect all
     QHBoxLayout* statusLayout = new QHBoxLayout();
@@ -171,6 +204,7 @@ void FolderImageRenamerDialog::setupUI() {
     connect(m_btnApply, &QPushButton::clicked, this, &FolderImageRenamerDialog::onApplyRename);
     connect(btnClose, &QPushButton::clicked, this, &QDialog::reject);
     connect(m_chkSelectAll, &QCheckBox::toggled, this, &FolderImageRenamerDialog::onToggleSelectAll);
+    connect(m_tablePreview, &QTableWidget::itemSelectionChanged, this, &FolderImageRenamerDialog::onTableSelectionChanged);
     
     connect(m_chkCustom, &QCheckBox::toggled, m_editCustomFind, &QLineEdit::setEnabled);
     connect(m_comboTargetName, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int idx) {
@@ -325,6 +359,7 @@ void FolderImageRenamerDialog::onApplyRename() {
 
     int successCount = 0;
     int failCount = 0;
+    QStringList failedReasons;
 
     for (int i = 0; i < m_tablePreview->rowCount(); ++i) {
         QTableWidgetItem* checkItem = m_tablePreview->item(i, 0);
@@ -333,9 +368,11 @@ void FolderImageRenamerDialog::onApplyRename() {
         QString origPath = checkItem->data(Qt::UserRole).toString();
         QString targetDir = m_tablePreview->item(i, 1)->text();
         QString targetName = m_tablePreview->item(i, 3)->text().trimmed();
+        QString origName = m_tablePreview->item(i, 2)->text();
 
         if (targetName.isEmpty()) {
             failCount++;
+            failedReasons.append(QString("%1 -> Target filename is empty.").arg(origName));
             continue;
         }
 
@@ -344,21 +381,72 @@ void FolderImageRenamerDialog::onApplyRename() {
         // Check if destination already exists to prevent accidental overwrites
         if (QFile::exists(newPath)) {
             failCount++;
+            failedReasons.append(QString("%1 -> Target file '%2' already exists.").arg(origName).arg(targetName));
             continue;
         }
 
-        if (QFile::rename(origPath, newPath)) {
-            successCount++;
+        QFileInfo fiOrig(origPath);
+        QFileInfo fiNew(newPath);
+
+        bool convertFormat = (fiOrig.suffix().toLower() != fiNew.suffix().toLower());
+
+        if (convertFormat) {
+            // Perform format conversion via QImage
+            QImage img(origPath);
+            if (img.isNull()) {
+                // Fallback to simple rename if image loading fails
+                if (QFile::rename(origPath, newPath)) {
+                    successCount++;
+                } else {
+                    failCount++;
+                    failedReasons.append(QString("%1 -> Failed to load image data for format conversion.").arg(origName));
+                }
+            } else {
+                if (img.save(newPath)) {
+                    QFile::remove(origPath);
+                    successCount++;
+                } else {
+                    failCount++;
+                    failedReasons.append(QString("%1 -> Failed to save converted format to '%2'.").arg(origName).arg(targetName));
+                }
+            }
         } else {
-            failCount++;
+            // Regular rename
+            if (QFile::rename(origPath, newPath)) {
+                successCount++;
+            } else {
+                failCount++;
+                failedReasons.append(QString("%1 -> File rename operation failed.").arg(origName));
+            }
         }
     }
 
-    QMessageBox::information(
-        this,
-        "Rename Results",
-        QString("Successfully renamed %1 file(s).\nFailed/Skipped %2 file(s).").arg(successCount).arg(failCount)
-    );
+    if (!failedReasons.isEmpty()) {
+        QDialog errDlg(this);
+        errDlg.setWindowTitle("Rename Failures / Warnings");
+        errDlg.resize(500, 350);
+        errDlg.setStyleSheet(styleSheet());
+
+        QVBoxLayout* errLay = new QVBoxLayout(&errDlg);
+        errLay->addWidget(new QLabel(QString("Renamed %1 files successfully.\nFailed / skipped %2 files:").arg(successCount).arg(failCount), &errDlg));
+
+        QTextEdit* txtErr = new QTextEdit(&errDlg);
+        txtErr->setReadOnly(true);
+        txtErr->setPlainText(failedReasons.join("\n"));
+        errLay->addWidget(txtErr);
+
+        QPushButton* btnOk = new QPushButton("OK", &errDlg);
+        connect(btnOk, &QPushButton::clicked, &errDlg, &QDialog::accept);
+        errLay->addWidget(btnOk, 0, Qt::AlignCenter);
+
+        errDlg.exec();
+    } else {
+        QMessageBox::information(
+            this,
+            "Rename Results",
+            QString("Successfully renamed %1 file(s).").arg(successCount)
+        );
+    }
 
     // Rescan directory to update table view
     onScan();
@@ -373,4 +461,54 @@ void FolderImageRenamerDialog::onToggleSelectAll(bool checked) {
         }
     }
     m_tablePreview->blockSignals(false);
+}
+
+void FolderImageRenamerDialog::onTableSelectionChanged() {
+    int row = m_tablePreview->currentRow();
+    if (row < 0 || row >= m_tablePreview->rowCount()) {
+        m_lblThumbnail->setText("No Image Selected");
+        m_lblThumbnail->setPixmap(QPixmap());
+        m_lblDimensions->setText("Dimensions: N/A");
+        m_lblSize->setText("File Size: N/A");
+        m_lblFormat->setText("Format: N/A");
+        return;
+    }
+
+    QTableWidgetItem* checkItem = m_tablePreview->item(row, 0);
+    if (!checkItem) return;
+
+    QString filePath = checkItem->data(Qt::UserRole).toString();
+    QFileInfo fi(filePath);
+
+    if (!fi.exists()) {
+        m_lblThumbnail->setText("File does not exist");
+        m_lblThumbnail->setPixmap(QPixmap());
+        m_lblDimensions->setText("Dimensions: N/A");
+        m_lblSize->setText("File Size: N/A");
+        m_lblFormat->setText("Format: N/A");
+        return;
+    }
+
+    QPixmap pm(filePath);
+    if (pm.isNull()) {
+        m_lblThumbnail->setText("Invalid Image File");
+        m_lblThumbnail->setPixmap(QPixmap());
+        m_lblDimensions->setText("Dimensions: N/A");
+        m_lblSize->setText("File Size: N/A");
+        m_lblFormat->setText("Format: N/A");
+    } else {
+        QPixmap scaled = pm.scaled(m_lblThumbnail->size() - QSize(4, 4), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        m_lblThumbnail->setPixmap(scaled);
+        
+        m_lblDimensions->setText(QString("Dimensions: %1 x %2").arg(pm.width()).arg(pm.height()));
+        
+        double kb = (double)fi.size() / 1024.0;
+        if (kb > 1024.0) {
+            m_lblSize->setText(QString("File Size: %1 MB").arg(kb / 1024.0, 0, 'f', 2));
+        } else {
+            m_lblSize->setText(QString("File Size: %1 KB").arg(kb, 0, 'f', 1));
+        }
+        
+        m_lblFormat->setText(QString("Format: %1").arg(fi.suffix().toUpper()));
+    }
 }

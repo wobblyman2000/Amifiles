@@ -465,6 +465,14 @@ void HomeDashboardWidget::setupUi() {
     connect(btnRename, &QToolButton::clicked, this, [this]() { onToolButtonClicked("bulk_rename"); });
     sidebarLayout->addWidget(btnRename);
 
+    QToolButton* btnImageRenamer = new QToolButton(sidebar);
+    btnImageRenamer->setText("🖼️  Image Renamer");
+    btnImageRenamer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    btnImageRenamer->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    btnImageRenamer->setStyleSheet("QToolButton { background-color: #fab387; color: #11111b; border-radius: 18px; padding: 10px 15px; font-size: 12px; font-weight: bold; } QToolButton:hover { background-color: #f9e2af; }");
+    connect(btnImageRenamer, &QToolButton::clicked, this, [this]() { onToolButtonClicked("recursive_renamer"); });
+    sidebarLayout->addWidget(btnImageRenamer);
+
     QToolButton* btnScraper = new QToolButton(sidebar);
     btnScraper->setText("🎬  Video Scraper");
     btnScraper->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
@@ -817,6 +825,8 @@ void HomeDashboardWidget::onToolButtonClicked(const QString& action) {
             BulkRenameDialog dlg(files, this);
             dlg.exec();
         }
+    } else if (action == "recursive_renamer") {
+        QMetaObject::invokeMethod(mw, "onFolderImageRenamer");
     } else if (action == "video_scraper") {
         QStringList files = QFileDialog::getOpenFileNames(this, "Select Videos to Scrape Metadata", QDir::homePath(), "Video Files (*.mp4 *.mkv *.avi *.mov *.webm *.mpeg *.mpg)");
         if (!files.isEmpty()) {

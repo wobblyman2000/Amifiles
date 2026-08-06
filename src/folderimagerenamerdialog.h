@@ -9,6 +9,7 @@
 #include <QCheckBox>
 #include <QLabel>
 #include <QStringList>
+#include <QGroupBox>
 
 class FolderImageRenamerDialog : public QDialog {
     Q_OBJECT
@@ -21,6 +22,7 @@ private slots:
     void onScan();
     void onApplyRename();
     void onToggleSelectAll(bool checked);
+    void onTableSelectionChanged();
 
 private:
     void setupUI();
@@ -52,6 +54,12 @@ private:
     QTableWidget* m_tablePreview = nullptr;
     QLabel* m_lblStatus = nullptr;
     QPushButton* m_btnApply = nullptr;
+
+    QGroupBox* m_grpPreviewDetails = nullptr;
+    QLabel* m_lblThumbnail = nullptr;
+    QLabel* m_lblDimensions = nullptr;
+    QLabel* m_lblSize = nullptr;
+    QLabel* m_lblFormat = nullptr;
 };
 
 #endif // FOLDERIMAGERENAMERDIALOG_H
