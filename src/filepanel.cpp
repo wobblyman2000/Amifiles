@@ -3909,6 +3909,55 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         }
     }
 
+    if (!curSelected.isEmpty()) {
+        bool hasCreate = false;
+        for (QAction* act : menu.actions()) {
+            if (actionCommands.value(act) == "app.create_archive") {
+                hasCreate = true;
+                break;
+            }
+        }
+        if (!hasCreate) {
+            QAction* createAct = new QAction(QIcon::fromTheme("package-x-generic"), "Create Archive...", &menu);
+            actionCommands[createAct] = "app.create_archive";
+            
+            QAction* insertAfterAct = nullptr;
+            for (QAction* act : menu.actions()) {
+                QString cmd = actionCommands.value(act);
+                if (cmd == "app.extract_archive") {
+                    insertAfterAct = act;
+                    break;
+                }
+            }
+            if (!insertAfterAct) {
+                for (QAction* act : menu.actions()) {
+                    QString cmd = actionCommands.value(act);
+                    if (cmd == "app.open" || cmd == "app.open_fullscreen") {
+                        insertAfterAct = act;
+                        break;
+                    }
+                }
+            }
+            
+            if (insertAfterAct) {
+                int idx = menu.actions().indexOf(insertAfterAct);
+                if (idx != -1) {
+                    if (idx + 1 < menu.actions().size()) {
+                        menu.insertAction(menu.actions().at(idx + 1), createAct);
+                    } else {
+                        menu.addAction(createAct);
+                    }
+                }
+            } else {
+                if (!menu.actions().isEmpty()) {
+                    menu.insertAction(menu.actions().first(), createAct);
+                } else {
+                    menu.addAction(createAct);
+                }
+            }
+        }
+    }
+
     // Execute menu on the active view layout widget
     QPoint globalPos = QCursor::pos();
     QAction* selected = menu.exec(globalPos);
