@@ -803,11 +803,35 @@ QString VideoScraperDialog::renameTarget(const QString& path, const QString& new
     }
 
     if (path != newPath) {
-        if (QFile::rename(path, newPath)) {
-            QFile(newPath).setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
-            return newPath;
+        bool destExists = QFile::exists(newPath);
+        bool sameFile = false;
+        if (destExists) {
+            QFileInfo fiNew(newPath);
+            if (info.canonicalFilePath() == fiNew.canonicalFilePath() && !info.canonicalFilePath().isEmpty()) {
+                sameFile = true;
+            }
+        }
+
+        if (sameFile) {
+            QString tempPath = newPath + ".tmp_rename";
+            if (QFile::rename(path, tempPath)) {
+                if (QFile::rename(tempPath, newPath)) {
+                    QFile(newPath).setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
+                    return newPath;
+                } else {
+                    QFile::rename(tempPath, path);
+                }
+            }
+        } else if (!destExists) {
+            if (QFile::rename(path, newPath)) {
+                QFile(newPath).setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
+                return newPath;
+            } else {
+                qWarning() << "Failed to rename folder/file:" << path << "to" << newPath << "Error:" << QFile(path).errorString();
+            }
         } else {
-            qWarning() << "Failed to rename folder/file:" << path << "to" << newPath << "Error:" << QFile(path).errorString();
+            // Destination already exists (different file), silently bypass it
+            qDebug() << "Bypassing renameTarget since destination already exists:" << newPath;
         }
     }
     return path;
@@ -1090,7 +1114,35 @@ void VideoScraperDialog::processTVShowEpisodes(const QString& targetFolder, cons
                 }
 
                 if (task.oldPath != finalDestPath) {
-                    if (!QFile::exists(finalDestPath)) {
+                    bool destExists = QFile::exists(finalDestPath);
+                    bool sameFile = false;
+                    if (destExists) {
+                        QFileInfo fiOld(task.oldPath);
+                        QFileInfo fiNew(finalDestPath);
+                        if (fiOld.canonicalFilePath() == fiNew.canonicalFilePath() && !fiOld.canonicalFilePath().isEmpty()) {
+                            sameFile = true;
+                        }
+                    }
+
+                    if (sameFile) {
+                        // It is the same file (case-only rename on case-insensitive filesystems)
+                        QString tempPath = finalDestPath + ".tmp_rename";
+                        if (QFile::rename(task.oldPath, tempPath)) {
+                            if (QFile::rename(tempPath, finalDestPath)) {
+                                QFile(finalDestPath).setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
+                                renamedCount++;
+                            } else {
+                                QFile::rename(tempPath, task.oldPath);
+                                failedRenames.append(QString("%1 -> %2 (Error: Case-rename failed at second step)")
+                                    .arg(QFileInfo(task.oldPath).fileName())
+                                    .arg(QFileInfo(finalDestPath).fileName()));
+                            }
+                        } else {
+                            failedRenames.append(QString("%1 -> %2 (Error: Case-rename failed at first step)")
+                                .arg(QFileInfo(task.oldPath).fileName())
+                                .arg(QFileInfo(finalDestPath).fileName()));
+                        }
+                    } else if (!destExists) {
                         if (QFile::rename(task.oldPath, finalDestPath)) {
                             QFile(finalDestPath).setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
                             renamedCount++;
@@ -1101,9 +1153,8 @@ void VideoScraperDialog::processTVShowEpisodes(const QString& targetFolder, cons
                                 .arg(QFile(task.oldPath).errorString()));
                         }
                     } else {
-                        failedRenames.append(QString("%1 -> %2 (Error: Destination file already exists)")
-                            .arg(QFileInfo(task.oldPath).fileName())
-                            .arg(QFileInfo(finalDestPath).fileName()));
+                        // Destination already exists (different file), silently bypass renaming
+                        qDebug() << "Bypassing episode rename since destination already exists:" << finalDestPath;
                     }
                 }
 
