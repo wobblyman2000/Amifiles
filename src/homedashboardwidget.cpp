@@ -600,6 +600,17 @@ void HomeDashboardWidget::populateDrives() {
         usageLabel->setStyleSheet("font-size: 11px; color: #a6adc8;");
         details->addWidget(usageLabel);
 
+        QProgressBar* spaceBar = new QProgressBar(card);
+        spaceBar->setRange(0, 100);
+        spaceBar->setValue((int)pct);
+        spaceBar->setTextVisible(false);
+        spaceBar->setFixedHeight(5);
+        spaceBar->setStyleSheet(QString(
+            "QProgressBar { background-color: #1e1e2e; border: 1px solid #313244; border-radius: 3px; }"
+            "QProgressBar::chunk { background-color: %1; border-radius: 2px; }"
+        ).arg(ringColor.name()));
+        details->addWidget(spaceBar);
+
         layout->addLayout(details, 1);
 
         m_drivesLayout->addWidget(card, row, col, Qt::AlignLeft | Qt::AlignVCenter);

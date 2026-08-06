@@ -20,6 +20,7 @@
 #include <QGroupBox>
 #include <QRegularExpression>
 #include <QEventLoop>
+#include <QDateTime>
 #include <algorithm>
 
 VideoScraperDialog::VideoScraperDialog(const QStringList& filePaths, QWidget* parent)
@@ -936,6 +937,38 @@ VideoScraperDialog::SeasonEpisode VideoScraperDialog::parseSeasonEpisode(const Q
 }
 
 QList<EpisodeInfo> VideoScraperDialog::fetchEpisodesList(const QString& showId) {
+    // 1. Try reading from cache first
+    QString cachePath = "/home/dave/.gemini/antigravity/scraper_cache.json";
+    QFile cacheFile(cachePath);
+    QJsonObject cacheObj;
+    if (cacheFile.open(QIODevice::ReadOnly)) {
+        QJsonDocument doc = QJsonDocument::fromJson(cacheFile.readAll());
+        if (!doc.isNull()) {
+            cacheObj = doc.object();
+        }
+        cacheFile.close();
+    }
+
+    if (cacheObj.contains(showId)) {
+        QJsonObject showEntry = cacheObj[showId].toObject();
+        qint64 timestamp = showEntry["timestamp"].toVariant().toLongLong();
+        qint64 currentSecs = QDateTime::currentSecsSinceEpoch();
+        if (currentSecs - timestamp < 86400) { // 24 hours
+            QJsonArray epsArr = showEntry["episodes"].toArray();
+            QList<EpisodeInfo> cachedList;
+            for (const QJsonValue& val : epsArr) {
+                QJsonObject epObj = val.toObject();
+                EpisodeInfo ep;
+                ep.season = epObj["season"].toInt();
+                ep.episode = epObj["episode"].toInt();
+                ep.title = epObj["title"].toString();
+                ep.overview = epObj["overview"].toString();
+                cachedList.append(ep);
+            }
+            return cachedList;
+        }
+    }
+
     QList<EpisodeInfo> list;
     if (!m_apiKey.isEmpty()) {
         // Fetch TMDB show details to get seasons list
@@ -1032,6 +1065,37 @@ QList<EpisodeInfo> VideoScraperDialog::fetchEpisodesList(const QString& showId) 
         }
         reply->deleteLater();
     }
+
+    // 2. Save fetched list to cache
+    if (!list.isEmpty()) {
+        QJsonObject showEntry;
+        showEntry["timestamp"] = QDateTime::currentSecsSinceEpoch();
+        QJsonArray epsArr;
+        for (const EpisodeInfo& ep : list) {
+            QJsonObject epObj;
+            epObj["season"] = ep.season;
+            epObj["episode"] = ep.episode;
+            epObj["title"] = ep.title;
+            epObj["overview"] = ep.overview;
+            epsArr.append(epObj);
+        }
+        showEntry["episodes"] = epsArr;
+
+        QJsonObject fullCache;
+        QFile cacheFileRead(cachePath);
+        if (cacheFileRead.open(QIODevice::ReadOnly)) {
+            fullCache = QJsonDocument::fromJson(cacheFileRead.readAll()).object();
+            cacheFileRead.close();
+        }
+        fullCache[showId] = showEntry;
+
+        QFile cacheFileWrite(cachePath);
+        if (cacheFileWrite.open(QIODevice::WriteOnly)) {
+            cacheFileWrite.write(QJsonDocument(fullCache).toJson());
+            cacheFileWrite.close();
+        }
+    }
+
     return list;
 }
 
@@ -1212,7 +1276,7 @@ void VideoScraperDialog::processTVShowEpisodes(const QString& targetFolder, cons
 
     if (m_chkRename->isChecked()) {
         // Open Rename Preview Dialog
-        RenamePreviewDialog previewDlg(tasks, targetFolder, this);
+        RenamePreviewDialog previewDlg(tasks, targetFolder, episodes, this);
         if (previewDlg.exec() == QDialog::Accepted) {
             QList<FileRenameTask> confirmed = previewDlg.selectedTasks();
             bool useSeasonFolders = previewDlg.organizeIntoSeasonFolders();
@@ -1326,8 +1390,8 @@ void VideoScraperDialog::processTVShowEpisodes(const QString& targetFolder, cons
 
 // ==================== RenamePreviewDialog ====================
 
-RenamePreviewDialog::RenamePreviewDialog(const QList<FileRenameTask>& tasks, const QString& targetFolder, QWidget* parent)
-    : QDialog(parent), m_tasks(tasks), m_targetFolder(targetFolder) {
+RenamePreviewDialog::RenamePreviewDialog(const QList<FileRenameTask>& tasks, const QString& targetFolder, const QList<EpisodeInfo>& allEpisodes, QWidget* parent)
+    : QDialog(parent), m_tasks(tasks), m_targetFolder(targetFolder), m_allEpisodes(allEpisodes) {
     setWindowTitle("Rename Preview & Organization");
     resize(850, 480);
     setStyleSheet(Theme::getStylesheet());
@@ -1350,9 +1414,9 @@ void RenamePreviewDialog::setupUI() {
     connect(m_chkSeasonFolders, &QCheckBox::toggled, this, &RenamePreviewDialog::onSeasonFoldersToggled);
     mainLayout->addWidget(m_chkSeasonFolders);
 
-    // Results table
-    m_table = new QTableWidget(0, 3, this);
-    m_table->setHorizontalHeaderLabels({"Apply?", "Original File Path", "Proposed New Path"});
+    // Results table (4 columns)
+    m_table = new QTableWidget(0, 4, this);
+    m_table->setHorizontalHeaderLabels({"Apply?", "Original File Path", "Matched Episode", "Proposed New Path"});
     m_table->setAlternatingRowColors(true);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -1360,7 +1424,8 @@ void RenamePreviewDialog::setupUI() {
     m_table->setStyleSheet("QTableWidget { background-color: #11111b; border: 1px solid #313244; border-radius: 6px; }");
     m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
     m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
-    m_table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
+    m_table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    m_table->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
     mainLayout->addWidget(m_table, 1);
 
     // Bottom controls
@@ -1409,18 +1474,40 @@ void RenamePreviewDialog::updateTable() {
         const auto& task = m_tasks[i];
         m_table->insertRow(i);
 
-        // Checkbox item
+        // Column 0: Checkbox
         QTableWidgetItem* checkItem = new QTableWidgetItem();
         checkItem->setFlags(checkItem->flags() | Qt::ItemIsUserCheckable);
         checkItem->setCheckState(Qt::Checked);
         m_table->setItem(i, 0, checkItem);
 
-        // Original Path (relative for readability)
+        // Column 1: Original Path (relative)
         QString origRel = dir.relativeFilePath(task.oldPath);
         QTableWidgetItem* origItem = new QTableWidgetItem(origRel);
         m_table->setItem(i, 1, origItem);
 
-        // Proposed path
+        // Column 2: Matched Episode (ComboBox Override)
+        QComboBox* combo = new QComboBox(m_table);
+        combo->setStyleSheet("QComboBox { background-color: #181825; color: #cdd6f4; border: 1px solid #313244; border-radius: 4px; padding: 2px 4px; }");
+        int activeIdx = -1;
+        for (int j = 0; j < m_allEpisodes.size(); ++j) {
+            const EpisodeInfo& ep = m_allEpisodes[j];
+            QString text = QString("S%1E%2 - %3")
+                .arg(ep.season, 2, 10, QChar('0'))
+                .arg(ep.episode, 2, 10, QChar('0'))
+                .arg(ep.title);
+            combo->addItem(text, j);
+            if (ep.season == task.ep.season && ep.episode == task.ep.episode) {
+                activeIdx = j;
+            }
+        }
+        combo->blockSignals(true);
+        if (activeIdx != -1) {
+            combo->setCurrentIndex(activeIdx);
+        }
+        combo->blockSignals(false);
+        m_table->setCellWidget(i, 2, combo);
+
+        // Column 3: Proposed Path
         QString proposedRel;
         if (m_chkSeasonFolders->isChecked()) {
             QString sDir = QString("Season %1").arg(task.ep.season, 2, 10, QChar('0'));
@@ -1429,7 +1516,46 @@ void RenamePreviewDialog::updateTable() {
             proposedRel = task.fileName;
         }
         QTableWidgetItem* destItem = new QTableWidgetItem(proposedRel);
-        m_table->setItem(i, 2, destItem);
+        m_table->setItem(i, 3, destItem);
+
+        // Connect combo box changes
+        connect(combo, &QComboBox::currentIndexChanged, this, [this, i, combo]() {
+            int epIdx = combo->currentIndex();
+            if (epIdx < 0 || epIdx >= m_allEpisodes.size()) return;
+
+            const EpisodeInfo& ep = m_allEpisodes[epIdx];
+            m_tasks[i].ep = ep;
+
+            // Re-generate proposed name
+            QString sanitizedShowTitle = m_tasks[i].showTitle;
+            sanitizedShowTitle.remove(QRegularExpression(R"([\\\/\:\*\?\"\<\>\|])"));
+            QString sStr = QString("S%1").arg(ep.season, 2, 10, QChar('0'));
+            QString eStr = QString("E%1").arg(ep.episode, 2, 10, QChar('0'));
+            QString sanitizedEpTitle = ep.title;
+            sanitizedEpTitle.remove(QRegularExpression(R"([\\\/\:\*\?\"\<\>\|])"));
+
+            QFileInfo fi(m_tasks[i].oldPath);
+            m_tasks[i].fileName = QString("%1 - %2%3 - %4.%5")
+                .arg(sanitizedShowTitle)
+                .arg(sStr)
+                .arg(eStr)
+                .arg(sanitizedEpTitle)
+                .arg(fi.suffix());
+
+            m_tasks[i].newPath = QDir(m_targetFolder).filePath(m_tasks[i].fileName);
+
+            // Update proposed new path column
+            QString proposedRelNew;
+            if (m_chkSeasonFolders->isChecked()) {
+                QString sDir = QString("Season %1").arg(ep.season, 2, 10, QChar('0'));
+                proposedRelNew = sDir + "/" + m_tasks[i].fileName;
+            } else {
+                proposedRelNew = m_tasks[i].fileName;
+            }
+            if (auto* destIt = m_table->item(i, 3)) {
+                destIt->setText(proposedRelNew);
+            }
+        });
     }
 }
 

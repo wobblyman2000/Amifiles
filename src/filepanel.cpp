@@ -3957,14 +3957,75 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
                         menu.insertAction(firstAct, extractAct);
                         menu.insertAction(firstAct, extractSubAct);
                         menu.insertAction(firstAct, extractHereAct);
-                        menu.insertSeparator(firstAct);
-                    } else {
-                        menu.addAction(extractAct);
-                        menu.addAction(extractSubAct);
-                        menu.addAction(extractHereAct);
                     }
                 }
             }
+        }
+    }
+
+    if (isFolder && !selectedPath.isEmpty()) {
+        QSettings settings("Amifiles", "Amifiles");
+        QStringList pinned = settings.value("dashboard/pinned_folders").toStringList();
+        bool isPinned = false;
+        for (const QString& item : pinned) {
+            if (item.startsWith(selectedPath + ";")) {
+                isPinned = true;
+                break;
+            }
+        }
+        QAction* pinAct = new QAction(QIcon::fromTheme("bookmark-new"), isPinned ? "📌 Unpin from Home Screen" : "📌 Pin to Home Screen", &menu);
+        actionCommands[pinAct] = "app.pin_home";
+
+        QAction* insertBeforeAct = nullptr;
+        for (QAction* act : menu.actions()) {
+            if (actionCommands.value(act) == "app.open" || actionCommands.value(act) == "app.open_fullscreen") {
+                insertBeforeAct = act;
+            }
+        }
+        if (insertBeforeAct) {
+            int idx = menu.actions().indexOf(insertBeforeAct);
+            QAction* nextAct = (idx + 1 < menu.actions().size()) ? menu.actions().at(idx + 1) : nullptr;
+            if (nextAct) {
+                menu.insertAction(nextAct, pinAct);
+                menu.insertSeparator(nextAct);
+            } else {
+                menu.addAction(pinAct);
+            }
+        } else {
+            if (!menu.actions().isEmpty()) {
+                menu.insertAction(menu.actions().first(), pinAct);
+                menu.insertSeparator(menu.actions().first());
+            } else {
+                menu.addAction(pinAct);
+            }
+        }
+    }
+
+    if (selectedPath.isEmpty() && !m_currentPath.isEmpty() && m_currentPath != "smart://home") {
+        QSettings settings("Amifiles", "Amifiles");
+        QStringList pinned = settings.value("dashboard/pinned_folders").toStringList();
+        bool isPinned = false;
+        for (const QString& item : pinned) {
+            if (item.startsWith(m_currentPath + ";")) {
+                isPinned = true;
+                break;
+            }
+        }
+        QAction* pinAct = new QAction(QIcon::fromTheme("bookmark-new"), isPinned ? "📌 Unpin Current Directory from Home Screen" : "📌 Pin Current Directory to Home Screen", &menu);
+        actionCommands[pinAct] = "app.pin_home";
+
+        QAction* pasteAct = nullptr;
+        for (QAction* act : menu.actions()) {
+            if (actionCommands.value(act) == "app.paste") {
+                pasteAct = act;
+                break;
+            }
+        }
+        if (pasteAct) {
+            menu.insertAction(pasteAct, pinAct);
+            menu.insertSeparator(pasteAct);
+        } else {
+            menu.addAction(pinAct);
         }
     }
 
@@ -4229,12 +4290,13 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
             onFavoriteClicked();
         }
     } else if (command == "app.pin_home") {
-        if (!selectedPath.isEmpty()) {
+        QString pathTarget = !selectedPath.isEmpty() ? selectedPath : m_currentPath;
+        if (!pathTarget.isEmpty() && pathTarget != "smart://home") {
             QSettings settings("Amifiles", "Amifiles");
             QStringList pinned = settings.value("dashboard/pinned_folders").toStringList();
             int existingIdx = -1;
             for (int i = 0; i < pinned.size(); ++i) {
-                if (pinned[i].startsWith(selectedPath + ";")) {
+                if (pinned[i].startsWith(pathTarget + ";")) {
                     existingIdx = i;
                     break;
                 }
@@ -4244,7 +4306,7 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
                 settings.setValue("dashboard/pinned_folders", pinned);
                 QMessageBox::information(this, "Unpinned Folder", "Folder successfully unpinned from Home Screen.");
             } else {
-                QString entry = QString("%1;%2;%3").arg(selectedPath).arg(QFileInfo(selectedPath).fileName()).arg(viewModeIndex());
+                QString entry = QString("%1;%2;%3").arg(pathTarget).arg(QFileInfo(pathTarget).fileName()).arg(viewModeIndex());
                 pinned.append(entry);
                 settings.setValue("dashboard/pinned_folders", pinned);
                 QMessageBox::information(this, "Pinned Folder", "Folder successfully pinned to Home Screen with layout memory!");

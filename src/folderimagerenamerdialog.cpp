@@ -28,6 +28,13 @@ FolderImageRenamerDialog::FolderImageRenamerDialog(const QString& initialDir, QW
     }
 }
 
+FolderImageRenamerDialog::~FolderImageRenamerDialog() {
+    if (m_worker) {
+        m_worker->stopScan();
+        m_worker->wait();
+    }
+}
+
 void FolderImageRenamerDialog::setupUI() {
     setWindowTitle("Recursive Image Renaming Tool");
     resize(780, 520);
@@ -133,6 +140,15 @@ void FolderImageRenamerDialog::setupUI() {
                             "QPushButton:hover { background-color: #a6e3a1; color: #11111b; }");
     mainLayout->addWidget(m_btnScan);
 
+    m_progressBar = new QProgressBar(this);
+    m_progressBar->setRange(0, 100);
+    m_progressBar->setValue(0);
+    m_progressBar->setVisible(false);
+    m_progressBar->setFixedHeight(12);
+    m_progressBar->setStyleSheet("QProgressBar { background-color: #11111b; border: 1px solid #313244; border-radius: 6px; text-align: center; color: #cdd6f4; }"
+                                "QProgressBar::chunk { background-color: #f5c2e7; border-radius: 5px; }");
+    mainLayout->addWidget(m_progressBar);
+
     // Preview area & Side Preview Panel
     QHBoxLayout* previewPanelLayout = new QHBoxLayout();
     previewPanelLayout->setSpacing(10);
@@ -219,16 +235,87 @@ void FolderImageRenamerDialog::onBrowseDirectory() {
     }
 }
 
+// ==================== ImageScanWorker ====================
+
+ImageScanWorker::ImageScanWorker(const QString& path, const QStringList& findNames, const QString& targetNamePattern, const QString& customTargetPattern, QObject* parent)
+    : QThread(parent), m_path(path), m_findNames(findNames), m_targetNamePattern(targetNamePattern), m_customTargetPattern(customTargetPattern), m_stop(false) {}
+
+void ImageScanWorker::run() {
+    QDirIterator it(m_path, QDir::Files, QDirIterator::Subdirectories | QDirIterator::FollowSymlinks);
+    int scanned = 0;
+    int matches = 0;
+
+    while (it.hasNext() && !m_stop) {
+        it.next();
+        scanned++;
+        if (scanned % 50 == 0) {
+            emit progressUpdated(scanned);
+        }
+
+        QFileInfo fi = it.fileInfo();
+        QString fileName = fi.fileName();
+        
+        bool matched = false;
+        for (const QString& pattern : m_findNames) {
+            if (fileName.compare(pattern, Qt::CaseInsensitive) == 0) {
+                matched = true;
+                break;
+            }
+        }
+
+        if (matched) {
+            // Determine the proposed target filename
+            QString newName;
+            if (m_targetNamePattern == "Custom Filename...") {
+                newName = m_customTargetPattern;
+                if (newName.isEmpty()) newName = fileName; // Fallback
+            } else if (m_targetNamePattern.startsWith("Preserve original extension")) {
+                // e.g. "Preserve original extension (e.g. poster.*)"
+                QString basePart = m_targetNamePattern.split("e.g. ").last().split(".*").first();
+                newName = basePart + "." + fi.suffix().toLower();
+            } else {
+                newName = m_targetNamePattern;
+            }
+
+            // Skip if the file already has the target name to avoid redundant renames
+            if (fileName.compare(newName, Qt::CaseInsensitive) == 0) {
+                continue;
+            }
+
+            emit matchFound(QDir::toNativeSeparators(fi.absolutePath()), fileName, newName, fi.absoluteFilePath());
+            matches++;
+        }
+    }
+    emit scanFinished(matches);
+}
+
+// ==================== FolderImageRenamerDialog Slots ====================
+
 void FolderImageRenamerDialog::onScan() {
+    // If worker is running, cancel/stop it
+    if (m_worker && m_worker->isRunning()) {
+        m_worker->stopScan();
+        m_worker->wait();
+        m_worker->deleteLater();
+        m_worker = nullptr;
+        m_btnScan->setText("🔍 Scan Parent Directory");
+        m_btnScan->setEnabled(true);
+        m_progressBar->setVisible(false);
+        m_lblStatus->setText("Scan cancelled.");
+        return;
+    }
+
     QString path = m_editDir->text().trimmed();
     if (path.isEmpty() || !QDir(path).exists()) {
         QMessageBox::warning(this, "Invalid Path", "Please enter or browse to a valid parent directory.");
         return;
     }
 
-    m_btnScan->setEnabled(false);
+    m_btnScan->setText("🛑 Cancel Scan");
     m_lblStatus->setText("Scanning directory recursively...");
-    QApplication::setOverrideCursor(Qt::WaitCursor);
+    m_progressBar->setRange(0, 0); // Busy/indeterminate progress style
+    m_progressBar->setValue(0);
+    m_progressBar->setVisible(true);
 
     // Build target match list
     QStringList findNames;
@@ -259,77 +346,58 @@ void FolderImageRenamerDialog::onScan() {
     QString customTargetPattern = m_editCustomTarget->text().trimmed();
 
     m_tablePreview->setRowCount(0);
+
+    // Instantiate and start the worker
+    m_worker = new ImageScanWorker(path, findNames, targetNamePattern, customTargetPattern, this);
+    connect(m_worker, &ImageScanWorker::progressUpdated, this, [this](int scannedCount) {
+        m_lblStatus->setText(QString("Scanned %1 files...").arg(scannedCount));
+    });
+    connect(m_worker, &ImageScanWorker::matchFound, this, &FolderImageRenamerDialog::onMatchFound);
+    connect(m_worker, &ImageScanWorker::scanFinished, this, &FolderImageRenamerDialog::onScanFinished);
     
-    QDirIterator it(path, QDir::Files, QDirIterator::Subdirectories | QDirIterator::FollowSymlinks);
-    int matchCount = 0;
+    m_worker->start();
+}
 
-    while (it.hasNext()) {
-        it.next();
-        QFileInfo fi = it.fileInfo();
-        QString fileName = fi.fileName();
-        
-        bool matched = false;
-        for (const QString& pattern : findNames) {
-            if (fileName.compare(pattern, Qt::CaseInsensitive) == 0) {
-                matched = true;
-                break;
-            }
-        }
+void FolderImageRenamerDialog::onMatchFound(const QString& dir, const QString& oldName, const QString& newName, const QString& fullPath) {
+    int row = m_tablePreview->rowCount();
+    m_tablePreview->insertRow(row);
 
-        if (matched) {
-            // Determine the proposed target filename
-            QString newName;
-            if (targetNamePattern == "Custom Filename...") {
-                newName = customTargetPattern;
-                if (newName.isEmpty()) newName = fileName; // Fallback
-            } else if (targetNamePattern.startsWith("Preserve original extension")) {
-                // e.g. "Preserve original extension (e.g. poster.*)"
-                QString basePart = targetNamePattern.split("e.g. ").last().split(".*").first();
-                newName = basePart + "." + fi.suffix().toLower();
-            } else {
-                newName = targetNamePattern;
-            }
+    // Col 0: Checkbox
+    QTableWidgetItem* checkItem = new QTableWidgetItem();
+    checkItem->setCheckState(Qt::Checked);
+    m_tablePreview->setItem(row, 0, checkItem);
 
-            // Skip if the file already has the target name to avoid redundant renames
-            if (fileName.compare(newName, Qt::CaseInsensitive) == 0) {
-                continue;
-            }
+    // Col 1: Directory
+    QTableWidgetItem* dirItem = new QTableWidgetItem(dir);
+    dirItem->setFlags(dirItem->flags() & ~Qt::ItemIsEditable);
+    m_tablePreview->setItem(row, 1, dirItem);
 
-            int row = m_tablePreview->rowCount();
-            m_tablePreview->insertRow(row);
+    // Col 2: Original Name
+    QTableWidgetItem* origItem = new QTableWidgetItem(oldName);
+    origItem->setFlags(origItem->flags() & ~Qt::ItemIsEditable);
+    m_tablePreview->setItem(row, 2, origItem);
 
-            // Col 0: Checkbox
-            QTableWidgetItem* checkItem = new QTableWidgetItem();
-            checkItem->setCheckState(Qt::Checked);
-            m_tablePreview->setItem(row, 0, checkItem);
+    // Col 3: Target Name
+    QTableWidgetItem* targetItem = new QTableWidgetItem(newName);
+    m_tablePreview->setItem(row, 3, targetItem);
 
-            // Col 1: Directory
-            QTableWidgetItem* dirItem = new QTableWidgetItem(QDir::toNativeSeparators(fi.absolutePath()));
-            dirItem->setFlags(dirItem->flags() & ~Qt::ItemIsEditable);
-            m_tablePreview->setItem(row, 1, dirItem);
+    // Store full source path in column 0 user data
+    checkItem->setData(Qt::UserRole, fullPath);
+}
 
-            // Col 2: Original Name
-            QTableWidgetItem* origItem = new QTableWidgetItem(fileName);
-            origItem->setFlags(origItem->flags() & ~Qt::ItemIsEditable);
-            m_tablePreview->setItem(row, 2, origItem);
-
-            // Col 3: Target Name
-            QTableWidgetItem* targetItem = new QTableWidgetItem(newName);
-            m_tablePreview->setItem(row, 3, targetItem);
-
-            // Store full source path in column 0 user data
-            checkItem->setData(Qt::UserRole, fi.absoluteFilePath());
-
-            matchCount++;
-        }
-    }
-
-    QApplication::restoreOverrideCursor();
+void FolderImageRenamerDialog::onScanFinished(int matchCount) {
+    m_progressBar->setVisible(false);
+    m_btnScan->setText("🔍 Scan Parent Directory");
     m_btnScan->setEnabled(true);
     m_chkSelectAll->setEnabled(matchCount > 0);
     m_btnApply->setEnabled(matchCount > 0);
     
-    m_lblStatus->setText(QString("Found %1 renameable file(s).").arg(matchCount));
+    m_lblStatus->setText(QString("Finished. Found %1 renameable file(s).").arg(matchCount));
+    
+    if (m_worker) {
+        m_worker->deleteLater();
+        m_worker = nullptr;
+    }
 }
 
 void FolderImageRenamerDialog::onApplyRename() {

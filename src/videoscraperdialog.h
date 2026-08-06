@@ -47,7 +47,7 @@ struct FileRenameTask {
 class RenamePreviewDialog : public QDialog {
     Q_OBJECT
 public:
-    RenamePreviewDialog(const QList<FileRenameTask>& tasks, const QString& targetFolder, QWidget* parent = nullptr);
+    RenamePreviewDialog(const QList<FileRenameTask>& tasks, const QString& targetFolder, const QList<EpisodeInfo>& allEpisodes, QWidget* parent = nullptr);
     ~RenamePreviewDialog() override = default;
 
     QList<FileRenameTask> selectedTasks() const;
@@ -62,6 +62,7 @@ private:
 
     QList<FileRenameTask> m_tasks;
     QString m_targetFolder;
+    QList<EpisodeInfo> m_allEpisodes;
     QTableWidget* m_table = nullptr;
     QCheckBox* m_chkSeasonFolders = nullptr;
 };
