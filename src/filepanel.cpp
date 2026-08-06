@@ -2749,6 +2749,24 @@ void FilePanel::onRecentPlacesMenuAboutToShow() {
             setPath(path);
         });
     }
+
+    menu->addSeparator();
+    QAction* actClear = menu->addAction(QIcon::fromTheme("edit-clear"), "🧹 Clear Recent Places History");
+    connect(actClear, &QAction::triggered, this, [this]() {
+        QSettings settings("Amifiles", "Amifiles");
+        settings.remove("recents/folders");
+        settings.sync();
+        
+        QWidget* parentW = parentWidget();
+        while (parentW && !parentW->inherits("MainWindow")) {
+            parentW = parentW->parentWidget();
+        }
+        MainWindow* mw = qobject_cast<MainWindow*>(parentW);
+        if (mw) {
+            QMetaObject::invokeMethod(mw, "refreshRecentsSidebar");
+            QMetaObject::invokeMethod(mw, "refreshAllDashboards");
+        }
+    });
 }
 
 static bool containsMediaFilesDirectly(const QString& folderPath) {
@@ -3877,9 +3895,19 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
                 }
             }
             if (!hasExtract) {
+                QAction* extractHereAct = new QAction(QIcon::fromTheme("package-x-generic"), "Extract Here", &menu);
+                actionCommands[extractHereAct] = "app.extract_here";
+
+                QFileInfo info(selectedPath);
+                QString baseName = info.completeBaseName();
+                if (baseName.endsWith(".tar", Qt::CaseInsensitive)) baseName.chop(4);
+
+                QAction* extractSubAct = new QAction(QIcon::fromTheme("package-x-generic"), QString("Extract to '%1/'").arg(baseName), &menu);
+                actionCommands[extractSubAct] = "app.extract_subfolder";
+
                 QAction* extractAct = new QAction(QIcon::fromTheme("package-x-generic"), "Extract Archive...", &menu);
                 actionCommands[extractAct] = "app.extract_archive";
-                
+
                 QAction* openAct = nullptr;
                 for (QAction* act : menu.actions()) {
                     if (actionCommands.value(act) == "app.open" || actionCommands.value(act) == "app.open_fullscreen") {
@@ -3890,19 +3918,29 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
                 if (openAct) {
                     int idx = menu.actions().indexOf(openAct);
                     if (idx != -1) {
-                        if (idx + 1 < menu.actions().size()) {
-                            menu.insertAction(menu.actions().at(idx + 1), extractAct);
-                            menu.insertSeparator(menu.actions().at(idx + 2));
+                        QAction* nextAct = (idx + 1 < menu.actions().size()) ? menu.actions().at(idx + 1) : nullptr;
+                        if (nextAct) {
+                            menu.insertAction(nextAct, extractAct);
+                            menu.insertAction(nextAct, extractSubAct);
+                            menu.insertAction(nextAct, extractHereAct);
+                            menu.insertSeparator(nextAct);
                         } else {
                             menu.addAction(extractAct);
+                            menu.addAction(extractSubAct);
+                            menu.addAction(extractHereAct);
                         }
                     }
                 } else {
                     if (!menu.actions().isEmpty()) {
-                        menu.insertAction(menu.actions().first(), extractAct);
-                        menu.insertSeparator(menu.actions().at(1));
+                        QAction* firstAct = menu.actions().first();
+                        menu.insertAction(firstAct, extractAct);
+                        menu.insertAction(firstAct, extractSubAct);
+                        menu.insertAction(firstAct, extractHereAct);
+                        menu.insertSeparator(firstAct);
                     } else {
                         menu.addAction(extractAct);
+                        menu.addAction(extractSubAct);
+                        menu.addAction(extractHereAct);
                     }
                 }
             }
@@ -4381,7 +4419,31 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         });
         dlg->show();
     } else if (command == "app.extract_archive") {
-        ArchiveDialog* dlg = new ArchiveDialog(ArchiveDialog::ModeExtract, curSelected.first(), m_currentPath, this);
+        ArchiveDialog* dlg = new ArchiveDialog(ArchiveDialog::ModeExtract, curSelected.first(), m_currentPath, false, true, this);
+        dlg->setAttribute(Qt::WA_DeleteOnClose);
+        connect(dlg, &QDialog::accepted, this, [this]() {
+            refresh();
+            if (m_siblingPanel) m_siblingPanel->refresh();
+            QTimer::singleShot(500, this, [this]() {
+                refresh();
+                if (m_siblingPanel) m_siblingPanel->refresh();
+            });
+        });
+        dlg->show();
+    } else if (command == "app.extract_here") {
+        ArchiveDialog* dlg = new ArchiveDialog(ArchiveDialog::ModeExtract, curSelected.first(), m_currentPath, true, false, this);
+        dlg->setAttribute(Qt::WA_DeleteOnClose);
+        connect(dlg, &QDialog::accepted, this, [this]() {
+            refresh();
+            if (m_siblingPanel) m_siblingPanel->refresh();
+            QTimer::singleShot(500, this, [this]() {
+                refresh();
+                if (m_siblingPanel) m_siblingPanel->refresh();
+            });
+        });
+        dlg->show();
+    } else if (command == "app.extract_subfolder") {
+        ArchiveDialog* dlg = new ArchiveDialog(ArchiveDialog::ModeExtract, curSelected.first(), m_currentPath, true, true, this);
         dlg->setAttribute(Qt::WA_DeleteOnClose);
         connect(dlg, &QDialog::accepted, this, [this]() {
             refresh();
@@ -9122,6 +9184,8 @@ QJsonArray FilePanel::getDefaultContextMenuJson() const {
         archiveKids.append(makeAction("Create Archive...", "app.create_archive", ""));
         archiveKids.append(makeAction("Create Secure Archive (AES-256)...", "app.create_secure_archive", ""));
         archiveKids.append(makeAction("Extract Archive...", "app.extract_archive", ""));
+        archiveKids.append(makeAction("Extract Here", "app.extract_here", ""));
+        archiveKids.append(makeAction("Extract to Subfolder", "app.extract_subfolder", ""));
         
         archiveMenu["children"] = archiveKids;
         arr.append(archiveMenu);

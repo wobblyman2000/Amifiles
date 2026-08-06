@@ -1590,6 +1590,7 @@ void MainWindow::onPathChanged(const QString& path) {
         m_activePanel->updateThemeMusic();
     }
     addToRecentFolders(path);
+    refreshAllDashboards();
 }
 
 void MainWindow::onToggleDualPane(bool checked) {

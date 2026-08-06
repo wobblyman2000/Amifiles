@@ -13,6 +13,7 @@
 #include <QDir>
 #include <QMessageBox>
 #include <QProcess>
+#include <QTimer>
 #include <QRegularExpression>
 
 ArchiveDialog::ArchiveDialog(Mode mode, const QStringList& sourcePaths, const QString& currentDir, bool enablePassword, QWidget* parent)
@@ -27,11 +28,14 @@ ArchiveDialog::ArchiveDialog(Mode mode, const QStringList& sourcePaths, const QS
     }
 }
 
-ArchiveDialog::ArchiveDialog(Mode mode, const QString& archivePath, const QString& currentDir, QWidget* parent)
-    : QDialog(parent), m_mode(mode), m_archivePath(archivePath), m_currentDir(currentDir) {
+ArchiveDialog::ArchiveDialog(Mode mode, const QString& archivePath, const QString& currentDir, bool autoStart, bool extractToSubfolder, QWidget* parent)
+    : QDialog(parent), m_mode(mode), m_archivePath(archivePath), m_currentDir(currentDir), m_autoStart(autoStart), m_extractToSubfolder(extractToSubfolder) {
     setWindowTitle("Extract Archive");
     resize(500, 200);
     setupUI();
+    if (m_autoStart) {
+        QTimer::singleShot(50, this, &ArchiveDialog::onStartClicked);
+    }
 }
 
 ArchiveDialog::~ArchiveDialog() {
@@ -102,48 +106,59 @@ void ArchiveDialog::setupUI() {
         lblFile->setStyleSheet("color: #a6e3a1; font-weight: bold;");
         mainLayout->addWidget(lblFile);
 
-        QString archiveBaseName = info.completeBaseName();
-        if (archiveBaseName.endsWith(".tar", Qt::CaseInsensitive)) {
-            archiveBaseName.chop(4);
+        QString targetExtractPath;
+        if (m_extractToSubfolder) {
+            QString archiveBaseName = info.completeBaseName();
+            if (archiveBaseName.endsWith(".tar", Qt::CaseInsensitive)) {
+                archiveBaseName.chop(4);
+            }
+            targetExtractPath = QDir(m_currentDir).filePath(archiveBaseName);
+        } else {
+            targetExtractPath = m_currentDir;
         }
-        QString targetExtractPath = QDir(m_currentDir).filePath(archiveBaseName);
         QLabel* lblDest = new QLabel(QString("Destination: %1").arg(QDir::toNativeSeparators(targetExtractPath)), this);
         mainLayout->addWidget(lblDest);
 
         m_chkPassword = new QCheckBox("Archive is Password Protected", this);
         m_chkPassword->setStyleSheet("QCheckBox { color: #cdd6f4; }");
-        mainLayout->addWidget(m_chkPassword);
-
-        QHBoxLayout* passRow = new QHBoxLayout();
-        passRow->addWidget(new QLabel("Decryption Password:", this));
         m_txtPassword = new QLineEdit(this);
         m_txtPassword->setEchoMode(QLineEdit::Password);
         m_txtPassword->setEnabled(false);
-        passRow->addWidget(m_txtPassword);
-        mainLayout->addLayout(passRow);
 
-        connect(m_chkPassword, &QCheckBox::toggled, m_txtPassword, &QLineEdit::setEnabled);
+        if (!m_autoStart) {
+            mainLayout->addWidget(m_chkPassword);
 
-        QHBoxLayout* actionRow = new QHBoxLayout();
-        actionRow->addWidget(new QLabel("Post-Extraction:", this));
-        m_comboPostAction = new QComboBox(this);
-        m_comboPostAction->addItems({
-            "Keep source archive intact",
-            "Move source archive to Trash upon success",
-            "Delete source archive permanently upon success"
-        });
-        actionRow->addWidget(m_comboPostAction);
-        mainLayout->addLayout(actionRow);
+            QHBoxLayout* passRow = new QHBoxLayout();
+            passRow->addWidget(new QLabel("Decryption Password:", this));
+            passRow->addWidget(m_txtPassword);
+            mainLayout->addLayout(passRow);
+
+            connect(m_chkPassword, &QCheckBox::toggled, m_txtPassword, &QLineEdit::setEnabled);
+
+            QHBoxLayout* actionRow = new QHBoxLayout();
+            actionRow->addWidget(new QLabel("Post-Extraction:", this));
+            m_comboPostAction = new QComboBox(this);
+            m_comboPostAction->addItems({
+                "Keep source archive intact",
+                "Move source archive to Trash upon success",
+                "Delete source archive permanently upon success"
+            });
+            actionRow->addWidget(m_comboPostAction);
+            mainLayout->addLayout(actionRow);
+        }
     }
 
     m_progressBar = new QProgressBar(this);
     m_progressBar->setRange(0, 100);
     m_progressBar->setValue(0);
-    m_progressBar->setVisible(false);
+    m_progressBar->setVisible(m_autoStart);
     mainLayout->addWidget(m_progressBar);
 
     m_lblStatus = new QLabel(this);
     m_lblStatus->setStyleSheet("color: #a6adc8;");
+    if (m_autoStart) {
+        m_lblStatus->setText("Initializing extraction...");
+    }
     mainLayout->addWidget(m_lblStatus);
 
     QHBoxLayout* btnLayout = new QHBoxLayout();
@@ -156,7 +171,11 @@ void ArchiveDialog::setupUI() {
     m_btnCancel = new QPushButton("Cancel", this);
     connect(m_btnCancel, &QPushButton::clicked, this, &ArchiveDialog::onCancelClicked);
 
-    btnLayout->addWidget(m_btnAction);
+    if (!m_autoStart) {
+        btnLayout->addWidget(m_btnAction);
+    } else {
+        m_btnAction->setVisible(false);
+    }
     btnLayout->addWidget(m_btnCancel);
     mainLayout->addLayout(btnLayout);
 }
@@ -218,12 +237,17 @@ void ArchiveDialog::startExtraction() {
     m_lblStatus->setText("Extracting files...");
     m_isRunning = true;
 
-    QFileInfo archiveInfo(m_archivePath);
-    QString archiveBaseName = archiveInfo.completeBaseName();
-    if (archiveBaseName.endsWith(".tar", Qt::CaseInsensitive)) {
-        archiveBaseName.chop(4);
+    QString targetExtractDir;
+    if (m_extractToSubfolder) {
+        QFileInfo archiveInfo(m_archivePath);
+        QString archiveBaseName = archiveInfo.completeBaseName();
+        if (archiveBaseName.endsWith(".tar", Qt::CaseInsensitive)) {
+            archiveBaseName.chop(4);
+        }
+        targetExtractDir = QDir(m_currentDir).filePath(archiveBaseName);
+    } else {
+        targetExtractDir = m_currentDir;
     }
-    QString targetExtractDir = QDir(m_currentDir).filePath(archiveBaseName);
     QDir().mkpath(targetExtractDir);
 
     m_process = new QProcess(this);
@@ -444,10 +468,14 @@ void ArchiveDialog::onProcessFinished(int exitCode, QProcess::ExitStatus status)
                     QMessageBox::warning(this, "Warning", "Archive extracted successfully, but original archive could not be deleted.");
                 }
             } else {
-                QMessageBox::information(this, "Success", "Archive operation finished successfully.");
+                if (!m_autoStart) {
+                    QMessageBox::information(this, "Success", "Archive operation finished successfully.");
+                }
             }
         } else {
-            QMessageBox::information(this, "Success", "Archive operation finished successfully.");
+            if (!m_autoStart) {
+                QMessageBox::information(this, "Success", "Archive operation finished successfully.");
+            }
         }
         accept();
     } else {

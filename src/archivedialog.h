@@ -18,7 +18,7 @@ public:
     // Constructor for creating an archive from files
     ArchiveDialog(Mode mode, const QStringList& sourcePaths, const QString& currentDir, bool enablePassword = false, QWidget* parent = nullptr);
     // Constructor for extracting a single archive file
-    ArchiveDialog(Mode mode, const QString& archivePath, const QString& currentDir, QWidget* parent = nullptr);
+    ArchiveDialog(Mode mode, const QString& archivePath, const QString& currentDir, bool autoStart = false, bool extractToSubfolder = true, QWidget* parent = nullptr);
     ~ArchiveDialog() override;
 
 private slots:
@@ -37,6 +37,8 @@ private:
     QStringList m_sourcePaths; // Files to compress
     QString m_archivePath;     // Archive to extract/create
     QString m_currentDir;      // Target directory for operation
+    bool m_autoStart = false;
+    bool m_extractToSubfolder = true;
 
     QProcess* m_process = nullptr;
     bool m_isRunning = false;

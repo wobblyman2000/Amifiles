@@ -440,6 +440,17 @@ void HomeDashboardWidget::setupUi() {
     m_pinnedProfilesLayout->setSpacing(12);
     contentLayout->addWidget(profilesContainer);
 
+    // 5. Recent Locations Section
+    QLabel* recentsTitle = new QLabel("Recent Locations", scrollContent);
+    recentsTitle->setObjectName("sectionTitle");
+    contentLayout->addWidget(recentsTitle);
+
+    QFrame* recentsContainer = new QFrame(scrollContent);
+    m_recentLocationsLayout = new QGridLayout(recentsContainer);
+    m_recentLocationsLayout->setContentsMargins(0, 0, 0, 0);
+    m_recentLocationsLayout->setSpacing(12);
+    contentLayout->addWidget(recentsContainer);
+
     contentLayout->addStretch(1);
     mainLayout->addWidget(scrollArea, 1);
 
@@ -530,6 +541,7 @@ void HomeDashboardWidget::refreshDashboard() {
     populateQuickAccess();
     populatePinnedFolders();
     populatePinnedProfiles();
+    populateRecentLocations();
 }
 
 void HomeDashboardWidget::populateDrives() {
@@ -939,6 +951,71 @@ void HomeDashboardWidget::populatePinnedProfiles() {
         }
     }
     m_pinnedProfilesLayout->setColumnStretch(4, 1);
+}
+
+void HomeDashboardWidget::populateRecentLocations() {
+    clearLayout(m_recentLocationsLayout);
+    m_recentLocationsLayout->setSpacing(12);
+    for (int i = 0; i < 10; ++i) m_recentLocationsLayout->setColumnStretch(i, 0);
+
+    QSettings settings("Amifiles", "Amifiles");
+    QStringList recents = settings.value("recents/folders").toStringList();
+
+    if (recents.isEmpty()) {
+        QLabel* emptyLabel = new QLabel("No recent locations visited yet. Navigate to some folders to build your history.", this);
+        emptyLabel->setStyleSheet("color: #a6adc8; font-size: 11px; font-style: italic; padding: 10px;");
+        m_recentLocationsLayout->addWidget(emptyLabel, 0, 0);
+        return;
+    }
+
+    int row = 0;
+    int col = 0;
+
+    for (const QString& path : recents) {
+        CardTheme theme = getCardTheme(col + row * 4, 1);
+        theme.symbol = "🕒";
+
+        QFileInfo fi(path);
+        QString dispName = fi.fileName();
+        if (dispName.isEmpty()) dispName = path;
+
+        ClickableCardFrame* card = new ClickableCardFrame(dispName, -1, this);
+        card->setFixedSize(190, 74);
+        card->setStyleSheet(QString("QFrame#cardFrame { %1 border-radius: 12px; } QFrame#cardFrame:hover { background-color: rgba(255, 255, 255, 0.05); }").arg(theme.bgStyle));
+        
+        connect(card, &ClickableCardFrame::doubleClicked, this, [this, path](const QString&) {
+            emit navigateRequested(path);
+        });
+
+        QVBoxLayout* cardLay = new QVBoxLayout(card);
+        cardLay->setContentsMargins(12, 10, 12, 10);
+        cardLay->setSpacing(4);
+
+        QHBoxLayout* titleLay = new QHBoxLayout();
+        QLabel* lblIcon = new QLabel(theme.symbol, card);
+        lblIcon->setStyleSheet("font-size: 16px;");
+        QLabel* lblTitle = new QLabel(dispName, card);
+        lblTitle->setStyleSheet("font-size: 13px; font-weight: bold; color: #cdd6f4;");
+        lblTitle->setWordWrap(true);
+        titleLay->addWidget(lblIcon);
+        titleLay->addWidget(lblTitle, 1);
+        cardLay->addLayout(titleLay);
+
+        QLabel* lblPath = new QLabel(QDir::toNativeSeparators(path), card);
+        lblPath->setStyleSheet("font-size: 10px; color: #a6adc8;");
+        lblPath->setWordWrap(false);
+        lblPath->setText(lblPath->fontMetrics().elidedText(lblPath->text(), Qt::ElideMiddle, 166));
+        cardLay->addWidget(lblPath);
+
+        m_recentLocationsLayout->addWidget(card, row, col);
+
+        col++;
+        if (col >= 4) {
+            col = 0;
+            row++;
+            if (row >= 2) break;
+        }
+    }
 }
 
 void HomeDashboardWidget::onDashboardContextMenu(const QPoint& pos) {

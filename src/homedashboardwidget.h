@@ -35,12 +35,14 @@ private:
     void populateQuickAccess();
     void populatePinnedFolders();
     void populatePinnedProfiles();
+    void populateRecentLocations();
 
     QFrame* m_bannerFrame = nullptr;
     QGridLayout* m_drivesLayout = nullptr;
     QGridLayout* m_quickAccessLayout = nullptr;
     QGridLayout* m_pinnedLayout = nullptr;
     QGridLayout* m_pinnedProfilesLayout = nullptr;
+    QGridLayout* m_recentLocationsLayout = nullptr;
 };
 
 #endif // HOMEDASHBOARDWIDGET_H
