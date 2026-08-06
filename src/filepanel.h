@@ -1038,6 +1038,7 @@ private slots:
     void onFilterChanged(const QString& filterText);
     void onFilterTypeChanged();
     void onRecentFilterToggled(bool checked);
+    void onRecentPlacesMenuAboutToShow();
     void onSelectionChanged();
     void onDoubleClicked(const QModelIndex& index);
     void onDoubleClickedPath(const QString& path);
@@ -1235,6 +1236,7 @@ private:
     QToolButton* m_btnFilterFolders = nullptr;
     QToolButton* m_btnStickyFilters = nullptr;
     QToolButton* m_btnFilterRecent = nullptr;
+    QToolButton* m_btnRecentPlaces = nullptr;
     QLabel* m_statusLabel = nullptr;
 
     QWidget* m_categoryWidget = nullptr;

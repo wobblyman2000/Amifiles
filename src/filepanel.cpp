@@ -1147,6 +1147,20 @@ void FilePanel::setupUI() {
     });
     m_btnStickyFilters->setChecked(settings.value("preferences/sticky_filters", false).toBool());
 
+    m_btnRecentPlaces = new QToolButton(this);
+    m_btnRecentPlaces->setText("🕒 Recent Places");
+    m_btnRecentPlaces->setPopupMode(QToolButton::InstantPopup);
+    m_btnRecentPlaces->setToolTip("Quickly jump to recently visited folder locations");
+    m_btnRecentPlaces->setStyleSheet("QToolButton { padding: 4px 8px; color: #a6e3a1; }");
+    QMenu* menuRecentPlaces = new QMenu(m_btnRecentPlaces);
+    menuRecentPlaces->setStyleSheet(
+        "QMenu { background-color: #11111b; color: #cdd6f4; border: 1px solid #313244; border-radius: 4px; padding: 4px; }"
+        "QMenu::item { padding: 4px 20px 4px 20px; border-radius: 2px; }"
+        "QMenu::item:selected { background-color: #313244; color: #a6e3a1; }"
+    );
+    m_btnRecentPlaces->setMenu(menuRecentPlaces);
+    connect(menuRecentPlaces, &QMenu::aboutToShow, this, &FilePanel::onRecentPlacesMenuAboutToShow);
+
     // Button group to manage checks, not exclusive to allow multi-selection
     QButtonGroup* filterGroup = new QButtonGroup(this);
     filterGroup->setExclusive(false);
@@ -1159,6 +1173,7 @@ void FilePanel::setupUI() {
     filterGroup->addButton(m_btnFilterThreeD);
     filterGroup->addButton(m_btnFilterFiles);
     filterGroup->addButton(m_btnFilterFolders);
+    filterGroup->addButton(m_btnFilterRecent);
 
     connect(m_btnFilterAll, &QToolButton::clicked, this, &FilePanel::onFilterTypeChanged);
     connect(m_btnFilterAudio, &QToolButton::clicked, this, &FilePanel::onFilterTypeChanged);
@@ -1189,6 +1204,7 @@ void FilePanel::setupUI() {
     categoryLayout->addWidget(m_btnFilterFolders);
     categoryLayout->addWidget(m_btnFilterRecent);
     categoryLayout->addWidget(m_btnStickyFilters);
+    categoryLayout->addWidget(m_btnRecentPlaces);
 
     m_btnToggleSearchMode = new QToolButton(this);
     m_btnToggleSearchMode->setIcon(createSearchIcon(QColor("#cdd6f4")));
@@ -2711,6 +2727,28 @@ void FilePanel::onRecentFilterToggled(bool checked) {
         m_flatProxyModel->setShowRecentOnly(checked);
     }
     updateStatusText();
+}
+
+void FilePanel::onRecentPlacesMenuAboutToShow() {
+    if (!m_btnRecentPlaces || !m_btnRecentPlaces->menu()) return;
+    QMenu* menu = m_btnRecentPlaces->menu();
+    menu->clear();
+
+    QSettings settings("Amifiles", "Amifiles");
+    QStringList recents = settings.value("recents/folders").toStringList();
+
+    if (recents.isEmpty()) {
+        QAction* actEmpty = menu->addAction("(No Recent Places)");
+        actEmpty->setEnabled(false);
+        return;
+    }
+
+    for (const QString& path : recents) {
+        QAction* act = menu->addAction(QApplication::style()->standardIcon(QStyle::SP_DirIcon), QDir::toNativeSeparators(path));
+        connect(act, &QAction::triggered, this, [this, path]() {
+            setPath(path);
+        });
+    }
 }
 
 static bool containsMediaFilesDirectly(const QString& folderPath) {
