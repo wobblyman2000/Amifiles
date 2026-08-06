@@ -205,6 +205,7 @@ void ArchiveDialog::startExtraction() {
         }
     }
 
+    m_btnAction->setText("Extracting...");
     m_btnAction->setEnabled(false);
     m_progressBar->setVisible(true);
     if (m_totalFiles > 0) {
@@ -293,6 +294,7 @@ void ArchiveDialog::startCreation() {
     m_processedFiles = 0;
     m_totalFiles = m_sourcePaths.size();
 
+    m_btnAction->setText("Compressing...");
     m_btnAction->setEnabled(false);
     m_txtTargetName->setEnabled(false);
     m_comboFormat->setEnabled(false);
