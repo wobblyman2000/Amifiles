@@ -168,6 +168,7 @@ class MainWindow : public QMainWindow {
     Q_PROPERTY(bool casingOverlaysEnabled READ isCasingOverlaysEnabled)
     friend class FolderLayoutDialog;
     friend class FilePanel;
+    friend class HomeDashboardWidget;
 public:
     explicit MainWindow(QWidget* parent = nullptr);
     Q_INVOKABLE bool isBuiltinPlayerDoubleclickActive() const;
@@ -178,6 +179,7 @@ public:
     FolderLayoutRule activeFolderRule() const { return m_activeFolderRule; }
     class PreviewPanel* previewPanel() const { return m_previewPanel; }
     bool isCasingOverlaysEnabled() const { return m_actToggleCasingOverlays ? m_actToggleCasingOverlays->isChecked() : true; }
+    static void addToRecentFiles(const QString& filePath);
     static QJsonObject ruleToJson(const FolderLayoutRule& r);
     static FolderLayoutRule jsonToRule(const QJsonObject& obj);
     ~MainWindow() override;

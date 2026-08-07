@@ -7650,7 +7650,42 @@ void MainWindow::setZenMode(bool enabled) {
     updateThemeMusic();
 }
 
+void MainWindow::addToRecentFiles(const QString& filePath) {
+    if (filePath.isEmpty()) return;
+    QSettings settings("Amifiles", "Amifiles");
+    QStringList recents = settings.value("dashboard/recent_files").toStringList();
+    recents.removeAll(filePath);
+    recents.prepend(filePath);
+    while (recents.size() > 16) {
+        recents.removeLast();
+    }
+    settings.setValue("dashboard/recent_files", recents);
+
+    // Refresh dashboards in both left and right panes
+    for (QWidget* widget : QApplication::topLevelWidgets()) {
+        if (MainWindow* mw = qobject_cast<MainWindow*>(widget)) {
+            if (mw->m_leftTabWidget) {
+                for (int i = 0; i < mw->m_leftTabWidget->count(); ++i) {
+                    FilePanel* p = qobject_cast<FilePanel*>(mw->m_leftTabWidget->widget(i));
+                    if (p) p->refreshHomeDashboard();
+                }
+            }
+            if (mw->m_rightTabWidget) {
+                for (int i = 0; i < mw->m_rightTabWidget->count(); ++i) {
+                    FilePanel* p = qobject_cast<FilePanel*>(mw->m_rightTabWidget->widget(i));
+                    if (p) p->refreshHomeDashboard();
+                }
+            }
+        }
+    }
+}
+
 void MainWindow::onPlayMediaBuiltin(const QStringList& filePaths) {
+    if (!filePaths.isEmpty()) {
+        for (const QString& path : filePaths) {
+            addToRecentFiles(path);
+        }
+    }
     if (!m_previewPanel || filePaths.isEmpty()) return;
 
     bool isFullscreenMode = false;
@@ -7703,6 +7738,11 @@ void MainWindow::onPlayMediaBuiltin(const QStringList& filePaths) {
 }
 
 void MainWindow::onPlayMediaFullscreen(const QStringList& filePaths) {
+    if (!filePaths.isEmpty()) {
+        for (const QString& path : filePaths) {
+            addToRecentFiles(path);
+        }
+    }
     if (!m_previewPanel || filePaths.isEmpty()) return;
     m_previewPanel->prepareForFullscreenPlayback(filePaths);
     if (!m_previewPanel->isFullscreen()) {

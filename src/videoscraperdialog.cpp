@@ -21,6 +21,7 @@
 #include <QRegularExpression>
 #include <QEventLoop>
 #include <QDateTime>
+#include <QListWidget>
 #include <algorithm>
 
 VideoScraperDialog::VideoScraperDialog(const QStringList& filePaths, QWidget* parent)
@@ -150,6 +151,25 @@ void VideoScraperDialog::setupUI() {
     m_lblPosterPreview->setAlignment(Qt::AlignCenter);
     m_lblPosterPreview->setStyleSheet("border: 1px solid #45475a; border-radius: 6px; background-color: #181825; color: #a6adc8;");
     rightLayout->addWidget(m_lblPosterPreview, 0, Qt::AlignHCenter);
+
+    m_galleryList = new QListWidget(this);
+    m_galleryList->setFlow(QListView::LeftToRight);
+    m_galleryList->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_galleryList->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    m_galleryList->setIconSize(QSize(48, 72));
+    m_galleryList->setFixedHeight(92);
+    m_galleryList->setStyleSheet(
+        "QListWidget { background-color: #11111b; border: 1px solid #313244; border-radius: 6px; padding: 2px; }"
+        "QListWidget::item { background-color: #181825; border: 1px solid #313244; border-radius: 4px; margin-right: 4px; }"
+        "QListWidget::item:selected { border: 2px solid #cba6f7; }"
+    );
+    rightLayout->addWidget(m_galleryList);
+
+    connect(m_galleryList, &QListWidget::currentRowChanged, this, [this](int row) {
+        if (row < 0 || row >= m_alternativePosterUrls.size()) return;
+        m_selectedPosterUrl = m_alternativePosterUrls[row];
+        fetchPoster(m_selectedPosterUrl);
+    });
 
     m_lblTitle = new QLabel("<b>Title:</b> Select a show", this);
     m_lblYear = new QLabel("<b>Year:</b> ", this);
@@ -366,13 +386,94 @@ void VideoScraperDialog::onTableSelectionChanged() {
     m_downloadedPosterData.clear();
     m_lblPosterPreview->setText("Loading poster...");
 
+    m_alternativePosterUrls.clear();
+    m_selectedPosterUrl = res.posterUrl;
+    m_galleryList->clear();
+
     if (!res.posterUrl.isEmpty()) {
         fetchPoster(res.posterUrl);
     } else {
         m_lblPosterPreview->setText("No poster available");
     }
 
+    fetchAlternativePosters(res.id, m_comboType->currentText() == "TV Shows");
+
     m_btnApply->setEnabled(true);
+}
+
+void VideoScraperDialog::fetchAlternativePosters(const QString& id, bool isTV) {
+    if (id.isEmpty()) return;
+
+    QString typeName = isTV ? "tv" : "movie";
+    QUrl url;
+    if (!m_apiKey.isEmpty()) {
+        url = QUrl(QString("https://api.themoviedb.org/3/%1/%2/images").arg(typeName).arg(id));
+        QUrlQuery q;
+        q.addQueryItem("api_key", m_apiKey);
+        url.setQuery(q);
+    } else {
+        if (isTV) {
+            url = QUrl(QString("https://api.tvmaze.com/shows/%1/images").arg(id));
+        } else {
+            return;
+        }
+    }
+
+    QNetworkRequest req(url);
+    req.setHeader(QNetworkRequest::UserAgentHeader, "Amifiles Video Scraper");
+    QNetworkReply* reply = m_networkManager->get(req);
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply, isTV]() {
+        reply->deleteLater();
+        if (reply->error() != QNetworkReply::NoError) return;
+
+        QByteArray data = reply->readAll();
+        QJsonDocument doc = QJsonDocument::fromJson(data);
+        if (doc.isNull()) return;
+
+        QStringList posterUrls;
+        if (!m_apiKey.isEmpty()) {
+            QJsonObject obj = doc.object();
+            QJsonArray postersArr = obj["posters"].toArray();
+            for (int i = 0; i < postersArr.size() && i < 12; ++i) {
+                QString path = postersArr[i].toObject()["file_path"].toString();
+                if (!path.isEmpty()) {
+                    posterUrls.append("https://image.tmdb.org/t/p/w185" + path);
+                }
+            }
+        } else {
+            if (doc.isArray()) {
+                QJsonArray arr = doc.array();
+                for (int i = 0; i < arr.size() && i < 12; ++i) {
+                    QJsonObject obj = arr[i].toObject();
+                    QString mediumUrl = obj["resolutions"].toObject()["medium"].toObject()["url"].toString();
+                    if (!mediumUrl.isEmpty()) {
+                        posterUrls.append(mediumUrl);
+                    }
+                }
+            }
+        }
+
+        m_alternativePosterUrls = posterUrls;
+        
+        for (int i = 0; i < m_alternativePosterUrls.size(); ++i) {
+            QString url = m_alternativePosterUrls[i];
+            QListWidgetItem* item = new QListWidgetItem(m_galleryList);
+            item->setSizeHint(QSize(54, 76));
+            m_galleryList->addItem(item);
+
+            QNetworkReply* imgReply = m_networkManager->get(QNetworkRequest(url));
+            connect(imgReply, &QNetworkReply::finished, this, [this, imgReply, item]() {
+                imgReply->deleteLater();
+                if (imgReply->error() == QNetworkReply::NoError) {
+                    QPixmap pix;
+                    if (pix.loadFromData(imgReply->readAll())) {
+                        item->setIcon(QIcon(pix));
+                    }
+                }
+            });
+        }
+    });
 }
 
 void VideoScraperDialog::fetchPoster(const QString& url) {

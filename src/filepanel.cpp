@@ -6782,6 +6782,7 @@ void FilePanel::onDoubleClickedPath(const QString& path) {
         navigateTo(path, true);
         return;
     } else {
+        MainWindow::addToRecentFiles(path);
         QString ext = info.suffix().toLower();
         static const QStringList mediaExts = {
             "mp3", "wav", "flac", "ogg", "m4a", "aac", "wma", "mod", "sid", "s3m", "xm", "it",

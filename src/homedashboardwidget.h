@@ -21,6 +21,11 @@ signals:
     void navigateWithLayoutRequested(const QString& path, int layoutIndex);
     void applyProfileRequested(const QString& profileName);
 
+protected:
+    void dragEnterEvent(class QDragEnterEvent* event) override;
+    void dragMoveEvent(class QDragMoveEvent* event) override;
+    void dropEvent(class QDropEvent* event) override;
+
 private slots:
     void onDriveDoubleClicked(const QString& path);
     void onQuickAccessClicked(const QString& path);
@@ -36,6 +41,7 @@ private:
     void populatePinnedFolders();
     void populatePinnedProfiles();
     void populateRecentLocations();
+    void populateRecentFiles();
 
     QFrame* m_bannerFrame = nullptr;
     QGridLayout* m_drivesLayout = nullptr;
@@ -43,6 +49,7 @@ private:
     QGridLayout* m_pinnedLayout = nullptr;
     QGridLayout* m_pinnedProfilesLayout = nullptr;
     QGridLayout* m_recentLocationsLayout = nullptr;
+    QGridLayout* m_recentFilesLayout = nullptr;
 };
 
 #endif // HOMEDASHBOARDWIDGET_H

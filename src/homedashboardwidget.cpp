@@ -25,6 +25,9 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
+#include <QDrag>
+#include <QMimeData>
+#include "comicbookviewerdialog.h"
 
 #include "archivedialog.h"
 #include "videoscraperdialog.h"
@@ -196,11 +199,16 @@ private:
 class ClickableCardFrame : public QFrame {
     Q_OBJECT
 public:
-    explicit ClickableCardFrame(const QString& path, int layoutIndex = -1, QWidget* parent = nullptr)
-        : QFrame(parent), m_path(path), m_layoutIndex(layoutIndex) {
+    enum CardType { PinnedFolder = 0, PinnedProfile = 1, QuickAccess = 2, RecentLocation = 3, RecentFile = 4 };
+
+    explicit ClickableCardFrame(const QString& path, CardType type, int layoutIndex = -1, QWidget* parent = nullptr)
+        : QFrame(parent), m_path(path), m_type(type), m_layoutIndex(layoutIndex) {
         setObjectName("cardFrame");
         setProperty("class", "cardFrame");
     }
+
+    QString path() const { return m_path; }
+    CardType cardType() const { return m_type; }
 
 signals:
     void doubleClicked(const QString& path);
@@ -218,9 +226,36 @@ protected:
         QFrame::mouseDoubleClickEvent(event);
     }
 
+    void mousePressEvent(QMouseEvent* event) override {
+        if (event->button() == Qt::LeftButton) {
+            m_dragStartPos = event->pos();
+        }
+        QFrame::mousePressEvent(event);
+    }
+
+    void mouseMoveEvent(QMouseEvent* event) override {
+        if (!(event->buttons() & Qt::LeftButton))
+            return;
+        if ((event->pos() - m_dragStartPos).manhattanLength() < QApplication::startDragDistance())
+            return;
+
+        QDrag* drag = new QDrag(this);
+        QMimeData* mimeData = new QMimeData;
+        mimeData->setText(QString("%1:%2").arg(static_cast<int>(m_type)).arg(m_path));
+        drag->setMimeData(mimeData);
+
+        QPixmap pixmap = grab();
+        drag->setPixmap(pixmap);
+        drag->setHotSpot(event->pos());
+
+        drag->exec(Qt::MoveAction);
+    }
+
 private:
     QString m_path;
+    CardType m_type;
     int m_layoutIndex;
+    QPoint m_dragStartPos;
 };
 
 static void clearLayout(QLayout* layout) {
@@ -335,6 +370,7 @@ static QATheme getQATheme(const QString& name) {
 }
 
 HomeDashboardWidget::HomeDashboardWidget(QWidget* parent) : QWidget(parent) {
+    setAcceptDrops(true);
     setupUi();
     refreshDashboard();
 }
@@ -451,6 +487,17 @@ void HomeDashboardWidget::setupUi() {
     m_recentLocationsLayout->setSpacing(12);
     contentLayout->addWidget(recentsContainer);
 
+    // 6. Recent Files & Media Section
+    QLabel* filesTitle = new QLabel("Recent Files & Media", scrollContent);
+    filesTitle->setObjectName("sectionTitle");
+    contentLayout->addWidget(filesTitle);
+
+    QFrame* filesContainer = new QFrame(scrollContent);
+    m_recentFilesLayout = new QGridLayout(filesContainer);
+    m_recentFilesLayout->setContentsMargins(0, 0, 0, 0);
+    m_recentFilesLayout->setSpacing(12);
+    contentLayout->addWidget(filesContainer);
+
     contentLayout->addStretch(1);
     mainLayout->addWidget(scrollArea, 1);
 
@@ -542,6 +589,7 @@ void HomeDashboardWidget::refreshDashboard() {
     populatePinnedFolders();
     populatePinnedProfiles();
     populateRecentLocations();
+    populateRecentFiles();
 }
 
 void HomeDashboardWidget::populateDrives() {
@@ -559,7 +607,7 @@ void HomeDashboardWidget::populateDrives() {
         QString type = storage.fileSystemType();
         if (type == "tmpfs" || type == "devtmpfs" || type == "sysfs" || type == "proc" || type == "cgroup" || type == "squashfs") continue;
 
-        ClickableCardFrame* card = new ClickableCardFrame(storage.rootPath(), -1, this);
+        ClickableCardFrame* card = new ClickableCardFrame(storage.rootPath(), ClickableCardFrame::QuickAccess, -1, this);
         connect(card, &ClickableCardFrame::doubleClicked, this, &HomeDashboardWidget::onDriveDoubleClicked);
 
         QHBoxLayout* layout = new QHBoxLayout(card);
@@ -653,7 +701,7 @@ void HomeDashboardWidget::populateQuickAccess() {
 
         QATheme qat = getQATheme(entry.name);
 
-        ClickableCardFrame* card = new ClickableCardFrame(entry.path, -1, this);
+        ClickableCardFrame* card = new ClickableCardFrame(entry.path, ClickableCardFrame::QuickAccess, -1, this);
         card->setFixedSize(240, 84);
         card->setStyleSheet(qat.cardHoverStyle);
         connect(card, &ClickableCardFrame::doubleClicked, this, &HomeDashboardWidget::onQuickAccessClicked);
@@ -736,7 +784,7 @@ void HomeDashboardWidget::populatePinnedFolders() {
         }
 
         CardTheme theme = getCardTheme(col + row * 4, layoutIndex);
-        ClickableCardFrame* card = new ClickableCardFrame(path, layoutIndex, this);
+        ClickableCardFrame* card = new ClickableCardFrame(path, ClickableCardFrame::PinnedFolder, layoutIndex, this);
         card->setFixedSize(190, 74);
         card->setStyleSheet(QString("QFrame#cardFrame { %1 border-radius: 12px; } QFrame#cardFrame:hover { background-color: rgba(255, 255, 255, 0.05); }").arg(theme.bgStyle));
         connect(card, &ClickableCardFrame::doubleClickedWithLayout, this, &HomeDashboardWidget::onPinnedFolderClicked);
@@ -893,7 +941,7 @@ void HomeDashboardWidget::populatePinnedProfiles() {
         CardTheme theme = getCardTheme(col + row * 4, 0);
         theme.symbol = "⚙️";
 
-        ClickableCardFrame* card = new ClickableCardFrame(profileName, -1, this);
+        ClickableCardFrame* card = new ClickableCardFrame(profileName, ClickableCardFrame::PinnedProfile, -1, this);
         card->setFixedSize(190, 74);
         card->setStyleSheet(QString("QFrame#cardFrame { %1 border-radius: 12px; } QFrame#cardFrame:hover { background-color: rgba(255, 255, 255, 0.05); }").arg(theme.bgStyle));
         
@@ -990,7 +1038,7 @@ void HomeDashboardWidget::populateRecentLocations() {
         QString dispName = fi.fileName();
         if (dispName.isEmpty()) dispName = path;
 
-        ClickableCardFrame* card = new ClickableCardFrame(dispName, -1, this);
+        ClickableCardFrame* card = new ClickableCardFrame(path, ClickableCardFrame::RecentLocation, -1, this);
         card->setFixedSize(190, 74);
         card->setStyleSheet(QString("QFrame#cardFrame { %1 border-radius: 12px; } QFrame#cardFrame:hover { background-color: rgba(255, 255, 255, 0.05); }").arg(theme.bgStyle));
         
@@ -1047,13 +1095,189 @@ void HomeDashboardWidget::onDashboardContextMenu(const QPoint& pos) {
     QWidget* scrollContent = qobject_cast<QWidget*>(sender());
     QPoint globalPos = scrollContent ? scrollContent->mapToGlobal(pos) : QCursor::pos();
     QAction* selected = menu.exec(globalPos);
-
     if (selected == actToggleBanner) {
         bool newValue = !showBanner;
         settings.setValue("dashboard/show_welcome_banner", newValue);
         settings.sync();
         if (m_bannerFrame) {
             m_bannerFrame->setVisible(newValue);
+        }
+    }
+}
+
+void HomeDashboardWidget::populateRecentFiles() {
+    clearLayout(m_recentFilesLayout);
+    m_recentFilesLayout->setSpacing(12);
+    for (int i = 0; i < 10; ++i) m_recentFilesLayout->setColumnStretch(i, 0);
+
+    QSettings settings("Amifiles", "Amifiles");
+    QStringList recents = settings.value("dashboard/recent_files").toStringList();
+
+    if (recents.isEmpty()) {
+        QLabel* emptyLabel = new QLabel("No recent files opened yet.", this);
+        emptyLabel->setStyleSheet("color: #a6adc8; font-size: 11px; font-style: italic; padding: 10px;");
+        m_recentFilesLayout->addWidget(emptyLabel, 0, 0);
+        return;
+    }
+
+    int row = 0;
+    int col = 0;
+
+    for (const QString& path : recents) {
+        QFileInfo fi(path);
+        if (!fi.exists()) continue;
+
+        CardTheme theme = getCardTheme(col + row * 4, 3);
+        theme.symbol = "📄";
+        QString ext = fi.suffix().toLower();
+        if (ext == "mp4" || ext == "mkv" || ext == "avi" || ext == "mov") theme.symbol = "🎬";
+        else if (ext == "mp3" || ext == "wav" || ext == "flac" || ext == "ogg") theme.symbol = "🎵";
+        else if (ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "gif") theme.symbol = "🖼️";
+
+        ClickableCardFrame* card = new ClickableCardFrame(path, ClickableCardFrame::RecentFile, -1, this);
+        card->setFixedSize(190, 74);
+        card->setStyleSheet(QString("QFrame#cardFrame { %1 border-radius: 12px; } QFrame#cardFrame:hover { background-color: rgba(255, 255, 255, 0.05); }").arg(theme.bgStyle));
+
+        connect(card, &ClickableCardFrame::doubleClicked, this, [this, path](const QString&) {
+            QWidget* p = parentWidget();
+            while (p && !p->inherits("MainWindow")) {
+                p = p->parentWidget();
+            }
+            MainWindow* mw = qobject_cast<MainWindow*>(p);
+            if (mw) {
+                QString ext = QFileInfo(path).suffix().toLower();
+                static const QStringList mediaExts = {
+                    "mp3", "wav", "flac", "ogg", "m4a", "aac", "wma", "mod", "sid", "s3m", "xm", "it",
+                    "mp4", "avi", "mkv", "mov", "webm", "flv", "wmv", "m4v", "mpg", "mpeg"
+                };
+                if (mediaExts.contains(ext)) {
+                    mw->onPlayMediaBuiltin({path});
+                } else if (ext == "cbz" || ext == "cbr") {
+                    ComicBookViewerDialog* dlg = new ComicBookViewerDialog(path, mw);
+                    dlg->setAttribute(Qt::WA_DeleteOnClose);
+                    dlg->show();
+                } else {
+                    QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+                }
+            }
+        });
+
+        QVBoxLayout* cardLay = new QVBoxLayout(card);
+        cardLay->setContentsMargins(12, 10, 12, 10);
+        cardLay->setSpacing(4);
+
+        QHBoxLayout* titleLay = new QHBoxLayout();
+        QLabel* lblIcon = new QLabel(theme.symbol, card);
+        lblIcon->setStyleSheet("font-size: 16px;");
+        QLabel* lblTitle = new QLabel(fi.fileName(), card);
+        lblTitle->setStyleSheet("font-size: 13px; font-weight: bold; color: #cdd6f4;");
+        lblTitle->setWordWrap(true);
+        titleLay->addWidget(lblIcon);
+        titleLay->addWidget(lblTitle, 1);
+        cardLay->addLayout(titleLay);
+
+        QLabel* lblPath = new QLabel(QDir::toNativeSeparators(fi.absolutePath()), card);
+        lblPath->setStyleSheet("font-size: 10px; color: #a6adc8;");
+        lblPath->setWordWrap(false);
+        lblPath->setText(lblPath->fontMetrics().elidedText(lblPath->text(), Qt::ElideMiddle, 166));
+        cardLay->addWidget(lblPath);
+
+        m_recentFilesLayout->addWidget(card, row, col);
+
+        col++;
+        if (col >= 4) {
+            col = 0;
+            row++;
+            if (row >= 2) break;
+        }
+    }
+}
+
+void HomeDashboardWidget::dragEnterEvent(QDragEnterEvent* event) {
+    if (event->mimeData()->hasText()) {
+        event->acceptProposedAction();
+    }
+}
+
+void HomeDashboardWidget::dragMoveEvent(QDragMoveEvent* event) {
+    event->acceptProposedAction();
+}
+
+void HomeDashboardWidget::dropEvent(QDropEvent* event) {
+    QString mimeText = event->mimeData()->text();
+    QStringList parts = mimeText.split(":");
+    if (parts.size() < 2) return;
+    int typeVal = parts[0].toInt();
+    QString srcPath = parts.mid(1).join(":");
+
+    QWidget* targetWidget = childAt(event->position().toPoint());
+    if (!targetWidget) return;
+
+    ClickableCardFrame* targetCard = nullptr;
+    QWidget* w = targetWidget;
+    while (w && w != this) {
+        if (ClickableCardFrame* c = qobject_cast<ClickableCardFrame*>(w)) {
+            targetCard = c;
+            break;
+        }
+        w = w->parentWidget();
+    }
+
+    if (!targetCard) return;
+
+    QString destPath = targetCard->path();
+    if (srcPath == destPath) return;
+
+    QSettings settings("Amifiles", "Amifiles");
+    if (typeVal == 0 && targetCard->cardType() == ClickableCardFrame::PinnedFolder) {
+        QStringList pinned = settings.value("dashboard/pinned_folders").toStringList();
+        int srcIdx = -1, destIdx = -1;
+        for (int i = 0; i < pinned.size(); ++i) {
+            if (pinned[i].startsWith(srcPath + ";")) srcIdx = i;
+            if (pinned[i].startsWith(destPath + ";")) destIdx = i;
+        }
+        if (srcIdx != -1 && destIdx != -1) {
+            QString item = pinned.takeAt(srcIdx);
+            destIdx = -1;
+            for (int i = 0; i < pinned.size(); ++i) {
+                if (pinned[i].startsWith(destPath + ";")) destIdx = i;
+            }
+            pinned.insert(destIdx, item);
+            settings.setValue("dashboard/pinned_folders", pinned);
+            populatePinnedFolders();
+        }
+    } else if (typeVal == 1 && targetCard->cardType() == ClickableCardFrame::PinnedProfile) {
+        QStringList pinned = settings.value("dashboard/pinned_profiles").toStringList();
+        int srcIdx = pinned.indexOf(srcPath);
+        int destIdx = pinned.indexOf(destPath);
+        if (srcIdx != -1 && destIdx != -1) {
+            QString item = pinned.takeAt(srcIdx);
+            destIdx = pinned.indexOf(destPath);
+            pinned.insert(destIdx, item);
+            settings.setValue("dashboard/pinned_profiles", pinned);
+            populatePinnedProfiles();
+        }
+    } else if (typeVal == 3 && targetCard->cardType() == ClickableCardFrame::RecentLocation) {
+        QStringList recents = settings.value("recents/folders").toStringList();
+        int srcIdx = recents.indexOf(srcPath);
+        int destIdx = recents.indexOf(destPath);
+        if (srcIdx != -1 && destIdx != -1) {
+            QString item = recents.takeAt(srcIdx);
+            destIdx = recents.indexOf(destPath);
+            recents.insert(destIdx, item);
+            settings.setValue("recents/folders", recents);
+            populateRecentLocations();
+        }
+    } else if (typeVal == 4 && targetCard->cardType() == ClickableCardFrame::RecentFile) {
+        QStringList recents = settings.value("dashboard/recent_files").toStringList();
+        int srcIdx = recents.indexOf(srcPath);
+        int destIdx = recents.indexOf(destPath);
+        if (srcIdx != -1 && destIdx != -1) {
+            QString item = recents.takeAt(srcIdx);
+            destIdx = recents.indexOf(destPath);
+            recents.insert(destIdx, item);
+            settings.setValue("dashboard/recent_files", recents);
+            populateRecentFiles();
         }
     }
 }

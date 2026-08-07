@@ -96,6 +96,7 @@ private:
     QList<EpisodeInfo> fetchEpisodesList(const QString& showId);
     void processTVShowEpisodes(const QString& targetFolder, const QString& showTitle, const QList<EpisodeInfo>& episodes);
     void writeEpisodeNfoFile(const QString& filePath, const EpisodeInfo& ep, const QString& showTitle);
+    void fetchAlternativePosters(const QString& id, bool isTV);
 
     QStringList m_filePaths;
     QString m_apiKey;
@@ -103,6 +104,8 @@ private:
     QNetworkReply* m_currentSearchReply = nullptr;
     QNetworkReply* m_currentPosterReply = nullptr;
     QList<VideoSearchResult> m_results;
+    QList<QString> m_alternativePosterUrls;
+    QString m_selectedPosterUrl;
 
     // UI Widgets
     QLineEdit* m_editSearch = nullptr;
@@ -111,6 +114,7 @@ private:
     QTableWidget* m_tableResults = nullptr;
 
     QLabel* m_lblPosterPreview = nullptr;
+    class QListWidget* m_galleryList = nullptr;
     QLabel* m_lblTitle = nullptr;
     QLabel* m_lblYear = nullptr;
     QLabel* m_lblRating = nullptr;
