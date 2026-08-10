@@ -898,7 +898,9 @@ void FolderLayoutDialog::updateEditorEnabledState() {
 void FolderLayoutDialog::populateFields(const FolderLayoutRule& r) {
     bool isDefault = (r.name.toLower() == "default");
 
+    m_chkLocked->blockSignals(true);
     m_chkLocked->setChecked(r.isLocked);
+    m_chkLocked->blockSignals(false);
     m_chkLocked->setEnabled(true);
 
     m_editName->setText(r.name);
