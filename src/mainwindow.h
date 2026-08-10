@@ -581,6 +581,9 @@ private:
     QJsonObject m_copiedToolbarItem;
     void updateActiveRuleLayoutSetting(const QString& field, bool value);
 
+    QString m_pendingProfilePath;
+    QPointer<class FilePanel> m_pendingProfilePanel;
+
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
 };

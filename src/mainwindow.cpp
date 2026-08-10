@@ -5017,33 +5017,43 @@ void MainWindow::applyFolderRules(const QString& path, FilePanel* callingPanel) 
     if (!callingPanel) callingPanel = m_activePanel;
     if (!callingPanel) return;
 
-    if (path.startsWith("smart://")) {
-        // Reset to Default profile so layout remnants from other profiles (like preview pane) don't leak onto the dashboard
-        FolderLayoutRule def = getDefaultRule();
-        applyProfile(def, callingPanel);
-        return;
-    }
+    m_pendingProfilePath = path;
+    m_pendingProfilePanel = callingPanel;
 
-    if (m_previewDockAutoShownForPlayback) {
-        m_previewDockAutoShownForPlayback = false;
-        bool shouldShow = false;
-        if (m_hasActiveFolderRule && m_activeFolderRule.overridePreview) {
-            shouldShow = m_activeFolderRule.previewVisible;
+    QTimer::singleShot(0, this, [this, path, callingPanel]() {
+        if (m_pendingProfilePath != path || m_pendingProfilePanel != callingPanel) return;
+        m_pendingProfilePath.clear();
+        m_pendingProfilePanel = nullptr;
+
+        if (m_isApplyingFolderProfile) return;
+
+        if (path.startsWith("smart://")) {
+            // Reset to Default profile so layout remnants from other profiles (like preview pane) don't leak onto the dashboard
+            FolderLayoutRule def = getDefaultRule();
+            applyProfile(def, callingPanel);
+            return;
         }
-        if (m_actTogglePreview) {
-            m_actTogglePreview->setChecked(shouldShow);
-            if (m_previewDock) m_previewDock->setVisible(shouldShow);
+
+        if (m_previewDockAutoShownForPlayback) {
+            m_previewDockAutoShownForPlayback = false;
+            bool shouldShow = false;
+            if (m_hasActiveFolderRule && m_activeFolderRule.overridePreview) {
+                shouldShow = m_activeFolderRule.previewVisible;
+            }
+            if (m_actTogglePreview) {
+                m_actTogglePreview->setChecked(shouldShow);
+                if (m_previewDock) m_previewDock->setVisible(shouldShow);
+            }
         }
-    }
 
-    QSettings settings("Amifiles", "Amifiles");
-    bool bypassRules = settings.value("preferences/bypass_folder_rules", false).toBool();
-    if (bypassRules) {
-        return;
-    }
+        QSettings settings("Amifiles", "Amifiles");
+        bool bypassRules = settings.value("preferences/bypass_folder_rules", false).toBool();
+        if (bypassRules) {
+            return;
+        }
 
-    FolderLayoutRule matchedRule;
-    bool foundMatch = false;
+        FolderLayoutRule matchedRule;
+        bool foundMatch = false;
         // 1. Path matching (with exact match preference and subfolder depth inheritance)
         int bestMatchDepth = 9999;
         for (const auto& r : m_folderRules) {
@@ -5140,171 +5150,172 @@ void MainWindow::applyFolderRules(const QString& path, FilePanel* callingPanel) 
             }
         }
 
-    if (foundMatch) {
-        if (!matchedRule.linkedProfile.isEmpty() && matchedRule.linkedProfile != matchedRule.name) {
-            FolderLayoutRule inheritedRule = matchedRule;
-            bool foundInherited = false;
-            for (const auto& r : m_folderRules) {
-                if (r.name == matchedRule.linkedProfile) {
-                    inheritedRule = r;
-                    inheritedRule.name = matchedRule.name;
-                    inheritedRule.ruleType = matchedRule.ruleType;
-                    inheritedRule.value = matchedRule.value;
-                    inheritedRule.autoApply = matchedRule.autoApply;
-                    foundInherited = true;
-                    break;
-                }
-            }
-            applyProfile(inheritedRule, callingPanel);
-        } else {
-            applyProfile(matchedRule, callingPanel);
-        }
-    } else {
-        FolderLayoutRule defaultRule;
-        bool foundDefault = false;
-        for (const auto& r : m_folderRules) {
-            if (r.name.toLower() == "default") {
-                defaultRule = r;
-                foundDefault = true;
-                break;
-            }
-        }
-        if (foundDefault) {
-            if (!defaultRule.linkedProfile.isEmpty() && defaultRule.linkedProfile != defaultRule.name) {
-                FolderLayoutRule inheritedRule = defaultRule;
+        if (foundMatch) {
+            if (!matchedRule.linkedProfile.isEmpty() && matchedRule.linkedProfile != matchedRule.name) {
+                FolderLayoutRule inheritedRule = matchedRule;
+                bool foundInherited = false;
                 for (const auto& r : m_folderRules) {
-                    if (r.name == defaultRule.linkedProfile) {
+                    if (r.name == matchedRule.linkedProfile) {
                         inheritedRule = r;
-                        inheritedRule.name = defaultRule.name;
-                        inheritedRule.ruleType = defaultRule.ruleType;
-                        inheritedRule.value = defaultRule.value;
-                        inheritedRule.autoApply = defaultRule.autoApply;
+                        inheritedRule.name = matchedRule.name;
+                        inheritedRule.ruleType = matchedRule.ruleType;
+                        inheritedRule.value = matchedRule.value;
+                        inheritedRule.autoApply = matchedRule.autoApply;
+                        foundInherited = true;
                         break;
                     }
                 }
                 applyProfile(inheritedRule, callingPanel);
             } else {
-                applyProfile(defaultRule, callingPanel);
+                applyProfile(matchedRule, callingPanel);
             }
         } else {
-            m_hasActiveFolderRule = false;
-            m_isApplyingFolderProfile = true;
-            
-            QSettings settings("Amifiles", "Amifiles");
-            QByteArray defaultState = settings.value("window/state").toByteArray();
-            if (!defaultState.isEmpty()) {
-                restoreState(defaultState);
-                onActivePanelViewModeChanged();
+            FolderLayoutRule defaultRule;
+            bool foundDefault = false;
+            for (const auto& r : m_folderRules) {
+                if (r.name.toLower() == "default") {
+                    defaultRule = r;
+                    foundDefault = true;
+                    break;
+                }
             }
-
-            callingPanel->setCustomBgColor("");
-            if (!m_activeToolbarFilter.isEmpty()) {
-                m_activeToolbarFilter.clear();
-                rebuildCustomToolBar();
-            }
-            
-            // Revert View Mode to default preferred view mode
-            int defaultViewMode = settings.value("file_panel/view_mode_index", 0).toInt();
-            callingPanel->setViewModeIndex(defaultViewMode);
-
-            // Revert Toolbars to default config visibility
-            QString tbJsonStr = settings.value("custom_toolbars_v1").toString();
-            if (!tbJsonStr.isEmpty()) {
-                QJsonDocument doc = QJsonDocument::fromJson(tbJsonStr.toUtf8());
-                QJsonArray arr = doc.array();
-                for (int i = 0; i < arr.size(); ++i) {
-                    QJsonObject tbObj = arr[i].toObject();
-                    QString id = tbObj["id"].toString();
-                    if (id == "tb_drives" || id == "drivesToolBar") continue;
-                    bool visible = tbObj["visible"].toBool(true);
-                    for (QToolBar* tb : m_dynamicToolBars) {
-                        if (tb->objectName() == id) {
-                            tb->setVisible(visible);
+            if (foundDefault) {
+                if (!defaultRule.linkedProfile.isEmpty() && defaultRule.linkedProfile != defaultRule.name) {
+                    FolderLayoutRule inheritedRule = defaultRule;
+                    for (const auto& r : m_folderRules) {
+                        if (r.name == defaultRule.linkedProfile) {
+                            inheritedRule = r;
+                            inheritedRule.name = defaultRule.name;
+                            inheritedRule.ruleType = defaultRule.ruleType;
+                            inheritedRule.value = defaultRule.value;
+                            inheritedRule.autoApply = defaultRule.autoApply;
                             break;
                         }
                     }
+                    applyProfile(inheritedRule, callingPanel);
+                } else {
+                    applyProfile(defaultRule, callingPanel);
                 }
             } else {
-                for (QToolBar* tb : m_dynamicToolBars) {
-                    if (tb->objectName() == "tb_drives" || tb->objectName() == "drivesToolBar") continue;
-                    tb->setVisible(true);
+                m_hasActiveFolderRule = false;
+                m_isApplyingFolderProfile = true;
+                
+                QSettings settings("Amifiles", "Amifiles");
+                QByteArray defaultState = settings.value("window/state").toByteArray();
+                if (!defaultState.isEmpty()) {
+                    restoreState(defaultState);
+                    onActivePanelViewModeChanged();
                 }
-            }
 
-            // Revert Custom Menus to all visible
-            for (QMenu* menu : m_customMenus) {
-                if (menu->menuAction()) {
-                    menu->menuAction()->setVisible(true);
+                callingPanel->setCustomBgColor("");
+                if (!m_activeToolbarFilter.isEmpty()) {
+                    m_activeToolbarFilter.clear();
+                    rebuildCustomToolBar();
                 }
-            }
+                
+                // Revert View Mode to default preferred view mode
+                int defaultViewMode = settings.value("file_panel/view_mode_index", 0).toInt();
+                callingPanel->setViewModeIndex(defaultViewMode);
 
-            bool drivesToolbar = settings.value("drives/toolbar_visible", true).toBool();
-            bool centerOps = settings.value("layout/center_ops_visible", true).toBool();
-            bool console = settings.value("console/visible", true).toBool();
-            bool favorites = settings.value("favorites/sidebar_visible", false).toBool();
-            bool zen = settings.value("preferences/zen_mode", false).toBool();
-            bool dualPane = settings.value("preferences/dual_pane", true).toBool();
-            bool horizontalSplit = settings.value("preferences/horizontal_split", false).toBool();
-            bool casingOverlays = settings.value("preferences/casing_overlays", true).toBool();
+                // Revert Toolbars to default config visibility
+                QString tbJsonStr = settings.value("custom_toolbars_v1").toString();
+                if (!tbJsonStr.isEmpty()) {
+                    QJsonDocument doc = QJsonDocument::fromJson(tbJsonStr.toUtf8());
+                    QJsonArray arr = doc.array();
+                    for (int i = 0; i < arr.size(); ++i) {
+                        QJsonObject tbObj = arr[i].toObject();
+                        QString id = tbObj["id"].toString();
+                        if (id == "tb_drives" || id == "drivesToolBar") continue;
+                        bool visible = tbObj["visible"].toBool(true);
+                        for (QToolBar* tb : m_dynamicToolBars) {
+                            if (tb->objectName() == id) {
+                                tb->setVisible(visible);
+                                break;
+                            }
+                        }
+                    }
+                } else {
+                    for (QToolBar* tb : m_dynamicToolBars) {
+                        if (tb->objectName() == "tb_drives" || tb->objectName() == "drivesToolBar") continue;
+                        tb->setVisible(true);
+                    }
+                }
 
-            m_actToggleDrivesToolbar->setChecked(drivesToolbar);
-            if (m_tbDrives) m_tbDrives->setVisible(drivesToolbar);
-            
-            m_actToggleCenterOps->setChecked(centerOps);
-            if (m_tbCenterOps) m_tbCenterOps->setVisible(centerOps && m_isDualPane);
-            
-            m_actToggleConsole->setChecked(console);
-            if (m_bottomTabWidget) m_bottomTabWidget->setVisible(console);
-            
-            m_actToggleFavoritesSidebar->setChecked(favorites);
-            if (m_sidebarTabWidget) m_sidebarTabWidget->setVisible(favorites);
-            
-            setZenMode(zen);
+                // Revert Custom Menus to all visible
+                for (QMenu* menu : m_customMenus) {
+                    if (menu->menuAction()) {
+                        menu->menuAction()->setVisible(true);
+                    }
+                }
 
-            if (m_actToggleDualPane) {
-                m_actToggleDualPane->setChecked(dualPane);
-                onToggleDualPane(dualPane);
-            }
-            if (m_actToggleHorizontalSplit) {
-                m_actToggleHorizontalSplit->setChecked(horizontalSplit);
-                onToggleHorizontalSplit(horizontalSplit);
-            }
-            if (m_actToggleCasingOverlays) {
-                m_actToggleCasingOverlays->setChecked(casingOverlays);
-                onToggleCasingOverlays(casingOverlays);
-            }
+                bool drivesToolbar = settings.value("drives/toolbar_visible", true).toBool();
+                bool centerOps = settings.value("layout/center_ops_visible", true).toBool();
+                bool console = settings.value("console/visible", true).toBool();
+                bool favorites = settings.value("favorites/sidebar_visible", false).toBool();
+                bool zen = settings.value("preferences/zen_mode", false).toBool();
+                bool dualPane = settings.value("preferences/dual_pane", true).toBool();
+                bool horizontalSplit = settings.value("preferences/horizontal_split", false).toBool();
+                bool casingOverlays = settings.value("preferences/casing_overlays", true).toBool();
 
-            if (m_previewPanel) {
-                bool prefVisualizer = settings.value("preview/show_spectrum_visualizer", true).toBool();
-                m_previewPanel->setSpectrumVisualizerVisible(prefVisualizer);
+                m_actToggleDrivesToolbar->setChecked(drivesToolbar);
+                if (m_tbDrives) m_tbDrives->setVisible(drivesToolbar);
+                
+                m_actToggleCenterOps->setChecked(centerOps);
+                if (m_tbCenterOps) m_tbCenterOps->setVisible(centerOps && m_isDualPane);
+                
+                m_actToggleConsole->setChecked(console);
+                if (m_bottomTabWidget) m_bottomTabWidget->setVisible(console);
+                
+                m_actToggleFavoritesSidebar->setChecked(favorites);
+                if (m_sidebarTabWidget) m_sidebarTabWidget->setVisible(favorites);
+                
+                setZenMode(zen);
+
+                if (m_actToggleDualPane) {
+                    m_actToggleDualPane->setChecked(dualPane);
+                    onToggleDualPane(dualPane);
+                }
+                if (m_actToggleHorizontalSplit) {
+                    m_actToggleHorizontalSplit->setChecked(horizontalSplit);
+                    onToggleHorizontalSplit(horizontalSplit);
+                }
+                if (m_actToggleCasingOverlays) {
+                    m_actToggleCasingOverlays->setChecked(casingOverlays);
+                    onToggleCasingOverlays(casingOverlays);
+                }
+
+                if (m_previewPanel) {
+                    bool prefVisualizer = settings.value("preview/show_spectrum_visualizer", true).toBool();
+                    m_previewPanel->setSpectrumVisualizerVisible(prefVisualizer);
+                }
+                emit builtinPlayerDoubleclickChanged(settings.value("preferences/builtin_player_doubleclick", false).toBool());
+                
+                m_isApplyingFolderProfile = false;
             }
-            emit builtinPlayerDoubleclickChanged(settings.value("preferences/builtin_player_doubleclick", false).toBool());
-            
-            m_isApplyingFolderProfile = false;
         }
-    }
 
-    // Execute Folder Entry script/macro if matched and active
-    if (foundMatch && !matchedRule.entryCommand.isEmpty() && m_lastEntryCommandPath != path) {
-        m_lastEntryCommandPath = path;
+        // Execute Folder Entry script/macro if matched and active
+        if (foundMatch && !matchedRule.entryCommand.isEmpty() && m_lastEntryCommandPath != path) {
+            m_lastEntryCommandPath = path;
 
-        QProcess* proc = new QProcess(this);
-        proc->setWorkingDirectory(path);
-        
-        QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-        env.insert("AMIFILES_CURRENT_DIR", path);
-        proc->setProcessEnvironment(env);
-        
-        proc->start("sh", {"-c", matchedRule.entryCommand});
-        
-        if (m_consolePanel) {
-            m_consolePanel->appendSystem(QString("=== Auto Folder Entry Command Applied ==="));
-            m_consolePanel->appendSystem(QString("Path: %1").arg(path));
-            m_consolePanel->appendSystem(QString("Command: %1").arg(matchedRule.entryCommand));
+            QProcess* proc = new QProcess(this);
+            proc->setWorkingDirectory(path);
+            
+            QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+            env.insert("AMIFILES_CURRENT_DIR", path);
+            proc->setProcessEnvironment(env);
+            
+            proc->start("sh", {"-c", matchedRule.entryCommand});
+            
+            if (m_consolePanel) {
+                m_consolePanel->appendSystem(QString("=== Auto Folder Entry Command Applied ==="));
+                m_consolePanel->appendSystem(QString("Path: %1").arg(path));
+                m_consolePanel->appendSystem(QString("Command: %1").arg(matchedRule.entryCommand));
+            }
+            
+            connect(proc, &QProcess::finished, proc, &QObject::deleteLater);
         }
-        
-        connect(proc, &QProcess::finished, proc, &QObject::deleteLater);
-    }
+    });
 }
 
 QString MainWindow::detectFolderCategory(const QString& path) {
