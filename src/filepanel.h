@@ -1029,6 +1029,7 @@ public slots:
     void playCurrentOrSelectedFolder();
     void queueCurrentOrSelectedFolder();
     void playPlaylistQueue();
+    void lockSelectedFolderRecursive(bool lock);
 
 private slots:
     void onPathEntered();

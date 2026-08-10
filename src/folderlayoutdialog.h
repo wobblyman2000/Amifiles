@@ -66,10 +66,15 @@ protected:
 class ProfileListItemWidget : public QWidget {
     Q_OBJECT
 public:
-    ProfileListItemWidget(const QString& name, bool checked, QWidget* parent = nullptr) : QWidget(parent) {
+    ProfileListItemWidget(const QString& name, bool checked, bool locked, QWidget* parent = nullptr) : QWidget(parent) {
         QHBoxLayout* layout = new QHBoxLayout(this);
         layout->setContentsMargins(6, 4, 6, 4);
         
+        m_lockLabel = new QLabel(locked ? "🔒 " : "", this);
+        m_lockLabel->setStyleSheet("font-size: 14px; background: transparent; border: none;");
+        m_lockLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
+        layout->addWidget(m_lockLabel);
+
         m_label = new QLabel(name, this);
         m_label->setStyleSheet("font-weight: bold; color: #cdd6f4;");
         m_label->setAttribute(Qt::WA_TransparentForMouseEvents);
@@ -91,6 +96,7 @@ public:
     }
     
     void setName(const QString& name) { m_label->setText(name); }
+    void setLocked(bool locked) { m_lockLabel->setText(locked ? "🔒 " : ""); }
     void setTextColor(const QString& colorStr) { m_label->setStyleSheet(QString("font-weight: bold; color: %1;").arg(colorStr)); }
     bool isChecked() const { return m_switch->isChecked(); }
     void setChecked(bool checked) { m_switch->setChecked(checked); }
@@ -105,6 +111,7 @@ signals:
     void toggled(bool checked);
     
 private:
+    QLabel* m_lockLabel;
     QLabel* m_label;
     ToggleSwitch* m_switch;
 };
@@ -154,6 +161,7 @@ private:
     void updateLinkedProfileCombo();
     void onLinkedProfileChanged(int index);
     void onApplyToCurrentFolder();
+    void updateEditorEnabledState();
 
     // Left Pane (Master List)
     QListWidget* m_listWidget = nullptr;
@@ -171,6 +179,7 @@ private:
     QWidget* m_editorWidget = nullptr;
     QLineEdit* m_editName = nullptr;
     QAbstractButton* m_checkAutoApply = nullptr;
+    QCheckBox* m_chkLocked = nullptr;
     QComboBox* m_comboRuleType = nullptr;
     QLineEdit* m_editValue = nullptr;
     QPushButton* m_btnBrowse = nullptr;

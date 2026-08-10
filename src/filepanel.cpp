@@ -1,4 +1,5 @@
 #include "filepanel.h"
+#include "tagmanager.h"
 #include "metadatahovercard.h"
 #include <QWidgetAction>
 #include <QJsonArray>
@@ -3572,9 +3573,53 @@ void FilePanel::onPaste() {
     }
 }
 
+static bool isPathLockedPersistent(const QString& path) {
+    QString p = QDir::cleanPath(path);
+    while (!p.isEmpty() && p != "/" && p != ".") {
+        if (TagManager::instance().isFileLocked(p)) {
+            return true;
+        }
+        QFileInfo info(p);
+        QString parent = info.absolutePath();
+        if (parent == p) break;
+        p = parent;
+    }
+    return false;
+}
+
 void FilePanel::onDelete() {
     QStringList paths = selectedPaths();
     if (paths.isEmpty()) return;
+
+    // Check if any selected paths or nested files/directories are locked (read-only)
+    bool containsLocked = false;
+    QString lockedPath;
+    for (const QString& path : paths) {
+        if (!QFileInfo(path).isWritable() || isPathLockedPersistent(path)) {
+            containsLocked = true;
+            lockedPath = path;
+            break;
+        }
+        if (QFileInfo(path).isDir()) {
+            QDirIterator it(path, QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
+            while (it.hasNext()) {
+                QString childPath = it.next();
+                if (!QFileInfo(childPath).isWritable() || isPathLockedPersistent(childPath)) {
+                    containsLocked = true;
+                    lockedPath = childPath;
+                    break;
+                }
+            }
+        }
+        if (containsLocked) break;
+    }
+
+    if (containsLocked) {
+        QMessageBox::warning(this, "Deletion Blocked",
+            QString("Cannot delete: One or more selected items (or their nested files/folders) are locked.\n\nLocked item found:\n%1\n\nPlease unlock it first.")
+            .arg(lockedPath));
+        return;
+    }
 
     QString msg = QString("Are you sure you want to permanently delete the %1 selected item(s)?")
                   .arg(paths.size());
@@ -3601,13 +3646,23 @@ void FilePanel::onDelete() {
             }
         }
 
+        QStringList failedPaths;
         for (const QString& path : paths) {
             QFileInfo info(path);
+            bool ok = false;
             if (info.isDir()) {
-                QDir(path).removeRecursively();
+                ok = QDir(path).removeRecursively();
             } else {
-                QFile::remove(path);
+                ok = QFile::remove(path);
             }
+            if (!ok) {
+                failedPaths.append(path);
+            }
+        }
+        if (!failedPaths.isEmpty()) {
+            QMessageBox::warning(this, "Delete Failed",
+                                 QString("Could not delete some items. Please check if they are locked or read-only:\n- %1")
+                                 .arg(failedPaths.first() + (failedPaths.size() > 1 ? QString(" and %1 others").arg(failedPaths.size() - 1) : "")));
         }
         refresh();
     }
@@ -4602,6 +4657,10 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         toggleSelectedExecutable();
     } else if (command == "app.change_permissions") {
         changeSelectedPermissions();
+    } else if (command == "app.lock_folder_recursive") {
+        lockSelectedFolderRecursive(true);
+    } else if (command == "app.unlock_folder_recursive") {
+        lockSelectedFolderRecursive(false);
     } else if (command == "app.remove_green_screen") {
         removeSelectedGreenScreen();
     } else if (command == "app.properties") {
@@ -9048,6 +9107,66 @@ void FilePanel::changeSelectedPermissions() {
     }
 }
 
+void FilePanel::lockSelectedFolderRecursive(bool lock) {
+    QStringList paths = selectedPaths();
+    if (paths.isEmpty()) return;
+
+    QString actionStr = lock ? "Lock" : "Unlock";
+    QString question = QString("Are you sure you want to %1 the selected file(s)/folder(s) recursively?\n"
+                               "This will modify write permissions for all nested files and folders.")
+                       .arg(lock ? "lock" : "unlock");
+    if (QMessageBox::question(this, actionStr + " Confirmation", question, QMessageBox::Yes | QMessageBox::No) != QMessageBox::Yes) {
+        return;
+    }
+
+    int filesCount = 0;
+    int foldersCount = 0;
+
+    for (const QString& rootPath : paths) {
+        QFileInfo rootInfo(rootPath);
+        if (!rootInfo.exists()) continue;
+
+        QStringList pathsToProcess;
+        pathsToProcess.append(rootPath);
+
+        if (rootInfo.isDir()) {
+            QDirIterator it(rootPath, QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
+            while (it.hasNext()) {
+                pathsToProcess.append(it.next());
+            }
+        }
+
+        for (const QString& itemPath : pathsToProcess) {
+            QFileInfo info(itemPath);
+            QFile::Permissions p = QFile::permissions(itemPath);
+            if (lock) {
+                p &= ~(QFile::WriteOwner | QFile::WriteUser | QFile::WriteGroup | QFile::WriteOther);
+            } else {
+                p |= (QFile::WriteOwner | QFile::WriteUser);
+                if (info.isDir()) {
+                    p |= (QFile::ExeOwner | QFile::ExeUser);
+                }
+            }
+            
+            // Apply OS permission change (backup, works locally)
+            QFile::setPermissions(itemPath, p);
+
+            // Apply persistent application-level database lock
+            TagManager::instance().setFileLocked(itemPath, lock);
+
+            if (info.isDir()) foldersCount++;
+            else filesCount++;
+        }
+    }
+
+    QMessageBox::information(this, actionStr + " Completed",
+                             QString("Successfully %1ed:\n- %2 files\n- %3 folders")
+                             .arg(actionStr)
+                             .arg(filesCount)
+                             .arg(foldersCount));
+    refresh();
+}
+
 void FilePanel::removeSelectedGreenScreen() {
     QStringList paths = selectedPaths();
     if (paths.isEmpty()) return;
@@ -9239,6 +9358,8 @@ QJsonArray FilePanel::getDefaultContextMenuJson() const {
         QJsonArray sysKids;
         sysKids.append(makeAction("Toggle Executable Status", "app.toggle_executable", ""));
         sysKids.append(makeAction("Change File Permissions (chmod)...", "app.change_permissions", ""));
+        sysKids.append(makeAction("Lock Folder/File (Prevent Deletion)", "app.lock_folder_recursive", ""));
+        sysKids.append(makeAction("Unlock Folder/File", "app.unlock_folder_recursive", ""));
         sysKids.append(makeAction("Remove Green Screen 🟢", "app.remove_green_screen", ""));
         sysKids.append(makeSeparator());
         sysKids.append(makeAction("Compare Selected Files", "app.compare_selected", ""));
@@ -9398,6 +9519,7 @@ QAction* FilePanel::createContextMenuAction(QMenu* parentMenu, const QJsonObject
             command == "app.folder_layouts" || command == "app.save_folder_profile" ||
             command == "app.save_default_profile" || command == "app.load_default_profile" ||
             command == "app.toggle_executable" || command == "app.change_permissions" ||
+            command == "app.lock_folder_recursive" || command == "app.unlock_folder_recursive" ||
             command == "app.remove_green_screen") {
             return nullptr;
         }
@@ -9646,6 +9768,14 @@ QAction* FilePanel::createContextMenuAction(QMenu* parentMenu, const QJsonObject
     } else if (command == "app.change_permissions") {
         if (!selected.isEmpty()) {
             act = parentMenu->addAction(icon, "Change File Permissions (chmod)...");
+        }
+    } else if (command == "app.lock_folder_recursive") {
+        if (!selected.isEmpty()) {
+            act = parentMenu->addAction(icon, "Lock Folder/File (Prevent Deletion)");
+        }
+    } else if (command == "app.unlock_folder_recursive") {
+        if (!selected.isEmpty()) {
+            act = parentMenu->addAction(icon, "Unlock Folder/File");
         }
     } else if (command == "app.remove_green_screen") {
         QStringList imageExts = { "jpg", "jpeg", "png", "webp", "bmp" };

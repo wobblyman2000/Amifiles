@@ -149,6 +149,7 @@ struct FolderLayoutRule {
     QString linkedProfile;
     QString entryCommand;
     int subfolderDepth = 0; // Number of nested subfolder levels to inherit layout (0 = exact folder only, 3 = show->season->episodes, 999 = unlimited)
+    bool isLocked = false;
 };
 
 class MiniMediaControls;

@@ -353,6 +353,26 @@ void FolderLayoutDialog::setupUI() {
     m_checkAutoApply->setToolTip("Toggle Profile Active State: Green = Active (auto-applies layout on browsing folder), Gray = Inactive (disabled).");
     autoApplyLayout->addWidget(m_checkAutoApply);
     autoApplyLayout->addWidget(new QLabel("Enable Profile (Auto-apply when browsing matching folders)", this));
+    
+    autoApplyLayout->addSpacing(30);
+    m_chkLocked = new QCheckBox("Lock Profile (Prevent Modification)", this);
+    m_chkLocked->setToolTip("Locks this folder profile/template to prevent modifications, renaming, or deletion.");
+    m_chkLocked->setStyleSheet("font-weight: bold; color: #f38ba8;");
+    autoApplyLayout->addWidget(m_chkLocked);
+    connect(m_chkLocked, &QCheckBox::toggled, this, [this](bool checked) {
+        if (m_currentIndex >= 0 && m_currentIndex < m_rules.size()) {
+            m_rules[m_currentIndex].isLocked = checked;
+            updateEditorEnabledState();
+            
+            // Refresh list item display to show/hide padlock
+            int savedRow = m_listWidget->currentRow();
+            populateList();
+            if (savedRow >= 0 && savedRow < m_listWidget->count()) {
+                m_listWidget->setCurrentRow(savedRow);
+            }
+        }
+    });
+    
     autoApplyLayout->addStretch();
     triggerGrid->addLayout(autoApplyLayout, 1, 0, 1, 3);
 
@@ -731,7 +751,7 @@ void FolderLayoutDialog::populateList() {
         item->setSizeHint(QSize(200, 36));
         item->setData(Qt::UserRole, defaultIndex);
 
-        ProfileListItemWidget* widget = new ProfileListItemWidget("Default Layout Profile (Fallback)", m_rules[defaultIndex].autoApply, this);
+        ProfileListItemWidget* widget = new ProfileListItemWidget("Default Layout Profile (Fallback)", m_rules[defaultIndex].autoApply, m_rules[defaultIndex].isLocked, this);
         widget->setTextColor("#f38ba8"); // Styled in red
         connect(widget, &ProfileListItemWidget::toggled, this, [this, defaultIndex](bool checked) {
             m_rules[defaultIndex].autoApply = checked;
@@ -760,7 +780,7 @@ void FolderLayoutDialog::populateList() {
             item->setData(Qt::UserRole, i);
 
             QString displayName = r.name.isEmpty() ? "(Unnamed Template)" : r.name;
-            ProfileListItemWidget* widget = new ProfileListItemWidget(displayName, r.autoApply, this);
+            ProfileListItemWidget* widget = new ProfileListItemWidget(displayName, r.autoApply, r.isLocked, this);
             connect(widget, &ProfileListItemWidget::toggled, this, [this, i](bool checked) {
                 m_rules[i].autoApply = checked;
                 if (m_currentIndex == i) {
@@ -792,7 +812,7 @@ void FolderLayoutDialog::populateList() {
             if (!r.linkedProfile.isEmpty()) {
                 displayName += QString(" [%1]").arg(r.linkedProfile);
             }
-            ProfileListItemWidget* widget = new ProfileListItemWidget(displayName, r.autoApply, this);
+            ProfileListItemWidget* widget = new ProfileListItemWidget(displayName, r.autoApply, r.isLocked, this);
             connect(widget, &ProfileListItemWidget::toggled, this, [this, i](bool checked) {
                 m_rules[i].autoApply = checked;
                 if (m_currentIndex == i) {
@@ -810,8 +830,76 @@ void FolderLayoutDialog::populateList() {
     }
 }
 
+void FolderLayoutDialog::updateEditorEnabledState() {
+    bool locked = false;
+    if (m_currentIndex >= 0 && m_currentIndex < m_rules.size()) {
+        locked = m_rules[m_currentIndex].isLocked;
+    }
+
+    bool isDefault = false;
+    if (m_currentIndex >= 0 && m_currentIndex < m_rules.size()) {
+        isDefault = (m_rules[m_currentIndex].name.toLower() == "default");
+    }
+
+    m_editName->setEnabled(!locked && !isDefault);
+    m_checkAutoApply->setEnabled(!locked && !isDefault);
+    m_comboRuleType->setEnabled(!locked && !isDefault);
+    m_editValue->setEnabled(!locked && !isDefault);
+    if (m_btnBrowse) m_btnBrowse->setEnabled(!locked && !isDefault);
+    if (m_btnUseActivePath) m_btnUseActivePath->setEnabled(!locked && !isDefault);
+    
+    m_comboViewMode->setEnabled(!locked);
+    m_comboSubfolderDepth->setEnabled(!locked && !isDefault);
+    m_btnChooseButtons->setEnabled(!locked);
+    m_chkAdvancedMode->setEnabled(!locked);
+    m_comboLinkedProfile->setEnabled(!locked && !isDefault);
+
+    bool isLinked = (m_comboLinkedProfile->currentIndex() > 0);
+    
+    m_viewGroup->setEnabled(!locked && !isLinked);
+    m_visGroup->setEnabled(!locked && !isLinked);
+    m_styleGroup->setEnabled(!locked && !isLinked);
+    m_tabsGroup->setEnabled(!locked && !isLinked);
+    
+    m_stateConsole->setEnabled(!locked && !isLinked);
+    m_statePreview->setEnabled(!locked && !isLinked);
+    m_stateFavorites->setEnabled(!locked && !isLinked);
+    m_stateZen->setEnabled(!locked && !isLinked);
+    m_stateBuiltinPlayerDoubleclick->setEnabled(!locked && !isLinked);
+    m_stateFullScreenPlayer->setEnabled(!locked && !isLinked);
+    m_stateVisualizer->setEnabled(!locked && !isLinked);
+    m_stateDualPane->setEnabled(!locked && !isLinked);
+    m_stateHorizontalSplit->setEnabled(!locked && !isLinked);
+    m_stateCasingOverlays->setEnabled(!locked && !isLinked);
+    m_stateSmartHome->setEnabled(!locked && !isLinked);
+
+    m_stateToolbars->setEnabled(!locked && !isLinked);
+    m_btnSelectToolbars->setEnabled(!locked && !isLinked && m_stateToolbars->isChecked());
+    m_stateMenus->setEnabled(!locked && !isLinked);
+    m_btnSelectMenus->setEnabled(!locked && !isLinked && m_stateMenus->isChecked());
+
+    m_useBgColor->setEnabled(!locked && !isLinked);
+    m_btnSelectBgColor->setEnabled(!locked && !isLinked && m_useBgColor->isChecked());
+    m_useBgImage->setEnabled(!locked && !isLinked);
+    m_btnSelectBgImage->setEnabled(!locked && !isLinked && m_useBgImage->isChecked());
+    if (m_sliderBgOpacity) m_sliderBgOpacity->setEnabled(!locked && !isLinked && m_useBgImage->isChecked());
+
+    m_hasTabsSnapshot->setEnabled(!locked && !isLinked);
+    m_btnCaptureTabs->setEnabled(!locked && !isLinked);
+    m_btnClearTabs->setEnabled(!locked && !isLinked);
+
+    m_btnCaptureUI->setEnabled(!locked && !isLinked);
+    m_btnApplyNow->setEnabled(!locked);
+
+    m_btnDelete->setEnabled(!locked && !isDefault);
+    m_btnDuplicate->setEnabled(m_currentIndex >= 0);
+}
+
 void FolderLayoutDialog::populateFields(const FolderLayoutRule& r) {
     bool isDefault = (r.name.toLower() == "default");
+
+    m_chkLocked->setChecked(r.isLocked);
+    m_chkLocked->setEnabled(true);
 
     m_editName->setText(r.name);
     m_editName->setEnabled(!isDefault);
@@ -919,10 +1007,12 @@ void FolderLayoutDialog::populateFields(const FolderLayoutRule& r) {
     m_hasTabsSnapshot->setChecked(r.hasTabsSnapshot);
     updateTabsLabel(r);
     m_capturedWindowState = r.windowState;
+    updateEditorEnabledState();
 }
 
 void FolderLayoutDialog::harvestCurrentProfile(int index) {
     if (index < 0 || index >= m_rules.size()) return;
+    if (m_rules[index].isLocked) return;
 
     FolderLayoutRule& r = m_rules[index];
     QString oldName = r.name;

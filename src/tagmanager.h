@@ -14,6 +14,7 @@ struct FileTagInfo {
     QString comment;
     QMap<QString, QString> customAttributes;
     QString overlayIconName; // Chosen custom overlay icon from IconPickerDialog
+    bool isLocked = false;
 };
 
 class TagManager : public QObject {
@@ -27,6 +28,9 @@ public:
 
     void setFileOverlayIcon(const QString& filePath, const QString& iconName);
     QString getFileOverlayIcon(const QString& filePath) const;
+
+    void setFileLocked(const QString& filePath, bool locked);
+    bool isFileLocked(const QString& filePath) const;
 
     void setFileTags(const QString& filePath, const QStringList& tags);
     QStringList getFileTags(const QString& filePath) const;

@@ -1,4 +1,6 @@
 #include "mainwindow.h"
+#include "tagmanager.h"
+#include <QDirIterator>
 #include <QThread>
 #include <QSystemTrayIcon>
 #include <iostream>
@@ -292,7 +294,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     }
 
     // Determine state to restore
-    bool autoSaveLayout = settings.value("layout/auto_save", true).toBool();
+    bool autoSaveLayout = settings.value("layout/auto_save", false).toBool();
     if (m_actAutoSaveLayout) {
         m_actAutoSaveLayout->setChecked(autoSaveLayout);
     }
@@ -839,7 +841,7 @@ void MainWindow::setupActions() {
 
     m_actAutoSaveLayout = new QAction("Auto-save Layout on Close", this);
     m_actAutoSaveLayout->setCheckable(true);
-    m_actAutoSaveLayout->setChecked(true);
+    m_actAutoSaveLayout->setChecked(false);
     m_actAutoSaveLayout->setToolTip("Automatically persist toolbar positions and window dimensions when closing");
     connect(m_actAutoSaveLayout, &QAction::toggled, this, [](bool checked) {
         QSettings settings("Amifiles", "Amifiles");
@@ -2868,6 +2870,10 @@ void MainWindow::onCustomButtonClicked() {
             onCloudMount();
         } else if (cmd == "Shred") {
             onSecureShred();
+        } else if (cmd == "LockFolder") {
+            if (m_activePanel) m_activePanel->lockSelectedFolderRecursive(true);
+        } else if (cmd == "UnlockFolder") {
+            if (m_activePanel) m_activePanel->lockSelectedFolderRecursive(false);
         } else if (cmd.startsWith("QuickRename_")) {
             onQuickRenameAction(cmd.mid(12));
         } else if (cmd == "SmartHome") {
@@ -3611,11 +3617,55 @@ void MainWindow::navigateToPathAndSelect(const QString& filePath) {
     }
 }
 
+static bool isPathLockedPersistent(const QString& path) {
+    QString p = QDir::cleanPath(path);
+    while (!p.isEmpty() && p != "/" && p != ".") {
+        if (TagManager::instance().isFileLocked(p)) {
+            return true;
+        }
+        QFileInfo info(p);
+        QString parent = info.absolutePath();
+        if (parent == p) break;
+        p = parent;
+    }
+    return false;
+}
+
 void MainWindow::onSecureShred() {
     if (!m_activePanel) return;
     QStringList paths = m_activePanel->selectedPaths();
     if (paths.isEmpty()) {
         QMessageBox::information(this, "Secure Shredder", "Please select one or more files/folders in the file view panel first.");
+        return;
+    }
+
+    // Check if any selected paths or nested files/directories are locked (read-only)
+    bool containsLocked = false;
+    QString lockedPath;
+    for (const QString& path : paths) {
+        if (!QFileInfo(path).isWritable() || isPathLockedPersistent(path)) {
+            containsLocked = true;
+            lockedPath = path;
+            break;
+        }
+        if (QFileInfo(path).isDir()) {
+            QDirIterator it(path, QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
+            while (it.hasNext()) {
+                QString childPath = it.next();
+                if (!QFileInfo(childPath).isWritable() || isPathLockedPersistent(childPath)) {
+                    containsLocked = true;
+                    lockedPath = childPath;
+                    break;
+                }
+            }
+        }
+        if (containsLocked) break;
+    }
+
+    if (containsLocked) {
+        QMessageBox::warning(this, "Shredder Blocked",
+            QString("Cannot shred: One or more selected items (or their nested files/folders) are locked.\n\nLocked item found:\n%1\n\nPlease unlock it first.")
+            .arg(lockedPath));
         return;
     }
 
@@ -4028,8 +4078,17 @@ void MainWindow::onDecryptVault() {
 void MainWindow::closeEvent(QCloseEvent* event) {
     QSettings settings("Amifiles", "Amifiles");
     if (m_actAutoSaveLayout && m_actAutoSaveLayout->isChecked()) {
-        settings.setValue("window/geometry", saveGeometry());
-        settings.setValue("window/state", saveState());
+        auto button = QMessageBox::question(this, "Confirm Save on Exit",
+            "Do you want to save the current layout configuration before exiting?",
+            QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel);
+        if (button == QMessageBox::Cancel) {
+            event->ignore();
+            return;
+        }
+        if (button == QMessageBox::Yes) {
+            settings.setValue("window/geometry", saveGeometry());
+            settings.setValue("window/state", saveState());
+        }
     }
     if (m_trayIcon) {
         m_trayIcon->hide();
@@ -4144,6 +4203,7 @@ QJsonObject MainWindow::ruleToJson(const FolderLayoutRule& r) {
     obj["linkedProfile"] = r.linkedProfile;
     obj["entryCommand"] = r.entryCommand;
     obj["subfolderDepth"] = r.subfolderDepth;
+    obj["isLocked"] = r.isLocked;
     return obj;
 }
 
@@ -4213,6 +4273,7 @@ FolderLayoutRule MainWindow::jsonToRule(const QJsonObject& obj) {
     QJsonArray rp = obj["rightPaths"].toArray();
     for (auto p : rp) r.rightPaths.append(p.toString());
     r.rightActiveIndex = obj["rightActiveIndex"].toInt(0);
+    r.isLocked = obj["isLocked"].toBool(false);
     return r;
 }
 
@@ -5352,6 +5413,11 @@ void MainWindow::onSaveFolderProfileForCurrentDir() {
     bool isUpdate = (existingIndex != -1);
 
     if (isUpdate) {
+        if (m_folderRules[existingIndex].isLocked) {
+            QMessageBox::warning(this, "Save Folder Profile",
+                QString("The profile '%1' for this directory is currently locked.\n\nPlease unlock it in 'Folder Profiles & Layouts' first.").arg(m_folderRules[existingIndex].name));
+            return;
+        }
         profileName = m_folderRules[existingIndex].name;
         auto button = QMessageBox::question(this, "Save Folder Profile",
             QString("A profile named '%1' already exists for this directory:\n%2\n\nDo you want to update it with your current layout settings?").arg(profileName, currentPath),
@@ -5487,6 +5553,12 @@ void MainWindow::onSaveDefaultProfile() {
             defaultIndex = i;
             break;
         }
+    }
+
+    if (defaultIndex != -1 && m_folderRules[defaultIndex].isLocked) {
+        QMessageBox::warning(this, "Save Default Layout Profile",
+            "The Default Layout Profile is currently locked to prevent modifications.\n\nPlease unlock it in 'Folder Profiles & Layouts' first.");
+        return;
     }
 
     auto button = QMessageBox::question(this, "Save as Default Layout Profile",
@@ -6787,6 +6859,10 @@ void MainWindow::executeCustomCommand(const QString& commandOrPath) {
             onCloudMount();
         } else if (cmd == "Shred") {
             onSecureShred();
+        } else if (cmd == "LockFolder") {
+            if (m_activePanel) m_activePanel->lockSelectedFolderRecursive(true);
+        } else if (cmd == "UnlockFolder") {
+            if (m_activePanel) m_activePanel->lockSelectedFolderRecursive(false);
         } else if (cmd == "ToggleWatched") {
             if (m_activePanel) {
                 QStringList selected = m_activePanel->selectedPaths();
@@ -8494,6 +8570,7 @@ void MainWindow::updateActiveRuleLayoutSetting(const QString& field, bool value)
     }
     for (auto& r : m_folderRules) {
         if (r.name.compare(targetRuleName, Qt::CaseInsensitive) == 0) {
+            if (r.isLocked) return;
             if (field == "drivesToolbarVisible") {
                 r.drivesToolbarVisible = value;
                 r.overrideDrivesToolbar = true;

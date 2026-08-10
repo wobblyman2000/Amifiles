@@ -599,7 +599,7 @@ void PreferencesDialog::setCurrentPage(int pageIndex) {
 void PreferencesDialog::loadPreferences() {
     QSettings settings("Amifiles", "Amifiles");
 
-    m_chkAutoSaveLayout->setChecked(settings.value("layout/auto_save_on_close", true).toBool());
+    m_chkAutoSaveLayout->setChecked(settings.value("layout/auto_save_on_close", false).toBool());
     m_chkHorizontalSplit->setChecked(settings.value("preferences/horizontal_split", false).toBool());
     m_chkDrivesToolbar->setChecked(settings.value("layout/drives_toolbar_visible", true).toBool());
     m_chkDrivesMenu->setChecked(settings.value("layout/drives_menu_visible", true).toBool());

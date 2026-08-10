@@ -136,12 +136,23 @@ QVariant CustomFileSystemModel::data(const QModelIndex& index, int role) const {
             QString colorName = TagManager::instance().getFileColor(filePath);
             QString overlayIconName = TagManager::instance().getFileOverlayIcon(filePath);
 
+            bool isReadOnly = !QFileInfo(filePath).isWritable() || TagManager::instance().isFileLocked(filePath);
+            if (overlayIconName.isEmpty() && isReadOnly) {
+                overlayIconName = "emblem-readonly";
+            }
+
             bool hasColor = (!colorName.isEmpty() && colorName != "none");
             bool hasOverlay = (!overlayIconName.isEmpty());
 
             if (hasColor || hasOverlay) {
                 QColor colVal = hasColor ? TagManager::instance().getColorValue(colorName) : QColor(Qt::transparent);
-                QIcon overlayIcon = hasOverlay ? QIcon::fromTheme(overlayIconName) : QIcon();
+                QIcon overlayIcon;
+                if (hasOverlay) {
+                    overlayIcon = QIcon::fromTheme(overlayIconName);
+                    if (overlayIcon.isNull() && overlayIconName == "emblem-readonly") {
+                        overlayIcon = QIcon::fromTheme("lock");
+                    }
+                }
                 
                 QIcon iconResult;
                 QList<int> targetSizes = {16, 24, 32, 48, 64, 96, 128};
@@ -151,18 +162,46 @@ QVariant CustomFileSystemModel::data(const QModelIndex& index, int role) const {
                         QPainter painter(&pix);
                         painter.setRenderHint(QPainter::Antialiasing);
                         
-                        if (hasOverlay && !overlayIcon.isNull()) {
+                        if (hasOverlay) {
                             int subSize = qMax(8, qRound(sz * 0.4));
                             int padding = qMax(1, qRound(sz * 0.05));
                             int x = sz - subSize - padding;
                             int y = sz - subSize - padding;
                             
-                            QPixmap subPix = overlayIcon.pixmap(subSize, subSize);
-                            if (!subPix.isNull()) {
-                                painter.setBrush(hasColor ? colVal : QColor("#11111b"));
-                                painter.setPen(QPen(hasColor ? QColor("#ffffff") : QColor("#89b4fa"), 1));
+                            bool drawn = false;
+                            if (!overlayIcon.isNull()) {
+                                QPixmap subPix = overlayIcon.pixmap(subSize, subSize);
+                                if (!subPix.isNull()) {
+                                    painter.setBrush(hasColor ? colVal : QColor("#11111b"));
+                                    painter.setPen(QPen(hasColor ? QColor("#ffffff") : QColor("#89b4fa"), 1));
+                                    painter.drawRoundedRect(x - 1, y - 1, subSize + 2, subSize + 2, 2, 2);
+                                    painter.drawPixmap(x, y, subPix);
+                                    drawn = true;
+                                }
+                            }
+                            
+                            if (!drawn && overlayIconName == "emblem-readonly") {
+                                // Draw procedural padlock
+                                painter.setBrush(hasColor ? colVal : QColor("#1e1e2e"));
+                                painter.setPen(QPen(QColor("#f38ba8"), 1));
                                 painter.drawRoundedRect(x - 1, y - 1, subSize + 2, subSize + 2, 2, 2);
-                                painter.drawPixmap(x, y, subPix);
+
+                                painter.setBrush(Qt::NoBrush);
+                                painter.setPen(QPen(QColor("#cdd6f4"), 1));
+                                int shackleW = qMax(4, qRound(subSize * 0.5));
+                                int shackleH = qMax(4, qRound(subSize * 0.5));
+                                int shackleX = x + (subSize - shackleW) / 2;
+                                int shackleY = y + 1;
+                                painter.drawArc(shackleX, shackleY, shackleW, shackleH, 0, 180 * 16);
+
+                                painter.setBrush(QColor("#a6adc8"));
+                                painter.setPen(Qt::NoPen);
+                                int bodyW = qMax(6, qRound(subSize * 0.7));
+                                int bodyH = qMax(4, qRound(subSize * 0.5));
+                                int bodyX = x + (subSize - bodyW) / 2;
+                                int bodyY = y + subSize / 2;
+                                painter.drawRoundedRect(bodyX, bodyY, bodyW, bodyH, 1, 1);
+                                drawn = true;
                             }
                         } else if (hasColor) {
                             painter.setBrush(colVal);
