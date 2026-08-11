@@ -1063,6 +1063,7 @@ void FullscreenWidget::showHud() {
     updateHudGeometry();
     m_hudWidget->show();
     m_hudWidget->raise();
+    updateDrawerGeometry();
     m_hideTimer->start(3000);
 }
 
