@@ -148,7 +148,6 @@ public:
 
     void setPlaylist(const QStringList& playlist, int currentIndex);
     void togglePlaylistDrawer();
-    void reparentDrawerToSelf();
 
 signals:
     void exitRequested();

@@ -645,8 +645,8 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(nullptr, Qt::Windo
     // Position HUD at the bottom center of the screen
     m_hudWidget->resize(900, 90);
 
-    // Initialize Overlay Playlist Drawer
-    m_playlistDrawer = new QFrame(this);
+    // Initialize Overlay Playlist Drawer as a floating window
+    m_playlistDrawer = new QFrame(this, Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
     m_playlistDrawer->setObjectName("playlistDrawer");
     m_playlistDrawer->setStyleSheet(
         "QFrame#playlistDrawer { "
@@ -721,6 +721,9 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(nullptr, Qt::Windo
 
     drawerLayout->addWidget(m_drawerListWidget, 1);
 
+    m_playlistDrawer->installEventFilter(this);
+    m_drawerListWidget->installEventFilter(this);
+
     // Auto-hide Timer (3 seconds)
     m_hideTimer = new QTimer(this);
     connect(m_hideTimer, &QTimer::timeout, this, &FullscreenWidget::onHideHud);
@@ -781,23 +784,6 @@ void FullscreenWidget::togglePlaylistDrawer() {
     if (m_playlistItems.isEmpty()) return;
     if (!m_playlistDrawer) return;
 
-    // Detect if a video widget exists and is visible
-    QVideoWidget* videoWidget = findChild<QVideoWidget*>();
-    QWidget* targetParent = (videoWidget && videoWidget->isVisible()) ? (QWidget*)videoWidget : (QWidget*)this;
-
-    if (m_playlistDrawer->parentWidget() != targetParent) {
-        m_playlistDrawer->setParent(targetParent);
-        QVBoxLayout* l = qobject_cast<QVBoxLayout*>(m_playlistDrawer->layout());
-        if (l) {
-            if (targetParent == this) {
-                l->setContentsMargins(0, 0, 0, 110); // leave space for HUD
-            } else {
-                l->setContentsMargins(0, 0, 0, 0); // video widget doesn't include HUD
-            }
-        }
-        m_playlistDrawer->show();
-    }
-
     m_drawerVisible = !m_drawerVisible;
 
     QPropertyAnimation* anim = new QPropertyAnimation(m_playlistDrawer, "geometry", this);
@@ -805,53 +791,37 @@ void FullscreenWidget::togglePlaylistDrawer() {
     anim->setEasingCurve(QEasingCurve::OutCubic);
 
     int drawerW = 350;
-    int drawerH = targetParent->height();
+    int drawerH = height();
 
-    QRect startGeo, endGeo;
+    QPoint startPos, endPos;
     if (m_drawerVisible) {
-        startGeo = QRect(targetParent->width(), 0, drawerW, drawerH);
-        endGeo = QRect(targetParent->width() - drawerW, 0, drawerW, drawerH);
+        startPos = mapToGlobal(QPoint(width(), 0));
+        endPos = mapToGlobal(QPoint(width() - drawerW, 0));
         m_playlistDrawer->show();
         m_playlistDrawer->raise();
-        if (m_hudWidget) {
-            m_hudWidget->raise();
-        }
     } else {
-        startGeo = QRect(targetParent->width() - drawerW, 0, drawerW, drawerH);
-        endGeo = QRect(targetParent->width(), 0, drawerW, drawerH);
+        startPos = mapToGlobal(QPoint(width() - drawerW, 0));
+        endPos = mapToGlobal(QPoint(width(), 0));
         connect(anim, &QPropertyAnimation::finished, m_playlistDrawer, &QWidget::hide);
     }
 
-    anim->setStartValue(startGeo);
-    anim->setEndValue(endGeo);
+    anim->setStartValue(QRect(startPos, QSize(drawerW, drawerH)));
+    anim->setEndValue(QRect(endPos, QSize(drawerW, drawerH)));
     anim->start(QAbstractAnimation::DeleteWhenStopped);
 }
 
 void FullscreenWidget::updateDrawerGeometry() {
     if (!m_playlistDrawer) return;
     
-    QWidget* p = m_playlistDrawer->parentWidget();
-    if (!p) return;
-
     int drawerW = 350;
-    int drawerH = p->height();
+    int drawerH = height();
+    QPoint globalPos;
     if (m_drawerVisible) {
-        m_playlistDrawer->setGeometry(p->width() - drawerW, 0, drawerW, drawerH);
+        globalPos = mapToGlobal(QPoint(width() - drawerW, 0));
     } else {
-        m_playlistDrawer->setGeometry(p->width(), 0, drawerW, drawerH);
+        globalPos = mapToGlobal(QPoint(width(), 0));
     }
-}
-
-void FullscreenWidget::reparentDrawerToSelf() {
-    if (m_playlistDrawer && m_playlistDrawer->parentWidget() != this) {
-        m_playlistDrawer->setParent(this);
-        QVBoxLayout* l = qobject_cast<QVBoxLayout*>(m_playlistDrawer->layout());
-        if (l) {
-            l->setContentsMargins(0, 0, 0, 110);
-        }
-        m_playlistDrawer->hide();
-        m_drawerVisible = false;
-    }
+    m_playlistDrawer->setGeometry(globalPos.x(), globalPos.y(), drawerW, drawerH);
 }
 
 void FullscreenWidget::onHudPlaylist() {
@@ -1180,6 +1150,13 @@ void FullscreenWidget::setBuiltinPlayerDoubleclickActive(bool active) {
 }
 
 bool FullscreenWidget::eventFilter(QObject* watched, QEvent* event) {
+    if (event->type() == QEvent::KeyPress) {
+        QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
+        if (keyEvent->key() == Qt::Key_Escape && m_drawerVisible) {
+            togglePlaylistDrawer();
+            return true;
+        }
+    }
     if (event->type() == QEvent::MouseMove) {
         showHud();
     }
@@ -3962,7 +3939,6 @@ void PreviewPanel::updateFullscreenTrack() {
 
     QVBoxLayout* layout = qobject_cast<QVBoxLayout*>(m_fullscreenWidget->layout());
     if (layout) {
-        m_fullscreenWidget->reparentDrawerToSelf();
         clearLayoutOfFullscreen(layout, m_fullscreenWidget->hudWidget());
         layout->setSpacing(0);
     } else {
