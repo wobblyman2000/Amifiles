@@ -1021,16 +1021,7 @@ void FolderLayoutDialog::harvestCurrentProfile(int index) {
     QString newName = m_editName->text().trimmed();
     if (newName.isEmpty()) newName = "Unnamed Profile";
 
-    if (oldName != newName && !oldName.isEmpty()) {
-        QSettings settings("Amifiles", "Amifiles");
-        QStringList pinned = settings.value("dashboard/pinned_profiles").toStringList();
-        int idx = pinned.indexOf(oldName);
-        if (idx != -1) {
-            pinned[idx] = newName;
-            settings.setValue("dashboard/pinned_profiles", pinned);
-            settings.sync();
-        }
-    }
+
 
     r.name = newName;
     r.autoApply = m_checkAutoApply->isChecked();
@@ -1275,13 +1266,7 @@ void FolderLayoutDialog::onDeleteProfile() {
         return;
     }
     if (QMessageBox::question(this, "Confirm Delete", QString("Are you sure you want to delete '%1'?").arg(r.name)) == QMessageBox::Yes) {
-        QSettings settings("Amifiles", "Amifiles");
-        QStringList pinned = settings.value("dashboard/pinned_profiles").toStringList();
-        if (pinned.contains(r.name)) {
-            pinned.removeAll(r.name);
-            settings.setValue("dashboard/pinned_profiles", pinned);
-            settings.sync();
-        }
+
 
         m_rules.removeAt(realIndex);
         m_currentIndex = -1;

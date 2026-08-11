@@ -477,26 +477,26 @@ void HomeDashboardWidget::setupUi() {
     contentLayout->addWidget(profilesContainer);
 
     // 5. Recent Locations Section
-    QLabel* recentsTitle = new QLabel("Recent Locations", scrollContent);
-    recentsTitle->setObjectName("sectionTitle");
-    contentLayout->addWidget(recentsTitle);
+    m_recentsTitle = new QLabel("Recent Locations", scrollContent);
+    m_recentsTitle->setObjectName("sectionTitle");
+    contentLayout->addWidget(m_recentsTitle);
 
-    QFrame* recentsContainer = new QFrame(scrollContent);
-    m_recentLocationsLayout = new QGridLayout(recentsContainer);
+    m_recentsContainer = new QFrame(scrollContent);
+    m_recentLocationsLayout = new QGridLayout(m_recentsContainer);
     m_recentLocationsLayout->setContentsMargins(0, 0, 0, 0);
     m_recentLocationsLayout->setSpacing(12);
-    contentLayout->addWidget(recentsContainer);
+    contentLayout->addWidget(m_recentsContainer);
 
     // 6. Recent Files & Media Section
-    QLabel* filesTitle = new QLabel("Recent Files & Media", scrollContent);
-    filesTitle->setObjectName("sectionTitle");
-    contentLayout->addWidget(filesTitle);
+    m_filesTitle = new QLabel("Recent Files & Media", scrollContent);
+    m_filesTitle->setObjectName("sectionTitle");
+    contentLayout->addWidget(m_filesTitle);
 
-    QFrame* filesContainer = new QFrame(scrollContent);
-    m_recentFilesLayout = new QGridLayout(filesContainer);
+    m_filesContainer = new QFrame(scrollContent);
+    m_recentFilesLayout = new QGridLayout(m_filesContainer);
     m_recentFilesLayout->setContentsMargins(0, 0, 0, 0);
     m_recentFilesLayout->setSpacing(12);
-    contentLayout->addWidget(filesContainer);
+    contentLayout->addWidget(m_filesContainer);
 
     contentLayout->addStretch(1);
     mainLayout->addWidget(scrollArea, 1);
@@ -584,12 +584,31 @@ void HomeDashboardWidget::setupUi() {
 }
 
 void HomeDashboardWidget::refreshDashboard() {
+    QSettings settings("Amifiles", "Amifiles");
+    bool showRecents = settings.value("dashboard/show_recent_locations", true).toBool();
+    bool showRecentFiles = settings.value("dashboard/show_recent_files", true).toBool();
+
+    if (m_recentsTitle) m_recentsTitle->setVisible(showRecents);
+    if (m_recentsContainer) m_recentsContainer->setVisible(showRecents);
+    if (m_filesTitle) m_filesTitle->setVisible(showRecentFiles);
+    if (m_filesContainer) m_filesContainer->setVisible(showRecentFiles);
+
     populateDrives();
     populateQuickAccess();
     populatePinnedFolders();
     populatePinnedProfiles();
-    populateRecentLocations();
-    populateRecentFiles();
+
+    if (showRecents) {
+        populateRecentLocations();
+    } else {
+        clearLayout(m_recentLocationsLayout);
+    }
+
+    if (showRecentFiles) {
+        populateRecentFiles();
+    } else {
+        clearLayout(m_recentFilesLayout);
+    }
 }
 
 void HomeDashboardWidget::populateDrives() {

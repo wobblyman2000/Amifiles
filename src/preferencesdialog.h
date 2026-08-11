@@ -54,6 +54,8 @@ private:
     QCheckBox* m_chkDetailsFullRowSelect = nullptr;
     QCheckBox* m_chkEnableSmartHome = nullptr;
     QCheckBox* m_chkEnableSmartHomeSecond = nullptr;
+    QCheckBox* m_chkShowRecentLocations = nullptr;
+    QCheckBox* m_chkShowRecentFiles = nullptr;
     QCheckBox* m_chkShowHiddenFiles = nullptr;
 
     // View & Style Colors

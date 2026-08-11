@@ -50,6 +50,11 @@ private:
     QGridLayout* m_pinnedProfilesLayout = nullptr;
     QGridLayout* m_recentLocationsLayout = nullptr;
     QGridLayout* m_recentFilesLayout = nullptr;
+
+    class QLabel* m_recentsTitle = nullptr;
+    QFrame* m_recentsContainer = nullptr;
+    class QLabel* m_filesTitle = nullptr;
+    QFrame* m_filesContainer = nullptr;
 };
 
 #endif // HOMEDASHBOARDWIDGET_H

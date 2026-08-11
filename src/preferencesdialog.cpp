@@ -132,6 +132,14 @@ void PreferencesDialog::setupUI() {
     m_chkEnableSmartHomeSecond->setToolTip("If disabled, the second panel in dual-pane view loads your physical home directory instead of the dashboard landing page.");
     layGen->addWidget(m_chkEnableSmartHomeSecond);
 
+    m_chkShowRecentLocations = new QCheckBox("Show Recent Locations on Smart Home Dashboard", this);
+    m_chkShowRecentLocations->setToolTip("Show the 'Recent Locations' section on the Smart Home Dashboard landing page.");
+    layGen->addWidget(m_chkShowRecentLocations);
+
+    m_chkShowRecentFiles = new QCheckBox("Show Recent Files & Media on Smart Home Dashboard", this);
+    m_chkShowRecentFiles->setToolTip("Show the 'Recent Files & Media' section on the Smart Home Dashboard landing page.");
+    layGen->addWidget(m_chkShowRecentFiles);
+
     m_chkShowHiddenFiles = new QCheckBox("Show Hidden Files & Folders", this);
     m_chkShowHiddenFiles->setToolTip("Show files and folders that have the hidden attribute or start with a dot (Ctrl+H).");
     layGen->addWidget(m_chkShowHiddenFiles);
@@ -614,6 +622,8 @@ void PreferencesDialog::loadPreferences() {
     m_chkDetailsFullRowSelect->setChecked(settings.value("preferences/details_full_row_select", true).toBool());
     m_chkEnableSmartHome->setChecked(settings.value("preferences/enable_smart_home", true).toBool());
     m_chkEnableSmartHomeSecond->setChecked(settings.value("preferences/enable_smart_home_second_pane", true).toBool());
+    m_chkShowRecentLocations->setChecked(settings.value("dashboard/show_recent_locations", true).toBool());
+    m_chkShowRecentFiles->setChecked(settings.value("dashboard/show_recent_files", true).toBool());
     m_chkShowHiddenFiles->setChecked(settings.value("preferences/show_hidden_files", false).toBool());
 
     m_chkAgeColoring->setChecked(settings.value("preferences/age_coloring_enabled", true).toBool());
@@ -683,6 +693,8 @@ void PreferencesDialog::savePreferences() {
     settings.setValue("preferences/details_full_row_select", m_chkDetailsFullRowSelect->isChecked());
     settings.setValue("preferences/enable_smart_home", m_chkEnableSmartHome->isChecked());
     settings.setValue("preferences/enable_smart_home_second_pane", m_chkEnableSmartHomeSecond->isChecked());
+    settings.setValue("dashboard/show_recent_locations", m_chkShowRecentLocations->isChecked());
+    settings.setValue("dashboard/show_recent_files", m_chkShowRecentFiles->isChecked());
     settings.setValue("preferences/show_hidden_files", m_chkShowHiddenFiles->isChecked());
 
     settings.setValue("preferences/age_coloring_enabled", m_chkAgeColoring->isChecked());

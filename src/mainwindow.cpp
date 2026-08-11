@@ -1981,17 +1981,7 @@ void MainWindow::updateFavoritesMenu() {
     }
 
     m_menuFavorites->addSeparator();
-    m_menuFavorites->addAction("Folder Profiles & Layouts...", this, [this]() {
-        FolderLayoutDialog dlg(m_folderRules, m_customButtons, this);
-        if (dlg.exec() == QDialog::Accepted) {
-            m_folderRules = dlg.rules();
-            saveFolderRules();
-            refreshAllDashboards();
-            if (m_activePanel) {
-                applyFolderRules(m_activePanel->currentPath(), m_activePanel);
-            }
-        }
-    });
+    m_menuFavorites->addAction("Folder Profiles & Layouts...", this, &MainWindow::onConfigureFolderLayouts);
 
     if (!m_folderRules.isEmpty()) {
         QMenu* menuProfiles = m_menuFavorites->addMenu("Load Layout Profile...");
@@ -5356,9 +5346,64 @@ QString MainWindow::detectFolderCategory(const QString& path) {
 void MainWindow::onConfigureFolderLayouts() {
     FolderLayoutDialog dlg(m_folderRules, m_customButtons, this);
     if (dlg.exec() == QDialog::Accepted) {
-        m_folderRules = dlg.rules();
+        QList<FolderLayoutRule> oldRules = m_folderRules;
+        QList<FolderLayoutRule> newRules = dlg.rules();
+
+        QSettings settings("Amifiles", "Amifiles");
+        QStringList pinnedProfs = settings.value("dashboard/pinned_profiles").toStringList();
+        QStringList pinnedFolders = settings.value("dashboard/pinned_folders").toStringList();
+        bool pinnedProfsChanged = false;
+        bool pinnedFoldersChanged = false;
+
+        for (const auto& oldRule : oldRules) {
+            bool stillExists = false;
+            QString newName;
+            for (const auto& newRule : newRules) {
+                if (newRule.name == oldRule.name || (newRule.ruleType == oldRule.ruleType && newRule.value == oldRule.value)) {
+                    stillExists = true;
+                    newName = newRule.name;
+                    break;
+                }
+            }
+
+            if (!stillExists) {
+                if (pinnedProfs.contains(oldRule.name)) {
+                    pinnedProfs.removeAll(oldRule.name);
+                    pinnedProfsChanged = true;
+                }
+                if (oldRule.ruleType == "Path" && !oldRule.value.isEmpty()) {
+                    for (int i = 0; i < pinnedFolders.size(); ++i) {
+                        if (pinnedFolders[i].startsWith(oldRule.value + ";")) {
+                            pinnedFolders.removeAt(i);
+                            pinnedFoldersChanged = true;
+                            break;
+                        }
+                    }
+                }
+            } else if (newName != oldRule.name) {
+                int idx = pinnedProfs.indexOf(oldRule.name);
+                if (idx != -1) {
+                    pinnedProfs[idx] = newName;
+                    pinnedProfsChanged = true;
+                }
+            }
+        }
+
+        if (pinnedProfsChanged) {
+            settings.setValue("dashboard/pinned_profiles", pinnedProfs);
+        }
+        if (pinnedFoldersChanged) {
+            settings.setValue("dashboard/pinned_folders", pinnedFolders);
+        }
+        if (pinnedProfsChanged || pinnedFoldersChanged) {
+            settings.sync();
+        }
+
+        m_folderRules = newRules;
         saveFolderRules();
         m_hasActiveFolderRule = false;
+        refreshAllDashboards();
+
         if (m_activePanel) {
             applyFolderRules(m_activePanel->currentPath(), m_activePanel);
         }
@@ -6077,6 +6122,7 @@ void MainWindow::onPreferencesAction() {
         if (m_actShowHiddenFiles) m_actShowHiddenFiles->setChecked(showHidden);
         
         loadFolderRules();
+        refreshAllDashboards();
         loadCustomButtons();
         rebuildCustomToolBar();
         rebuildCustomMenus();
@@ -6147,6 +6193,7 @@ void MainWindow::onMediaPreferences() {
         if (m_actShowHiddenFiles) m_actShowHiddenFiles->setChecked(showHidden);
         
         loadFolderRules();
+        refreshAllDashboards();
         loadCustomButtons();
         rebuildCustomToolBar();
         rebuildCustomMenus();
