@@ -797,6 +797,7 @@ void FullscreenWidget::togglePlaylistDrawer() {
     if (m_drawerVisible) {
         startPos = mapToGlobal(QPoint(width(), 0));
         endPos = mapToGlobal(QPoint(width() - drawerW, 0));
+        m_playlistDrawer->setGeometry(QRect(startPos, QSize(drawerW, drawerH)));
         m_playlistDrawer->show();
         m_playlistDrawer->raise();
     } else {
