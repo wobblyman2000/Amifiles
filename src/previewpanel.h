@@ -220,6 +220,7 @@ private:
     class QFrame* m_playlistDrawer = nullptr;
     class QListWidget* m_drawerListWidget = nullptr;
     bool m_drawerVisible = false;
+    int m_drawerW = 350;
     void updateDrawerGeometry();
 public:
     QPushButton* hudShuffleButton() const { return m_btnShuffle; }

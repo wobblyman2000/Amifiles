@@ -372,6 +372,10 @@ void PreferencesDialog::setupUI() {
     m_chkShowFolderLabel->setToolTip("Displays the word 'Folder' in small text below directory titles in Theater/Showcase views.");
     layMedia->addWidget(m_chkShowFolderLabel);
 
+    m_chkPlaylistAutohide = new QCheckBox("Auto-hide Fullscreen Playlist Drawer after inactivity", this);
+    m_chkPlaylistAutohide->setToolTip("Automatically hides the playlist drawer in fullscreen mode after 3 seconds of mouse and keyboard inactivity.");
+    layMedia->addWidget(m_chkPlaylistAutohide);
+
     QFrame* lineMedia = new QFrame(this);
     lineMedia->setFrameShape(QFrame::HLine);
     lineMedia->setFrameShadow(QFrame::Sunken);
@@ -630,6 +634,7 @@ void PreferencesDialog::loadPreferences() {
     m_chkKeyboardRemoteMode->setChecked(settings.value("preferences/keyboard_remote_mode", false).toBool());
     m_chkAutoQueueSiblings->setChecked(settings.value("preview/auto_queue_sibling_files", true).toBool());
     m_chkShowFolderLabel->setChecked(settings.value("theater/show_folder_label", true).toBool());
+    m_chkPlaylistAutohide->setChecked(settings.value("preferences/playlist_autohide", true).toBool());
 
     QString defaultHide = "folder.jpg, folder.jpeg, folder.png, cover.jpg, cover.jpeg, cover.png, fanart.jpg, fanart.jpeg, fanart.png, backdrop.jpg, backdrop.jpeg, backdrop.png, poster.jpg, poster.jpeg, poster.png, *.nfo, *.xml, *.txt, *.srt, *.sub, *.vtt, *.ini, *.db";
     m_editHidePatterns->setText(settings.value("theater/hide_patterns", defaultHide).toString());
@@ -698,6 +703,7 @@ void PreferencesDialog::savePreferences() {
     settings.setValue("preferences/keyboard_remote_mode", m_chkKeyboardRemoteMode->isChecked());
     settings.setValue("preview/auto_queue_sibling_files", m_chkAutoQueueSiblings->isChecked());
     settings.setValue("theater/show_folder_label", m_chkShowFolderLabel->isChecked());
+    settings.setValue("preferences/playlist_autohide", m_chkPlaylistAutohide->isChecked());
     settings.setValue("theater/hide_patterns", m_editHidePatterns->text().trimmed());
 
     settings.setValue("services/tmdb_api_key", m_editTmdbApiKey->text().trimmed());

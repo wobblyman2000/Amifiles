@@ -78,6 +78,7 @@ private:
     QCheckBox* m_chkKeyboardRemoteMode = nullptr;
     QCheckBox* m_chkAutoQueueSiblings = nullptr;
     QCheckBox* m_chkShowFolderLabel = nullptr;
+    QCheckBox* m_chkPlaylistAutohide = nullptr;
     
     // Shortcuts Mapping
     class QKeySequenceEdit* m_keyPlayCollection = nullptr;

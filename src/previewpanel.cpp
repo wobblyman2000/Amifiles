@@ -751,6 +751,21 @@ void FullscreenWidget::setPlaylist(const QStringList& playlist, int currentIndex
     m_playlistCurrentIndex = currentIndex;
 
     if (m_drawerListWidget) {
+        QFontMetrics fm(m_drawerListWidget->font());
+        int maxW = 300;
+        for (const QString& item : m_playlistItems) {
+            QFileInfo fi(item);
+            QString name = fi.completeBaseName();
+            int textW = fm.horizontalAdvance(name) + 70; // 70px padding for active icon, margins, and scrollbar
+            if (textW > maxW) {
+                maxW = textW;
+            }
+        }
+        m_drawerW = qBound(300, maxW, 600);
+        if (m_playlistDrawer) {
+            m_playlistDrawer->setFixedWidth(m_drawerW);
+        }
+
         m_drawerListWidget->clear();
         for (int i = 0; i < m_playlistItems.size(); ++i) {
             QFileInfo fi(m_playlistItems[i]);
@@ -777,6 +792,9 @@ void FullscreenWidget::setPlaylist(const QStringList& playlist, int currentIndex
                 m_drawerListWidget->scrollToItem(activeItem, QAbstractItemView::PositionAtCenter);
             }
         }
+        if (m_drawerVisible) {
+            updateDrawerGeometry();
+        }
     }
 }
 
@@ -796,7 +814,7 @@ void FullscreenWidget::togglePlaylistDrawer() {
     anim->setDuration(250);
     anim->setEasingCurve(QEasingCurve::OutCubic);
 
-    int drawerW = 350;
+    int drawerW = m_drawerW;
     int hudH = (m_hudWidget && m_hudWidget->isVisible()) ? 110 : 0;
     int drawerH = screenH - hudH;
 
@@ -827,7 +845,7 @@ void FullscreenWidget::updateDrawerGeometry() {
     int screenW = screenGeom.width();
     int screenH = screenGeom.height();
 
-    int drawerW = 350;
+    int drawerW = m_drawerW;
     int hudH = (m_hudWidget && m_hudWidget->isVisible()) ? 110 : 0;
     int drawerH = screenH - hudH;
     int targetX;
@@ -1058,6 +1076,18 @@ void FullscreenWidget::onPollMouse() {
 
 void FullscreenWidget::onHideHud() {
     m_hudWidget->hide();
+    
+    QSettings settings("Amifiles", "Amifiles");
+    bool playlistAutohide = settings.value("preferences/playlist_autohide", true).toBool();
+    if (playlistAutohide && m_drawerVisible && m_playlistDrawer) {
+        if (!m_playlistDrawer->geometry().contains(QCursor::pos())) {
+            togglePlaylistDrawer();
+        } else {
+            updateDrawerGeometry();
+        }
+    } else {
+        updateDrawerGeometry();
+    }
 }
 
 void FullscreenWidget::onHudPlayPause() {
