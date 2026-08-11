@@ -216,6 +216,11 @@ private:
     class QPushButton* m_btnToggleLyrics = nullptr;
     QStringList m_playlistItems;
     int m_playlistCurrentIndex = -1;
+
+    class QFrame* m_playlistDrawer = nullptr;
+    class QListWidget* m_drawerListWidget = nullptr;
+    bool m_drawerVisible = false;
+    void updateDrawerGeometry();
 public:
     QPushButton* hudShuffleButton() const { return m_btnShuffle; }
     QPushButton* hudRepeatButton() const { return m_btnRepeat; }

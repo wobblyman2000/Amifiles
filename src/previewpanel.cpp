@@ -62,6 +62,8 @@
 #include <QTimer>
 #include <QLinearGradient>
 #include <QVariantAnimation>
+#include <QPropertyAnimation>
+#include <QGraphicsDropShadowEffect>
 #include <QScrollBar>
 #include <QPolygon>
 #include <QSizePolicy>
@@ -643,6 +645,82 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(nullptr, Qt::Windo
     // Position HUD at the bottom center of the screen
     m_hudWidget->resize(900, 90);
 
+    // Initialize Overlay Playlist Drawer
+    m_playlistDrawer = new QFrame(this);
+    m_playlistDrawer->setObjectName("playlistDrawer");
+    m_playlistDrawer->setStyleSheet(
+        "QFrame#playlistDrawer { "
+        "  background-color: rgba(30, 30, 46, 0.95); "
+        "  border-left: 1px solid #45475a; "
+        "}"
+    );
+    m_playlistDrawer->setFixedWidth(350);
+    m_playlistDrawer->hide();
+
+    // Shadow effect for the drawer
+    QGraphicsDropShadowEffect* shadow = new QGraphicsDropShadowEffect(m_playlistDrawer);
+    shadow->setBlurRadius(20);
+    shadow->setColor(QColor(0, 0, 0, 160));
+    shadow->setOffset(-4, 0);
+    m_playlistDrawer->setGraphicsEffect(shadow);
+
+    QVBoxLayout* drawerLayout = new QVBoxLayout(m_playlistDrawer);
+    drawerLayout->setContentsMargins(0, 0, 0, 0);
+    drawerLayout->setSpacing(0);
+
+    // Header Widget
+    QWidget* drawerHeader = new QWidget(m_playlistDrawer);
+    QHBoxLayout* headerLayout = new QHBoxLayout(drawerHeader);
+    headerLayout->setContentsMargins(16, 16, 16, 10);
+    
+    QLabel* lblDrawerTitle = new QLabel("Active Playlist Queue", drawerHeader);
+    lblDrawerTitle->setStyleSheet("QLabel { font-size: 15px; font-weight: bold; color: #89b4fa; font-family: 'Outfit'; background: transparent; }");
+    headerLayout->addWidget(lblDrawerTitle);
+    headerLayout->addStretch();
+
+    QPushButton* btnCloseDrawer = new QPushButton("×", drawerHeader);
+    btnCloseDrawer->setFixedSize(28, 28);
+    btnCloseDrawer->setFocusPolicy(Qt::NoFocus);
+    btnCloseDrawer->setStyleSheet(
+        "QPushButton { font-size: 22px; font-weight: bold; color: #a6adc8; border: none; background: transparent; } "
+        "QPushButton:hover { color: #f38ba8; }"
+    );
+    connect(btnCloseDrawer, &QPushButton::clicked, this, &FullscreenWidget::togglePlaylistDrawer);
+    headerLayout->addWidget(btnCloseDrawer);
+    drawerLayout->addWidget(drawerHeader);
+
+    // Divider Line
+    QFrame* divider = new QFrame(m_playlistDrawer);
+    divider->setFrameShape(QFrame::HLine);
+    divider->setFrameShadow(QFrame::Sunken);
+    divider->setStyleSheet("background-color: #313244; max-height: 1px; border: none;");
+    drawerLayout->addWidget(divider);
+
+    // QListWidget for active queue
+    m_drawerListWidget = new QListWidget(m_playlistDrawer);
+    m_drawerListWidget->setFocusPolicy(Qt::NoFocus);
+    m_drawerListWidget->setStyleSheet(
+        "QListWidget { background: transparent; border: none; outline: none; padding-top: 8px; }"
+        "QListWidget::item { padding: 10px 14px; border-radius: 6px; margin: 2px 8px; color: #cdd6f4; }"
+        "QListWidget::item:hover { background-color: rgba(255, 255, 255, 0.08); }"
+        "QListWidget::item:selected { background-color: #89b4fa; color: #11111b; font-weight: bold; }"
+    );
+    
+    // Style scrollbar
+    m_drawerListWidget->verticalScrollBar()->setStyleSheet(
+        "QScrollBar:vertical { border: none; background: transparent; width: 6px; margin: 0px; }"
+        "QScrollBar::handle:vertical { background: #45475a; min-height: 20px; border-radius: 3px; }"
+        "QScrollBar::handle:vertical:hover { background: #585b70; }"
+        "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { border: none; background: none; height: 0px; }"
+    );
+
+    connect(m_drawerListWidget, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem* item) {
+        int index = item->data(Qt::UserRole).toInt();
+        emit playlistItemSelected(index);
+    });
+
+    drawerLayout->addWidget(m_drawerListWidget, 1);
+
     // Auto-hide Timer (3 seconds)
     m_hideTimer = new QTimer(this);
     connect(m_hideTimer, &QTimer::timeout, this, &FullscreenWidget::onHideHud);
@@ -658,6 +736,7 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(nullptr, Qt::Windo
 void FullscreenWidget::resizeEvent(QResizeEvent* event) {
     QWidget::resizeEvent(event);
     updateHudGeometry();
+    updateDrawerGeometry();
 }
 
 void FullscreenWidget::updateHudGeometry() {
@@ -667,55 +746,76 @@ void FullscreenWidget::updateHudGeometry() {
 void FullscreenWidget::setPlaylist(const QStringList& playlist, int currentIndex) {
     m_playlistItems = playlist;
     m_playlistCurrentIndex = currentIndex;
+
+    if (m_drawerListWidget) {
+        m_drawerListWidget->clear();
+        for (int i = 0; i < m_playlistItems.size(); ++i) {
+            QFileInfo fi(m_playlistItems[i]);
+            QString name = fi.completeBaseName();
+            
+            QListWidgetItem* item = new QListWidgetItem(m_drawerListWidget);
+            item->setData(Qt::UserRole, i);
+            
+            if (i == m_playlistCurrentIndex) {
+                item->setText("▶  " + name);
+                item->setForeground(QColor("#89b4fa"));
+                QFont f = item->font();
+                f.setBold(true);
+                item->setFont(f);
+            } else {
+                item->setText(name);
+                item->setForeground(QColor("#cdd6f4"));
+            }
+        }
+        
+        if (m_playlistCurrentIndex >= 0 && m_playlistCurrentIndex < m_playlistItems.size()) {
+            QListWidgetItem* activeItem = m_drawerListWidget->item(m_playlistCurrentIndex);
+            if (activeItem) {
+                m_drawerListWidget->scrollToItem(activeItem, QAbstractItemView::PositionAtCenter);
+            }
+        }
+    }
 }
 
 void FullscreenWidget::togglePlaylistDrawer() {
     if (m_playlistItems.isEmpty()) return;
+    if (!m_playlistDrawer) return;
 
-    QMenu menu(this);
-    m_activeMenu = &menu;
-    m_menuCanceled = false;
-    menu.installEventFilter(this);
-    menu.setStyleSheet(
-        "QMenu { background-color: #1e1e2e; color: #cdd6f4; border: 1px solid #45475a; border-radius: 6px; padding: 4px; }"
-        "QMenu::item { padding: 6px 20px 6px 20px; border-radius: 4px; }"
-        "QMenu::item:selected { background-color: #89b4fa; color: #11111b; }"
-    );
+    m_drawerVisible = !m_drawerVisible;
 
-    QAction* titleAct = menu.addAction("Active Playlist");
-    titleAct->setEnabled(false);
-    menu.addSeparator();
+    QPropertyAnimation* anim = new QPropertyAnimation(m_playlistDrawer, "geometry", this);
+    anim->setDuration(250);
+    anim->setEasingCurve(QEasingCurve::OutCubic);
 
-    for (int i = 0; i < m_playlistItems.size(); ++i) {
-        QFileInfo fi(m_playlistItems[i]);
-        QString name = fi.completeBaseName();
-        if (i == m_playlistCurrentIndex) {
-            name = "▶  " + name;
-        } else {
-            name = "    " + name;
-        }
+    int drawerW = 350;
+    int drawerH = height();
 
-        QAction* act = menu.addAction(name);
-        if (i == m_playlistCurrentIndex) {
-            QFont f = act->font();
-            f.setBold(true);
-            act->setFont(f);
-        }
-        connect(act, &QAction::triggered, this, [this, i]() {
-            emit playlistItemSelected(i);
-        });
-    }
-
-    QPoint popupPos;
-    if (m_btnTogglePlaylist && m_btnTogglePlaylist->underMouse()) {
-        popupPos = m_btnTogglePlaylist->mapToGlobal(QPoint(0, -menu.sizeHint().height()));
+    QRect startGeo, endGeo;
+    if (m_drawerVisible) {
+        startGeo = QRect(width(), 0, drawerW, drawerH);
+        endGeo = QRect(width() - drawerW, 0, drawerW, drawerH);
+        m_playlistDrawer->show();
+        m_playlistDrawer->raise();
     } else {
-        QPoint center = rect().center();
-        popupPos = mapToGlobal(center) - QPoint(menu.sizeHint().width() / 2, menu.sizeHint().height() / 2);
+        startGeo = QRect(width() - drawerW, 0, drawerW, drawerH);
+        endGeo = QRect(width(), 0, drawerW, drawerH);
+        connect(anim, &QPropertyAnimation::finished, m_playlistDrawer, &QWidget::hide);
     }
-    menu.exec(popupPos);
 
-    m_activeMenu = nullptr;
+    anim->setStartValue(startGeo);
+    anim->setEndValue(endGeo);
+    anim->start(QAbstractAnimation::DeleteWhenStopped);
+}
+
+void FullscreenWidget::updateDrawerGeometry() {
+    if (!m_playlistDrawer) return;
+    int drawerW = 350;
+    int drawerH = height();
+    if (m_drawerVisible) {
+        m_playlistDrawer->setGeometry(width() - drawerW, 0, drawerW, drawerH);
+    } else {
+        m_playlistDrawer->setGeometry(width(), 0, drawerW, drawerH);
+    }
 }
 
 void FullscreenWidget::onHudPlaylist() {
@@ -1077,6 +1177,12 @@ void FullscreenWidget::keyPressEvent(QKeyEvent* event) {
         return;
     }
     showHud();
+
+    if (event->key() == Qt::Key_Escape && m_drawerVisible) {
+        togglePlaylistDrawer();
+        event->accept();
+        return;
+    }
     
     QSettings settings("Amifiles", "Amifiles");
     bool remoteMode = settings.value("preferences/keyboard_remote_mode", false).toBool();
