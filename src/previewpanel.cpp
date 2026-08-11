@@ -665,7 +665,7 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(nullptr, Qt::Windo
     m_playlistDrawer->setGraphicsEffect(shadow);
 
     QVBoxLayout* drawerLayout = new QVBoxLayout(m_playlistDrawer);
-    drawerLayout->setContentsMargins(0, 0, 0, 0);
+    drawerLayout->setContentsMargins(0, 0, 0, 110);
     drawerLayout->setSpacing(0);
 
     // Header Widget
@@ -796,6 +796,9 @@ void FullscreenWidget::togglePlaylistDrawer() {
         endGeo = QRect(width() - drawerW, 0, drawerW, drawerH);
         m_playlistDrawer->show();
         m_playlistDrawer->raise();
+        if (m_hudWidget) {
+            m_hudWidget->raise();
+        }
     } else {
         startGeo = QRect(width() - drawerW, 0, drawerW, drawerH);
         endGeo = QRect(width(), 0, drawerW, drawerH);
