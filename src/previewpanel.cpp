@@ -781,6 +781,23 @@ void FullscreenWidget::togglePlaylistDrawer() {
     if (m_playlistItems.isEmpty()) return;
     if (!m_playlistDrawer) return;
 
+    // Detect if a video widget exists and is visible
+    QVideoWidget* videoWidget = findChild<QVideoWidget*>();
+    QWidget* targetParent = (videoWidget && videoWidget->isVisible()) ? (QWidget*)videoWidget : (QWidget*)this;
+
+    if (m_playlistDrawer->parentWidget() != targetParent) {
+        m_playlistDrawer->setParent(targetParent);
+        QVBoxLayout* l = qobject_cast<QVBoxLayout*>(m_playlistDrawer->layout());
+        if (l) {
+            if (targetParent == this) {
+                l->setContentsMargins(0, 0, 0, 110); // leave space for HUD
+            } else {
+                l->setContentsMargins(0, 0, 0, 0); // video widget doesn't include HUD
+            }
+        }
+        m_playlistDrawer->show();
+    }
+
     m_drawerVisible = !m_drawerVisible;
 
     QPropertyAnimation* anim = new QPropertyAnimation(m_playlistDrawer, "geometry", this);
@@ -788,20 +805,20 @@ void FullscreenWidget::togglePlaylistDrawer() {
     anim->setEasingCurve(QEasingCurve::OutCubic);
 
     int drawerW = 350;
-    int drawerH = height();
+    int drawerH = targetParent->height();
 
     QRect startGeo, endGeo;
     if (m_drawerVisible) {
-        startGeo = QRect(width(), 0, drawerW, drawerH);
-        endGeo = QRect(width() - drawerW, 0, drawerW, drawerH);
+        startGeo = QRect(targetParent->width(), 0, drawerW, drawerH);
+        endGeo = QRect(targetParent->width() - drawerW, 0, drawerW, drawerH);
         m_playlistDrawer->show();
         m_playlistDrawer->raise();
         if (m_hudWidget) {
             m_hudWidget->raise();
         }
     } else {
-        startGeo = QRect(width() - drawerW, 0, drawerW, drawerH);
-        endGeo = QRect(width(), 0, drawerW, drawerH);
+        startGeo = QRect(targetParent->width() - drawerW, 0, drawerW, drawerH);
+        endGeo = QRect(targetParent->width(), 0, drawerW, drawerH);
         connect(anim, &QPropertyAnimation::finished, m_playlistDrawer, &QWidget::hide);
     }
 
@@ -812,12 +829,28 @@ void FullscreenWidget::togglePlaylistDrawer() {
 
 void FullscreenWidget::updateDrawerGeometry() {
     if (!m_playlistDrawer) return;
+    
+    QWidget* p = m_playlistDrawer->parentWidget();
+    if (!p) return;
+
     int drawerW = 350;
-    int drawerH = height();
+    int drawerH = p->height();
     if (m_drawerVisible) {
-        m_playlistDrawer->setGeometry(width() - drawerW, 0, drawerW, drawerH);
+        m_playlistDrawer->setGeometry(p->width() - drawerW, 0, drawerW, drawerH);
     } else {
-        m_playlistDrawer->setGeometry(width(), 0, drawerW, drawerH);
+        m_playlistDrawer->setGeometry(p->width(), 0, drawerW, drawerH);
+    }
+}
+
+void FullscreenWidget::reparentDrawerToSelf() {
+    if (m_playlistDrawer && m_playlistDrawer->parentWidget() != this) {
+        m_playlistDrawer->setParent(this);
+        QVBoxLayout* l = qobject_cast<QVBoxLayout*>(m_playlistDrawer->layout());
+        if (l) {
+            l->setContentsMargins(0, 0, 0, 110);
+        }
+        m_playlistDrawer->hide();
+        m_drawerVisible = false;
     }
 }
 
@@ -3929,6 +3962,7 @@ void PreviewPanel::updateFullscreenTrack() {
 
     QVBoxLayout* layout = qobject_cast<QVBoxLayout*>(m_fullscreenWidget->layout());
     if (layout) {
+        m_fullscreenWidget->reparentDrawerToSelf();
         clearLayoutOfFullscreen(layout, m_fullscreenWidget->hudWidget());
         layout->setSpacing(0);
     } else {
