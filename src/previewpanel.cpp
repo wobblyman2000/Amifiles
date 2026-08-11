@@ -665,7 +665,7 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(nullptr, Qt::Windo
     m_playlistDrawer->setGraphicsEffect(shadow);
 
     QVBoxLayout* drawerLayout = new QVBoxLayout(m_playlistDrawer);
-    drawerLayout->setContentsMargins(0, 0, 0, 110);
+    drawerLayout->setContentsMargins(0, 0, 0, 0);
     drawerLayout->setSpacing(0);
 
     // Header Widget
@@ -797,7 +797,8 @@ void FullscreenWidget::togglePlaylistDrawer() {
     anim->setEasingCurve(QEasingCurve::OutCubic);
 
     int drawerW = 350;
-    int drawerH = screenH;
+    int hudH = (m_hudWidget && m_hudWidget->isVisible()) ? 110 : 0;
+    int drawerH = screenH - hudH;
 
     QPoint startPos, endPos;
     if (m_drawerVisible) {
@@ -827,7 +828,8 @@ void FullscreenWidget::updateDrawerGeometry() {
     int screenH = screenGeom.height();
 
     int drawerW = 350;
-    int drawerH = screenH;
+    int hudH = (m_hudWidget && m_hudWidget->isVisible()) ? 110 : 0;
+    int drawerH = screenH - hudH;
     int targetX;
     if (m_drawerVisible) {
         targetX = screenGeom.left() + screenW - drawerW;
