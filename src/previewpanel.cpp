@@ -646,7 +646,7 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(nullptr, Qt::Windo
     m_hudWidget->resize(900, 90);
 
     // Initialize Overlay Playlist Drawer as a floating window
-    m_playlistDrawer = new QFrame(this, Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+    m_playlistDrawer = new QFrame(this, Qt::ToolTip | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
     m_playlistDrawer->setObjectName("playlistDrawer");
     m_playlistDrawer->setStyleSheet(
         "QFrame#playlistDrawer { "
@@ -786,23 +786,29 @@ void FullscreenWidget::togglePlaylistDrawer() {
 
     m_drawerVisible = !m_drawerVisible;
 
+    QScreen* screen = this->screen();
+    if (!screen) screen = QGuiApplication::primaryScreen();
+    QRect screenGeom = screen->geometry();
+    int screenW = screenGeom.width();
+    int screenH = screenGeom.height();
+
     QPropertyAnimation* anim = new QPropertyAnimation(m_playlistDrawer, "geometry", this);
     anim->setDuration(250);
     anim->setEasingCurve(QEasingCurve::OutCubic);
 
     int drawerW = 350;
-    int drawerH = height();
+    int drawerH = screenH;
 
     QPoint startPos, endPos;
     if (m_drawerVisible) {
-        startPos = mapToGlobal(QPoint(width(), 0));
-        endPos = mapToGlobal(QPoint(width() - drawerW, 0));
+        startPos = QPoint(screenGeom.left() + screenW, screenGeom.top());
+        endPos = QPoint(screenGeom.left() + screenW - drawerW, screenGeom.top());
         m_playlistDrawer->setGeometry(QRect(startPos, QSize(drawerW, drawerH)));
         m_playlistDrawer->show();
         m_playlistDrawer->raise();
     } else {
-        startPos = mapToGlobal(QPoint(width() - drawerW, 0));
-        endPos = mapToGlobal(QPoint(width(), 0));
+        startPos = QPoint(screenGeom.left() + screenW - drawerW, screenGeom.top());
+        endPos = QPoint(screenGeom.left() + screenW, screenGeom.top());
         connect(anim, &QPropertyAnimation::finished, m_playlistDrawer, &QWidget::hide);
     }
 
@@ -814,15 +820,21 @@ void FullscreenWidget::togglePlaylistDrawer() {
 void FullscreenWidget::updateDrawerGeometry() {
     if (!m_playlistDrawer) return;
     
+    QScreen* screen = this->screen();
+    if (!screen) screen = QGuiApplication::primaryScreen();
+    QRect screenGeom = screen->geometry();
+    int screenW = screenGeom.width();
+    int screenH = screenGeom.height();
+
     int drawerW = 350;
-    int drawerH = height();
-    QPoint globalPos;
+    int drawerH = screenH;
+    int targetX;
     if (m_drawerVisible) {
-        globalPos = mapToGlobal(QPoint(width() - drawerW, 0));
+        targetX = screenGeom.left() + screenW - drawerW;
     } else {
-        globalPos = mapToGlobal(QPoint(width(), 0));
+        targetX = screenGeom.left() + screenW;
     }
-    m_playlistDrawer->setGeometry(globalPos.x(), globalPos.y(), drawerW, drawerH);
+    m_playlistDrawer->setGeometry(targetX, screenGeom.top(), drawerW, drawerH);
 }
 
 void FullscreenWidget::onHudPlaylist() {
