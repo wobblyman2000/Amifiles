@@ -646,7 +646,7 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(nullptr, Qt::Windo
     m_hudWidget->resize(900, 90);
 
     // Initialize Overlay Playlist Drawer as a floating window
-    m_playlistDrawer = new QFrame(this, Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+    m_playlistDrawer = new QFrame(this, Qt::ToolTip | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
     m_playlistDrawer->setObjectName("playlistDrawer");
     m_playlistDrawer->setStyleSheet(
         "QFrame#playlistDrawer { "
@@ -825,7 +825,6 @@ void FullscreenWidget::togglePlaylistDrawer() {
         m_playlistDrawer->setGeometry(QRect(startPos, QSize(drawerW, drawerH)));
         m_playlistDrawer->show();
         m_playlistDrawer->raise();
-        m_playlistDrawer->activateWindow();
         m_drawerListWidget->setFocus();
     } else {
         startPos = QPoint(screenGeom.left() + screenW - drawerW, screenGeom.top());
