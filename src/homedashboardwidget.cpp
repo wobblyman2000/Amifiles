@@ -233,7 +233,7 @@ protected:
             event->accept();
             return;
         }
-        QFrame::keyPressEvent(event);
+        event->ignore();
     }
 
     void mouseDoubleClickEvent(QMouseEvent* event) override {
