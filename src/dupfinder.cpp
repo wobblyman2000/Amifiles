@@ -270,27 +270,51 @@ void DupScanWorker::run() {
     for (auto it = candidateGroups.begin(); it != candidateGroups.end(); ++it) {
         qint64 size = it.key();
         const QList<QString>& paths = it.value();
-        QMap<QString, QList<QString>> hashGroups;
 
+        // Step 1: Group candidates by their 8 KB partial hash
+        QMap<QString, QList<QString>> partialHashGroups;
         for (const QString& path : paths) {
             emit progress(processed++, totalCandidates, path);
-            QString hash = calculateMD5(path);
-            if (!hash.isEmpty()) {
-                hashGroups[hash].append(path);
+            QString pHash = calculatePartialHash(path);
+            if (!pHash.isEmpty()) {
+                partialHashGroups[pHash].append(path);
             }
         }
 
-        for (const auto& dupList : hashGroups) {
-            if (dupList.size() > 1) {
-                DupGroup group;
-                group.size = size;
-                group.filePaths = dupList;
-                finalGroups.append(group);
+        // Step 2: Compute full MD5 only for candidates whose partial hashes matched
+        for (auto pIt = partialHashGroups.begin(); pIt != partialHashGroups.end(); ++pIt) {
+            const QList<QString>& subPaths = pIt.value();
+            if (subPaths.size() <= 1) continue;
+
+            QMap<QString, QList<QString>> fullHashGroups;
+            for (const QString& path : subPaths) {
+                QString fHash = calculateMD5(path);
+                if (!fHash.isEmpty()) {
+                    fullHashGroups[fHash].append(path);
+                }
+            }
+
+            for (const auto& dupList : fullHashGroups) {
+                if (dupList.size() > 1) {
+                    DupGroup group;
+                    group.size = size;
+                    group.filePaths = dupList;
+                    finalGroups.append(group);
+                }
             }
         }
     }
 
     emit finished(finalGroups);
+}
+
+QString DupScanWorker::calculatePartialHash(const QString& filePath) {
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly)) return "";
+    QCryptographicHash hash(QCryptographicHash::Md5);
+    QByteArray buffer = file.read(8192); // Read first 8 KB only
+    hash.addData(buffer);
+    return hash.result().toHex();
 }
 
 QString DupScanWorker::calculateMD5(const QString& filePath) {

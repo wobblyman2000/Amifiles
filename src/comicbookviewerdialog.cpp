@@ -13,6 +13,7 @@
 #include <QBuffer>
 #include <QMessageBox>
 #include <QRegularExpression>
+#include <QCollator>
 #include <algorithm>
 
 ComicBookViewerDialog::ComicBookViewerDialog(const QString& archivePath, QWidget* parent)
@@ -138,8 +139,11 @@ void ComicBookViewerDialog::loadArchiveListing() {
     }
 
     // Sort naturally/alphabetically
-    std::sort(m_pages.begin(), m_pages.end(), [](const QString& a, const QString& b) {
-        return a.compare(b, Qt::CaseInsensitive) < 0;
+    QCollator collator;
+    collator.setNumericMode(true);
+    collator.setCaseSensitivity(Qt::CaseInsensitive);
+    std::sort(m_pages.begin(), m_pages.end(), [&collator](const QString& a, const QString& b) {
+        return collator.compare(a, b) < 0;
     });
 
     m_pageCombo->blockSignals(true);

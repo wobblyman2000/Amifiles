@@ -58,6 +58,7 @@ signals:
 
 private:
     QString m_scanDir;
+    QString calculatePartialHash(const QString& filePath);
     QString calculateMD5(const QString& filePath);
 };
 
