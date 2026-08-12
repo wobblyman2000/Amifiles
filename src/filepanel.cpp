@@ -2281,6 +2281,7 @@ void FilePanel::navigateTo(const QString& path, bool addHistory) {
 
         m_viewStack->setCurrentWidget(m_homeDashboardWidget);
         m_homeDashboardWidget->refreshDashboard();
+        m_homeDashboardWidget->setFocus();
 
         m_currentPath = path;
         m_pathEdit->setText(path);

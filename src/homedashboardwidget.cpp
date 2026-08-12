@@ -1,5 +1,6 @@
 #include "homedashboardwidget.h"
 #include "mainwindow.h"
+#include <cmath>
 #include <QGraphicsOpacityEffect>
 #include <QStorageInfo>
 #include <QSettings>
@@ -24,6 +25,7 @@
 #include <QDesktopServices>
 #include <QUrl>
 #include <QMouseEvent>
+#include <QKeyEvent>
 #include <QPainter>
 #include <QPainterPath>
 #include <QDrag>
@@ -206,23 +208,37 @@ public:
         : QFrame(parent), m_path(path), m_type(type), m_layoutIndex(layoutIndex) {
         setObjectName("cardFrame");
         setProperty("class", "cardFrame");
+        setFocusPolicy(Qt::StrongFocus);
     }
 
     QString path() const { return m_path; }
     CardType cardType() const { return m_type; }
+
+    void triggerActivation() {
+        if (m_layoutIndex != -1) {
+            emit doubleClickedWithLayout(m_path, m_layoutIndex);
+        } else {
+            emit doubleClicked(m_path);
+        }
+    }
 
 signals:
     void doubleClicked(const QString& path);
     void doubleClickedWithLayout(const QString& path, int layoutIndex);
 
 protected:
+    void keyPressEvent(QKeyEvent* event) override {
+        if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter || event->key() == Qt::Key_Space) {
+            triggerActivation();
+            event->accept();
+            return;
+        }
+        QFrame::keyPressEvent(event);
+    }
+
     void mouseDoubleClickEvent(QMouseEvent* event) override {
         if (event->button() == Qt::LeftButton) {
-            if (m_layoutIndex != -1) {
-                emit doubleClickedWithLayout(m_path, m_layoutIndex);
-            } else {
-                emit doubleClicked(m_path);
-            }
+            triggerActivation();
         }
         QFrame::mouseDoubleClickEvent(event);
     }
@@ -366,12 +382,14 @@ static QATheme getQATheme(const QString& name) {
     t.iconStyle = QString("background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 rgba(%1, 0.25), stop:1 rgba(%1, 0.05)); border: 1px solid rgba(%1, 0.4); border-radius: 10px; font-size: 22px; min-width: 44px; min-height: 44px;").arg(color);
     
     t.cardHoverStyle = QString("QFrame#cardFrame { background-color: rgba(30, 30, 46, 0.4); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 12px; } "
-                               "QFrame#cardFrame:hover { background-color: rgba(%1, 0.08); border: 1px solid rgba(%1, 0.4); }").arg(color);
+                               "QFrame#cardFrame:hover { background-color: rgba(%1, 0.08); border: 1px solid rgba(%1, 0.4); } "
+                               "QFrame#cardFrame:focus { background-color: rgba(%1, 0.12); border: 2px solid rgba(%1, 0.8); outline: none; }").arg(color);
     return t;
 }
 
 HomeDashboardWidget::HomeDashboardWidget(QWidget* parent) : QWidget(parent) {
     setAcceptDrops(true);
+    setFocusPolicy(Qt::StrongFocus);
     setupUi();
     refreshDashboard();
 }
@@ -806,7 +824,7 @@ void HomeDashboardWidget::populatePinnedFolders() {
         CardTheme theme = getCardTheme(col + row * 4, layoutIndex);
         ClickableCardFrame* card = new ClickableCardFrame(path, ClickableCardFrame::PinnedFolder, layoutIndex, this);
         card->setFixedSize(190, 74);
-        card->setStyleSheet(QString("QFrame#cardFrame { %1 border-radius: 12px; } QFrame#cardFrame:hover { background-color: rgba(255, 255, 255, 0.05); }").arg(theme.bgStyle));
+        card->setStyleSheet(QString("QFrame#cardFrame { %1 border-radius: 12px; } QFrame#cardFrame:hover { background-color: rgba(255, 255, 255, 0.05); } QFrame#cardFrame:focus { border: 2.5px solid #89b4fa; background-color: rgba(255, 255, 255, 0.08); outline: none; }").arg(theme.bgStyle));
         connect(card, &ClickableCardFrame::doubleClickedWithLayout, this, &HomeDashboardWidget::onPinnedFolderClicked);
 
         card->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -987,7 +1005,7 @@ void HomeDashboardWidget::populatePinnedProfiles() {
 
         ClickableCardFrame* card = new ClickableCardFrame(profileName, ClickableCardFrame::PinnedProfile, -1, this);
         card->setFixedSize(190, 74);
-        card->setStyleSheet(QString("QFrame#cardFrame { %1 border-radius: 12px; } QFrame#cardFrame:hover { background-color: rgba(255, 255, 255, 0.05); }").arg(theme.bgStyle));
+        card->setStyleSheet(QString("QFrame#cardFrame { %1 border-radius: 12px; } QFrame#cardFrame:hover { background-color: rgba(255, 255, 255, 0.05); } QFrame#cardFrame:focus { border: 2.5px solid #89b4fa; background-color: rgba(255, 255, 255, 0.08); outline: none; }").arg(theme.bgStyle));
         
         connect(card, &ClickableCardFrame::doubleClicked, this, [this](const QString& name) {
             emit applyProfileRequested(name);
@@ -1084,7 +1102,7 @@ void HomeDashboardWidget::populateRecentLocations() {
 
         ClickableCardFrame* card = new ClickableCardFrame(path, ClickableCardFrame::RecentLocation, -1, this);
         card->setFixedSize(190, 74);
-        card->setStyleSheet(QString("QFrame#cardFrame { %1 border-radius: 12px; } QFrame#cardFrame:hover { background-color: rgba(255, 255, 255, 0.05); }").arg(theme.bgStyle));
+        card->setStyleSheet(QString("QFrame#cardFrame { %1 border-radius: 12px; } QFrame#cardFrame:hover { background-color: rgba(255, 255, 255, 0.05); } QFrame#cardFrame:focus { border: 2.5px solid #89b4fa; background-color: rgba(255, 255, 255, 0.08); outline: none; }").arg(theme.bgStyle));
         
         connect(card, &ClickableCardFrame::doubleClicked, this, [this, path](const QString&) {
             emit navigateRequested(path);
@@ -1180,7 +1198,7 @@ void HomeDashboardWidget::populateRecentFiles() {
 
         ClickableCardFrame* card = new ClickableCardFrame(path, ClickableCardFrame::RecentFile, -1, this);
         card->setFixedSize(190, 74);
-        card->setStyleSheet(QString("QFrame#cardFrame { %1 border-radius: 12px; } QFrame#cardFrame:hover { background-color: rgba(255, 255, 255, 0.05); }").arg(theme.bgStyle));
+        card->setStyleSheet(QString("QFrame#cardFrame { %1 border-radius: 12px; } QFrame#cardFrame:hover { background-color: rgba(255, 255, 255, 0.05); } QFrame#cardFrame:focus { border: 2.5px solid #89b4fa; background-color: rgba(255, 255, 255, 0.08); outline: none; }").arg(theme.bgStyle));
 
         connect(card, &ClickableCardFrame::doubleClicked, this, [this, path](const QString&) {
             QWidget* p = parentWidget();
@@ -1324,6 +1342,105 @@ void HomeDashboardWidget::dropEvent(QDropEvent* event) {
             populateRecentFiles();
         }
     }
+}
+
+void HomeDashboardWidget::focusInEvent(QFocusEvent* event) {
+    QWidget::focusInEvent(event);
+    QList<ClickableCardFrame*> cards = findChildren<ClickableCardFrame*>();
+    QList<ClickableCardFrame*> activeCards;
+    for (auto* c : cards) {
+        if (c->isVisible() && (c->focusPolicy() & Qt::TabFocus)) {
+            activeCards.append(c);
+        }
+    }
+    bool hasFocusedCard = false;
+    for (auto* c : activeCards) {
+        if (c->hasFocus()) {
+            hasFocusedCard = true;
+            break;
+        }
+    }
+    if (!hasFocusedCard && !activeCards.isEmpty()) {
+        activeCards.first()->setFocus();
+    }
+}
+
+void HomeDashboardWidget::keyPressEvent(QKeyEvent* event) {
+    if (event->key() == Qt::Key_Left || event->key() == Qt::Key_Right ||
+        event->key() == Qt::Key_Up || event->key() == Qt::Key_Down) {
+        
+        QList<ClickableCardFrame*> cards = findChildren<ClickableCardFrame*>();
+        QList<ClickableCardFrame*> activeCards;
+        for (auto* c : cards) {
+            if (c->isVisible() && (c->focusPolicy() & Qt::TabFocus)) {
+                activeCards.append(c);
+            }
+        }
+        
+        if (activeCards.isEmpty()) {
+            QWidget::keyPressEvent(event);
+            return;
+        }
+
+        QWidget* currentFocus = focusWidget();
+        ClickableCardFrame* focusedCard = qobject_cast<ClickableCardFrame*>(currentFocus);
+
+        if (!focusedCard) {
+            ClickableCardFrame* firstCard = activeCards.first();
+            int minX = 1e9, minY = 1e9;
+            for (auto* card : activeCards) {
+                QPoint center = card->mapTo(this, card->rect().center());
+                if (center.y() < minY || (center.y() == minY && center.x() < minX)) {
+                    minY = center.y();
+                    minX = center.x();
+                    firstCard = card;
+                }
+            }
+            firstCard->setFocus();
+            event->accept();
+            return;
+        }
+
+        QPoint currentCenter = focusedCard->mapTo(this, focusedCard->rect().center());
+        ClickableCardFrame* bestCard = nullptr;
+        double bestScore = 1e9;
+
+        for (auto* card : activeCards) {
+            if (card == focusedCard) continue;
+
+            QPoint targetCenter = card->mapTo(this, card->rect().center());
+            int dx = targetCenter.x() - currentCenter.x();
+            int dy = targetCenter.y() - currentCenter.y();
+
+            bool validDirection = false;
+            if (event->key() == Qt::Key_Left && dx < -10) validDirection = true;
+            else if (event->key() == Qt::Key_Right && dx > 10) validDirection = true;
+            else if (event->key() == Qt::Key_Up && dy < -10) validDirection = true;
+            else if (event->key() == Qt::Key_Down && dy > 10) validDirection = true;
+
+            if (validDirection) {
+                double distance = std::sqrt(dx*dx + dy*dy);
+                double alignmentError = 0.0;
+                if (event->key() == Qt::Key_Left || event->key() == Qt::Key_Right) {
+                    alignmentError = std::abs(dy);
+                } else {
+                    alignmentError = std::abs(dx);
+                }
+                double score = distance + alignmentError * 2.0;
+                if (score < bestScore) {
+                    bestScore = score;
+                    bestCard = card;
+                }
+            }
+        }
+
+        if (bestCard) {
+            bestCard->setFocus();
+            event->accept();
+            return;
+        }
+    }
+    QWidget::keyPressEvent(event);
 }
 
 #include "homedashboardwidget.moc"
