@@ -698,7 +698,7 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(nullptr, Qt::Windo
 
     // QListWidget for active queue
     m_drawerListWidget = new QListWidget(m_playlistDrawer);
-    m_drawerListWidget->setFocusPolicy(Qt::NoFocus);
+    m_drawerListWidget->setFocusPolicy(Qt::StrongFocus);
     m_drawerListWidget->setStyleSheet(
         "QListWidget { background: transparent; border: none; outline: none; padding-top: 8px; }"
         "QListWidget::item { padding: 10px 14px; border-radius: 6px; margin: 2px 8px; color: #cdd6f4; }"
@@ -825,6 +825,7 @@ void FullscreenWidget::togglePlaylistDrawer() {
         m_playlistDrawer->setGeometry(QRect(startPos, QSize(drawerW, drawerH)));
         m_playlistDrawer->show();
         m_playlistDrawer->raise();
+        m_drawerListWidget->setFocus();
     } else {
         startPos = QPoint(screenGeom.left() + screenW - drawerW, screenGeom.top());
         endPos = QPoint(screenGeom.left() + screenW, screenGeom.top());
@@ -1196,6 +1197,18 @@ void FullscreenWidget::setBuiltinPlayerDoubleclickActive(bool active) {
 }
 
 bool FullscreenWidget::eventFilter(QObject* watched, QEvent* event) {
+    if (watched == m_drawerListWidget && event->type() == QEvent::KeyPress) {
+        QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
+        if (keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter) {
+            QListWidgetItem* item = m_drawerListWidget->currentItem();
+            if (item) {
+                int index = item->data(Qt::UserRole).toInt();
+                emit playlistItemSelected(index);
+            }
+            return true;
+        }
+    }
+
     if (event->type() == QEvent::KeyPress) {
         QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
         if (keyEvent->key() == Qt::Key_Escape && m_drawerVisible) {

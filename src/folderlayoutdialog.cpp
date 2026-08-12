@@ -1231,14 +1231,15 @@ void FolderLayoutDialog::onDuplicateProfile() {
     
     FolderLayoutRule r = m_rules[m_currentIndex];
     r.name = r.name + " (Copy)";
-    
+    r.isLocked = false;
+
     if (r.name.toLower().startsWith("default (copy)")) {
         r.name = "Default Profile (Copy)";
         r.ruleType = "Path";
         r.value = "/path/to/folder";
         r.autoApply = true;
     }
-    
+
     m_rules.append(r);
     
     populateList();

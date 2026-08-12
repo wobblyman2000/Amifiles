@@ -1,5 +1,6 @@
 #include "homedashboardwidget.h"
 #include "mainwindow.h"
+#include <QGraphicsOpacityEffect>
 #include <QStorageInfo>
 #include <QSettings>
 #include <QDir>
@@ -837,10 +838,16 @@ void HomeDashboardWidget::populatePinnedFolders() {
         nameLabel->setStyleSheet(theme.textStyle + " font-size: 13px;");
         details->addWidget(nameLabel);
 
-        int itemCount = QDir(path).entryList(QDir::NoDotAndDotDot | QDir::AllEntries).count();
-        QString countText = QString("%1 items").arg(itemCount);
+        bool isOffline = !QDir(path).exists();
+        QString countText;
+        if (isOffline) {
+            countText = "Offline / Deleted";
+        } else {
+            int itemCount = QDir(path).entryList(QDir::NoDotAndDotDot | QDir::AllEntries).count();
+            countText = QString("%1 items").arg(itemCount);
+        }
         QLabel* countLabel = new QLabel(countText, card);
-        countLabel->setStyleSheet("font-size: 11px; color: #a6adc8;");
+        countLabel->setStyleSheet(QString("font-size: 11px; color: %1;").arg(isOffline ? "#f38ba8" : "#a6adc8"));
         details->addWidget(countLabel);
 
         QString layoutName = "Details View";
@@ -856,6 +863,17 @@ void HomeDashboardWidget::populatePinnedFolders() {
         QLabel* layoutBadge = new QLabel(layoutName, card);
         layoutBadge->setStyleSheet(theme.badgeStyle + " font-size: 9px; font-weight: bold; border-radius: 9px; padding: 3px 8px; " + theme.badgeBgStyle);
         badgeLayout->addWidget(layoutBadge);
+
+        if (isOffline) {
+            QLabel* offlineBadge = new QLabel("🔌 Offline", card);
+            offlineBadge->setStyleSheet("font-size: 9px; font-weight: bold; border-radius: 9px; padding: 3px 8px; background-color: #f38ba8; color: #11111b;");
+            badgeLayout->addWidget(offlineBadge);
+
+            QGraphicsOpacityEffect* opacityEffect = new QGraphicsOpacityEffect(card);
+            opacityEffect->setOpacity(0.55);
+            card->setGraphicsEffect(opacityEffect);
+        }
+
         badgeLayout->addStretch(1);
         details->addLayout(badgeLayout);
 
@@ -885,6 +903,13 @@ void HomeDashboardWidget::onQuickAccessClicked(const QString& path) {
 }
 
 void HomeDashboardWidget::onPinnedFolderClicked(const QString& path, int layoutIndex) {
+    if (!QDir(path).exists()) {
+        QMessageBox::warning(this, "Folder Offline",
+                             QString("The folder '%1' is currently offline, deleted, or unavailable.\n\n"
+                                     "Please plug in the drive or check the path before trying to navigate.")
+                             .arg(QDir::toNativeSeparators(path)));
+        return;
+    }
     emit navigateWithLayoutRequested(path, layoutIndex);
 }
 

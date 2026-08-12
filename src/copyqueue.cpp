@@ -1,4 +1,5 @@
 #include "copyqueue.h"
+#include "tagmanager.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QDir>
@@ -239,6 +240,9 @@ bool CopyQueueWorker::processJob(const CopyJob& job) {
         QFileInfo destInfo(job.destPath);
         if (!destInfo.exists()) {
             if (QFile::rename(job.srcPath, job.destPath)) {
+                QMetaObject::invokeMethod(&TagManager::instance(), [src = job.srcPath, dest = job.destPath]() {
+                    TagManager::instance().renamePathInDatabase(src, dest);
+                });
                 QFile(job.destPath).setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
                 return true;
             }
@@ -253,6 +257,9 @@ bool CopyQueueWorker::processJob(const CopyJob& job) {
             if (res == ResolveOverwrite) {
                 QFile::remove(job.destPath);
                 if (QFile::rename(job.srcPath, job.destPath)) {
+                    QMetaObject::invokeMethod(&TagManager::instance(), [src = job.srcPath, dest = job.destPath]() {
+                        TagManager::instance().renamePathInDatabase(src, dest);
+                    });
                     QFile(job.destPath).setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
                     return true;
                 }
@@ -268,6 +275,9 @@ bool CopyQueueWorker::processJob(const CopyJob& job) {
                     newDest = QDir(dir).filePath(QString("%1 (%2).%3").arg(base).arg(counter++).arg(suffix));
                 }
                 if (QFile::rename(job.srcPath, newDest)) {
+                    QMetaObject::invokeMethod(&TagManager::instance(), [src = job.srcPath, dest = newDest]() {
+                        TagManager::instance().renamePathInDatabase(src, dest);
+                    });
                     QFile(newDest).setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
                     return true;
                 }
@@ -450,6 +460,9 @@ static bool copyPrioritized(const QString& src, const QString& dest, bool isMove
         if (isMove) {
             success = QFile::rename(src, dest);
             if (success) {
+                QMetaObject::invokeMethod(&TagManager::instance(), [src, dest]() {
+                    TagManager::instance().renamePathInDatabase(src, dest);
+                });
                 QFile(dest).setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
             }
         } else {

@@ -108,6 +108,28 @@ bool TagManager::isFileLocked(const QString& filePath) const {
     return m_db.value(filePath).isLocked;
 }
 
+void TagManager::renamePathInDatabase(const QString& oldPath, const QString& newPath) {
+    bool changed = false;
+    QMap<QString, FileTagInfo> newDb;
+    for (auto it = m_db.begin(); it != m_db.end(); ++it) {
+        QString key = it.key();
+        if (key == oldPath) {
+            newDb[newPath] = it.value();
+            changed = true;
+        } else if (key.startsWith(oldPath + "/")) {
+            QString subSuffix = key.mid(oldPath.length());
+            newDb[newPath + subSuffix] = it.value();
+            changed = true;
+        } else {
+            newDb[key] = it.value();
+        }
+    }
+    if (changed) {
+        m_db = newDb;
+        saveDatabase();
+    }
+}
+
 void TagManager::setFileColor(const QString& filePath, const QString& colorName) {
     m_db[filePath].colorName = colorName;
     saveDatabase();

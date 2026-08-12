@@ -1,4 +1,5 @@
 #include "bulkrename.h"
+#include "tagmanager.h"
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QGridLayout>
@@ -532,6 +533,7 @@ void BulkRenameDialog::onApplyRename() {
                 continue;
             }
             if (QFile::rename(oldPath, newPath)) {
+                TagManager::instance().renamePathInDatabase(oldPath, newPath);
                 renamedCount++;
             } else {
                 failures.append(oldInfo.fileName());

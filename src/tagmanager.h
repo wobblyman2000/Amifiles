@@ -31,6 +31,7 @@ public:
 
     void setFileLocked(const QString& filePath, bool locked);
     bool isFileLocked(const QString& filePath) const;
+    void renamePathInDatabase(const QString& oldPath, const QString& newPath);
 
     void setFileTags(const QString& filePath, const QStringList& tags);
     QStringList getFileTags(const QString& filePath) const;

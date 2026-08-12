@@ -1,6 +1,7 @@
 #include "filepanel.h"
 #include "tagmanager.h"
 #include "metadatahovercard.h"
+static bool isPathLockedPersistent(const QString& path);
 #include <QWidgetAction>
 #include <QJsonArray>
 #include <QJsonObject>
@@ -2042,7 +2043,38 @@ bool FilePanel::eventFilter(QObject* watched, QEvent* event) {
                     if (chosen == actCopy) {
                         CopyQueueManager::instance().queueCopy(srcPaths, destDir, false, this);
                     } else if (chosen == actMove) {
-                        CopyQueueManager::instance().queueCopy(srcPaths, destDir, true, this);
+                        bool containsLocked = false;
+                        QString lockedPath;
+                        for (const QString& path : srcPaths) {
+                            if (!QFileInfo(path).isWritable() || isPathLockedPersistent(path)) {
+                                containsLocked = true;
+                                lockedPath = path;
+                                break;
+                            }
+                            QFileInfo info(path);
+                            if (info.isDir()) {
+                                QDirIterator it(path, QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System, QDirIterator::Subdirectories);
+                                while (it.hasNext()) {
+                                    QString childPath = it.next();
+                                    if (!QFileInfo(childPath).isWritable() || isPathLockedPersistent(childPath)) {
+                                        containsLocked = true;
+                                        lockedPath = childPath;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (containsLocked) break;
+                        }
+
+                        if (containsLocked) {
+                            QMessageBox::warning(this, "Operation Blocked",
+                                                 QString("One or more files/directories being moved (Drag & Drop Move) are locked (read-only) or contain locked items.\n"
+                                                         "Blocked item: %1\n\n"
+                                                         "Please unlock all files/folders first before moving them.")
+                                                 .arg(QDir::toNativeSeparators(lockedPath)));
+                        } else {
+                            CopyQueueManager::instance().queueCopy(srcPaths, destDir, true, this);
+                        }
                     }
                 }
                 dropEvent->acceptProposedAction();
@@ -3565,6 +3597,40 @@ void FilePanel::onPaste() {
     bool isCut = mimeData->hasFormat("application/amifiles-cut") || 
                  mimeData->hasFormat("application/x-kde-cutselection");
 
+    if (isCut) {
+        bool containsLocked = false;
+        QString lockedPath;
+        for (const QString& path : srcPaths) {
+            if (!QFileInfo(path).isWritable() || isPathLockedPersistent(path)) {
+                containsLocked = true;
+                lockedPath = path;
+                break;
+            }
+            QFileInfo info(path);
+            if (info.isDir()) {
+                QDirIterator it(path, QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System, QDirIterator::Subdirectories);
+                while (it.hasNext()) {
+                    QString childPath = it.next();
+                    if (!QFileInfo(childPath).isWritable() || isPathLockedPersistent(childPath)) {
+                        containsLocked = true;
+                        lockedPath = childPath;
+                        break;
+                    }
+                }
+            }
+            if (containsLocked) break;
+        }
+
+        if (containsLocked) {
+            QMessageBox::warning(this, "Operation Blocked",
+                                 QString("One or more files/directories being moved (Cut) are locked (read-only) or contain locked items.\n"
+                                         "Blocked item: %1\n\n"
+                                         "Please unlock all files/folders first before moving them.")
+                                 .arg(QDir::toNativeSeparators(lockedPath)));
+            return;
+        }
+    }
+
     // Queue copy/move operations
     CopyQueueManager::instance().queueCopy(srcPaths, m_currentPath, isCut, this);
 
@@ -3692,6 +3758,7 @@ void FilePanel::onRename() {
         }
         QString newPath = info.dir().filePath(newName);
         if (QFile::rename(oldPath, newPath)) {
+            TagManager::instance().renamePathInDatabase(oldPath, newPath);
             QFile(newPath).setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
             refresh();
         } else {
