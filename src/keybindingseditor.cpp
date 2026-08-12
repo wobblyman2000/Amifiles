@@ -88,6 +88,7 @@ KeybindingsEditorDialog::KeybindingsEditorDialog(const QMap<QString, QKeySequenc
     m_actionLabels["checksum"] = "Calculate Checksum Hash";
     m_actionLabels["configure_layouts"] = "Configure Folder Layouts";
     m_actionLabels["configure_age_styles"] = "Configure Age Styles";
+    m_actionLabels["go_smart_home"] = "Go to Smart Home Screen";
 
     // Set defaults values
     m_defaults["copy"] = QKeySequence::Copy;
@@ -116,6 +117,7 @@ KeybindingsEditorDialog::KeybindingsEditorDialog(const QMap<QString, QKeySequenc
     m_defaults["checksum"] = QKeySequence("Ctrl+H");
     m_defaults["configure_layouts"] = QKeySequence("Ctrl+Shift+L");
     m_defaults["configure_age_styles"] = QKeySequence("Ctrl+Shift+A");
+    m_defaults["go_smart_home"] = QKeySequence("Alt+Home");
 
     setupUI();
     populateTable();

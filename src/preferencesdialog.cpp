@@ -494,6 +494,10 @@ void PreferencesDialog::setupUI() {
     m_keyNavigateBack->setToolTip("Shortcut to go back in history.");
     formSec1->addRow("Navigate Back (History):", m_keyNavigateBack);
 
+    m_keyGoSmartHome = new QKeySequenceEdit(this);
+    m_keyGoSmartHome->setToolTip("Shortcut to instantly navigate to the Smart Home Screen.");
+    formSec1->addRow("Go to Smart Home Screen:", m_keyGoSmartHome);
+
     scrollLayout->addLayout(formSec1);
 
     // Separator line
@@ -658,6 +662,7 @@ void PreferencesDialog::loadPreferences() {
     m_keyToggleDrawer->setKeySequence(QKeySequence(settings.value("shortcuts/toggle_drawer", "P").toString()));
     m_keyNavigateUp->setKeySequence(QKeySequence(settings.value("shortcuts/navigate_up", "Backspace").toString()));
     m_keyNavigateBack->setKeySequence(QKeySequence(settings.value("shortcuts/navigate_back", "Alt+Left").toString()));
+    m_keyGoSmartHome->setKeySequence(QKeySequence(settings.value("shortcuts/go_smart_home", "Alt+Home").toString()));
 
     m_keyPlayerPlayPause->setKeySequence(QKeySequence(settings.value("shortcuts/player_play_pause", "Space").toString()));
     m_keyPlayerPrev->setKeySequence(QKeySequence(settings.value("shortcuts/player_prev", "P").toString()));
@@ -727,6 +732,7 @@ void PreferencesDialog::savePreferences() {
     settings.setValue("shortcuts/toggle_drawer", m_keyToggleDrawer->keySequence().toString());
     settings.setValue("shortcuts/navigate_up", m_keyNavigateUp->keySequence().toString());
     settings.setValue("shortcuts/navigate_back", m_keyNavigateBack->keySequence().toString());
+    settings.setValue("shortcuts/go_smart_home", m_keyGoSmartHome->keySequence().toString());
 
     settings.setValue("shortcuts/player_play_pause", m_keyPlayerPlayPause->keySequence().toString());
     settings.setValue("shortcuts/player_prev", m_keyPlayerPrev->keySequence().toString());

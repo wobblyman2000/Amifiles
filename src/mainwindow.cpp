@@ -1226,6 +1226,7 @@ void MainWindow::setupActions() {
     registerKeybindableAction("queue_folder", m_actQueueFolder);
     registerKeybindableAction("play_queue", m_actPlayQueue);
     registerKeybindableAction("play_collection", m_actPlayCollection);
+    registerKeybindableAction("go_smart_home", m_actSmartHome);
 }
 
 void MainWindow::setupMenus() {
@@ -3521,6 +3522,7 @@ void MainWindow::loadKeybindings() {
     m_keybindings["queue_folder"] = QKeySequence("Ctrl+Alt+Q");
     m_keybindings["play_queue"] = QKeySequence("Ctrl+Alt+Space");
     m_keybindings["play_collection"] = QKeySequence("Ctrl+Space");
+    m_keybindings["go_smart_home"] = QKeySequence("Alt+Home");
 
     QSettings settings("Amifiles", "Amifiles");
     settings.beginGroup("Keybindings");
@@ -3544,6 +3546,9 @@ void MainWindow::loadKeybindings() {
     if (settings.contains("shortcuts/play_collection")) {
         m_keybindings["play_collection"] = QKeySequence(settings.value("shortcuts/play_collection").toString());
     }
+    if (settings.contains("shortcuts/go_smart_home")) {
+        m_keybindings["go_smart_home"] = QKeySequence(settings.value("shortcuts/go_smart_home").toString());
+    }
 }
 
 void MainWindow::saveKeybindings() {
@@ -3559,6 +3564,7 @@ void MainWindow::saveKeybindings() {
     settings.setValue("shortcuts/queue_folder", m_keybindings["queue_folder"].toString());
     settings.setValue("shortcuts/play_queue", m_keybindings["play_queue"].toString());
     settings.setValue("shortcuts/play_collection", m_keybindings["play_collection"].toString());
+    settings.setValue("shortcuts/go_smart_home", m_keybindings["go_smart_home"].toString());
 }
 
 void MainWindow::applyKeybindings() {

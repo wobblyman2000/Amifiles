@@ -1277,6 +1277,7 @@ void FullscreenWidget::keyPressEvent(QKeyEvent* event) {
     QKeySequence shortcutNavigateBack(settings.value("shortcuts/navigate_back", "Alt+Left").toString());
     QKeySequence shortcutNavigateUp(settings.value("shortcuts/navigate_up", "Backspace").toString());
     QKeySequence shortcutPlaylist(settings.value("shortcuts/player_playlist", "L").toString());
+    QKeySequence shortcutGoSmartHome(settings.value("shortcuts/go_smart_home", "Alt+Home").toString());
 
     {
         QFile logFile("/home/dave/cpp_projects/Amifiles/menu_debug.log");
@@ -1289,6 +1290,11 @@ void FullscreenWidget::keyPressEvent(QKeyEvent* event) {
                 << " shortcutPrev=" << shortcutPrev.toString()
                 << "\n";
         }
+    }
+
+    if (pressed == shortcutGoSmartHome) {
+        emit exitRequested();
+        return; // Propagate to MainWindow
     }
 
     if (pressed == shortcutPlaylist) {
