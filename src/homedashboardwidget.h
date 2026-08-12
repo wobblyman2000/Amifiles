@@ -20,6 +20,7 @@ signals:
     void navigateRequested(const QString& path);
     void navigateWithLayoutRequested(const QString& path, int layoutIndex);
     void applyProfileRequested(const QString& profileName);
+    void backRequested();
 
 protected:
     void dragEnterEvent(class QDragEnterEvent* event) override;

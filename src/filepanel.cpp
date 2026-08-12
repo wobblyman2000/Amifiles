@@ -525,6 +525,7 @@ void FilePanel::setupUI() {
             }
         }
     });
+    connect(m_homeDashboardWidget, &HomeDashboardWidget::backRequested, this, &FilePanel::onNavigateBack);
     m_theaterListView = new TheaterListView(this);
     m_theaterListView->setMinimumHeight(50);
     m_theaterListView->setEditTriggers(QAbstractItemView::EditKeyPressed | QAbstractItemView::SelectedClicked);

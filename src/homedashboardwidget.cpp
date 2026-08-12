@@ -1366,6 +1366,18 @@ void HomeDashboardWidget::focusInEvent(QFocusEvent* event) {
 }
 
 void HomeDashboardWidget::keyPressEvent(QKeyEvent* event) {
+    QSettings settings("Amifiles", "Amifiles");
+    QKeySequence pressed(event->modifiers() | event->key());
+    QKeySequence shortcutNavigateBack(settings.value("shortcuts/navigate_back", "Alt+Left").toString());
+    QKeySequence shortcutNavigateUp(settings.value("shortcuts/navigate_up", "Backspace").toString());
+
+    if (pressed == shortcutNavigateBack || pressed == shortcutNavigateUp ||
+        event->key() == Qt::Key_Escape || event->key() == Qt::Key_Back || event->key() == Qt::Key_Backspace) {
+        emit backRequested();
+        event->accept();
+        return;
+    }
+
     if (event->key() == Qt::Key_Left || event->key() == Qt::Key_Right ||
         event->key() == Qt::Key_Up || event->key() == Qt::Key_Down) {
         
