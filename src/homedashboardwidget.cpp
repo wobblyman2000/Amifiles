@@ -646,6 +646,7 @@ void HomeDashboardWidget::populateDrives() {
         if (type == "tmpfs" || type == "devtmpfs" || type == "sysfs" || type == "proc" || type == "cgroup" || type == "squashfs") continue;
 
         ClickableCardFrame* card = new ClickableCardFrame(storage.rootPath(), ClickableCardFrame::QuickAccess, -1, this);
+        card->installEventFilter(this);
         connect(card, &ClickableCardFrame::doubleClicked, this, &HomeDashboardWidget::onDriveDoubleClicked);
 
         QHBoxLayout* layout = new QHBoxLayout(card);
@@ -740,6 +741,7 @@ void HomeDashboardWidget::populateQuickAccess() {
         QATheme qat = getQATheme(entry.name);
 
         ClickableCardFrame* card = new ClickableCardFrame(entry.path, ClickableCardFrame::QuickAccess, -1, this);
+        card->installEventFilter(this);
         card->setFixedSize(240, 84);
         card->setStyleSheet(qat.cardHoverStyle);
         connect(card, &ClickableCardFrame::doubleClicked, this, &HomeDashboardWidget::onQuickAccessClicked);
@@ -823,6 +825,7 @@ void HomeDashboardWidget::populatePinnedFolders() {
 
         CardTheme theme = getCardTheme(col + row * 4, layoutIndex);
         ClickableCardFrame* card = new ClickableCardFrame(path, ClickableCardFrame::PinnedFolder, layoutIndex, this);
+        card->installEventFilter(this);
         card->setFixedSize(190, 74);
         card->setStyleSheet(QString("QFrame#cardFrame { %1 border-radius: 12px; } QFrame#cardFrame:hover { background-color: rgba(255, 255, 255, 0.05); } QFrame#cardFrame:focus { border: 2.5px solid #89b4fa; background-color: rgba(255, 255, 255, 0.08); outline: none; }").arg(theme.bgStyle));
         connect(card, &ClickableCardFrame::doubleClickedWithLayout, this, &HomeDashboardWidget::onPinnedFolderClicked);
@@ -1004,6 +1007,7 @@ void HomeDashboardWidget::populatePinnedProfiles() {
         theme.symbol = "⚙️";
 
         ClickableCardFrame* card = new ClickableCardFrame(profileName, ClickableCardFrame::PinnedProfile, -1, this);
+        card->installEventFilter(this);
         card->setFixedSize(190, 74);
         card->setStyleSheet(QString("QFrame#cardFrame { %1 border-radius: 12px; } QFrame#cardFrame:hover { background-color: rgba(255, 255, 255, 0.05); } QFrame#cardFrame:focus { border: 2.5px solid #89b4fa; background-color: rgba(255, 255, 255, 0.08); outline: none; }").arg(theme.bgStyle));
         
@@ -1101,6 +1105,7 @@ void HomeDashboardWidget::populateRecentLocations() {
         if (dispName.isEmpty()) dispName = path;
 
         ClickableCardFrame* card = new ClickableCardFrame(path, ClickableCardFrame::RecentLocation, -1, this);
+        card->installEventFilter(this);
         card->setFixedSize(190, 74);
         card->setStyleSheet(QString("QFrame#cardFrame { %1 border-radius: 12px; } QFrame#cardFrame:hover { background-color: rgba(255, 255, 255, 0.05); } QFrame#cardFrame:focus { border: 2.5px solid #89b4fa; background-color: rgba(255, 255, 255, 0.08); outline: none; }").arg(theme.bgStyle));
         
@@ -1197,6 +1202,7 @@ void HomeDashboardWidget::populateRecentFiles() {
         else if (ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "gif") theme.symbol = "🖼️";
 
         ClickableCardFrame* card = new ClickableCardFrame(path, ClickableCardFrame::RecentFile, -1, this);
+        card->installEventFilter(this);
         card->setFixedSize(190, 74);
         card->setStyleSheet(QString("QFrame#cardFrame { %1 border-radius: 12px; } QFrame#cardFrame:hover { background-color: rgba(255, 255, 255, 0.05); } QFrame#cardFrame:focus { border: 2.5px solid #89b4fa; background-color: rgba(255, 255, 255, 0.08); outline: none; }").arg(theme.bgStyle));
 
@@ -1453,6 +1459,79 @@ void HomeDashboardWidget::keyPressEvent(QKeyEvent* event) {
         }
     }
     QWidget::keyPressEvent(event);
+}
+
+bool HomeDashboardWidget::eventFilter(QObject* watched, QEvent* event) {
+    if (event->type() == QEvent::KeyPress) {
+        QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
+        ClickableCardFrame* watchedCard = qobject_cast<ClickableCardFrame*>(watched);
+        if (watchedCard) {
+            int key = keyEvent->key();
+            QSettings settings("Amifiles", "Amifiles");
+            QKeySequence pressed(keyEvent->modifiers() | keyEvent->key());
+            QKeySequence shortcutNavigateBack(settings.value("shortcuts/navigate_back", "Alt+Left").toString());
+            QKeySequence shortcutNavigateUp(settings.value("shortcuts/navigate_up", "Backspace").toString());
+
+            if (pressed == shortcutNavigateBack || pressed == shortcutNavigateUp ||
+                key == Qt::Key_Escape || key == Qt::Key_Back || key == Qt::Key_Backspace) {
+                emit backRequested();
+                return true; // Swallowed
+            }
+
+            if (key == Qt::Key_Left || key == Qt::Key_Right ||
+                key == Qt::Key_Up || key == Qt::Key_Down) {
+                
+                QList<ClickableCardFrame*> cards = findChildren<ClickableCardFrame*>();
+                QList<ClickableCardFrame*> activeCards;
+                for (auto* c : cards) {
+                    if (c->isVisible() && (c->focusPolicy() & Qt::TabFocus)) {
+                        activeCards.append(c);
+                    }
+                }
+                
+                if (!activeCards.isEmpty()) {
+                    QPoint currentCenter = watchedCard->mapTo(this, watchedCard->rect().center());
+                    ClickableCardFrame* bestCard = nullptr;
+                    double bestScore = 1e9;
+
+                    for (auto* card : activeCards) {
+                        if (card == watchedCard) continue;
+
+                        QPoint targetCenter = card->mapTo(this, card->rect().center());
+                        int dx = targetCenter.x() - currentCenter.x();
+                        int dy = targetCenter.y() - currentCenter.y();
+
+                        bool validDirection = false;
+                        if (key == Qt::Key_Left && dx < -10) validDirection = true;
+                        else if (key == Qt::Key_Right && dx > 10) validDirection = true;
+                        else if (key == Qt::Key_Up && dy < -10) validDirection = true;
+                        else if (key == Qt::Key_Down && dy > 10) validDirection = true;
+
+                        if (validDirection) {
+                            double distance = std::sqrt(dx*dx + dy*dy);
+                            double alignmentError = 0.0;
+                            if (key == Qt::Key_Left || key == Qt::Key_Right) {
+                                alignmentError = std::abs(dy);
+                            } else {
+                                alignmentError = std::abs(dx);
+                            }
+                            double score = distance + alignmentError * 2.0;
+                            if (score < bestScore) {
+                                bestScore = score;
+                                bestCard = card;
+                            }
+                        }
+                    }
+
+                    if (bestCard) {
+                        bestCard->setFocus();
+                        return true; // Swallowed
+                    }
+                }
+            }
+        }
+    }
+    return QWidget::eventFilter(watched, event);
 }
 
 #include "homedashboardwidget.moc"

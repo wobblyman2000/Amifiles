@@ -28,6 +28,7 @@ protected:
     void dropEvent(class QDropEvent* event) override;
     void keyPressEvent(class QKeyEvent* event) override;
     void focusInEvent(class QFocusEvent* event) override;
+    bool eventFilter(QObject* watched, QEvent* event) override;
 
 private slots:
     void onDriveDoubleClicked(const QString& path);
