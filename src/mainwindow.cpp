@@ -11,6 +11,9 @@
 #include "bulkrename.h"
 #include "consolepanel.h"
 #include "foldersync.h"
+#include "batchtouchdialog.h"
+#include "filesplitterdialog.h"
+#include "metadatainspectorsidebar.h"
 #include "dupfinder.h"
 #include "helpdialog.h"
 #include "spaceanalyzer.h"
@@ -6929,6 +6932,32 @@ void MainWindow::executeInternalCommand(const QString& script) {
                 dlg.exec();
                 if (leftPanel()) leftPanel()->refresh();
                 if (rightPanel()) rightPanel()->refresh();
+            }
+        } else if (cmd == "TouchFiles" || cmd == "BatchTouch") {
+            if (m_activePanel) {
+                QStringList selected = m_activePanel->selectedPaths();
+                if (selected.isEmpty()) selected << m_activePanel->currentPath();
+                BatchTouchDialog dlg(selected, this);
+                dlg.exec();
+                m_activePanel->refresh();
+            }
+        } else if (cmd == "SplitFile") {
+            if (m_activePanel) {
+                QStringList selected = m_activePanel->selectedPaths();
+                if (!selected.isEmpty()) {
+                    FileSplitterDialog dlg(selected.first(), FileSplitterDialog::Split, this);
+                    dlg.exec();
+                    m_activePanel->refresh();
+                }
+            }
+        } else if (cmd == "JoinFiles" || cmd == "JoinFile") {
+            if (m_activePanel) {
+                QStringList selected = m_activePanel->selectedPaths();
+                if (!selected.isEmpty()) {
+                    FileSplitterDialog dlg(selected.first(), FileSplitterDialog::Join, this);
+                    dlg.exec();
+                    m_activePanel->refresh();
+                }
             }
         } else if (cmd == "DuplicateFinder") {
             onDuplicateFinderAction();

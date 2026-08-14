@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(Amifiles VERSION 1.5.0.47 LANGUAGES CXX)
+project(Amifiles VERSION 1.5.0.48 LANGUAGES CXX)
 
 configure_file(
     "${PROJECT_SOURCE_DIR}/src/version.h.in"
@@ -59,6 +59,12 @@ add_executable(Amifiles
     src/comicthumbnailrunnable.cpp
     src/videothumbnailrunnable.h
     src/videothumbnailrunnable.cpp
+    src/metadatainspectorsidebar.h
+    src/metadatainspectorsidebar.cpp
+    src/batchtouchdialog.h
+    src/batchtouchdialog.cpp
+    src/filesplitterdialog.h
+    src/filesplitterdialog.cpp
     src/comicbookviewerdialog.h
     src/comicbookviewerdialog.cpp
     src/imagethumbnailrunnable.h

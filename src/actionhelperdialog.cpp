@@ -42,6 +42,9 @@ ActionHelperDialog::ActionHelperDialog(QWidget* parent) : QDialog(parent) {
         {"@internal:CreateSymlink", "Create Symlink in Sibling Pane", "Creates symbolic links for the selected files/directories inside the sibling pane directory."},
         {"@internal:AutoTidyFolder", "Auto-Tidy Active Folder", "Sorts loose files in the active folder into organized subfolders (Images, Documents, Videos, Audio, Archives, Code)."},
         {"@internal:AutoTidyDownloads", "Auto-Tidy Downloads Directory", "Sorts loose files in ~/Downloads into organized subfolders (Images, Documents, Videos, Audio, Archives, Code)."},
+        {"@internal:TouchFiles", "Batch Touch Timestamps & Attributes", "Batch modifies Created Date, Last Modified Date, Access Date, and permissions across selected files or directory trees."},
+        {"@internal:SplitFile", "File Splitter", "Splits large archives, ISOs, or video files into specified chunk volume sizes (50MB, 100MB, 700MB, 4GB, or custom)."},
+        {"@internal:JoinFiles", "File Recombiner / Joiner", "Recombines sequential volume parts (.001, .002...) back into the original intact file."},
         {"@internal:LockFolder", "Lock Folder/File", "Recursively strips write permissions from selected directories and files to protect them against deletion or modification."},
         {"@internal:UnlockFolder", "Unlock Folder/File", "Recursively restores write permissions to selected directories and files to make them editable/deletable again."},
         {"@internal:Cmd1 ; @internal:Cmd2", "Macro Chain (Sequential Execution)", "Combine multiple commands separated by ';' or '&&' into a single macro execution (e.g. '@internal:ScrapeVideoMetadata ; @internal:ApplyDvdCasing')."}
