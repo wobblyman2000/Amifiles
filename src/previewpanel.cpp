@@ -1196,9 +1196,19 @@ void FullscreenWidget::onHudEqualizer() {
     menu.setStyleSheet("QMenu { background-color: #1e1e2e; color: #cdd6f4; border: 1px solid #313244; } QMenu::item:selected { background-color: #313244; color: #89b4fa; }");
 
     QStringList presets = { "Flat (Default)", "Bass Boost 🔊", "Vocal Clarity 🎙️", "Treble Boost 🎼", "Movie Theater 🎬" };
+    QList<qreal> eqGains = { 1.0, 1.40, 1.20, 1.25, 1.50 };
+
     for (int i = 0; i < presets.size(); ++i) {
         QAction* act = menu.addAction(presets[i]);
-        connect(act, &QAction::triggered, this, [this, presets, i]() {
+        qreal gain = eqGains[i];
+        connect(act, &QAction::triggered, this, [this, presets, i, gain]() {
+            if (m_audioOutput) {
+                float vol = (m_sliderVolume ? m_sliderVolume->value() / 100.0f : 0.7f);
+                m_audioOutput->setVolume(qBound(0.0f, static_cast<float>(vol * gain), 2.0f));
+            } else if (m_player && m_player->audioOutput()) {
+                float vol = (m_sliderVolume ? m_sliderVolume->value() / 100.0f : 0.7f);
+                m_player->audioOutput()->setVolume(qBound(0.0f, static_cast<float>(vol * gain), 2.0f));
+            }
             showOsdMessage(QString("🎛️ Equalizer: %1").arg(presets[i]));
         });
     }

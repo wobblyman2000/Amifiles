@@ -40,6 +40,8 @@ ActionHelperDialog::ActionHelperDialog(QWidget* parent) : QDialog(parent) {
         {"@internal:ApplyBluRayCasing", "Apply Blu-ray Casing", "Wraps the cover art of the selected file or directory inside a premium Blu-ray case overlay."},
         {"@internal:PlayCollection", "Play Folder Collection", "Triggers folder-wide media playback for the active directory or highlights."},
         {"@internal:CreateSymlink", "Create Symlink in Sibling Pane", "Creates symbolic links for the selected files/directories inside the sibling pane directory."},
+        {"@internal:AutoTidyFolder", "Auto-Tidy Active Folder", "Sorts loose files in the active folder into organized subfolders (Images, Documents, Videos, Audio, Archives, Code)."},
+        {"@internal:AutoTidyDownloads", "Auto-Tidy Downloads Directory", "Sorts loose files in ~/Downloads into organized subfolders (Images, Documents, Videos, Audio, Archives, Code)."},
         {"@internal:LockFolder", "Lock Folder/File", "Recursively strips write permissions from selected directories and files to protect them against deletion or modification."},
         {"@internal:UnlockFolder", "Unlock Folder/File", "Recursively restores write permissions to selected directories and files to make them editable/deletable again."},
         {"@internal:Cmd1 ; @internal:Cmd2", "Macro Chain (Sequential Execution)", "Combine multiple commands separated by ';' or '&&' into a single macro execution (e.g. '@internal:ScrapeVideoMetadata ; @internal:ApplyDvdCasing')."}

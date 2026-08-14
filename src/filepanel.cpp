@@ -7,6 +7,8 @@ static bool isPathLockedPersistent(const QString& path);
 #include <QJsonObject>
 #include <QJsonDocument>
 #include "mainwindow.h"
+#include "autoorganizerdialog.h"
+#include <QStatusBar>
 #include "remotemountmanager.h"
 #include <QDebug>
 #include "theme.h"
@@ -4202,6 +4204,10 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         }
     }
 
+    QAction* autoTidyAct = new QAction(QIcon::fromTheme("system-run"), "🧹 Auto-Tidy / Organize Folder", &menu);
+    actionCommands[autoTidyAct] = "app.auto_tidy";
+    menu.addAction(autoTidyAct);
+
     // Execute menu on the active view layout widget
     QPoint globalPos = QCursor::pos();
     QAction* selected = menu.exec(globalPos);
@@ -4209,6 +4215,20 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
 
     QString command = actionCommands.value(selected);
     if (command.isEmpty()) return;
+
+    if (command == "app.auto_tidy") {
+        int count = AutoOrganizerDialog::autoTidyDirectory(m_currentPath);
+        refresh();
+        QWidget* parentW = parentWidget();
+        while (parentW && !parentW->inherits("MainWindow")) {
+            parentW = parentW->parentWidget();
+        }
+        MainWindow* mw = qobject_cast<MainWindow*>(parentW);
+        if (mw) {
+            mw->statusBar()->showMessage(QString("Auto-Tidy Complete: Organized %1 files in '%2'.").arg(count).arg(QFileInfo(m_currentPath).fileName()), 5000);
+        }
+        return;
+    }
 
     if (command.startsWith("app.apply_profile:")) {
         QString profileName = command.mid(QString("app.apply_profile:").length());
