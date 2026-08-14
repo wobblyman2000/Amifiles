@@ -6923,6 +6923,13 @@ void MainWindow::executeInternalCommand(const QString& script) {
                 m_activePanel->refresh();
             }
             statusBar()->showMessage(QString("Auto-Tidy Complete: Organized %1 files in Downloads.").arg(count), 5000);
+        } else if (cmd == "SyncPanes" || cmd == "SyncFolder") {
+            if (leftPanel() && rightPanel()) {
+                FolderSyncDialog dlg(leftPanel()->currentPath(), rightPanel()->currentPath(), this);
+                dlg.exec();
+                if (leftPanel()) leftPanel()->refresh();
+                if (rightPanel()) rightPanel()->refresh();
+            }
         } else if (cmd == "DuplicateFinder") {
             onDuplicateFinderAction();
         } else if (cmd == "SpaceAnalyzer") {

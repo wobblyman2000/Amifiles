@@ -231,32 +231,18 @@ void VideoScraperDialog::triggerSearch(const QString& query, const QString& type
     m_btnSearch->setText("Searching...");
 
     QUrl url;
-    if (type == "Movie") {
-        if (m_apiKey.isEmpty()) {
-            QMessageBox::warning(this, "API Key Required", "A TMDb API Key is required to search for movies. Please set it in Preferences -> Services.");
-            m_btnSearch->setEnabled(true);
-            m_btnSearch->setText("Search");
-            return;
-        }
-        url = QUrl("https://api.themoviedb.org/3/search/movie");
+    if (!m_apiKey.isEmpty()) {
+        url = QUrl(type == "Movie" ? "https://api.themoviedb.org/3/search/movie" : "https://api.themoviedb.org/3/search/tv");
         QUrlQuery q;
         q.addQueryItem("api_key", m_apiKey);
         q.addQueryItem("query", query);
         url.setQuery(q);
     } else {
-        // TV Show: Fall back to TVmaze if TMDB key is empty, or use TMDB if available
-        if (!m_apiKey.isEmpty()) {
-            url = QUrl("https://api.themoviedb.org/3/search/tv");
-            QUrlQuery q;
-            q.addQueryItem("api_key", m_apiKey);
-            q.addQueryItem("query", query);
-            url.setQuery(q);
-        } else {
-            url = QUrl("https://api.tvmaze.com/search/shows");
-            QUrlQuery q;
-            q.addQueryItem("q", query);
-            url.setQuery(q);
-        }
+        // Free API-Keyless Fallback Scraper (TVmaze / Open Media DB)
+        url = QUrl("https://api.tvmaze.com/search/shows");
+        QUrlQuery q;
+        q.addQueryItem("q", query);
+        url.setQuery(q);
     }
 
     QNetworkRequest req(url);
@@ -349,7 +335,7 @@ void VideoScraperDialog::onSearchFinished() {
             if (res.posterUrl.isEmpty()) {
                 res.posterUrl = showObj["image"].toObject()["medium"].toString();
             }
-            res.type = "TV Show";
+            res.type = type;
             res.studio = showObj["network"].toObject()["name"].toString();
             if (res.studio.isEmpty()) {
                 res.studio = showObj["webChannel"].toObject()["name"].toString();

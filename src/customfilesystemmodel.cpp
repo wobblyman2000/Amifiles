@@ -2,6 +2,7 @@
 #include "tagmanager.h"
 #include "comicthumbnailrunnable.h"
 #include "imagethumbnailrunnable.h"
+#include "videothumbnailrunnable.h"
 #include <QPainter>
 #include <QPainterPath>
 #include <QFontMetricsF>
@@ -767,6 +768,33 @@ QIcon CustomFileSystemModel::getRetroOrComicIcon(const QString& filePath) const 
             if (!m_pendingThumbnails.contains(filePath)) {
                 m_pendingThumbnails.insert(filePath);
                 ImageThumbnailRunnable* task = new ImageThumbnailRunnable(filePath, cachedPath, const_cast<CustomFileSystemModel*>(this));
+                QThreadPool::globalInstance()->start(task);
+            }
+        }
+
+        return QIcon();
+    }
+
+    static const QStringList videoExts = { "mp4", "mkv", "avi", "mov", "webm", "flv", "wmv", "m4v", "ts", "mpg", "mpeg", "ogv", "3gp" };
+    if (videoExts.contains(ext)) {
+        QString appDir = "/home/dave/.gemini/antigravity";
+        QByteArray hash = QCryptographicHash::hash(filePath.toUtf8(), QCryptographicHash::Md5);
+        QString cachedName = hash.toHex() + "_vid.png";
+        QString cachedPath = QDir(appDir).filePath("thumbnails/" + cachedName);
+
+        if (QFile::exists(cachedPath)) {
+            QPixmap pix(cachedPath);
+            if (!pix.isNull()) {
+                QIcon icon(pix);
+                m_thumbnailCache[filePath] = icon;
+                return icon;
+            }
+        }
+
+        if (!isRemotePath(filePath)) {
+            if (!m_pendingThumbnails.contains(filePath)) {
+                m_pendingThumbnails.insert(filePath);
+                VideoThumbnailRunnable* task = new VideoThumbnailRunnable(filePath, cachedPath, const_cast<CustomFileSystemModel*>(this));
                 QThreadPool::globalInstance()->start(task);
             }
         }
