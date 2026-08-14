@@ -23,6 +23,7 @@
 #include "screengrabdialog.h"
 #include "advancedtageditordialog.h"
 #include "cloudmountdialog.h"
+#include "filediffdialog.h"
 #include "imageconverterdialog.h"
 #include "agestylingdialog.h"
 #include "autoorganizerdialog.h"
@@ -6886,6 +6887,42 @@ void MainWindow::executeInternalCommand(const QString& script) {
             if (m_actToggleFlatView) m_actToggleFlatView->trigger();
         } else if (cmd == "CompareSync" || cmd == "FolderDiff") {
             onCompareSyncAction();
+        } else if (cmd == "CompareFiles") {
+            if (m_activePanel) {
+                QStringList sel = m_activePanel->selectedPaths();
+                if (sel.size() >= 2) {
+                    FileDiffDialog dlg(sel[0], sel[1], this);
+                    dlg.exec();
+                } else {
+                    FilePanel* sibling = (m_activePanel == leftPanel()) ? rightPanel() : leftPanel();
+                    if (sibling && !sel.isEmpty()) {
+                        QString p1 = sel.first();
+                        QString p2 = sibling->selectedPaths().isEmpty() ? "" : sibling->selectedPaths().first();
+                        if (!p2.isEmpty()) {
+                            FileDiffDialog dlg(p1, p2, this);
+                            dlg.exec();
+                        } else {
+                            QMessageBox::information(this, "Compare Files", "Please select two files in active pane, or one file in each pane to compare.");
+                        }
+                    } else {
+                        QMessageBox::information(this, "Compare Files", "Please select two files to compare.");
+                    }
+                }
+            }
+        } else if (cmd == "AutoTidyFolder" || cmd == "AutoTidy") {
+            if (m_activePanel) {
+                QString currentDir = m_activePanel->currentPath();
+                int count = AutoOrganizerDialog::autoTidyDirectory(currentDir);
+                m_activePanel->refresh();
+                statusBar()->showMessage(QString("Auto-Tidy Complete: Organized %1 files in '%2'.").arg(count).arg(QFileInfo(currentDir).fileName()), 5000);
+            }
+        } else if (cmd == "AutoTidyDownloads") {
+            QString downloadsPath = QDir::homePath() + "/Downloads";
+            int count = AutoOrganizerDialog::autoTidyDirectory(downloadsPath);
+            if (m_activePanel && m_activePanel->currentPath() == downloadsPath) {
+                m_activePanel->refresh();
+            }
+            statusBar()->showMessage(QString("Auto-Tidy Complete: Organized %1 files in Downloads.").arg(count), 5000);
         } else if (cmd == "DuplicateFinder") {
             onDuplicateFinderAction();
         } else if (cmd == "SpaceAnalyzer") {

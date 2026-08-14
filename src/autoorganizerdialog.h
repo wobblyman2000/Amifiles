@@ -22,6 +22,7 @@ public:
     static QList<AutoOrganizerRule> loadRules();
     static void saveRules(const QList<AutoOrganizerRule>& rules);
     static void executeRules();
+    static int autoTidyDirectory(const QString& targetDir);
 
 private slots:
     void onAddRule();

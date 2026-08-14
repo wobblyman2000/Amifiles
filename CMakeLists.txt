@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(Amifiles VERSION 1.5.0.41 LANGUAGES CXX)
+project(Amifiles VERSION 1.5.0.42 LANGUAGES CXX)
 
 configure_file(
     "${PROJECT_SOURCE_DIR}/src/version.h.in"
@@ -37,6 +37,8 @@ add_executable(Amifiles
     src/bulkrename.h
     src/bulkrename.cpp
     src/theme.h
+    src/filediffdialog.h
+    src/filediffdialog.cpp
     src/consolepanel.h
     src/consolepanel.cpp
     src/foldersizecalculator.h

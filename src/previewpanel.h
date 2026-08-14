@@ -161,10 +161,16 @@ signals:
     void playlistItemSelected(int index);
     void lyricsToggled(bool visible);
     void visualizerToggled(bool visible);
+    void captureSnapshotRequested();
+    void speedChanged(qreal rate);
 
 public slots:
     void setBuiltinPlayerDoubleclickActive(bool active);
     void onHudPlaylist();
+    void showOsdMessage(const QString& msg);
+    void onHudSpeed();
+    void onHudSnapshot();
+    void onHudEqualizer();
 
 protected:
     void keyPressEvent(class QKeyEvent* event) override;
@@ -194,6 +200,9 @@ private:
     class QPushButton* m_btnShuffle = nullptr;
     class QPushButton* m_btnRepeat = nullptr;
     class QPushButton* m_btnChapters = nullptr;
+    class QPushButton* m_btnSpeed = nullptr;
+    class QPushButton* m_btnSnapshot = nullptr;
+    class QPushButton* m_btnEqualizer = nullptr;
     class ScrubSlider* m_sliderProgress = nullptr;
     class QLabel* m_lblTime = nullptr;
     class QSlider* m_sliderVolume = nullptr;
@@ -211,6 +220,8 @@ private:
     class QLabel* m_lblNextPlaying = nullptr;
     class QLabel* m_lblCurrentArtwork = nullptr;
     class QLabel* m_lblNextArtwork = nullptr;
+    class QLabel* m_osdLabel = nullptr;
+    class QTimer* m_osdTimer = nullptr;
 
     class QPushButton* m_btnTogglePlaylist = nullptr;
     class QPushButton* m_btnToggleLyrics = nullptr;

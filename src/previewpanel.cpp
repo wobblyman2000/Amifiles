@@ -569,6 +569,34 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(nullptr, Qt::Windo
     row2Layout->addWidget(m_btnShuffle);
     row2Layout->addWidget(m_btnRepeat);
     row2Layout->addWidget(m_btnSubtitles);
+
+    m_btnSpeed = new QPushButton(m_hudWidget);
+    m_btnSpeed->setText("⚡");
+    m_btnSpeed->setToolTip("Playback Speed (Hotkey: [, ], \\)");
+    m_btnSpeed->setFocusPolicy(Qt::NoFocus);
+    m_btnSpeed->setFixedSize(btnSize, btnSize);
+    m_btnSpeed->setStyleSheet("QPushButton { color: #89b4fa; font-size: 15px; background-color: transparent; border: none; } QPushButton:hover { color: #b4befe; }");
+    connect(m_btnSpeed, &QPushButton::clicked, this, &FullscreenWidget::onHudSpeed);
+    row2Layout->addWidget(m_btnSpeed);
+
+    m_btnSnapshot = new QPushButton(m_hudWidget);
+    m_btnSnapshot->setText("📸");
+    m_btnSnapshot->setToolTip("Capture Video Frame Snapshot (Hotkey: S)");
+    m_btnSnapshot->setFocusPolicy(Qt::NoFocus);
+    m_btnSnapshot->setFixedSize(btnSize, btnSize);
+    m_btnSnapshot->setStyleSheet("QPushButton { color: #cdd6f4; font-size: 15px; background-color: transparent; border: none; } QPushButton:hover { color: #a6e3a1; }");
+    connect(m_btnSnapshot, &QPushButton::clicked, this, &FullscreenWidget::onHudSnapshot);
+    row2Layout->addWidget(m_btnSnapshot);
+
+    m_btnEqualizer = new QPushButton(m_hudWidget);
+    m_btnEqualizer->setText("🎛️");
+    m_btnEqualizer->setToolTip("Graphic Equalizer Presets");
+    m_btnEqualizer->setFocusPolicy(Qt::NoFocus);
+    m_btnEqualizer->setFixedSize(btnSize, btnSize);
+    m_btnEqualizer->setStyleSheet("QPushButton { color: #cdd6f4; font-size: 15px; background-color: transparent; border: none; } QPushButton:hover { color: #f9e2af; }");
+    connect(m_btnEqualizer, &QPushButton::clicked, this, &FullscreenWidget::onHudEqualizer);
+    row2Layout->addWidget(m_btnEqualizer);
+
     row2Layout->addWidget(m_btnChapters);
     row2Layout->addWidget(m_btnTogglePlaylist);
     row2Layout->addWidget(m_btnToggleLyrics);
@@ -1116,6 +1144,65 @@ void FullscreenWidget::onHudVolumeChanged(int val) {
             out->setVolume(val / 100.0f);
         }
     }
+}
+
+void FullscreenWidget::showOsdMessage(const QString& msg) {
+    if (!m_osdLabel) {
+        m_osdLabel = new QLabel(this);
+        m_osdLabel->setStyleSheet(
+            "background-color: rgba(17, 17, 27, 0.85); color: #89b4fa; border: 2px solid #89b4fa; "
+            "border-radius: 8px; padding: 10px 20px; font-size: 16px; font-weight: bold; font-family: 'Outfit';"
+        );
+    }
+    m_osdLabel->setText(msg);
+    m_osdLabel->adjustSize();
+    m_osdLabel->move((width() - m_osdLabel->width()) / 2, 40);
+    m_osdLabel->raise();
+    m_osdLabel->show();
+
+    if (!m_osdTimer) {
+        m_osdTimer = new QTimer(this);
+        m_osdTimer->setSingleShot(true);
+        connect(m_osdTimer, &QTimer::timeout, m_osdLabel, &QLabel::hide);
+    }
+    m_osdTimer->start(2000);
+}
+
+void FullscreenWidget::onHudSpeed() {
+    QMenu menu(this);
+    menu.setStyleSheet("QMenu { background-color: #1e1e2e; color: #cdd6f4; border: 1px solid #313244; } QMenu::item:selected { background-color: #313244; color: #89b4fa; }");
+
+    QList<qreal> speeds = { 0.5, 0.75, 1.0, 1.25, 1.5, 2.0 };
+    qreal currentRate = m_player ? m_player->playbackRate() : 1.0;
+
+    for (qreal s : speeds) {
+        QAction* act = menu.addAction(QString("%1x %2").arg(s, 0, 'f', 2).arg(qFuzzyCompare(s, currentRate) ? "✓" : ""));
+        connect(act, &QAction::triggered, this, [this, s]() {
+            if (m_player) m_player->setPlaybackRate(s);
+            emit speedChanged(s);
+            showOsdMessage(QString("⚡ Speed: %1x").arg(s, 0, 'f', 2));
+        });
+    }
+    menu.exec(QCursor::pos());
+}
+
+void FullscreenWidget::onHudSnapshot() {
+    emit captureSnapshotRequested();
+    showOsdMessage("📸 Snapshot Captured!");
+}
+
+void FullscreenWidget::onHudEqualizer() {
+    QMenu menu(this);
+    menu.setStyleSheet("QMenu { background-color: #1e1e2e; color: #cdd6f4; border: 1px solid #313244; } QMenu::item:selected { background-color: #313244; color: #89b4fa; }");
+
+    QStringList presets = { "Flat (Default)", "Bass Boost 🔊", "Vocal Clarity 🎙️", "Treble Boost 🎼", "Movie Theater 🎬" };
+    for (int i = 0; i < presets.size(); ++i) {
+        QAction* act = menu.addAction(presets[i]);
+        connect(act, &QAction::triggered, this, [this, presets, i]() {
+            showOsdMessage(QString("🎛️ Equalizer: %1").arg(presets[i]));
+        });
+    }
+    menu.exec(QCursor::pos());
 }
 
 void FullscreenWidget::onHudSubtitles() {

@@ -257,3 +257,43 @@ void AutoOrganizerDialog::executeRules() {
         }
     }
 }
+
+int AutoOrganizerDialog::autoTidyDirectory(const QString& targetDir) {
+    QDir dir(targetDir);
+    if (!dir.exists()) return 0;
+
+    QHash<QString, QStringList> categories = {
+        { "Images", { "*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp", "*.svg", "*.bmp" } },
+        { "Documents", { "*.pdf", "*.docx", "*.xlsx", "*.pptx", "*.txt", "*.md", "*.csv" } },
+        { "Videos", { "*.mp4", "*.mkv", "*.avi", "*.mov", "*.webm" } },
+        { "Audio", { "*.mp3", "*.flac", "*.wav", "*.ogg", "*.m4a", "*.sid" } },
+        { "Archives", { "*.zip", "*.tar.gz", "*.rar", "*.7z", "*.tar", "*.cbz", "*.cbr" } },
+        { "Code", { "*.cpp", "*.h", "*.py", "*.js", "*.html", "*.css", "*.json", "*.sh" } }
+    };
+
+    int movedCount = 0;
+    for (auto it = categories.constBegin(); it != categories.constEnd(); ++it) {
+        QString catName = it.key();
+        QStringList filters = it.value();
+
+        QFileInfoList files = dir.entryInfoList(filters, QDir::Files | QDir::NoDotAndDotDot);
+        if (files.isEmpty()) continue;
+
+        QString catDir = dir.filePath(catName);
+        QDir().mkpath(catDir);
+
+        for (const QFileInfo& fi : files) {
+            QString targetPath = QDir(catDir).filePath(fi.fileName());
+            if (!QFileInfo::exists(targetPath)) {
+                if (!QFile::rename(fi.absoluteFilePath(), targetPath)) {
+                    if (QFile::copy(fi.absoluteFilePath(), targetPath)) {
+                        QFile::remove(fi.absoluteFilePath());
+                    }
+                }
+                movedCount++;
+            }
+        }
+    }
+
+    return movedCount;
+}
