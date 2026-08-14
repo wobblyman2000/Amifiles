@@ -248,6 +248,7 @@ private slots:
     // Custom Buttons Slots
     void onAddCustomButton();
     void onCustomButtonClicked();
+    void executeInternalCommand(const QString& script);
     void onCustomToolBarContextMenu(const QPoint& pos);
     void onAdvancedSearch();
     

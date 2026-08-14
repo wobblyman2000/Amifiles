@@ -18,6 +18,7 @@ private slots:
     void onMirrorLeftToRight();
     void onMirrorRightToLeft();
     void onTwoWaySync();
+    void onExportReportClicked();
 
 private:
     struct SyncItem {
@@ -41,6 +42,7 @@ private:
     QPushButton* m_btnSyncL2R = nullptr;
     QPushButton* m_btnSyncR2L = nullptr;
     QPushButton* m_btnSyncTwoWay = nullptr;
+    QPushButton* m_btnExportReport = nullptr;
 
     QList<SyncItem> m_scanResults;
 };

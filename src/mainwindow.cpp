@@ -2821,70 +2821,8 @@ void MainWindow::onCustomButtonClicked() {
     QString script = act->property("script").toString().trimmed();
     if (script.isEmpty()) return;
 
-    if (script.startsWith("@internal:")) {
-        QString cmd = script.mid(10).trimmed();
-        if (cmd == "Copy") {
-            onCopyToSiblingAction();
-        } else if (cmd == "Move") {
-            onMoveToSiblingAction();
-        } else if (cmd == "Cut") {
-            onCutAction();
-        } else if (cmd == "Paste") {
-            onPasteAction();
-        } else if (cmd == "Delete") {
-            onDeleteAction();
-        } else if (cmd == "Rename") {
-            onRenameAction();
-        } else if (cmd == "NewFolder") {
-            onNewFolderAction();
-        } else if (cmd == "Refresh") {
-            onRefreshAction();
-        } else if (cmd == "ToggleDualPane") {
-            m_actToggleDualPane->trigger();
-        } else if (cmd == "TogglePreview") {
-            m_actTogglePreview->trigger();
-        } else if (cmd == "ToggleFlatView") {
-            m_actToggleFlatView->trigger();
-        } else if (cmd == "CompareSync" || cmd == "FolderDiff") {
-            onCompareSyncAction();
-        } else if (cmd == "DuplicateFinder") {
-            onDuplicateFinderAction();
-        } else if (cmd == "SpaceAnalyzer") {
-            onSpaceAnalyzerAction();
-        } else if (cmd == "BulkRename") {
-            onBulkRenameAction();
-        } else if (cmd == "SyncScheduler") {
-            onConfigureBackupSchedule();
-        } else if (cmd == "ChecksumTool") {
-            onCalculateChecksum();
-        } else if (cmd == "CloudMount") {
-            onCloudMount();
-        } else if (cmd == "Shred") {
-            onSecureShred();
-        } else if (cmd == "LockFolder") {
-            if (m_activePanel) m_activePanel->lockSelectedFolderRecursive(true);
-        } else if (cmd == "UnlockFolder") {
-            if (m_activePanel) m_activePanel->lockSelectedFolderRecursive(false);
-        } else if (cmd.startsWith("QuickRename_")) {
-            onQuickRenameAction(cmd.mid(12));
-        } else if (cmd == "SmartHome") {
-            if (m_activePanel) {
-                m_activePanel->setSmartHomeEnabled(true);
-                m_activePanel->setPath("smart://home");
-            }
-        } else if (cmd == "Home" || cmd == "GoHome") {
-            if (m_activePanel) m_activePanel->setPath(QDir::homePath());
-        } else if (cmd.startsWith("Go ") || cmd == "Go") {
-            QString path = cmd.mid(3).trimmed();
-            QString activeDir = m_activePanel ? m_activePanel->currentPath() : "";
-            FilePanel* destPanel = (m_activePanel == leftPanel()) ? rightPanel() : leftPanel();
-            QString destDir = destPanel ? destPanel->currentPath() : "";
-            path.replace("{dest}", destDir);
-            path.replace("{dir}", activeDir);
-            m_activePanel->setPath(path);
-        } else {
-            statusBar()->showMessage(QString("Unknown internal command: %1").arg(cmd), 4000);
-        }
+    if (script.startsWith("@internal:") || script.contains(";") || script.contains("&&")) {
+        executeInternalCommand(script);
         return;
     }
 
@@ -6878,12 +6816,56 @@ void MainWindow::executeCustomCommand(const QString& commandOrPath) {
         return;
     }
 
-    if (script.startsWith("@internal:")) {
-        QString cmd = script.mid(10).trimmed();
+    if (script.startsWith("@internal:") || script.contains(";") || script.contains("&&")) {
+        executeInternalCommand(script);
+        return;
+    }
+
+    QString activeDir = m_activePanel ? m_activePanel->currentPath() : QDir::homePath();
+    FilePanel* destPanel = (m_activePanel == leftPanel()) ? rightPanel() : leftPanel();
+    QString destDir = destPanel ? destPanel->currentPath() : QDir::homePath();
+    
+    QStringList curSelected = m_activePanel ? m_activePanel->selectedPaths() : QStringList();
+    QString firstSelected = curSelected.isEmpty() ? "" : curSelected.first();
+    QString firstSelectedName = firstSelected.isEmpty() ? "" : QFileInfo(firstSelected).fileName();
+    
+    QStringList quotedFiles;
+    QStringList quotedNames;
+    for (const QString& path : curSelected) {
+        quotedFiles.append("\"" + path + "\"");
+        quotedNames.append("\"" + QFileInfo(path).fileName() + "\"");
+    }
+    
+    script.replace("{file}", firstSelected.isEmpty() ? "" : "\"" + firstSelected + "\"");
+    script.replace("{files}", quotedFiles.join(" "));
+    script.replace("{name}", firstSelectedName.isEmpty() ? "" : "\"" + firstSelectedName + "\"");
+    script.replace("{names}", quotedNames.join(" "));
+    script.replace("{dir}", activeDir);
+    script.replace("{dest}", destDir);
+    
+    QProcess::startDetached("/bin/bash", QStringList() << "-c" << script);
+}
+
+void MainWindow::executeInternalCommand(const QString& script) {
+    QString trimmed = script.trimmed();
+    if (trimmed.isEmpty()) return;
+
+    if (trimmed.contains(";") || trimmed.contains("&&")) {
+        QStringList parts = trimmed.split(QRegularExpression(";|&&"), Qt::SkipEmptyParts);
+        for (const QString& part : parts) {
+            executeInternalCommand(part.trimmed());
+        }
+        return;
+    }
+
+    if (trimmed.startsWith("@internal:")) {
+        QString cmd = trimmed.mid(10).trimmed();
         if (cmd == "Copy") {
             onCopyToSiblingAction();
         } else if (cmd == "Move") {
             onMoveToSiblingAction();
+        } else if (cmd == "CreateSymlink") {
+            if (m_activePanel) m_activePanel->onCreateSymlinkInSiblingPane();
         } else if (cmd == "Cut") {
             onCutAction();
         } else if (cmd == "Paste") {
@@ -7009,11 +6991,6 @@ void MainWindow::executeCustomCommand(const QString& commandOrPath) {
             updateWidgetStylesheets();
         } else if (cmd.startsWith("QuickRename_")) {
             onQuickRenameAction(cmd.mid(12));
-        } else if (cmd == "SmartHome") {
-            if (m_activePanel) {
-                m_activePanel->setSmartHomeEnabled(true);
-                m_activePanel->setPath("smart://home");
-            }
         } else if (cmd == "Home" || cmd == "GoHome") {
             if (m_activePanel) m_activePanel->setPath(QDir::homePath());
         } else if (cmd.startsWith("Go ") || cmd == "Go") {
@@ -7058,32 +7035,7 @@ void MainWindow::executeCustomCommand(const QString& commandOrPath) {
         } else {
             statusBar()->showMessage(QString("Unknown internal command: %1").arg(cmd), 4000);
         }
-        return;
     }
-
-    QString activeDir = m_activePanel ? m_activePanel->currentPath() : QDir::homePath();
-    FilePanel* destPanel = (m_activePanel == leftPanel()) ? rightPanel() : leftPanel();
-    QString destDir = destPanel ? destPanel->currentPath() : QDir::homePath();
-    
-    QStringList curSelected = m_activePanel ? m_activePanel->selectedPaths() : QStringList();
-    QString firstSelected = curSelected.isEmpty() ? "" : curSelected.first();
-    QString firstSelectedName = firstSelected.isEmpty() ? "" : QFileInfo(firstSelected).fileName();
-    
-    QStringList quotedFiles;
-    QStringList quotedNames;
-    for (const QString& path : curSelected) {
-        quotedFiles.append("\"" + path + "\"");
-        quotedNames.append("\"" + QFileInfo(path).fileName() + "\"");
-    }
-    
-    script.replace("{file}", firstSelected.isEmpty() ? "" : "\"" + firstSelected + "\"");
-    script.replace("{files}", quotedFiles.join(" "));
-    script.replace("{name}", firstSelectedName.isEmpty() ? "" : "\"" + firstSelectedName + "\"");
-    script.replace("{names}", quotedNames.join(" "));
-    script.replace("{dir}", activeDir);
-    script.replace("{dest}", destDir);
-    
-    QProcess::startDetached("/bin/bash", QStringList() << "-c" << script);
 }
 
 QJsonArray MainWindow::getDefaultCustomMenus() {

@@ -4730,6 +4730,8 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         lockSelectedFolderRecursive(true);
     } else if (command == "app.unlock_folder_recursive") {
         lockSelectedFolderRecursive(false);
+    } else if (command == "app.create_symlink_sibling") {
+        onCreateSymlinkInSiblingPane();
     } else if (command == "app.remove_green_screen") {
         removeSelectedGreenScreen();
     } else if (command == "app.properties") {
@@ -9236,6 +9238,47 @@ void FilePanel::lockSelectedFolderRecursive(bool lock) {
     refresh();
 }
 
+void FilePanel::onCreateSymlinkInSiblingPane() {
+    FilePanel* targetPanel = m_siblingPanel;
+    if (!targetPanel) {
+        QMessageBox::warning(this, "Create Symlink", "Dual-pane split view is not active.");
+        return;
+    }
+    QString destDir = targetPanel->currentPath();
+    if (destDir.isEmpty() || destDir.startsWith("smart://")) {
+        QMessageBox::warning(this, "Create Symlink", "Invalid target folder in sibling pane.");
+        return;
+    }
+
+    QStringList targets = selectedPaths();
+    if (targets.isEmpty() && !m_currentPath.isEmpty() && !m_currentPath.startsWith("smart://")) {
+        targets.append(m_currentPath);
+    }
+    if (targets.isEmpty()) return;
+
+    int createdCount = 0;
+    for (const QString& target : targets) {
+        QFileInfo fi(target);
+        QString linkName = QDir(destDir).filePath(fi.fileName());
+        if (QFile::exists(linkName)) {
+            QMessageBox::warning(this, "Create Symlink", QString("Destination path already exists:\n%1").arg(linkName));
+            continue;
+        }
+        if (QFile::link(target, linkName)) {
+            createdCount++;
+        } else {
+            if (QProcess::execute("ln", { "-s", target, linkName }) == 0 && QFile::exists(linkName)) {
+                createdCount++;
+            } else {
+                QMessageBox::warning(this, "Create Symlink", QString("Failed to create symlink for:\n%1").arg(target));
+            }
+        }
+    }
+    if (createdCount > 0) {
+        targetPanel->refresh();
+    }
+}
+
 void FilePanel::removeSelectedGreenScreen() {
     QStringList paths = selectedPaths();
     if (paths.isEmpty()) return;
@@ -9429,6 +9472,7 @@ QJsonArray FilePanel::getDefaultContextMenuJson() const {
         sysKids.append(makeAction("Change File Permissions (chmod)...", "app.change_permissions", ""));
         sysKids.append(makeAction("Lock Folder/File (Prevent Deletion)", "app.lock_folder_recursive", ""));
         sysKids.append(makeAction("Unlock Folder/File", "app.unlock_folder_recursive", ""));
+        sysKids.append(makeAction("🔗 Create Symlink in Sibling Pane", "app.create_symlink_sibling", ""));
         sysKids.append(makeAction("Remove Green Screen 🟢", "app.remove_green_screen", ""));
         sysKids.append(makeSeparator());
         sysKids.append(makeAction("Compare Selected Files", "app.compare_selected", ""));
@@ -9845,6 +9889,10 @@ QAction* FilePanel::createContextMenuAction(QMenu* parentMenu, const QJsonObject
     } else if (command == "app.unlock_folder_recursive") {
         if (!selected.isEmpty()) {
             act = parentMenu->addAction(icon, "Unlock Folder/File");
+        }
+    } else if (command == "app.create_symlink_sibling") {
+        if (m_siblingPanel) {
+            act = parentMenu->addAction(icon, "🔗 Create Symlink in Sibling Pane");
         }
     } else if (command == "app.remove_green_screen") {
         QStringList imageExts = { "jpg", "jpeg", "png", "webp", "bmp" };

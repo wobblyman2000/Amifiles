@@ -1030,6 +1030,7 @@ public slots:
     void queueCurrentOrSelectedFolder();
     void playPlaylistQueue();
     void lockSelectedFolderRecursive(bool lock);
+    void onCreateSymlinkInSiblingPane();
 
 private slots:
     void onPathEntered();

@@ -248,7 +248,11 @@ void AutoOrganizerDialog::executeRules() {
             QString targetFile = r.targetPath + "/" + fi.fileName();
             // Prevent overriding existing files
             if (!QFileInfo::exists(targetFile)) {
-                QFile::rename(fi.absoluteFilePath(), targetFile);
+                if (!QFile::rename(fi.absoluteFilePath(), targetFile)) {
+                    if (QFile::copy(fi.absoluteFilePath(), targetFile)) {
+                        QFile::remove(fi.absoluteFilePath());
+                    }
+                }
             }
         }
     }

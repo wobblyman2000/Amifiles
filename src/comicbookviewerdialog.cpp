@@ -163,33 +163,43 @@ void ComicBookViewerDialog::displayPage() {
     QString targetPage = m_pages[m_currentIndex];
     QFileInfo info(m_archivePath);
     QString ext = info.suffix().toLower();
-    QByteArray rawData;
+
+    m_imageLabel->setText(QString("Loading page %1...").arg(m_currentIndex + 1));
+
+    QProcess* proc = new QProcess(this);
+    QString archivePath = m_archivePath;
+    int pageIndex = m_currentIndex;
+
+    connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this, [this, proc, pageIndex](int exitCode, QProcess::ExitStatus exitStatus) {
+        Q_UNUSED(exitCode);
+        Q_UNUSED(exitStatus);
+        QByteArray rawData = proc->readAllStandardOutput();
+        proc->deleteLater();
+
+        if (pageIndex != m_currentIndex) {
+            return; // Outdated request
+        }
+
+        if (m_currentImage.loadFromData(rawData)) {
+            m_pageCombo->blockSignals(true);
+            m_pageCombo->setCurrentIndex(m_currentIndex);
+            m_pageCombo->blockSignals(false);
+
+            updateNavigationUI();
+            resizeEvent(nullptr);
+        } else {
+            m_imageLabel->setText(QString("Failed to load page %1").arg(m_currentIndex + 1));
+        }
+    });
 
     if (ext == "cbz") {
-        QProcess proc;
-        proc.start("unzip", { "-p", m_archivePath, targetPage });
-        if (proc.waitForFinished(5000)) {
-            rawData = proc.readAllStandardOutput();
-        }
+        proc->start("unzip", { "-p", archivePath, targetPage });
     } else if (ext == "cbr") {
-        QProcess proc;
-        proc.start("unrar", { "p", "-inul", m_archivePath, targetPage });
-        if (proc.waitForFinished(5000)) {
-            rawData = proc.readAllStandardOutput();
-        }
+        proc->start("unrar", { "p", "-inul", archivePath, targetPage });
+    } else {
+        proc->deleteLater();
+        m_imageLabel->setText("Unsupported archive format.");
     }
-
-    if (!m_currentImage.loadFromData(rawData)) {
-        m_imageLabel->setText(QString("Failed to load page %1").arg(m_currentIndex + 1));
-        return;
-    }
-
-    m_pageCombo->blockSignals(true);
-    m_pageCombo->setCurrentIndex(m_currentIndex);
-    m_pageCombo->blockSignals(false);
-
-    updateNavigationUI();
-    resizeEvent(nullptr); // Force scale refresh
 }
 
 void ComicBookViewerDialog::updateNavigationUI() {

@@ -7,6 +7,9 @@
 #include <QHeaderView>
 #include <QApplication>
 #include <QMessageBox>
+#include <QFileDialog>
+#include <QTextStream>
+#include <QDateTime>
 
 FolderDiffDialog::FolderDiffDialog(const QString& leftPath, const QString& rightPath, QWidget* parent)
     : QDialog(parent) {
@@ -80,9 +83,15 @@ FolderDiffDialog::FolderDiffDialog(const QString& leftPath, const QString& right
     m_btnSyncTwoWay->setStyleSheet("QPushButton:enabled { background-color: #a6e3a1; color: #11111b; }");
     connect(m_btnSyncTwoWay, &QPushButton::clicked, this, &FolderDiffDialog::onTwoWaySync);
 
+    m_btnExportReport = new QPushButton("📄 Export Diff Snapshot...", this);
+    m_btnExportReport->setEnabled(false);
+    m_btnExportReport->setStyleSheet("QPushButton:enabled { background-color: #f9e2af; color: #11111b; }");
+    connect(m_btnExportReport, &QPushButton::clicked, this, &FolderDiffDialog::onExportReportClicked);
+
     syncLayout->addWidget(m_btnSyncL2R);
     syncLayout->addWidget(m_btnSyncR2L);
     syncLayout->addWidget(m_btnSyncTwoWay);
+    syncLayout->addWidget(m_btnExportReport);
     
     QPushButton* btnClose = new QPushButton("Close", this);
     connect(btnClose, &QPushButton::clicked, this, &QDialog::accept);
@@ -135,11 +144,11 @@ void FolderDiffDialog::onCompareClicked() {
     }
 
     m_progressBar->setVisible(false);
-    m_statusLabel->setText(QString("Scan finished. Found %1 difference items.").arg(m_scanResults.size()));
-
     m_btnSyncL2R->setEnabled(true);
     m_btnSyncR2L->setEnabled(true);
     m_btnSyncTwoWay->setEnabled(true);
+    m_btnExportReport->setEnabled(true);
+    m_statusLabel->setText(QString("Comparison finished. %1 items analyzed.").arg(m_scanResults.size()));
 }
 
 void FolderDiffDialog::scanDirectories(const QString& left, const QString& right) {
@@ -222,6 +231,81 @@ void FolderDiffDialog::onTwoWaySync() {
         return;
     }
     syncFiles(m_scanResults, true, true);
+}
+
+void FolderDiffDialog::onExportReportClicked() {
+    if (m_scanResults.isEmpty()) {
+        QMessageBox::information(this, "Export Report", "No comparison results available to export.");
+        return;
+    }
+
+    QString defaultName = QDir(m_leftEdit->text()).dirName() + "_vs_" + QDir(m_rightEdit->text()).dirName() + "_Diff_Report.md";
+    QString fileName = QFileDialog::getSaveFileName(this, "Export Comparison Report", QDir::homePath() + "/" + defaultName, "Markdown Report (*.md);;HTML Report (*.html)");
+    if (fileName.isEmpty()) return;
+
+    QFile file(fileName);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QMessageBox::critical(this, "Export Report", "Could not open file for writing.");
+        return;
+    }
+
+    QTextStream out(&file);
+
+    int leftOnly = 0, rightOnly = 0, leftNewer = 0, rightNewer = 0, identical = 0;
+    for (const auto& item : m_scanResults) {
+        if (item.status == "Left Only") leftOnly++;
+        else if (item.status == "Right Only") rightOnly++;
+        else if (item.status == "Left Newer") leftNewer++;
+        else if (item.status == "Right Newer") rightNewer++;
+        else if (item.status == "Identical") identical++;
+    }
+
+    if (fileName.endsWith(".html", Qt::CaseInsensitive)) {
+        out << "<html><head><title>Directory Comparison Report</title>";
+        out << "<style>body{font-family:sans-serif;background:#1e1e2e;color:#cdd6f4;padding:20px;}"
+            << "table{border-collapse:collapse;width:100%;margin-top:15px;}"
+            << "th,td{border:1px solid #45475a;padding:8px;text-align:left;}"
+            << "th{background:#313244;color:#a6e3a1;}</style></head><body>";
+        out << "<h1>Directory Comparison Report</h1>";
+        out << "<p><b>Left Directory:</b> " << m_leftEdit->text() << "<br>";
+        out << "<b>Right Directory:</b> " << m_rightEdit->text() << "<br>";
+        out << "<b>Generated:</b> " << QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss") << "</p>";
+        out << "<h3>Summary Stats</h3><ul>"
+            << "<li>Total Files Analyzed: " << m_scanResults.size() << "</li>"
+            << "<li>Left Only: " << leftOnly << "</li>"
+            << "<li>Right Only: " << rightOnly << "</li>"
+            << "<li>Left Newer: " << leftNewer << "</li>"
+            << "<li>Right Newer: " << rightNewer << "</li>"
+            << "<li>Identical: " << identical << "</li></ul>";
+        out << "<h3>Detailed File Comparison</h3><table>"
+            << "<tr><th>Relative Path</th><th>Status</th><th>Size</th></tr>";
+        for (const auto& item : m_scanResults) {
+            out << "<tr><td>" << item.relativePath << "</td><td>" << item.status << "</td><td>" << item.size << " B</td></tr>";
+        }
+        out << "</table></body></html>";
+    } else {
+        out << "# Directory Comparison Report\n\n";
+        out << "- **Left Directory:** `" << m_leftEdit->text() << "`\n";
+        out << "- **Right Directory:** `" << m_rightEdit->text() << "`\n";
+        out << "- **Generated:** " << QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss") << "\n\n";
+        out << "## Summary Stats\n\n";
+        out << "| Metric | Count |\n";
+        out << "| :--- | :--- |\n";
+        out << "| Total Files Analyzed | " << m_scanResults.size() << " |\n";
+        out << "| Left Only | " << leftOnly << " |\n";
+        out << "| Right Only | " << rightOnly << " |\n";
+        out << "| Left Newer | " << leftNewer << " |\n";
+        out << "| Right Newer | " << rightNewer << " |\n";
+        out << "| Identical | " << identical << " |\n\n";
+        out << "## Detailed File Comparison\n\n";
+        out << "| Relative Path | Sync Status | File Size (Bytes) |\n";
+        out << "| :--- | :--- | :--- |\n";
+        for (const auto& item : m_scanResults) {
+            out << "| `" << item.relativePath << "` | " << item.status << " | " << item.size << " |\n";
+        }
+    }
+
+    QMessageBox::information(this, "Export Completed", QString("Comparison report exported successfully to:\n%1").arg(fileName));
 }
 
 void FolderDiffDialog::syncFiles(const QList<SyncItem>& items, bool leftToRight, bool rightToLeft) {

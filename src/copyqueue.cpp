@@ -235,19 +235,20 @@ int CopyQueueWorker::checkCollision(const QString& src, const QString& dest) {
 
 bool CopyQueueWorker::processJob(const CopyJob& job) {
     m_defaultResolution.store(ResolvePrompt);
+    CopyJob effectiveJob = job;
 
-    if (job.isMove) {
-        QFileInfo destInfo(job.destPath);
+    if (effectiveJob.isMove) {
+        QFileInfo destInfo(effectiveJob.destPath);
         if (!destInfo.exists()) {
-            if (QFile::rename(job.srcPath, job.destPath)) {
-                QMetaObject::invokeMethod(&TagManager::instance(), [src = job.srcPath, dest = job.destPath]() {
+            if (QFile::rename(effectiveJob.srcPath, effectiveJob.destPath)) {
+                QMetaObject::invokeMethod(&TagManager::instance(), [src = effectiveJob.srcPath, dest = effectiveJob.destPath]() {
                     TagManager::instance().renamePathInDatabase(src, dest);
                 });
-                QFile(job.destPath).setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
+                QFile(effectiveJob.destPath).setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
                 return true;
             }
         } else {
-            int res = checkCollision(job.srcPath, job.destPath);
+            int res = checkCollision(effectiveJob.srcPath, effectiveJob.destPath);
             if (res == ResolveSkip) {
                 return true;
             }
@@ -255,50 +256,55 @@ bool CopyQueueWorker::processJob(const CopyJob& job) {
                 return false;
             }
             if (res == ResolveOverwrite) {
-                QFile::remove(job.destPath);
-                if (QFile::rename(job.srcPath, job.destPath)) {
-                    QMetaObject::invokeMethod(&TagManager::instance(), [src = job.srcPath, dest = job.destPath]() {
+                QFile::remove(effectiveJob.destPath);
+                if (QFile::rename(effectiveJob.srcPath, effectiveJob.destPath)) {
+                    QMetaObject::invokeMethod(&TagManager::instance(), [src = effectiveJob.srcPath, dest = effectiveJob.destPath]() {
                         TagManager::instance().renamePathInDatabase(src, dest);
                     });
-                    QFile(job.destPath).setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
+                    QFile(effectiveJob.destPath).setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
                     return true;
                 }
             }
             if (res == ResolveKeepBoth) {
-                QFileInfo info(job.destPath);
+                QFileInfo info(effectiveJob.destPath);
                 QString dir = info.absolutePath();
                 QString base = info.completeBaseName();
                 QString suffix = info.suffix();
-                QString newDest = job.destPath;
+                QString newDest = effectiveJob.destPath;
                 int counter = 1;
                 while (QFile::exists(newDest)) {
                     newDest = QDir(dir).filePath(QString("%1 (%2).%3").arg(base).arg(counter++).arg(suffix));
                 }
-                if (QFile::rename(job.srcPath, newDest)) {
-                    QMetaObject::invokeMethod(&TagManager::instance(), [src = job.srcPath, dest = newDest]() {
+                effectiveJob.destPath = newDest;
+                if (QFile::rename(effectiveJob.srcPath, effectiveJob.destPath)) {
+                    QMetaObject::invokeMethod(&TagManager::instance(), [src = effectiveJob.srcPath, dest = effectiveJob.destPath]() {
                         TagManager::instance().renamePathInDatabase(src, dest);
                     });
-                    QFile(newDest).setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
+                    QFile(effectiveJob.destPath).setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
                     return true;
                 }
             }
         }
     }
 
-    QFileInfo srcInfo(job.srcPath);
+    // Fallback for cross-device moves or failed single rename
+    QFileInfo srcInfo(effectiveJob.srcPath);
     bool success = false;
     if (srcInfo.isDir()) {
-        success = copyDirRecursively(job.srcPath, job.destPath);
+        success = copyDirRecursively(effectiveJob.srcPath, effectiveJob.destPath);
     } else {
-        success = copyFileChunked(job.srcPath, job.destPath);
+        success = copyFileChunked(effectiveJob.srcPath, effectiveJob.destPath);
     }
 
-    if (job.isMove && success) {
+    if (effectiveJob.isMove && success) {
         if (srcInfo.isDir()) {
-            QDir(job.srcPath).removeRecursively();
+            QDir(effectiveJob.srcPath).removeRecursively();
         } else {
-            QFile::remove(job.srcPath);
+            QFile::remove(effectiveJob.srcPath);
         }
+        QMetaObject::invokeMethod(&TagManager::instance(), [src = effectiveJob.srcPath, dest = effectiveJob.destPath]() {
+            TagManager::instance().renamePathInDatabase(src, dest);
+        });
     }
     return success;
 }
