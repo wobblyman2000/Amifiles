@@ -723,9 +723,6 @@ void HomeDashboardWidget::populateQuickAccess() {
     };
 
     auto resolveValidUserDir = [](QStandardPaths::StandardLocation loc, const QString& primaryName, const QString& secondaryName = QString()) -> QString {
-        QString p = QStandardPaths::writableLocation(loc);
-        if (!p.isEmpty() && QDir(p).exists()) return p;
-
         QString p1 = QDir::homePath() + "/" + primaryName;
         if (QDir(p1).exists()) return p1;
 
@@ -733,6 +730,9 @@ void HomeDashboardWidget::populateQuickAccess() {
             QString p2 = QDir::homePath() + "/" + secondaryName;
             if (QDir(p2).exists()) return p2;
         }
+
+        QString p = QStandardPaths::writableLocation(loc);
+        if (!p.isEmpty() && p != QDir::homePath() && QDir(p).exists()) return p;
 
         QDir().mkpath(p1);
         return p1;
