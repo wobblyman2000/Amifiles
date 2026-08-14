@@ -722,13 +722,29 @@ void HomeDashboardWidget::populateQuickAccess() {
         QString icon;
     };
 
+    auto resolveValidUserDir = [](QStandardPaths::StandardLocation loc, const QString& primaryName, const QString& secondaryName = QString()) -> QString {
+        QString p = QStandardPaths::writableLocation(loc);
+        if (!p.isEmpty() && QDir(p).exists()) return p;
+
+        QString p1 = QDir::homePath() + "/" + primaryName;
+        if (QDir(p1).exists()) return p1;
+
+        if (!secondaryName.isEmpty()) {
+            QString p2 = QDir::homePath() + "/" + secondaryName;
+            if (QDir(p2).exists()) return p2;
+        }
+
+        QDir().mkpath(p1);
+        return p1;
+    };
+
     QList<QAEntry> entries = {
-        {"Documents", QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation), "📄"},
-        {"Downloads", QStandardPaths::writableLocation(QStandardPaths::DownloadLocation), "📥"},
-        {"Music", QStandardPaths::writableLocation(QStandardPaths::MusicLocation), "🎵"},
-        {"Desktop", QStandardPaths::writableLocation(QStandardPaths::DesktopLocation), "🖥️"},
-        {"Videos", QStandardPaths::writableLocation(QStandardPaths::MoviesLocation), "🎬"},
-        {"Pictures", QStandardPaths::writableLocation(QStandardPaths::PicturesLocation), "🖼️"},
+        {"Documents", resolveValidUserDir(QStandardPaths::DocumentsLocation, "Documents"), "📄"},
+        {"Downloads", resolveValidUserDir(QStandardPaths::DownloadLocation, "Downloads"), "📥"},
+        {"Music", resolveValidUserDir(QStandardPaths::MusicLocation, "Music"), "🎵"},
+        {"Desktop", resolveValidUserDir(QStandardPaths::DesktopLocation, "Desktop"), "🖥️"},
+        {"Videos", resolveValidUserDir(QStandardPaths::MoviesLocation, "Videos", "Movies"), "🎬"},
+        {"Pictures", resolveValidUserDir(QStandardPaths::PicturesLocation, "Pictures"), "🖼️"},
         {"Home Directory", QDir::homePath(), "🏠"}
     };
 
