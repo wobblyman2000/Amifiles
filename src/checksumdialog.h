@@ -41,6 +41,12 @@ private slots:
     void onCopyMd5();
     void onCopySha1();
     void onCopySha256();
+    void onBrowseGenFolder();
+    void onBrowseGenOutput();
+    void onGenerateManifest();
+    void onBrowseVerifyManifest();
+    void onBrowseVerifyFolder();
+    void onVerifyManifest();
 
 private:
     void setupUI();
@@ -48,6 +54,8 @@ private:
 
     QString m_filePath;
     HashWorker* m_worker = nullptr;
+
+    class QTabWidget* m_tabWidget = nullptr;
 
     QLabel* m_lblFile = nullptr;
     QPushButton* m_btnSelectFile = nullptr;
@@ -65,6 +73,17 @@ private:
     QString m_hashMd5;
     QString m_hashSha1;
     QString m_hashSha256;
+
+    // Manifest Generator UI
+    QLineEdit* m_editGenFolder = nullptr;
+    QLineEdit* m_editGenOutput = nullptr;
+    class QComboBox* m_comboGenFormat = nullptr;
+
+    // Manifest Verifier UI
+    QLineEdit* m_editVerifyManifest = nullptr;
+    QLineEdit* m_editVerifyFolder = nullptr;
+    class QTreeWidget* m_treeVerify = nullptr;
+    QLabel* m_lblVerifyStats = nullptr;
 };
 
 #endif // CHECKSUMDIALOG_H

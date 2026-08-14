@@ -13,7 +13,7 @@ class QComboBox;
 class ArchiveDialog : public QDialog {
     Q_OBJECT
 public:
-    enum Mode { ModeCreate, ModeExtract };
+    enum Mode { ModeCreate, ModeExtract, ModeBatchCompress, ModeConvert };
 
     // Constructor for creating an archive from files
     ArchiveDialog(Mode mode, const QStringList& sourcePaths, const QString& currentDir, bool enablePassword = false, QWidget* parent = nullptr);
@@ -26,6 +26,8 @@ private slots:
     void onProcessReadyRead();
     void onProcessFinished(int exitCode, QProcess::ExitStatus status);
     void onCancelClicked();
+    void startBatchCompression();
+    void startConversion();
 
 private:
     void setupUI();

@@ -249,6 +249,9 @@ private slots:
     void onAddCustomButton();
     void onCustomButtonClicked();
     void executeInternalCommand(const QString& script);
+    void saveWorkspacePreset(const QString& name = QString());
+    void loadWorkspacePreset(const QString& name = QString());
+    void manageWorkspacePresets();
     void onCustomToolBarContextMenu(const QPoint& pos);
     void onAdvancedSearch();
     

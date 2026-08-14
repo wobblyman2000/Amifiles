@@ -14,6 +14,8 @@
 #include <QMessageBox>
 #include <QProcess>
 #include <QTimer>
+#include <QDateTime>
+#include <QApplication>
 #include <QRegularExpression>
 
 ArchiveDialog::ArchiveDialog(Mode mode, const QStringList& sourcePaths, const QString& currentDir, bool enablePassword, QWidget* parent)
@@ -183,8 +185,109 @@ void ArchiveDialog::setupUI() {
 void ArchiveDialog::onStartClicked() {
     if (m_mode == ModeCreate) {
         startCreation();
-    } else {
+    } else if (m_mode == ModeExtract) {
         startExtraction();
+    } else if (m_mode == ModeBatchCompress) {
+        startBatchCompression();
+    } else if (m_mode == ModeConvert) {
+        startConversion();
+    }
+}
+
+void ArchiveDialog::startBatchCompression() {
+    if (m_sourcePaths.isEmpty()) {
+        QMessageBox::warning(this, "Batch Compression", "No source paths selected.");
+        return;
+    }
+
+    m_btnAction->setEnabled(false);
+    m_progressBar->setVisible(true);
+
+    int count = 0;
+    int total = m_sourcePaths.size();
+
+    for (int i = 0; i < total; ++i) {
+        QString path = m_sourcePaths[i];
+        QFileInfo fi(path);
+        QString outName = fi.fileName() + ".zip";
+        if (m_comboFormat && m_comboFormat->currentText().contains("Comic", Qt::CaseInsensitive)) {
+            outName = fi.fileName() + ".cbz";
+        }
+        QString outPath = QDir(m_currentDir).filePath(outName);
+
+        updateProgress(static_cast<int>((i * 100) / total), QString("Compressing %1...").arg(fi.fileName()));
+        QApplication::processEvents();
+
+        QProcess proc;
+        proc.setWorkingDirectory(fi.absolutePath());
+        proc.start("zip", { "-r", outPath, fi.fileName() });
+        proc.waitForFinished(-1);
+        count++;
+    }
+
+    updateProgress(100, QString("Completed batch compression of %1 items.").arg(count));
+    QMessageBox::information(this, "Batch Compression", QString("Successfully created %1 archives.").arg(count));
+    accept();
+}
+
+void ArchiveDialog::startConversion() {
+    if (m_archivePath.isEmpty() || !QFile::exists(m_archivePath)) {
+        QMessageBox::warning(this, "Convert Archive", "Invalid source archive file.");
+        return;
+    }
+
+    m_btnAction->setEnabled(false);
+    m_progressBar->setVisible(true);
+
+    QFileInfo info(m_archivePath);
+    QString tempDir = QDir::tempPath() + "/amifiles_conv_" + QString::number(QDateTime::currentMSecsSinceEpoch());
+    QDir().mkpath(tempDir);
+
+    updateProgress(20, "Extracting source archive...");
+    QApplication::processEvents();
+
+    QProcess extProc;
+    if (info.suffix().toLower() == "rar" || info.suffix().toLower() == "cbr") {
+        extProc.start("unrar", { "x", "-inul", m_archivePath, tempDir + "/" });
+    } else {
+        extProc.start("unzip", { m_archivePath, "-d", tempDir });
+    }
+    extProc.waitForFinished(-1);
+
+    updateProgress(60, "Re-compressing to target format...");
+    QApplication::processEvents();
+
+    QString targetExt = ".cbz";
+    if (m_comboFormat && m_comboFormat->currentText().contains("7z", Qt::CaseInsensitive)) {
+        targetExt = ".7z";
+    } else if (m_comboFormat && m_comboFormat->currentText().contains("zip", Qt::CaseInsensitive)) {
+        targetExt = ".zip";
+    }
+
+    QString targetArchive = QDir(m_currentDir).filePath(info.completeBaseName() + targetExt);
+
+    QProcess compProc;
+    compProc.setWorkingDirectory(tempDir);
+    if (targetExt == ".7z") {
+        compProc.start("7z", { "a", targetArchive, "." });
+    } else {
+        compProc.start("zip", { "-r", targetArchive, "." });
+    }
+    compProc.waitForFinished(-1);
+
+    QDir(tempDir).removeRecursively();
+
+    updateProgress(100, "Archive conversion completed!");
+    QMessageBox::information(this, "Archive Converted", QString("Successfully converted archive to:\n%1").arg(targetArchive));
+    accept();
+}
+
+void ArchiveDialog::updateProgress(int percent, const QString& statusText) {
+    if (m_progressBar) {
+        m_progressBar->setValue(percent);
+    }
+    if (m_lblStatus) {
+        m_lblStatus->setText(statusText);
     }
 }
 

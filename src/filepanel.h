@@ -1259,6 +1259,14 @@ private:
     QString m_cachedBgPath;
     QString m_cachedBgStyle;
 
+    // Type-Ahead Quick Jump Overlay
+    QLabel* m_typeAheadBadge = nullptr;
+    QTimer* m_typeAheadTimer = nullptr;
+    QString m_typeAheadString;
+
+protected:
+    void keyPressEvent(QKeyEvent* event) override;
+
     class QMediaPlayer* m_themePlayer = nullptr;
     class QAudioOutput* m_themeAudio = nullptr;
     QString m_currentThemePath;

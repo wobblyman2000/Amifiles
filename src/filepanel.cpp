@@ -9279,6 +9279,71 @@ void FilePanel::onCreateSymlinkInSiblingPane() {
     }
 }
 
+void FilePanel::keyPressEvent(QKeyEvent* event) {
+    if (m_filterEdit && m_filterEdit->hasFocus()) {
+        QWidget::keyPressEvent(event);
+        return;
+    }
+
+    if (event->key() == Qt::Key_Escape) {
+        if (!m_typeAheadString.isEmpty()) {
+            m_typeAheadString.clear();
+            if (m_typeAheadBadge) m_typeAheadBadge->hide();
+            if (m_filterEdit) m_filterEdit->clear();
+            event->accept();
+            return;
+        }
+    } else if (event->key() == Qt::Key_Backspace) {
+        if (!m_typeAheadString.isEmpty()) {
+            m_typeAheadString.chop(1);
+            if (m_typeAheadString.isEmpty()) {
+                if (m_typeAheadBadge) m_typeAheadBadge->hide();
+                if (m_filterEdit) m_filterEdit->clear();
+            } else {
+                if (m_filterEdit) m_filterEdit->setText(m_typeAheadString);
+            }
+            event->accept();
+            return;
+        }
+    } else if (!event->text().isEmpty() && !(event->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier))) {
+        QChar ch = event->text().at(0);
+        if (ch.isPrint() && ch != '\r' && ch != '\n' && ch != '\t') {
+            m_typeAheadString.append(ch);
+
+            if (!m_typeAheadBadge) {
+                m_typeAheadBadge = new QLabel(this);
+                m_typeAheadBadge->setStyleSheet(
+                    "background-color: #11111b; color: #89b4fa; border: 2px solid #89b4fa; "
+                    "border-radius: 6px; padding: 4px 10px; font-weight: bold; font-size: 13px;"
+                );
+            }
+            m_typeAheadBadge->setText(QString("🔍 Jump: \"%1\"").arg(m_typeAheadString));
+            m_typeAheadBadge->adjustSize();
+            m_typeAheadBadge->move(width() - m_typeAheadBadge->width() - 20, 45);
+            m_typeAheadBadge->raise();
+            m_typeAheadBadge->show();
+
+            if (!m_typeAheadTimer) {
+                m_typeAheadTimer = new QTimer(this);
+                m_typeAheadTimer->setSingleShot(true);
+                connect(m_typeAheadTimer, &QTimer::timeout, this, [this]() {
+                    m_typeAheadString.clear();
+                    if (m_typeAheadBadge) m_typeAheadBadge->hide();
+                });
+            }
+            m_typeAheadTimer->start(1800);
+
+            if (m_filterEdit) {
+                m_filterEdit->setText(m_typeAheadString);
+            }
+            event->accept();
+            return;
+        }
+    }
+
+    QWidget::keyPressEvent(event);
+}
+
 void FilePanel::removeSelectedGreenScreen() {
     QStringList paths = selectedPaths();
     if (paths.isEmpty()) return;

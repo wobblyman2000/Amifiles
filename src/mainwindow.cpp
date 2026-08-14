@@ -7032,9 +7032,131 @@ void MainWindow::executeInternalCommand(const QString& script) {
                 }
                 statusBar()->showMessage(QString("Profile not found: '%1'. Available: %2").arg(profileName).arg(available.join(", ")), 6000);
             }
+        } else if (cmd.startsWith("SaveWorkspace")) {
+            saveWorkspacePreset(cmd.mid(13).trimmed());
+        } else if (cmd.startsWith("LoadWorkspace")) {
+            loadWorkspacePreset(cmd.mid(13).trimmed());
+        } else if (cmd == "ManageWorkspaces") {
+            manageWorkspacePresets();
         } else {
             statusBar()->showMessage(QString("Unknown internal command: %1").arg(cmd), 4000);
         }
+    }
+}
+
+void MainWindow::saveWorkspacePreset(const QString& name) {
+    QString presetName = name.trimmed();
+    if (presetName.isEmpty()) {
+        bool ok = false;
+        presetName = QInputDialog::getText(this, "Save Workspace Preset", "Workspace Name:", QLineEdit::Normal, "Default Workspace", &ok).trimmed();
+        if (!ok || presetName.isEmpty()) return;
+    }
+
+    QStringList leftPaths;
+    for (int i = 0; i < m_leftTabWidget->count(); ++i) {
+        FilePanel* p = qobject_cast<FilePanel*>(m_leftTabWidget->widget(i));
+        if (p) leftPaths.append(p->currentPath());
+    }
+
+    QStringList rightPaths;
+    for (int i = 0; i < m_rightTabWidget->count(); ++i) {
+        FilePanel* p = qobject_cast<FilePanel*>(m_rightTabWidget->widget(i));
+        if (p) rightPaths.append(p->currentPath());
+    }
+
+    QSettings settings("Amifiles", "Amifiles");
+    settings.beginGroup("workspaces/preset_" + presetName);
+    settings.setValue("leftPaths", leftPaths);
+    settings.setValue("leftActive", m_leftTabWidget->currentIndex());
+    settings.setValue("rightPaths", rightPaths);
+    settings.setValue("rightActive", m_rightTabWidget->currentIndex());
+    settings.setValue("dualPane", m_isDualPane);
+    settings.endGroup();
+
+    QStringList presetList = settings.value("workspaces/preset_names").toStringList();
+    if (!presetList.contains(presetName, Qt::CaseInsensitive)) {
+        presetList.append(presetName);
+        settings.setValue("workspaces/preset_names", presetList);
+    }
+
+    statusBar()->showMessage(QString("Workspace preset '%1' saved successfully.").arg(presetName), 4000);
+}
+
+void MainWindow::loadWorkspacePreset(const QString& name) {
+    QSettings settings("Amifiles", "Amifiles");
+    QStringList presetList = settings.value("workspaces/preset_names").toStringList();
+
+    QString targetName = name.trimmed();
+    if (targetName.isEmpty()) {
+        if (presetList.isEmpty()) {
+            QMessageBox::information(this, "Load Workspace", "No workspace presets found. Save one first!");
+            return;
+        }
+        bool ok = false;
+        targetName = QInputDialog::getItem(this, "Load Workspace Preset", "Select Workspace:", presetList, 0, false, &ok);
+        if (!ok || targetName.isEmpty()) return;
+    }
+
+    settings.beginGroup("workspaces/preset_" + targetName);
+    QStringList leftPaths = settings.value("leftPaths").toStringList();
+    int leftActive = settings.value("leftActive", 0).toInt();
+    QStringList rightPaths = settings.value("rightPaths").toStringList();
+    int rightActive = settings.value("rightActive", 0).toInt();
+    bool dual = settings.value("dualPane", true).toBool();
+    settings.endGroup();
+
+    if (leftPaths.isEmpty() && rightPaths.isEmpty()) {
+        QMessageBox::warning(this, "Load Workspace", QString("Workspace '%1' has no saved tabs.").arg(targetName));
+        return;
+    }
+
+    if (m_actToggleDualPane) {
+        m_actToggleDualPane->setChecked(dual);
+    }
+    onToggleDualPane(dual);
+
+    while (m_leftTabWidget->count() > 0) {
+        QWidget* w = m_leftTabWidget->widget(0);
+        m_leftTabWidget->removeTab(0);
+        w->deleteLater();
+    }
+    for (const QString& p : leftPaths) {
+        createTab(m_leftTabWidget, p);
+    }
+    if (m_leftTabWidget->count() > 0) {
+        m_leftTabWidget->setCurrentIndex(qBound(0, leftActive, m_leftTabWidget->count() - 1));
+    }
+
+    while (m_rightTabWidget->count() > 0) {
+        QWidget* w = m_rightTabWidget->widget(0);
+        m_rightTabWidget->removeTab(0);
+        w->deleteLater();
+    }
+    for (const QString& p : rightPaths) {
+        createTab(m_rightTabWidget, p);
+    }
+    if (m_rightTabWidget->count() > 0) {
+        m_rightTabWidget->setCurrentIndex(qBound(0, rightActive, m_rightTabWidget->count() - 1));
+    }
+
+    statusBar()->showMessage(QString("Loaded workspace preset '%1'.").arg(targetName), 4000);
+}
+
+void MainWindow::manageWorkspacePresets() {
+    QSettings settings("Amifiles", "Amifiles");
+    QStringList presetList = settings.value("workspaces/preset_names").toStringList();
+    if (presetList.isEmpty()) {
+        QMessageBox::information(this, "Manage Workspaces", "No workspace presets found.");
+        return;
+    }
+
+    bool ok = false;
+    QString targetName = QInputDialog::getItem(this, "Delete Workspace Preset", "Select Preset to Delete:", presetList, 0, false, &ok);
+    if (ok && !targetName.isEmpty()) {
+        presetList.removeAll(targetName);
+        settings.setValue("workspaces/preset_names", presetList);
+        settings.remove("workspaces/preset_" + targetName);
+        statusBar()->showMessage(QString("Workspace preset '%1' deleted.").arg(targetName), 4000);
     }
 }
 
