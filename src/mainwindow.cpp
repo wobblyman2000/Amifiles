@@ -7214,7 +7214,16 @@ QJsonArray MainWindow::getDefaultCustomMenus() {
     a1["color"] = "#89b4fa";
     a1["mode"] = "Normal";
     c1.append(a1);
-    
+
+    QJsonObject aGames;
+    aGames["type"] = "action";
+    aGames["title"] = "🎮 Games Directory";
+    aGames["command"] = QDir::homePath() + "/Games";
+    aGames["icon"] = "input-gaming";
+    aGames["color"] = "#f9e2af";
+    aGames["mode"] = "Normal";
+    c1.append(aGames);
+
     QJsonObject s1;
     s1["type"] = "separator";
     c1.append(s1);

@@ -377,6 +377,7 @@ static QATheme getQATheme(const QString& name) {
     else if (name == "Desktop") color = "250, 179, 135"; // Orange
     else if (name == "Videos") color = "243, 139, 168"; // Red
     else if (name == "Pictures") color = "148, 226, 213"; // Teal
+    else if (name == "Games") color = "249, 226, 175"; // Gold
     else color = "180, 190, 254"; // Lavender (Home)
     
     t.iconStyle = QString("background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 rgba(%1, 0.25), stop:1 rgba(%1, 0.05)); border: 1px solid rgba(%1, 0.4); border-radius: 10px; font-size: 22px; min-width: 44px; min-height: 44px;").arg(color);
@@ -745,6 +746,7 @@ void HomeDashboardWidget::populateQuickAccess() {
         {"Desktop", resolveValidUserDir(QStandardPaths::DesktopLocation, "Desktop"), "🖥️"},
         {"Videos", resolveValidUserDir(QStandardPaths::MoviesLocation, "Videos", "Movies"), "🎬"},
         {"Pictures", resolveValidUserDir(QStandardPaths::PicturesLocation, "Pictures"), "🖼️"},
+        {"Games", resolveValidUserDir(QStandardPaths::AppLocalDataLocation, "Games", "ROMs"), "🎮"},
         {"Home Directory", QDir::homePath(), "🏠"}
     };
 
