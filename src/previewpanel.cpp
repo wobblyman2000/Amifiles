@@ -1,4 +1,5 @@
 #include "previewpanel.h"
+#include "metadatainspectorsidebar.h"
 #include "tageditordialog.h"
 #include <QCoreApplication>
 #include <QImageReader>
@@ -2281,6 +2282,10 @@ void PreviewPanel::setupUI() {
     m_hexViewer = new HexEditorWidget(this);
     m_bottomTab->addTab(m_hexViewer, "Hex Viewer");
     m_bottomTab->setTabToolTip(m_bottomTab->indexOf(m_hexViewer), "Hex Viewer");
+
+    m_inspectorSidebar = new MetadataInspectorSidebar(this);
+    m_bottomTab->addTab(m_inspectorSidebar, "🔐 Permissions");
+    m_bottomTab->setTabToolTip(m_bottomTab->indexOf(m_inspectorSidebar), "🔐 POSIX Permissions & File Inspector");
 
     m_textContainer = new QWidget(this);
     QVBoxLayout* textContainerLayout = new QVBoxLayout(m_textContainer);
@@ -5281,6 +5286,26 @@ void PreviewPanel::onShowLyricsMenu() {
             }
         }
     }
+}
 
-    updateLyricsLayout();
+void PreviewPanel::setInspectorTabIntegrated(bool integrated) {
+    m_inspectorTabIntegrated = integrated;
+    if (m_bottomTab && m_inspectorSidebar) {
+        int idx = m_bottomTab->indexOf(m_inspectorSidebar);
+        if (idx >= 0) {
+            m_bottomTab->setTabVisible(idx, integrated);
+        }
+    }
+}
+
+void PreviewPanel::switchToInspectorTab() {
+    if (m_bottomTab && m_inspectorSidebar) {
+        m_bottomTab->setCurrentWidget(m_inspectorSidebar);
+    }
+}
+
+void PreviewPanel::switchToPreviewTab() {
+    if (m_bottomTab) {
+        m_bottomTab->setCurrentIndex(0);
+    }
 }

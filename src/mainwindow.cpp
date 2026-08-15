@@ -6984,7 +6984,19 @@ void MainWindow::executeInternalCommand(const QString& script) {
                 m_activePanel->refresh();
             }
         } else if (cmd == "ToggleInspector" || cmd == "ToggleInspectorSidebar" || cmd == "Inspector" || cmd == "app.file_inspector") {
-            if (m_inspectorDock) {
+            QSettings settings("Amifiles", "Amifiles");
+            bool integrateTabs = settings.value("preview/integrate_inspector_tabs", true).toBool();
+            if (integrateTabs && m_previewPanel) {
+                if (m_actTogglePreview && !m_actTogglePreview->isChecked()) {
+                    m_actTogglePreview->setChecked(true);
+                }
+                if (m_previewDock) {
+                    m_previewDock->setVisible(true);
+                    m_previewDock->show();
+                    m_previewDock->raise();
+                }
+                m_previewPanel->switchToInspectorTab();
+            } else if (m_inspectorDock) {
                 m_inspectorDock->setVisible(true);
                 m_inspectorDock->show();
                 m_inspectorDock->raise();

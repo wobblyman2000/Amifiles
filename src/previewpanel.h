@@ -310,6 +310,12 @@ public:
     bool isAutoPreviewEnabled() const;
     void loadPreferences();
     
+    void setInspectorTabIntegrated(bool integrated);
+    bool isInspectorTabIntegrated() const { return m_inspectorTabIntegrated; }
+    void switchToInspectorTab();
+    void switchToPreviewTab();
+    class MetadataInspectorSidebar* inspectorSidebar() const { return m_inspectorSidebar; }
+    
     QStringList playlist() const { return m_playlist; }
     int playlistIndex() const { return m_playlistIndex; }
     void playPlaylistIndex(int index);
@@ -476,6 +482,9 @@ private:
     class QWidget* m_textContainer = nullptr;
     class QLineEdit* m_textSearchEdit = nullptr;
     class QLabel* m_lblTextSearchMatches = nullptr;
+    class QTabWidget* m_mainTabWidget = nullptr;
+    class MetadataInspectorSidebar* m_inspectorSidebar = nullptr;
+    bool m_inspectorTabIntegrated = false;
  
     // Quick Music Tag Editor elements
     QWidget* m_musicTagsContainer = nullptr;

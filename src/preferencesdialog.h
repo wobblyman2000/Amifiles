@@ -78,6 +78,7 @@ private:
     QCheckBox* m_chkAutoPlayThemeMusic = nullptr;
     QCheckBox* m_chkRememberVideoProgress = nullptr;
     QCheckBox* m_chkKeyboardRemoteMode = nullptr;
+    QCheckBox* m_chkIntegrateInspectorTabs = nullptr;
     QCheckBox* m_chkAutoQueueSiblings = nullptr;
     QCheckBox* m_chkShowFolderLabel = nullptr;
     QCheckBox* m_chkPlaylistAutohide = nullptr;

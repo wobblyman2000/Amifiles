@@ -372,6 +372,10 @@ void PreferencesDialog::setupUI() {
     m_chkKeyboardRemoteMode->setToolTip("Allows navigating the main UI, Showcase, and full screen players using remote controls/keyboards.");
     layMedia->addWidget(m_chkKeyboardRemoteMode);
 
+    m_chkIntegrateInspectorTabs = new QCheckBox("Integrate File Inspector & POSIX Permissions as Tabs inside Preview Panel", this);
+    m_chkIntegrateInspectorTabs->setToolTip("Embeds the File Inspector & POSIX permissions matrix directly into the Preview Panel's bottom tabs, preventing squished sidebar dock layouts.");
+    layMedia->addWidget(m_chkIntegrateInspectorTabs);
+
     m_chkAutoQueueSiblings = new QCheckBox("Auto-Queue Sibling Files inside Folders", this);
     m_chkAutoQueueSiblings->setToolTip("Automatically populates the playlist queue with all other audio/video files in the same directory upon playback start.");
     layMedia->addWidget(m_chkAutoQueueSiblings);
@@ -646,6 +650,7 @@ void PreferencesDialog::loadPreferences() {
     m_chkAutoPlayThemeMusic->setChecked(settings.value("theater/auto_play_theme_music", true).toBool());
     m_chkRememberVideoProgress->setChecked(settings.value("preview/resume_progress", false).toBool());
     m_chkKeyboardRemoteMode->setChecked(settings.value("preferences/keyboard_remote_mode", false).toBool());
+    m_chkIntegrateInspectorTabs->setChecked(settings.value("preview/integrate_inspector_tabs", true).toBool());
     m_chkAutoQueueSiblings->setChecked(settings.value("preview/auto_queue_sibling_files", true).toBool());
     m_chkShowFolderLabel->setChecked(settings.value("theater/show_folder_label", true).toBool());
     m_chkPlaylistAutohide->setChecked(settings.value("preferences/playlist_autohide", true).toBool());
@@ -718,6 +723,7 @@ void PreferencesDialog::savePreferences() {
     settings.setValue("theater/auto_play_theme_music", m_chkAutoPlayThemeMusic->isChecked());
     settings.setValue("preview/resume_progress", m_chkRememberVideoProgress->isChecked());
     settings.setValue("preferences/keyboard_remote_mode", m_chkKeyboardRemoteMode->isChecked());
+    settings.setValue("preview/integrate_inspector_tabs", m_chkIntegrateInspectorTabs->isChecked());
     settings.setValue("preview/auto_queue_sibling_files", m_chkAutoQueueSiblings->isChecked());
     settings.setValue("theater/show_folder_label", m_chkShowFolderLabel->isChecked());
     settings.setValue("preferences/playlist_autohide", m_chkPlaylistAutohide->isChecked());
