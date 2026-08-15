@@ -1,6 +1,8 @@
 #include "filepanel.h"
 #include "tagmanager.h"
 #include "metadatahovercard.h"
+#include <QtConcurrent/QtConcurrent>
+#include <QDirIterator>
 static bool isPathLockedPersistent(const QString& path);
 #include <QWidgetAction>
 #include <QJsonArray>
@@ -4815,6 +4817,14 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         removeSelectedGreenScreen();
     } else if (command == "app.properties") {
         onShowProperties();
+    } else if (command == "app.calculate_folder_sizes" || command == "@internal:CalculateFolderSizes") {
+        calculateSelectedFolderSizes();
+    } else if (command == "app.compare_directories" || command == "@internal:CompareDirectories") {
+        compareDirectoriesWithSibling();
+    } else if (command == "app.clear_directory_compare" || command == "@internal:ClearDirectoryCompare") {
+        clearDirectoryCompare();
+    } else if (command == "app.select_wildcard" || command == "@internal:SelectWildcard") {
+        selectByWildcardPattern();
     } else if (command == "app.file_inspector" || command == "@internal:ToggleInspector" || command.startsWith("@internal:")) {
         QWidget* mw = window();
         MainWindow* mainWin = qobject_cast<MainWindow*>(mw);
@@ -9514,6 +9524,7 @@ QJsonArray FilePanel::getDefaultContextMenuJson() const {
     arr.append(makeAction("Rename", "app.rename", "edit-rename"));
     arr.append(makeAction("Bulk Rename...", "app.bulk_rename", ""));
     arr.append(makeAction("Properties...", "app.properties", "dialog-information"));
+    arr.append(makeAction("⚡ Calculate Subfolder Sizes", "app.calculate_folder_sizes", "utilities-system-monitor"));
     arr.append(makeAction("🔍 File Inspector & POSIX Permissions", "@internal:ToggleInspector", "system-search"));
     arr.append(makeSeparator());
 
@@ -10207,6 +10218,140 @@ void FilePanel::onToggleTagsRatingsFilterBar() {
             m_flatProxyModel->setCommentFilter("");
         }
         updateStatusText();
+    }
+}
+
+void FilePanel::calculateSelectedFolderSizes() {
+    QStringList paths = selectedPaths();
+    if (paths.isEmpty() && !m_currentPath.isEmpty()) {
+        QDir dir(m_currentPath);
+        QFileInfoList list = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
+        for (const auto& fi : list) {
+            paths.append(fi.absoluteFilePath());
+        }
+    }
+
+    if (paths.isEmpty()) return;
+
+    QPointer<FilePanel> self = this;
+    for (const QString& targetPath : paths) {
+        QFileInfo info(targetPath);
+        if (info.isDir()) {
+            (void)QtConcurrent::run([self, targetPath]() {
+                qint64 totalBytes = 0;
+                QDirIterator it(targetPath, QDir::Files | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
+                while (it.hasNext()) {
+                    it.next();
+                    totalBytes += it.fileInfo().size();
+                }
+                if (self) {
+                    QMetaObject::invokeMethod(self, [self, targetPath, totalBytes]() {
+                        if (self->m_proxyModel) {
+                            self->m_proxyModel->setFolderSizeCache(targetPath, totalBytes);
+                        }
+                    });
+                }
+            });
+        }
+    }
+}
+
+void FilePanel::compareDirectoriesWithSibling() {
+    if (!m_siblingPanel) return;
+
+    QString leftPath = currentPath();
+    QString rightPath = m_siblingPanel->currentPath();
+    if (leftPath.isEmpty() || rightPath.isEmpty()) return;
+
+    QDir leftDir(leftPath);
+    QDir rightDir(rightPath);
+
+    QFileInfoList leftList = leftDir.entryInfoList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot);
+    QFileInfoList rightList = rightDir.entryInfoList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot);
+
+    QMap<QString, QFileInfo> leftMap;
+    for (const auto& fi : leftList) leftMap[fi.fileName().toLower()] = fi;
+
+    QMap<QString, QFileInfo> rightMap;
+    for (const auto& fi : rightList) rightMap[fi.fileName().toLower()] = fi;
+
+    QMap<QString, QColor> leftColors;
+    QMap<QString, QColor> rightColors;
+
+    for (auto it = leftMap.begin(); it != leftMap.end(); ++it) {
+        QString name = it.key();
+        QFileInfo lInfo = it.value();
+        if (!rightMap.contains(name)) {
+            leftColors[lInfo.fileName()] = QColor("#a6e3a1"); // Green: missing right
+        } else {
+            QFileInfo rInfo = rightMap[name];
+            if (lInfo.size() != rInfo.size() && !lInfo.isDir()) {
+                leftColors[lInfo.fileName()] = QColor("#f38ba8"); // Red: size mismatch
+                rightColors[rInfo.fileName()] = QColor("#f38ba8");
+            } else if (lInfo.lastModified() > rInfo.lastModified()) {
+                leftColors[lInfo.fileName()] = QColor("#f9e2af"); // Yellow: newer left
+            } else if (rInfo.lastModified() > lInfo.lastModified()) {
+                rightColors[rInfo.fileName()] = QColor("#f9e2af"); // Yellow: newer right
+            }
+        }
+    }
+
+    for (auto it = rightMap.begin(); it != rightMap.end(); ++it) {
+        QString name = it.key();
+        QFileInfo rInfo = it.value();
+        if (!leftMap.contains(name)) {
+            rightColors[rInfo.fileName()] = QColor("#a6e3a1"); // Green: missing left
+        }
+    }
+
+    if (m_proxyModel) m_proxyModel->setCompareHighlights(leftColors);
+    if (m_siblingPanel->m_proxyModel) m_siblingPanel->m_proxyModel->setCompareHighlights(rightColors);
+}
+
+void FilePanel::clearDirectoryCompare() {
+    if (m_proxyModel) m_proxyModel->clearCompareHighlights();
+    if (m_siblingPanel && m_siblingPanel->m_proxyModel) m_siblingPanel->m_proxyModel->clearCompareHighlights();
+}
+
+void FilePanel::selectByWildcardPattern() {
+    bool ok = false;
+    QString pattern = QInputDialog::getText(this, "Select by Wildcard / Pattern", 
+        "Enter pattern to select items (e.g. *.png, *.mp4, *draft*):", 
+        QLineEdit::Normal, "*.txt", &ok);
+
+    if (!ok || pattern.isEmpty()) return;
+
+    QStringList wildcards = pattern.split(';', Qt::SkipEmptyParts);
+    for (int i = 0; i < wildcards.size(); ++i) wildcards[i] = wildcards[i].trimmed();
+
+    QAbstractItemModel* model = isFlatViewEnabled() ? static_cast<QAbstractItemModel*>(m_flatProxyModel) : static_cast<QAbstractItemModel*>(m_proxyModel);
+    if (!model) return;
+
+    QItemSelection selection;
+    int rowCount = model->rowCount();
+    for (int r = 0; r < rowCount; ++r) {
+        QModelIndex idx = model->index(r, 0);
+        QString fileName = model->data(idx, Qt::DisplayRole).toString();
+
+        bool match = false;
+        for (const QString& wc : wildcards) {
+            if (QDir::match(wc, fileName)) {
+                match = true;
+                break;
+            }
+        }
+
+        if (match) {
+            selection.select(idx, idx);
+        }
+    }
+
+    QAbstractItemView* activeViewWidget = nullptr;
+    if (m_viewStack->currentIndex() == 0) activeViewWidget = m_treeView;
+    else if (m_viewStack->currentIndex() == 1) activeViewWidget = m_listView;
+
+    if (activeViewWidget && activeViewWidget->selectionModel()) {
+        activeViewWidget->selectionModel()->select(selection, QItemSelectionModel::Select | QItemSelectionModel::Rows);
     }
 }
 

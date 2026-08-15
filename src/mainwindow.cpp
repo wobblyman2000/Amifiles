@@ -1358,6 +1358,25 @@ void MainWindow::setupMenus() {
     menuFilterToggles->addAction(m_actRightShowFilterText);
     menuFilterToggles->addAction(m_actRightShowCategoryButtons);
 
+    QMenu* menuCompareTools = m_menuView->addMenu("Directory Compare & Power Tools");
+    menuCompareTools->addAction("⚡ Calculate Subfolder Sizes (Alt+Shift+Enter)", this, [this]() {
+        if (m_activePanel) m_activePanel->calculateSelectedFolderSizes();
+    });
+    menuCompareTools->addAction("⚖️ Start Dual-Pane Directory Compare", this, [this]() {
+        if (m_activePanel) m_activePanel->compareDirectoriesWithSibling();
+    });
+    menuCompareTools->addAction("🧹 Clear Directory Compare", this, [this]() {
+        if (m_activePanel) m_activePanel->clearDirectoryCompare();
+    });
+    menuCompareTools->addAction("🎯 Select by Wildcard / Pattern (Ctrl+Shift+S)", this, [this]() {
+        if (m_activePanel) m_activePanel->selectByWildcardPattern();
+    });
+
+    QMenu* menuWorkspaces = m_menuView->addMenu("Workspace Sessions");
+    menuWorkspaces->addAction("💾 Save Workspace Session...", this, [this]() { saveWorkspacePreset(); });
+    menuWorkspaces->addAction("📂 Load Workspace Session...", this, [this]() { loadWorkspacePreset(); });
+    menuWorkspaces->addAction("⚙️ Manage Workspace Sessions...", this, [this]() { manageWorkspacePresets(); });
+
     m_menuView->addAction(m_actAutoSizeColumns);
     m_menuView->addAction(m_actToggleZenMode);
     m_menuView->addAction(m_actToggleToolbarEditMode);

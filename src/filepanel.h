@@ -150,6 +150,26 @@ public:
         QString bgColor;
     };
     mutable QList<LabelStyleRule> m_labelRules;
+    mutable QMap<QString, qint64> m_folderSizeCache;
+    mutable QMap<QString, QColor> m_compareHighlightMap;
+    bool m_compareModeActive = false;
+
+    void setFolderSizeCache(const QString& path, qint64 bytes) {
+        m_folderSizeCache[path] = bytes;
+        invalidate();
+    }
+
+    void setCompareHighlights(const QMap<QString, QColor>& highlights) {
+        m_compareHighlightMap = highlights;
+        m_compareModeActive = !highlights.isEmpty();
+        invalidate();
+    }
+
+    void clearCompareHighlights() {
+        m_compareHighlightMap.clear();
+        m_compareModeActive = false;
+        invalidate();
+    }
 
     void loadLabelRules() const {
         m_labelRules.clear();
@@ -387,6 +407,32 @@ public:
             if (fileModel && fileModel->isDir(srcIndex)) {
                 QString name = fileModel->fileName(srcIndex);
                 return cleanAlbumFolderName(name);
+            }
+        }
+
+        if (role == Qt::DisplayRole && index.column() == 1) {
+            QModelIndex srcIndex = mapToSource(index);
+            QFileSystemModel* fileModel = qobject_cast<QFileSystemModel*>(sourceModel());
+            if (fileModel && fileModel->isDir(srcIndex)) {
+                QString path = fileModel->filePath(srcIndex);
+                if (m_folderSizeCache.contains(path)) {
+                    qint64 sz = m_folderSizeCache.value(path);
+                    if (sz < 1024) return QString("%1 B").arg(sz);
+                    if (sz < 1024*1024) return QString("%1 KB").arg(sz/1024.0, 0, 'f', 1);
+                    if (sz < 1024*1024*1024) return QString("%1 MB").arg(sz/(1024.0*1024.0), 0, 'f', 1);
+                    return QString("%1 GB").arg(sz/(1024.0*1024*1024.0), 0, 'f', 2);
+                }
+            }
+        }
+
+        if (role == Qt::ForegroundRole && m_compareModeActive) {
+            QModelIndex srcIndex = mapToSource(index);
+            QFileSystemModel* fileModel = qobject_cast<QFileSystemModel*>(sourceModel());
+            if (fileModel) {
+                QString name = fileModel->fileName(srcIndex);
+                if (m_compareHighlightMap.contains(name)) {
+                    return QBrush(m_compareHighlightMap.value(name));
+                }
             }
         }
 
@@ -1019,6 +1065,10 @@ protected:
     void resizeEvent(QResizeEvent* event) override;
 
 public slots:
+    void calculateSelectedFolderSizes();
+    void compareDirectoriesWithSibling();
+    void clearDirectoryCompare();
+    void selectByWildcardPattern();
     void notifyPathDataChanged(const QString& path);
     void updatePlaybackProgress(qint64 position, qint64 duration);
     void onNavigateUp();
