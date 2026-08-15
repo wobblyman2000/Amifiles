@@ -469,6 +469,7 @@ void MainWindow::setupCentralWidget() {
     m_inspectorDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     m_inspectorDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetClosable);
     addDockWidget(Qt::RightDockWidgetArea, m_inspectorDock);
+    tabifyDockWidget(m_previewDock, m_inspectorDock);
     m_inspectorDock->setVisible(false);
 
     connect(m_inspectorSidebar, &MetadataInspectorSidebar::filePermissionsChanged, this, [this]() {
@@ -751,10 +752,14 @@ void MainWindow::setupActions() {
     connect(m_actToggleInspector, &QAction::toggled, this, [this](bool visible) {
         if (m_inspectorDock) {
             m_inspectorDock->setVisible(visible);
-            if (visible && m_activePanel && m_inspectorSidebar) {
-                QStringList selected = m_activePanel->selectedPaths();
-                QString path = selected.isEmpty() ? m_activePanel->currentPath() : selected.first();
-                m_inspectorSidebar->inspectFile(path);
+            if (visible) {
+                m_inspectorDock->show();
+                m_inspectorDock->raise();
+                if (m_activePanel && m_inspectorSidebar) {
+                    QStringList selected = m_activePanel->selectedPaths();
+                    QString path = selected.isEmpty() ? m_activePanel->currentPath() : selected.first();
+                    m_inspectorSidebar->inspectFile(path);
+                }
             }
         }
     });
@@ -6978,11 +6983,12 @@ void MainWindow::executeInternalCommand(const QString& script) {
                 dlg.exec();
                 m_activePanel->refresh();
             }
-        } else if (cmd == "ToggleInspector" || cmd == "ToggleInspectorSidebar" || cmd == "Inspector") {
+        } else if (cmd == "ToggleInspector" || cmd == "ToggleInspectorSidebar" || cmd == "Inspector" || cmd == "app.file_inspector") {
             if (m_inspectorDock) {
-                bool vis = !m_inspectorDock->isVisible();
-                m_inspectorDock->setVisible(vis);
-                if (vis && m_activePanel && m_inspectorSidebar) {
+                m_inspectorDock->setVisible(true);
+                m_inspectorDock->show();
+                m_inspectorDock->raise();
+                if (m_activePanel && m_inspectorSidebar) {
                     QStringList selected = m_activePanel->selectedPaths();
                     QString path = selected.isEmpty() ? m_activePanel->currentPath() : selected.first();
                     m_inspectorSidebar->inspectFile(path);

@@ -4815,6 +4815,14 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         removeSelectedGreenScreen();
     } else if (command == "app.properties") {
         onShowProperties();
+    } else if (command == "app.file_inspector" || command == "@internal:ToggleInspector" || command.startsWith("@internal:")) {
+        QWidget* mw = window();
+        MainWindow* mainWin = qobject_cast<MainWindow*>(mw);
+        if (mainWin) {
+            QString cleanCmd = command;
+            if (cleanCmd.startsWith("@internal:")) cleanCmd = cleanCmd.mid(10);
+            mainWin->executeInternalCommand(cleanCmd);
+        }
     }
 }
 
