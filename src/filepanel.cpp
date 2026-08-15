@@ -3858,38 +3858,97 @@ void FilePanel::onCopyFolderContents() {
 
 void FilePanel::onShowProperties() {
     QStringList paths = selectedPaths();
-    QString targetPath = paths.isEmpty() ? m_currentPath : paths.first();
+    if (paths.isEmpty() && !m_currentPath.isEmpty()) {
+        paths << m_currentPath;
+    }
 
+    if (paths.size() > 1) {
+        qint64 totalSize = 0;
+        int fileCount = 0;
+        int dirCount = 0;
+
+        for (const QString& p : paths) {
+            QFileInfo fi(p);
+            if (fi.isDir()) {
+                dirCount++;
+                QDirIterator it(p, QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
+                while (it.hasNext()) {
+                    it.next();
+                    if (it.fileInfo().isDir()) dirCount++;
+                    else {
+                        fileCount++;
+                        totalSize += it.fileInfo().size();
+                    }
+                }
+            } else {
+                fileCount++;
+                totalSize += fi.size();
+            }
+        }
+
+        QString formattedSize;
+        if (totalSize < 1024) formattedSize = QString("%1 Bytes").arg(totalSize);
+        else if (totalSize < 1024 * 1024) formattedSize = QString("%1 KB (%2 Bytes)").arg(totalSize / 1024.0, 0, 'f', 1).arg(totalSize);
+        else if (totalSize < 1024 * 1024 * 1024) formattedSize = QString("%1 MB (%2 Bytes)").arg(totalSize / (1024.0 * 1024.0), 0, 'f', 2).arg(totalSize);
+        else formattedSize = QString("%1 GB (%2 Bytes)").arg(totalSize / (1024.0 * 1024 * 1024.0), 0, 'f', 2).arg(totalSize);
+
+        QString details = QString(
+            "<b>Selected Items:</b> %1 item(s)<br>"
+            "<b>Files:</b> %2 file(s)<br>"
+            "<b>Folders:</b> %3 folder(s)<br>"
+            "<b>Total Aggregate Size:</b> %4<br>"
+            "<b>Location:</b> %5"
+        ).arg(paths.size())
+         .arg(fileCount)
+         .arg(dirCount)
+         .arg(formattedSize)
+         .arg(m_currentPath);
+
+        QMessageBox msg(QMessageBox::Information, "Multiple Selection Properties", details, QMessageBox::Ok, this);
+        msg.setStyleSheet("QMessageBox { background-color: #1e1e2e; color: #cdd6f4; } QLabel { color: #cdd6f4; font-size: 13px; } QPushButton { background-color: #89b4fa; color: #11111b; font-weight: bold; border-radius: 6px; padding: 6px 14px; }");
+        msg.exec();
+        return;
+    }
+
+    QString targetPath = paths.first();
     FileMetadata meta = MetadataExtractor::extract(targetPath);
     
+    QString formattedSize;
+    if (meta.size < 1024) formattedSize = QString("%1 Bytes").arg(meta.size);
+    else if (meta.size < 1024 * 1024) formattedSize = QString("%1 KB (%2 Bytes)").arg(meta.size / 1024.0, 0, 'f', 1).arg(meta.size);
+    else if (meta.size < 1024 * 1024 * 1024) formattedSize = QString("%1 MB (%2 Bytes)").arg(meta.size / (1024.0 * 1024.0), 0, 'f', 2).arg(meta.size);
+    else formattedSize = QString("%1 GB (%2 Bytes)").arg(meta.size / (1024.0 * 1024 * 1024.0), 0, 'f', 2).arg(meta.size);
+
     QString details = QString(
-        "Name: \t%1\n"
-        "Path: \t%2\n"
-        "Size: \t%3 bytes\n"
-        "Permissions: \t%4\n"
-        "Created: \t%5\n"
-        "Modified: \t%6\n"
+        "<b>Name:</b> %1<br>"
+        "<b>Path:</b> %2<br>"
+        "<b>Size:</b> %3<br>"
+        "<b>Permissions:</b> %4<br>"
+        "<b>Created:</b> %5<br>"
+        "<b>Modified:</b> %6<br>"
     ).arg(meta.name)
      .arg(meta.path)
-     .arg(meta.size)
+     .arg(formattedSize)
      .arg(meta.permissions)
      .arg(meta.created)
      .arg(meta.modified);
 
     if (meta.imageDimensions.isValid()) {
-        details += QString("Dimensions: \t%1 x %2\nFormat: \t%3\n")
+        details += QString("<b>Dimensions:</b> %1 x %2<br><b>Format:</b> %3<br>")
             .arg(meta.imageDimensions.width())
             .arg(meta.imageDimensions.height())
             .arg(meta.imageFormat);
     }
     if (!meta.title.isEmpty() || !meta.artist.isEmpty()) {
-        details += QString("Audio Title: \t%1\nArtist: \t%2\nAlbum: \t%3\n")
+        details += QString("<b>Audio Title:</b> %1<br><b>Artist:</b> %2<br><b>Album:</b> %3<br>")
             .arg(meta.title)
             .arg(meta.artist)
             .arg(meta.album);
     }
 
-    QMessageBox::information(this, "Properties", details);
+    QMessageBox msg(QMessageBox::Information, "File Properties", details, QMessageBox::Ok, this);
+    msg.setStyleSheet("QMessageBox { background-color: #1e1e2e; color: #cdd6f4; } QLabel { color: #cdd6f4; font-size: 13px; } QPushButton { background-color: #89b4fa; color: #11111b; font-weight: bold; border-radius: 6px; padding: 6px 14px; }");
+    msg.exec();
 }
 
 static void scanMediaFilesRecursively(const QString& folderPath, QStringList& playlistPaths, int mediaTypeFilter, int depth) {
@@ -5303,6 +5362,8 @@ void FilePanel::showVideoShowcaseContextMenu(const QPoint& pos) {
     QAction* actHideExtensions = menu.addAction("Hide File Extensions...");
 
     QAction* actConfigureFolderLayouts = menu.addAction("Configure Folder-Specific Layouts...");
+    menu.addSeparator();
+    QAction* actProperties = menu.addAction(style->standardIcon(QStyle::SP_FileDialogInfoView), "ℹ Properties...");
 
     QAction* selected = menu.exec(QCursor::pos());
     if (!selected) return;
@@ -5415,6 +5476,8 @@ void FilePanel::showVideoShowcaseContextMenu(const QPoint& pos) {
         promptHideExtensions();
     } else if (selected == actConfigureFolderLayouts) {
         emit configureFolderLayoutsRequested();
+    } else if (selected == actProperties) {
+        onShowProperties();
     }
 }
 
@@ -9442,6 +9505,7 @@ QJsonArray FilePanel::getDefaultContextMenuJson() const {
     arr.append(makeAction("Delete", "app.delete", "user-trash"));
     arr.append(makeAction("Rename", "app.rename", "edit-rename"));
     arr.append(makeAction("Bulk Rename...", "app.bulk_rename", ""));
+    arr.append(makeAction("Properties...", "app.properties", "dialog-information"));
     arr.append(makeSeparator());
 
     // 2. New Folder / Files Submenu
