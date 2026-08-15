@@ -110,6 +110,7 @@ private:
     // UI Widgets
     QLineEdit* m_editSearch = nullptr;
     QComboBox* m_comboType = nullptr;
+    QComboBox* m_comboProvider = nullptr;
     QPushButton* m_btnSearch = nullptr;
     QTableWidget* m_tableResults = nullptr;
 

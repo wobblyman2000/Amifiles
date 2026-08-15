@@ -99,11 +99,15 @@ void VideoScraperDialog::setupUI() {
     m_comboType = new QComboBox(this);
     m_comboType->addItems({"Movie", "TV Show"});
     
+    m_comboProvider = new QComboBox(this);
+    m_comboProvider->addItems({"✨ Auto (Best Available)", "🍿 OMDb (Free / Movies)", "🎬 TMDb (The Movie Database)", "📺 TVmaze (Free / TV Shows)", "🌐 Wikipedia (Free)"});
+    
     m_btnSearch = new QPushButton("Search", this);
     connect(m_btnSearch, &QPushButton::clicked, this, &VideoScraperDialog::onSearchClicked);
 
     searchBar->addWidget(m_editSearch, 1);
     searchBar->addWidget(m_comboType);
+    searchBar->addWidget(m_comboProvider);
     searchBar->addWidget(m_btnSearch);
     leftLayout->addLayout(searchBar);
 
@@ -230,15 +234,51 @@ void VideoScraperDialog::triggerSearch(const QString& query, const QString& type
     m_btnSearch->setEnabled(false);
     m_btnSearch->setText("Searching...");
 
+    QString provider = m_comboProvider ? m_comboProvider->currentText() : "Auto";
     QUrl url;
-    if (!m_apiKey.isEmpty()) {
+
+    if (provider.contains("TMDb")) {
+        if (m_apiKey.isEmpty()) {
+            QMessageBox::StandardButton reply = QMessageBox::question(
+                this, "TMDb API Key Required",
+                "A TMDb API Key is required to use TMDb directly.\n\n"
+                "Would you like to switch to OMDb (Free / No Key Required) now?",
+                QMessageBox::Yes | QMessageBox::No);
+
+            if (reply == QMessageBox::Yes) {
+                if (m_comboProvider) m_comboProvider->setCurrentIndex(1); // OMDb
+                provider = "OMDb";
+            } else {
+                m_btnSearch->setEnabled(true);
+                m_btnSearch->setText("Search");
+                return;
+            }
+        }
+    }
+
+    if (provider.contains("TMDb") || (provider.contains("Auto") && !m_apiKey.isEmpty())) {
         url = QUrl(type == "Movie" ? "https://api.themoviedb.org/3/search/movie" : "https://api.themoviedb.org/3/search/tv");
         QUrlQuery q;
         q.addQueryItem("api_key", m_apiKey);
         q.addQueryItem("query", query);
         url.setQuery(q);
+    } else if (provider.contains("OMDb") || (provider.contains("Auto") && type == "Movie")) {
+        url = QUrl("https://www.omdbapi.com/");
+        QUrlQuery q;
+        q.addQueryItem("apikey", "trilogy");
+        q.addQueryItem("s", query);
+        q.addQueryItem("type", type == "Movie" ? "movie" : "series");
+        url.setQuery(q);
+    } else if (provider.contains("Wikipedia")) {
+        url = QUrl("https://en.wikipedia.org/w/api.php");
+        QUrlQuery q;
+        q.addQueryItem("action", "query");
+        q.addQueryItem("list", "search");
+        q.addQueryItem("srsearch", query + (type == "Movie" ? " film" : " television series"));
+        q.addQueryItem("format", "json");
+        url.setQuery(q);
     } else {
-        // Free API-Keyless Fallback Scraper (TVmaze / Open Media DB)
+        // TVmaze (Free)
         url = QUrl("https://api.tvmaze.com/search/shows");
         QUrlQuery q;
         q.addQueryItem("q", query);
@@ -276,10 +316,10 @@ void VideoScraperDialog::onSearchFinished() {
     if (doc.isNull()) return;
 
     QString type = m_comboType->currentText();
+    QJsonObject rootObj = doc.object();
 
-    if (!m_apiKey.isEmpty()) {
-        // Parse TMDb JSON response
-        QJsonObject rootObj = doc.object();
+    if (rootObj.contains("results")) {
+        // TMDb response
         QJsonArray resultsArr = rootObj["results"].toArray();
         for (const QJsonValue& val : resultsArr) {
             QJsonObject obj = val.toObject();
@@ -310,8 +350,42 @@ void VideoScraperDialog::onSearchFinished() {
             res.genres = ""; 
             m_results.append(res);
         }
-    } else {
-        // Parse TVmaze response (only for TV Shows)
+    } else if (rootObj.contains("Search")) {
+        // OMDb response
+        QJsonArray resultsArr = rootObj["Search"].toArray();
+        for (const QJsonValue& val : resultsArr) {
+            QJsonObject obj = val.toObject();
+            VideoSearchResult res;
+            res.id = obj["imdbID"].toString();
+            res.title = obj["Title"].toString();
+            res.year = obj["Year"].toString().left(4);
+            res.type = type;
+            res.rating = "N/A";
+            res.overview = QString("%1 (%2)").arg(res.title).arg(res.year);
+            res.posterUrl = obj["Poster"].toString();
+            if (res.posterUrl == "N/A") res.posterUrl.clear();
+            m_results.append(res);
+        }
+    } else if (rootObj.contains("query")) {
+        // Wikipedia search response
+        QJsonArray resultsArr = rootObj["query"].toObject()["search"].toArray();
+        for (const QJsonValue& val : resultsArr) {
+            QJsonObject obj = val.toObject();
+            VideoSearchResult res;
+            res.id = QString::number(obj["pageid"].toInt());
+            res.title = obj["title"].toString();
+            res.year = "";
+            res.type = type;
+            res.rating = "N/A";
+            
+            QTextDocument docText;
+            docText.setHtml(obj["snippet"].toString());
+            res.overview = docText.toPlainText();
+            res.posterUrl = "";
+            m_results.append(res);
+        }
+    } else if (doc.isArray()) {
+        // TVmaze response
         QJsonArray rootArr = doc.array();
         for (const QJsonValue& val : rootArr) {
             QJsonObject showObj = val.toObject()["show"].toObject();
