@@ -96,20 +96,25 @@ void VideoScraperDialog::setupUI() {
     m_editSearch = new QLineEdit(this);
     m_editSearch->setPlaceholderText("Search movies or TV shows...");
     
-    m_comboType = new QComboBox(this);
-    m_comboType->addItems({"Movie", "TV Show"});
-    
-    m_comboProvider = new QComboBox(this);
-    m_comboProvider->addItems({"✨ Auto (Best Available)", "🍿 OMDb (Free / Movies)", "🎬 TMDb (The Movie Database)", "📺 TVmaze (Free / TV Shows)", "🌐 Wikipedia (Free)"});
-    
     m_btnSearch = new QPushButton("Search", this);
     connect(m_btnSearch, &QPushButton::clicked, this, &VideoScraperDialog::onSearchClicked);
 
     searchBar->addWidget(m_editSearch, 1);
-    searchBar->addWidget(m_comboType);
-    searchBar->addWidget(m_comboProvider);
     searchBar->addWidget(m_btnSearch);
     leftLayout->addLayout(searchBar);
+
+    QHBoxLayout* sourceBar = new QHBoxLayout();
+    sourceBar->addWidget(new QLabel("Category:", this));
+    m_comboType = new QComboBox(this);
+    m_comboType->addItems({"Movie", "TV Show"});
+    sourceBar->addWidget(m_comboType);
+
+    sourceBar->addWidget(new QLabel("Scraper Source:", this));
+    m_comboProvider = new QComboBox(this);
+    m_comboProvider->addItems({"✨ Auto (Best Available)", "🍿 OMDb (Free / Movies)", "🎬 TMDb (The Movie Database)", "📺 TVmaze (Free / TV Shows)", "🌐 Wikipedia (Free)"});
+    sourceBar->addWidget(m_comboProvider, 1);
+
+    leftLayout->addLayout(sourceBar);
 
     m_tableResults = new QTableWidget(this);
     m_tableResults->setColumnCount(3);
@@ -126,6 +131,9 @@ void VideoScraperDialog::setupUI() {
     QVBoxLayout* optLay = new QVBoxLayout(optionsGroup);
     optLay->setSpacing(8);
 
+    m_chkCreateMovieFolder = new QCheckBox("📁 Move file & metadata into self-contained folder 'Title (Year)'", this);
+    m_chkCreateMovieFolder->setChecked(true);
+
     m_chkSaveNfo = new QCheckBox("Save movie/show info metadata (.nfo XML file)", this);
     m_chkSaveNfo->setChecked(true);
     
@@ -138,6 +146,7 @@ void VideoScraperDialog::setupUI() {
     m_chkFanart = new QCheckBox("Download Fanart.tv backdrop, logo & banner", this);
     m_chkFanart->setChecked(true);
 
+    optLay->addWidget(m_chkCreateMovieFolder);
     optLay->addWidget(m_chkSaveNfo);
     optLay->addWidget(m_chkSavePoster);
     optLay->addWidget(m_chkRename);
@@ -582,37 +591,43 @@ void VideoScraperDialog::onApplyClicked() {
         QString currentPath = path;
         QString targetFolder = pathInfo.isDir() ? currentPath : pathInfo.absolutePath();
 
+        // Check if self-contained movie folder should be created
+        if (!pathInfo.isDir() && m_chkCreateMovieFolder->isChecked()) {
+            QString sanitizedTitle = res.title;
+            sanitizedTitle.remove(QRegularExpression(R"([\\\/\:\*\?\"\<\>\|])"));
+            QString folderName = QString("%1 (%2)").arg(sanitizedTitle).arg(res.year);
+            QString movieSubfolder = QDir(pathInfo.absolutePath()).filePath(folderName);
+            QDir().mkpath(movieSubfolder);
+
+            QString newVideoPath = QDir(movieSubfolder).filePath(folderName + "." + pathInfo.suffix());
+            if (QFile::rename(currentPath, newVideoPath)) {
+                currentPath = newVideoPath;
+                pathInfo = QFileInfo(currentPath);
+            } else if (QFile::copy(currentPath, newVideoPath)) {
+                QFile::remove(currentPath);
+                currentPath = newVideoPath;
+                pathInfo = QFileInfo(currentPath);
+            }
+            targetFolder = movieSubfolder;
+        }
+
         // 1. Save Poster Artwork
         if (m_chkSavePoster->isChecked() && !m_downloadedPosterData.isEmpty()) {
             QDir dir(targetFolder);
-            if (!pathInfo.isDir()) {
-                QString baseName = pathInfo.completeBaseName();
-                if (m_chkRename->isChecked()) {
-                    QString sanitizedTitle = res.title;
-                    sanitizedTitle.remove(QRegularExpression(R"([\\\/\:\*\?\"\<\>\|])"));
-                    baseName = QString("%1 (%2)").arg(sanitizedTitle).arg(res.year);
-                }
-                QFile fileSpec(dir.filePath(baseName + "_cover.jpg"));
-                if (fileSpec.open(QIODevice::WriteOnly)) {
-                    fileSpec.write(m_downloadedPosterData);
-                    fileSpec.close();
-                }
-            } else {
-                QFile filePoster(dir.filePath("poster.jpg"));
-                if (filePoster.open(QIODevice::WriteOnly)) {
-                    filePoster.write(m_downloadedPosterData);
-                    filePoster.close();
-                }
-                QFile fileFolder(dir.filePath("folder.jpg"));
-                if (fileFolder.open(QIODevice::WriteOnly)) {
-                    fileFolder.write(m_downloadedPosterData);
-                    fileFolder.close();
-                }
-                QFile fileDvd(dir.filePath("dvd.jpg"));
-                if (fileDvd.open(QIODevice::WriteOnly)) {
-                    fileDvd.write(m_downloadedPosterData);
-                    fileDvd.close();
-                }
+            QFile filePoster(dir.filePath("poster.jpg"));
+            if (filePoster.open(QIODevice::WriteOnly)) {
+                filePoster.write(m_downloadedPosterData);
+                filePoster.close();
+            }
+            QFile fileFolder(dir.filePath("folder.jpg"));
+            if (fileFolder.open(QIODevice::WriteOnly)) {
+                fileFolder.write(m_downloadedPosterData);
+                fileFolder.close();
+            }
+            QFile fileDvd(dir.filePath("dvd.jpg"));
+            if (fileDvd.open(QIODevice::WriteOnly)) {
+                fileDvd.write(m_downloadedPosterData);
+                fileDvd.close();
             }
         }
 

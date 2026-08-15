@@ -126,6 +126,7 @@ private:
     QCheckBox* m_chkSavePoster = nullptr;
     QCheckBox* m_chkRename = nullptr;
     QCheckBox* m_chkFanart = nullptr;
+    QCheckBox* m_chkCreateMovieFolder = nullptr;
 
     QPushButton* m_btnApply = nullptr;
     QPushButton* m_btnCancel = nullptr;
