@@ -744,24 +744,11 @@ void MainWindow::setupActions() {
     connect(m_actTogglePreview, &QAction::toggled, this, &MainWindow::onTogglePreview);
 
     m_actToggleInspector = new QAction("🔍 Inspector & POSIX Permissions", this);
-    m_actToggleInspector->setCheckable(true);
-    m_actToggleInspector->setChecked(false);
     m_actToggleInspector->setShortcuts({ QKeySequence(Qt::CTRL | Qt::Key_I), QKeySequence(Qt::Key_F11) });
-    m_actToggleInspector->setToolTip("Toggle file inspector & POSIX permissions sidebar (Ctrl+I / F11)");
-    m_actToggleInspector->setStatusTip("Toggle file inspector & POSIX permissions sidebar (Ctrl+I / F11)");
-    connect(m_actToggleInspector, &QAction::toggled, this, [this](bool visible) {
-        if (m_inspectorDock) {
-            m_inspectorDock->setVisible(visible);
-            if (visible) {
-                m_inspectorDock->show();
-                m_inspectorDock->raise();
-                if (m_activePanel && m_inspectorSidebar) {
-                    QStringList selected = m_activePanel->selectedPaths();
-                    QString path = selected.isEmpty() ? m_activePanel->currentPath() : selected.first();
-                    m_inspectorSidebar->inspectFile(path);
-                }
-            }
-        }
+    m_actToggleInspector->setToolTip("Toggle file inspector & POSIX permissions (Ctrl+I / F11)");
+    m_actToggleInspector->setStatusTip("Toggle file inspector & POSIX permissions (Ctrl+I / F11)");
+    connect(m_actToggleInspector, &QAction::triggered, this, [this]() {
+        executeInternalCommand("ToggleInspector");
     });
 
     m_actCommandPalette = new QAction("Command Palette...", this);
@@ -1661,6 +1648,11 @@ void MainWindow::onToggleDualPane(bool checked) {
 
 void MainWindow::onTogglePreview(bool checked) {
     m_previewDockAutoShownForPlayback = false;
+    QSettings settings("Amifiles", "Amifiles");
+    bool integrateTabs = settings.value("preview/integrate_inspector_tabs", true).toBool();
+    if (integrateTabs && m_inspectorDock) {
+        m_inspectorDock->hide();
+    }
     if (m_previewDock) {
         m_previewDock->setVisible(checked);
     }
@@ -6987,6 +6979,7 @@ void MainWindow::executeInternalCommand(const QString& script) {
             QSettings settings("Amifiles", "Amifiles");
             bool integrateTabs = settings.value("preview/integrate_inspector_tabs", true).toBool();
             if (integrateTabs && m_previewPanel) {
+                if (m_inspectorDock) m_inspectorDock->hide();
                 if (m_actTogglePreview && !m_actTogglePreview->isChecked()) {
                     m_actTogglePreview->setChecked(true);
                 }
