@@ -377,6 +377,8 @@ private:
     FilePanel* m_activePanel = nullptr;
     bool m_isDualPane = true;
     bool m_showPreview = true;
+    bool m_showInspector = false;
+    QAction* m_actToggleInspector = nullptr;
     bool m_previewDockAutoShownForPlayback = false;
     bool m_ageColoringEnabled = true;
     bool m_wasDualPaneBeforeLock = false;

@@ -742,6 +742,23 @@ void MainWindow::setupActions() {
     m_actTogglePreview->setStatusTip("Toggle the file preview panel on/off (F3 / Ctrl+P)");
     connect(m_actTogglePreview, &QAction::toggled, this, &MainWindow::onTogglePreview);
 
+    m_actToggleInspector = new QAction("🔍 Inspector & POSIX Permissions", this);
+    m_actToggleInspector->setCheckable(true);
+    m_actToggleInspector->setChecked(false);
+    m_actToggleInspector->setShortcuts({ QKeySequence(Qt::CTRL | Qt::Key_I), QKeySequence(Qt::Key_F11) });
+    m_actToggleInspector->setToolTip("Toggle file inspector & POSIX permissions sidebar (Ctrl+I / F11)");
+    m_actToggleInspector->setStatusTip("Toggle file inspector & POSIX permissions sidebar (Ctrl+I / F11)");
+    connect(m_actToggleInspector, &QAction::toggled, this, [this](bool visible) {
+        if (m_inspectorDock) {
+            m_inspectorDock->setVisible(visible);
+            if (visible && m_activePanel && m_inspectorSidebar) {
+                QStringList selected = m_activePanel->selectedPaths();
+                QString path = selected.isEmpty() ? m_activePanel->currentPath() : selected.first();
+                m_inspectorSidebar->inspectFile(path);
+            }
+        }
+    });
+
     m_actCommandPalette = new QAction("Command Palette...", this);
     m_actCommandPalette->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_P));
     m_actCommandPalette->setToolTip("Open spotlight command palette dialog");
@@ -1331,6 +1348,7 @@ void MainWindow::setupMenus() {
     m_menuView->addAction(m_actToggleDualPane);
     m_menuView->addAction(m_actToggleHorizontalSplit);
     m_menuView->addAction(m_actTogglePreview);
+    m_menuView->addAction(m_actToggleInspector);
     m_menuView->addAction(m_actToggleDrivesToolbar);
     m_menuView->addAction(m_actToggleCenterOps);
     m_menuView->addAction(m_actToggleFavoritesSidebar);

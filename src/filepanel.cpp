@@ -9506,6 +9506,7 @@ QJsonArray FilePanel::getDefaultContextMenuJson() const {
     arr.append(makeAction("Rename", "app.rename", "edit-rename"));
     arr.append(makeAction("Bulk Rename...", "app.bulk_rename", ""));
     arr.append(makeAction("Properties...", "app.properties", "dialog-information"));
+    arr.append(makeAction("🔍 File Inspector & POSIX Permissions", "@internal:ToggleInspector", "system-search"));
     arr.append(makeSeparator());
 
     // 2. New Folder / Files Submenu
