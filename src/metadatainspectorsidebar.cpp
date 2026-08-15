@@ -9,6 +9,9 @@
 #include <QApplication>
 #include <QStyle>
 #include <QFileInfo>
+#include <QFileDevice>
+#include <QMessageBox>
+#include <QGroupBox>
 
 MetadataInspectorSidebar::MetadataInspectorSidebar(QWidget* parent) : QWidget(parent) {
     setupUI();
@@ -18,7 +21,8 @@ void MetadataInspectorSidebar::setupUI() {
     setFixedWidth(280);
     setStyleSheet("QWidget { background-color: #181825; color: #cdd6f4; font-family: sans-serif; } "
                   "QLabel { color: #cdd6f4; font-size: 12px; } "
-                  "QPushButton { background-color: #313244; color: #cdd6f4; border-radius: 6px; padding: 6px 12px; font-weight: bold; } "
+                  "QCheckBox { color: #cdd6f4; font-size: 11px; } "
+                  "QPushButton { background-color: #313244; color: #cdd6f4; border-radius: 6px; padding: 5px 10px; font-weight: bold; } "
                   "QPushButton:hover { background-color: #45475a; color: #89b4fa; }");
 
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
@@ -66,8 +70,61 @@ void MetadataInspectorSidebar::setupUI() {
     m_lblDates->setWordWrap(true);
     layout->addWidget(m_lblDates);
 
-    m_lblPermissions = new QLabel("", scrollContent);
-    layout->addWidget(m_lblPermissions);
+    // POSIX Permission Matrix Box
+    QGroupBox* permGroup = new QGroupBox("🔐 POSIX Permissions", scrollContent);
+    permGroup->setStyleSheet("QGroupBox { font-weight: bold; color: #89b4fa; border: 1px solid #313244; border-radius: 6px; margin-top: 6px; padding-top: 10px; }");
+    QVBoxLayout* permLayout = new QVBoxLayout(permGroup);
+    permLayout->setSpacing(4);
+
+    m_lblOctalPerms = new QLabel("Mode: 0644 (-rw-r--r--)", permGroup);
+    m_lblOctalPerms->setStyleSheet("font-family: monospace; font-weight: bold; color: #a6e3a1; font-size: 11px;");
+    permLayout->addWidget(m_lblOctalPerms);
+
+    QGridLayout* grid = new QGridLayout();
+    grid->setSpacing(4);
+    grid->addWidget(new QLabel("Owner:", permGroup), 0, 0);
+    m_chkOwnerR = new QCheckBox("R", permGroup);
+    m_chkOwnerW = new QCheckBox("W", permGroup);
+    m_chkOwnerX = new QCheckBox("X", permGroup);
+    grid->addWidget(m_chkOwnerR, 0, 1);
+    grid->addWidget(m_chkOwnerW, 0, 2);
+    grid->addWidget(m_chkOwnerX, 0, 3);
+
+    grid->addWidget(new QLabel("Group:", permGroup), 1, 0);
+    m_chkGroupR = new QCheckBox("R", permGroup);
+    m_chkGroupW = new QCheckBox("W", permGroup);
+    m_chkGroupX = new QCheckBox("X", permGroup);
+    grid->addWidget(m_chkGroupR, 1, 1);
+    grid->addWidget(m_chkGroupW, 1, 2);
+    grid->addWidget(m_chkGroupX, 1, 3);
+
+    grid->addWidget(new QLabel("Others:", permGroup), 2, 0);
+    m_chkOtherR = new QCheckBox("R", permGroup);
+    m_chkOtherW = new QCheckBox("W", permGroup);
+    m_chkOtherX = new QCheckBox("X", permGroup);
+    grid->addWidget(m_chkOtherR, 2, 1);
+    grid->addWidget(m_chkOtherW, 2, 2);
+    grid->addWidget(m_chkOtherX, 2, 3);
+
+    permLayout->addLayout(grid);
+
+    m_btnApplyPerms = new QPushButton("Apply Chmod", permGroup);
+    m_btnApplyPerms->setStyleSheet("background-color: #313244; color: #a6e3a1; font-size: 11px; border-radius: 4px; padding: 4px;");
+    connect(m_btnApplyPerms, &QPushButton::clicked, this, &MetadataInspectorSidebar::onApplyPermissions);
+    permLayout->addWidget(m_btnApplyPerms);
+
+    auto updateLambda = [this]() { updateOctalDisplay(); };
+    connect(m_chkOwnerR, &QCheckBox::toggled, this, updateLambda);
+    connect(m_chkOwnerW, &QCheckBox::toggled, this, updateLambda);
+    connect(m_chkOwnerX, &QCheckBox::toggled, this, updateLambda);
+    connect(m_chkGroupR, &QCheckBox::toggled, this, updateLambda);
+    connect(m_chkGroupW, &QCheckBox::toggled, this, updateLambda);
+    connect(m_chkGroupX, &QCheckBox::toggled, this, updateLambda);
+    connect(m_chkOtherR, &QCheckBox::toggled, this, updateLambda);
+    connect(m_chkOtherW, &QCheckBox::toggled, this, updateLambda);
+    connect(m_chkOtherX, &QCheckBox::toggled, this, updateLambda);
+
+    layout->addWidget(permGroup);
 
     // Dynamic Metadata Section
     m_lblDetailsHeader = new QLabel("<b>Metadata Properties</b>", scrollContent);
@@ -102,6 +159,52 @@ void MetadataInspectorSidebar::setupUI() {
     mainLayout->addWidget(m_btnOpen);
 }
 
+void MetadataInspectorSidebar::updateOctalDisplay() {
+    int owner = (m_chkOwnerR->isChecked() ? 4 : 0) + (m_chkOwnerW->isChecked() ? 2 : 0) + (m_chkOwnerX->isChecked() ? 1 : 0);
+    int group = (m_chkGroupR->isChecked() ? 4 : 0) + (m_chkGroupW->isChecked() ? 2 : 0) + (m_chkGroupX->isChecked() ? 1 : 0);
+    int other = (m_chkOtherR->isChecked() ? 4 : 0) + (m_chkOtherW->isChecked() ? 2 : 0) + (m_chkOtherX->isChecked() ? 1 : 0);
+
+    QString modeStr = QString("%1%2%3").arg(owner).arg(group).arg(other);
+    QString str = QString("Mode: 0%1 (").arg(modeStr);
+    str += m_chkOwnerR->isChecked() ? "r" : "-";
+    str += m_chkOwnerW->isChecked() ? "w" : "-";
+    str += m_chkOwnerX->isChecked() ? "x" : "-";
+    str += m_chkGroupR->isChecked() ? "r" : "-";
+    str += m_chkGroupW->isChecked() ? "w" : "-";
+    str += m_chkGroupX->isChecked() ? "x" : "-";
+    str += m_chkOtherR->isChecked() ? "r" : "-";
+    str += m_chkOtherW->isChecked() ? "w" : "-";
+    str += m_chkOtherX->isChecked() ? "x" : "-";
+    str += ")";
+
+    m_lblOctalPerms->setText(str);
+}
+
+void MetadataInspectorSidebar::onApplyPermissions() {
+    if (m_currentFilePath.isEmpty() || !QFile::exists(m_currentFilePath)) return;
+
+    QFileDevice::Permissions perms = {};
+
+    if (m_chkOwnerR->isChecked()) perms |= QFileDevice::ReadOwner;
+    if (m_chkOwnerW->isChecked()) perms |= QFileDevice::WriteOwner;
+    if (m_chkOwnerX->isChecked()) perms |= QFileDevice::ExeOwner;
+
+    if (m_chkGroupR->isChecked()) perms |= QFileDevice::ReadGroup;
+    if (m_chkGroupW->isChecked()) perms |= QFileDevice::WriteGroup;
+    if (m_chkGroupX->isChecked()) perms |= QFileDevice::ExeGroup;
+
+    if (m_chkOtherR->isChecked()) perms |= QFileDevice::ReadOther;
+    if (m_chkOtherW->isChecked()) perms |= QFileDevice::WriteOther;
+    if (m_chkOtherX->isChecked()) perms |= QFileDevice::ExeOther;
+
+    if (QFile::setPermissions(m_currentFilePath, perms)) {
+        inspectFile(m_currentFilePath);
+        emit filePermissionsChanged(m_currentFilePath);
+    } else {
+        QMessageBox::warning(this, "Permission Error", "Failed to change file permissions. Check file ownership or access rights.");
+    }
+}
+
 void MetadataInspectorSidebar::clearInspection() {
     m_currentFilePath.clear();
     m_lblThumbnail->clear();
@@ -110,9 +213,19 @@ void MetadataInspectorSidebar::clearInspection() {
     m_lblPath->setText("");
     m_lblSize->setText("");
     m_lblDates->setText("");
-    m_lblPermissions->setText("");
+    m_lblOctalPerms->setText("Mode: N/A");
     m_lblDetailsContent->setText("");
     m_lblTags->setText("No tags set");
+
+    m_chkOwnerR->setChecked(false);
+    m_chkOwnerW->setChecked(false);
+    m_chkOwnerX->setChecked(false);
+    m_chkGroupR->setChecked(false);
+    m_chkGroupW->setChecked(false);
+    m_chkGroupX->setChecked(false);
+    m_chkOtherR->setChecked(false);
+    m_chkOtherW->setChecked(false);
+    m_chkOtherX->setChecked(false);
 }
 
 void MetadataInspectorSidebar::inspectFile(const QString& filePath) {
@@ -141,12 +254,21 @@ void MetadataInspectorSidebar::inspectFile(const QString& filePath) {
                         .arg(fi.lastModified().toString("yyyy-MM-dd hh:mm:ss"))
                         .arg(fi.birthTime().isValid() ? fi.birthTime().toString("yyyy-MM-dd hh:mm:ss") : "N/A"));
 
-    // Permissions
-    QString perms;
-    perms += fi.isReadable() ? "r" : "-";
-    perms += fi.isWritable() ? "w" : "-";
-    perms += fi.isExecutable() ? "x" : "-";
-    m_lblPermissions->setText(QString("<b>Permissions:</b> %1").arg(perms));
+    // Set Checkboxes from POSIX permissions
+    QFileDevice::Permissions perms = fi.permissions();
+    m_chkOwnerR->setChecked(perms & QFileDevice::ReadOwner);
+    m_chkOwnerW->setChecked(perms & QFileDevice::WriteOwner);
+    m_chkOwnerX->setChecked(perms & QFileDevice::ExeOwner);
+
+    m_chkGroupR->setChecked(perms & QFileDevice::ReadGroup);
+    m_chkGroupW->setChecked(perms & QFileDevice::WriteGroup);
+    m_chkGroupX->setChecked(perms & QFileDevice::ExeGroup);
+
+    m_chkOtherR->setChecked(perms & QFileDevice::ReadOther);
+    m_chkOtherW->setChecked(perms & QFileDevice::WriteOther);
+    m_chkOtherX->setChecked(perms & QFileDevice::ExeOther);
+
+    updateOctalDisplay();
 
     // Tags
     QStringList tags = TagManager::instance().getFileTags(filePath);

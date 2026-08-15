@@ -462,6 +462,19 @@ void MainWindow::setupCentralWidget() {
         updateMiniPlayer();
     });
 
+    m_inspectorSidebar = new MetadataInspectorSidebar(this);
+    m_inspectorDock = new QDockWidget("🔍 Inspector & POSIX Permissions", this);
+    m_inspectorDock->setObjectName("inspectorDockWidget");
+    m_inspectorDock->setWidget(m_inspectorSidebar);
+    m_inspectorDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+    m_inspectorDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetClosable);
+    addDockWidget(Qt::RightDockWidgetArea, m_inspectorDock);
+    m_inspectorDock->setVisible(false);
+
+    connect(m_inspectorSidebar, &MetadataInspectorSidebar::filePermissionsChanged, this, [this]() {
+        if (m_activePanel) m_activePanel->refresh();
+    });
+
     // Add first tabs
     createTab(m_leftTabWidget, "smart://home");
     createTab(m_rightTabWidget, "smart://home");
@@ -3075,6 +3088,12 @@ FilePanel* MainWindow::createTab(QTabWidget* tabWidget, const QString& path) {
     connect(panel, &FilePanel::loadDefaultProfileRequested, this, &MainWindow::onLoadDefaultProfile);
     connect(panel, &FilePanel::saveFolderProfileRequested, this, &MainWindow::onSaveFolderProfileForCurrentDir);
     connect(panel, &FilePanel::configureFolderLayoutsRequested, this, &MainWindow::onConfigureFolderLayouts);
+
+    connect(panel, &FilePanel::fileSelected, this, [this, panel](const QString& path) {
+        if (m_inspectorDock && m_inspectorDock->isVisible() && m_inspectorSidebar && panel == m_activePanel) {
+            m_inspectorSidebar->inspectFile(path);
+        }
+    });
 
     if (m_previewPanel && m_previewPanel->player()) {
         panel->onPlaybackStateChanged(static_cast<int>(m_previewPanel->player()->playbackState()));
@@ -6940,6 +6959,16 @@ void MainWindow::executeInternalCommand(const QString& script) {
                 BatchTouchDialog dlg(selected, this);
                 dlg.exec();
                 m_activePanel->refresh();
+            }
+        } else if (cmd == "ToggleInspector" || cmd == "ToggleInspectorSidebar" || cmd == "Inspector") {
+            if (m_inspectorDock) {
+                bool vis = !m_inspectorDock->isVisible();
+                m_inspectorDock->setVisible(vis);
+                if (vis && m_activePanel && m_inspectorSidebar) {
+                    QStringList selected = m_activePanel->selectedPaths();
+                    QString path = selected.isEmpty() ? m_activePanel->currentPath() : selected.first();
+                    m_inspectorSidebar->inspectFile(path);
+                }
             }
         } else if (cmd == "SplitFile") {
             if (m_activePanel) {

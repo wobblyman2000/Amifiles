@@ -399,6 +399,8 @@ private:
     QTabWidget* m_rightTabWidget = nullptr;
     PreviewPanel* m_previewPanel = nullptr;
     QDockWidget* m_previewDock = nullptr;
+    class MetadataInspectorSidebar* m_inspectorSidebar = nullptr;
+    QDockWidget* m_inspectorDock = nullptr;
     QDockWidget* m_fullscreenQueueDock = nullptr;
     class QListWidget* m_fullscreenQueueList = nullptr;
     QFrame* m_tbCenterOps = nullptr;
