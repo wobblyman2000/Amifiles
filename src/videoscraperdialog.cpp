@@ -583,8 +583,24 @@ void VideoScraperDialog::onApplyClicked() {
     if (row < 0 || row >= m_results.size()) return;
 
     const auto& res = m_results[row];
-    int successCount = 0;
 
+    // If TV Show and rename is checked, show RenamePreviewDialog BEFORE doing any disk operations!
+    QList<EpisodeInfo> episodes;
+    if (res.type == "TV Show") {
+        episodes = fetchEpisodesList(res.id);
+        if (!episodes.isEmpty() && m_chkRename->isChecked()) {
+            for (const QString& path : m_filePaths) {
+                QFileInfo pathInfo(path);
+                QString targetFolder = pathInfo.isDir() ? path : pathInfo.absolutePath();
+                if (!processTVShowEpisodes(targetFolder, res.title, episodes)) {
+                    // User clicked Cancel on RenamePreviewDialog! ABORT EVERYTHING!
+                    return;
+                }
+            }
+        }
+    }
+
+    int successCount = 0;
     QStringList resolvedPaths;
     for (const QString& path : m_filePaths) {
         QFileInfo pathInfo(path);
@@ -686,15 +702,12 @@ void VideoScraperDialog::onApplyClicked() {
         successCount++;
     }
 
-    // If it's a TV Show, process episodes (rename them and save episode .nfo files)
-    if (res.type == "TV Show") {
-        QList<EpisodeInfo> episodes = fetchEpisodesList(res.id);
-        if (!episodes.isEmpty()) {
-            for (const QString& path : resolvedPaths) {
-                QFileInfo pathInfo(path);
-                QString targetFolder = pathInfo.isDir() ? path : pathInfo.absolutePath();
-                processTVShowEpisodes(targetFolder, res.title, episodes);
-            }
+    // If TV show and rename was unchecked, write episode NFOs directly
+    if (res.type == "TV Show" && !m_chkRename->isChecked() && !episodes.isEmpty()) {
+        for (const QString& path : resolvedPaths) {
+            QFileInfo pathInfo(path);
+            QString targetFolder = pathInfo.isDir() ? path : pathInfo.absolutePath();
+            processTVShowEpisodes(targetFolder, res.title, episodes);
         }
     }
 
@@ -1275,7 +1288,7 @@ QList<EpisodeInfo> VideoScraperDialog::fetchEpisodesList(const QString& showId) 
     return list;
 }
 
-void VideoScraperDialog::processTVShowEpisodes(const QString& targetFolder, const QString& showTitle, const QList<EpisodeInfo>& episodes) {
+bool VideoScraperDialog::processTVShowEpisodes(const QString& targetFolder, const QString& showTitle, const QList<EpisodeInfo>& episodes) {
     QDir dir(targetFolder);
     
     QString sanitizedShowTitle = showTitle;
@@ -1434,8 +1447,6 @@ void VideoScraperDialog::processTVShowEpisodes(const QString& targetFolder, cons
             tasks.append(task);
         }
     }
-
-    // Sort tasks chronologically by Season, then Episode
     std::sort(tasks.begin(), tasks.end(), [](const FileRenameTask& a, const FileRenameTask& b) {
         if (a.ep.season != b.ep.season) {
             return a.ep.season < b.ep.season;
@@ -1447,7 +1458,7 @@ void VideoScraperDialog::processTVShowEpisodes(const QString& targetFolder, cons
         if (m_chkRename->isChecked()) {
             QMessageBox::information(this, "No Matches", "No matching video files containing season/episode patterns (e.g. S01E02) were found.");
         }
-        return;
+        return true;
     }
 
     if (m_chkRename->isChecked()) {
@@ -1457,7 +1468,6 @@ void VideoScraperDialog::processTVShowEpisodes(const QString& targetFolder, cons
             QList<FileRenameTask> confirmed = previewDlg.selectedTasks();
             bool useSeasonFolders = previewDlg.organizeIntoSeasonFolders();
 
-            // 1. Rename existing Season subdirectories if they match but are named differently
             if (useSeasonFolders) {
                 QStringList subdirs = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
                 for (const QString& subdir : subdirs) {
@@ -1479,44 +1489,26 @@ void VideoScraperDialog::processTVShowEpisodes(const QString& targetFolder, cons
 
             int renamedCount = 0;
             QStringList failedRenames;
+
             for (const auto& task : confirmed) {
-                QString finalDestPath;
-                if (useSeasonFolders) {
-                    // Ensure Season Folder exists
-                    QString sDirName = QString("Season %1").arg(task.ep.season, 2, 10, QChar('0'));
-                    QString sDirPath = dir.filePath(sDirName);
-                    QDir().mkpath(sDirPath);
-                    finalDestPath = QDir(sDirPath).filePath(task.fileName);
-                } else {
-                    finalDestPath = dir.filePath(task.fileName);
+                QString finalDestPath = task.newPath;
+                if (useSeasonFolders && task.ep.season > 0) {
+                    QString seasonFolderName = QString("Season %1").arg(task.ep.season, 2, 10, QChar('0'));
+                    QString seasonDirPath = dir.filePath(seasonFolderName);
+                    QDir().mkpath(seasonDirPath);
+                    finalDestPath = QDir(seasonDirPath).filePath(task.fileName);
                 }
 
                 if (task.oldPath != finalDestPath) {
                     bool destExists = QFile::exists(finalDestPath);
-                    bool sameFile = false;
-                    if (destExists) {
-                        QFileInfo fiOld(task.oldPath);
-                        QFileInfo fiNew(finalDestPath);
-                        if (fiOld.canonicalFilePath() == fiNew.canonicalFilePath() && !fiOld.canonicalFilePath().isEmpty()) {
-                            sameFile = true;
-                        }
-                    }
-
-                    if (sameFile) {
-                        // It is the same file (case-only rename on case-insensitive filesystems)
-                        QString tempPath = finalDestPath + ".tmp_rename";
-                        if (QFile::rename(task.oldPath, tempPath)) {
-                            if (QFile::rename(tempPath, finalDestPath)) {
-                                QFile(finalDestPath).setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
-                                renamedCount++;
-                            } else {
-                                QFile::rename(tempPath, task.oldPath);
-                                failedRenames.append(QString("%1 -> %2 (Error: Case-rename failed at second step)")
-                                    .arg(QFileInfo(task.oldPath).fileName())
-                                    .arg(QFileInfo(finalDestPath).fileName()));
-                            }
+                    if (destExists && task.oldPath.toLower() == finalDestPath.toLower()) {
+                        QString tempPath = task.oldPath + ".tmp_rename_" + QString::number(QDateTime::currentMSecsSinceEpoch());
+                        if (QFile::rename(task.oldPath, tempPath) && QFile::rename(tempPath, finalDestPath)) {
+                            QFile(finalDestPath).setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
+                            renamedCount++;
                         } else {
-                            failedRenames.append(QString("%1 -> %2 (Error: Case-rename failed at first step)")
+                            if (QFile::exists(tempPath)) QFile::rename(tempPath, task.oldPath);
+                            failedRenames.append(QString("%1 -> %2 (Error: Case Rename Failed)")
                                 .arg(QFileInfo(task.oldPath).fileName())
                                 .arg(QFileInfo(finalDestPath).fileName()));
                         }
@@ -1530,9 +1522,6 @@ void VideoScraperDialog::processTVShowEpisodes(const QString& targetFolder, cons
                                 .arg(QFileInfo(finalDestPath).fileName())
                                 .arg(QFile(task.oldPath).errorString()));
                         }
-                    } else {
-                        // Destination already exists (different file), silently bypass renaming
-                        qDebug() << "Bypassing episode rename since destination already exists:" << finalDestPath;
                     }
                 }
 
@@ -1540,17 +1529,16 @@ void VideoScraperDialog::processTVShowEpisodes(const QString& targetFolder, cons
                     writeEpisodeNfoFile(finalDestPath, task.ep, showTitle);
                 }
             }
-
-            if (renamedCount > 0) {
-                QMessageBox::information(this, "Renaming Complete", QString("Successfully renamed and organized %1 episodes.").arg(renamedCount));
-            }
             if (!failedRenames.isEmpty()) {
                 QMessageBox::warning(this, "Rename Failures",
                     "The following files could not be renamed:\n\n" + failedRenames.join("\n"));
             }
+            return true;
+        } else {
+            // User cancelled RenamePreviewDialog!
+            return false;
         }
     } else {
-        // If rename is unchecked, just write NFO files to existing episode file paths directly!
         int nfoCount = 0;
         for (const auto& task : tasks) {
             if (m_chkSaveNfo->isChecked()) {
@@ -1561,6 +1549,7 @@ void VideoScraperDialog::processTVShowEpisodes(const QString& targetFolder, cons
         if (nfoCount > 0) {
             QMessageBox::information(this, "NFO Export Complete", QString("Successfully created NFO files for %1 episodes.").arg(nfoCount));
         }
+        return true;
     }
 }
 

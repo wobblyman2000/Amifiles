@@ -94,7 +94,7 @@ private:
     };
     SeasonEpisode parseSeasonEpisode(const QFileInfo& fileInfo);
     QList<EpisodeInfo> fetchEpisodesList(const QString& showId);
-    void processTVShowEpisodes(const QString& targetFolder, const QString& showTitle, const QList<EpisodeInfo>& episodes);
+    bool processTVShowEpisodes(const QString& targetFolder, const QString& showTitle, const QList<EpisodeInfo>& episodes);
     void writeEpisodeNfoFile(const QString& filePath, const EpisodeInfo& ep, const QString& showTitle);
     void fetchAlternativePosters(const QString& id, bool isTV);
 
