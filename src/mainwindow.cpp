@@ -2876,7 +2876,8 @@ void MainWindow::onCustomButtonClicked() {
     QString script = act->property("script").toString().trimmed();
     if (script.isEmpty()) return;
 
-    if (script.startsWith("@internal:") || script.contains(";") || script.contains("&&")) {
+    if (script.startsWith("@internal:") || script.startsWith("app.") || script.contains(";") || script.contains("&&") ||
+        script.startsWith("Toggle") || script.startsWith("Save") || script.startsWith("Load") || script.startsWith("Manage")) {
         executeInternalCommand(script);
         return;
     }
@@ -6919,9 +6920,12 @@ void MainWindow::executeInternalCommand(const QString& script) {
         return;
     }
 
-    if (trimmed.startsWith("@internal:")) {
-        QString cmd = trimmed.mid(10).trimmed();
-        if (cmd == "Copy") {
+    QString cmd = trimmed;
+    if (cmd.startsWith("@internal:")) {
+        cmd = cmd.mid(10).trimmed();
+    }
+
+    if (cmd == "Copy") {
             onCopyToSiblingAction();
         } else if (cmd == "Move") {
             onMoveToSiblingAction();
@@ -7203,7 +7207,6 @@ void MainWindow::executeInternalCommand(const QString& script) {
         } else {
             statusBar()->showMessage(QString("Unknown internal command: %1").arg(cmd), 4000);
         }
-    }
 }
 
 void MainWindow::saveWorkspacePreset(const QString& name) {

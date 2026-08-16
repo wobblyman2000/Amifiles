@@ -4841,13 +4841,12 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         while (mw && !mw->inherits("MainWindow")) mw = mw->parentWidget();
         MainWindow* mainWin = qobject_cast<MainWindow*>(mw);
         if (mainWin) mainWin->onShowFileHistory();
-    } else if (command == "app.file_inspector" || command == "@internal:ToggleInspector" || command.startsWith("@internal:")) {
+    } else if (command == "app.file_inspector" || command == "@internal:ToggleInspector" || command.startsWith("@internal:") || command.startsWith("app.")) {
         QWidget* mw = window();
+        while (mw && !mw->inherits("MainWindow")) mw = mw->parentWidget();
         MainWindow* mainWin = qobject_cast<MainWindow*>(mw);
         if (mainWin) {
-            QString cleanCmd = command;
-            if (cleanCmd.startsWith("@internal:")) cleanCmd = cleanCmd.mid(10);
-            mainWin->executeInternalCommand(cleanCmd);
+            mainWin->executeInternalCommand(command);
         }
     }
 }
