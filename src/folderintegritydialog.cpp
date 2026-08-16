@@ -178,6 +178,14 @@ FolderIntegrityDialog::FolderIntegrityDialog(const QString& dirPath, bool autoAu
     }
 }
 
+FolderIntegrityDialog::~FolderIntegrityDialog() {
+    if (m_worker && m_worker->isRunning()) {
+        m_worker->requestInterruption();
+        m_worker->quit();
+        m_worker->wait(2000);
+    }
+}
+
 void FolderIntegrityDialog::setupUI() {
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
     mainLayout->setSpacing(12);

@@ -40,6 +40,14 @@ BatchImageDialog::BatchImageDialog(const QStringList& selectedFiles, const QStri
     setupUI();
 }
 
+BatchImageDialog::~BatchImageDialog() {
+    if (m_worker && m_worker->isRunning()) {
+        m_worker->requestInterruption();
+        m_worker->quit();
+        m_worker->wait(2000);
+    }
+}
+
 void BatchImageDialog::setupUI() {
     setWindowTitle("Batch Image Processing Suite");
     resize(900, 550);

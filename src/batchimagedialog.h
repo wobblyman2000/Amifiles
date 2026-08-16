@@ -34,7 +34,7 @@ class BatchImageDialog : public QDialog {
     Q_OBJECT
 public:
     BatchImageDialog(const QStringList& selectedFiles, const QString& currentDir, QWidget* parent = nullptr);
-    ~BatchImageDialog() override = default;
+    ~BatchImageDialog() override;
 
 private slots:
     void onSelectDestDir();

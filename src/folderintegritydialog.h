@@ -43,7 +43,7 @@ class FolderIntegrityDialog : public QDialog {
     Q_OBJECT
 public:
     explicit FolderIntegrityDialog(const QString& dirPath, bool autoAudit = false, QWidget* parent = nullptr);
-    ~FolderIntegrityDialog() override = default;
+    ~FolderIntegrityDialog() override;
 
 private slots:
     void onGenerateSnapshot();

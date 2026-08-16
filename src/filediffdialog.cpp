@@ -41,8 +41,20 @@ void FileDiffDialog::setupUI() {
     m_txtRight = new QTextEdit(this);
     m_txtRight->setReadOnly(true);
 
-    connect(m_txtLeft->verticalScrollBar(), &QScrollBar::valueChanged, m_txtRight->verticalScrollBar(), &QScrollBar::setValue);
-    connect(m_txtRight->verticalScrollBar(), &QScrollBar::valueChanged, m_txtLeft->verticalScrollBar(), &QScrollBar::setValue);
+    connect(m_txtLeft->verticalScrollBar(), &QScrollBar::valueChanged, this, [this](int val) {
+        if (m_txtRight->verticalScrollBar()->value() != val) {
+            m_txtRight->verticalScrollBar()->blockSignals(true);
+            m_txtRight->verticalScrollBar()->setValue(val);
+            m_txtRight->verticalScrollBar()->blockSignals(false);
+        }
+    });
+    connect(m_txtRight->verticalScrollBar(), &QScrollBar::valueChanged, this, [this](int val) {
+        if (m_txtLeft->verticalScrollBar()->value() != val) {
+            m_txtLeft->verticalScrollBar()->blockSignals(true);
+            m_txtLeft->verticalScrollBar()->setValue(val);
+            m_txtLeft->verticalScrollBar()->blockSignals(false);
+        }
+    });
 
     textLayout->addWidget(m_txtLeft, 1);
     textLayout->addWidget(m_txtRight, 1);

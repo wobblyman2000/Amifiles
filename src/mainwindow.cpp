@@ -4074,17 +4074,8 @@ void MainWindow::onDecryptVault() {
 void MainWindow::closeEvent(QCloseEvent* event) {
     QSettings settings("Amifiles", "Amifiles");
     if (m_actAutoSaveLayout && m_actAutoSaveLayout->isChecked()) {
-        auto button = QMessageBox::question(this, "Confirm Save on Exit",
-            "Do you want to save the current layout configuration before exiting?",
-            QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel);
-        if (button == QMessageBox::Cancel) {
-            event->ignore();
-            return;
-        }
-        if (button == QMessageBox::Yes) {
-            settings.setValue("window/geometry", saveGeometry());
-            settings.setValue("window/state", saveState());
-        }
+        settings.setValue("window/geometry", saveGeometry());
+        settings.setValue("window/state", saveState());
     }
     if (m_trayIcon) {
         m_trayIcon->hide();
