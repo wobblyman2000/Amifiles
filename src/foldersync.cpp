@@ -72,7 +72,13 @@ void FolderSyncDialog::setupUI() {
     optsLayout->addSpacing(20);
     optsLayout->addWidget(new QLabel("Sync Direction:", this));
     m_cmbDirection = new QComboBox(this);
-    m_cmbDirection->addItems({"Left to Right (->)", "Right to Left (<-)", "Bidirectional (Sync Newer)"});
+    m_cmbDirection->addItems({
+        "Left to Right (->)", 
+        "Right to Left (<-)", 
+        "Bidirectional (Sync Newer)",
+        "Exact 1:1 Mirror (Left -> Right: Copy & Prune Target Extras)",
+        "Exact 1:1 Mirror (Right -> Left: Copy & Prune Target Extras)"
+    });
     optsLayout->addWidget(m_cmbDirection);
     optsLayout->addStretch(1);
     mainLayout->addLayout(optsLayout);
@@ -336,6 +342,22 @@ void SyncWorker::run() {
                 copyRightToLeft = true;
             } else if (item.status == "Size Mismatch") {
                 copyLeftToRight = true;
+            }
+        } else if (m_direction == 3) {
+            // Exact 1:1 Mirror (Left -> Right)
+            if (item.leftInfo.exists()) {
+                copyLeftToRight = true;
+            } else if (item.rightInfo.exists()) {
+                if (item.rightInfo.isDir()) QDir(rightPath).removeRecursively();
+                else QFile::remove(rightPath);
+            }
+        } else if (m_direction == 4) {
+            // Exact 1:1 Mirror (Right -> Left)
+            if (item.rightInfo.exists()) {
+                copyRightToLeft = true;
+            } else if (item.leftInfo.exists()) {
+                if (item.leftInfo.isDir()) QDir(leftPath).removeRecursively();
+                else QFile::remove(leftPath);
             }
         }
 

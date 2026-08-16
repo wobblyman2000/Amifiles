@@ -278,6 +278,10 @@ private slots:
     void refreshFavoritesSidebar();
     void refreshRecentsSidebar();
     void addToRecentFolders(const QString& path);
+    void onAuditFolderIntegrity();
+    void onGenerateFolderIntegrity();
+    void onShowFileHistory();
+    void onFileAssociationsAction();
     void onMutePreview(bool checked);
     void onToggleArchiveNav(bool checked);
     void onToggleArchiveWrite(bool checked);

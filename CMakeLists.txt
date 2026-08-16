@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(Amifiles VERSION 1.5.0.58 LANGUAGES CXX)
+project(Amifiles VERSION 1.5.0.59 LANGUAGES CXX)
 
 configure_file(
     "${PROJECT_SOURCE_DIR}/src/version.h.in"
@@ -47,6 +47,14 @@ add_executable(Amifiles
     src/flatmodel.cpp
     src/foldersync.h
     src/foldersync.cpp
+    src/folderintegritydialog.h
+    src/folderintegritydialog.cpp
+    src/filehistorymanager.h
+    src/filehistorymanager.cpp
+    src/filehistorydialog.h
+    src/filehistorydialog.cpp
+    src/fileassociationsdialog.h
+    src/fileassociationsdialog.cpp
     src/dupfinder.h
     src/dupfinder.cpp
     src/copyqueue.h

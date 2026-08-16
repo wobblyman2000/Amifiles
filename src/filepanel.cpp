@@ -56,6 +56,7 @@ static bool isPathLockedPersistent(const QString& path);
 #include <QScreen>
 #include <QHelpEvent>
 #include "copyqueue.h"
+#include "fileassociationsdialog.h"
 #include "archivedialog.h"
 #include <QHBoxLayout>
 #include <QVBoxLayout>
@@ -4825,6 +4826,21 @@ void FilePanel::onCustomContextMenu(const QPoint& pos) {
         clearDirectoryCompare();
     } else if (command == "app.select_wildcard" || command == "@internal:SelectWildcard") {
         selectByWildcardPattern();
+    } else if (command == "app.audit_integrity" || command == "@internal:AuditFolderIntegrity") {
+        QWidget* mw = window();
+        while (mw && !mw->inherits("MainWindow")) mw = mw->parentWidget();
+        MainWindow* mainWin = qobject_cast<MainWindow*>(mw);
+        if (mainWin) mainWin->onAuditFolderIntegrity();
+    } else if (command == "app.generate_integrity" || command == "@internal:GenerateFolderIntegrity") {
+        QWidget* mw = window();
+        while (mw && !mw->inherits("MainWindow")) mw = mw->parentWidget();
+        MainWindow* mainWin = qobject_cast<MainWindow*>(mw);
+        if (mainWin) mainWin->onGenerateFolderIntegrity();
+    } else if (command == "app.file_history" || command == "@internal:FileHistory") {
+        QWidget* mw = window();
+        while (mw && !mw->inherits("MainWindow")) mw = mw->parentWidget();
+        MainWindow* mainWin = qobject_cast<MainWindow*>(mw);
+        if (mainWin) mainWin->onShowFileHistory();
     } else if (command == "app.file_inspector" || command == "@internal:ToggleInspector" || command.startsWith("@internal:")) {
         QWidget* mw = window();
         MainWindow* mainWin = qobject_cast<MainWindow*>(mw);
@@ -7064,7 +7080,7 @@ void FilePanel::onDoubleClickedPath(const QString& path) {
             ComicBookViewerDialog dlg(path, this);
             dlg.exec();
         } else {
-            QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+            FileAssociationsDialog::launchFile(path);
         }
     }
 }
@@ -9525,6 +9541,8 @@ QJsonArray FilePanel::getDefaultContextMenuJson() const {
     arr.append(makeAction("Bulk Rename...", "app.bulk_rename", ""));
     arr.append(makeAction("Properties...", "app.properties", "dialog-information"));
     arr.append(makeAction("⚡ Calculate Subfolder Sizes", "app.calculate_folder_sizes", "utilities-system-monitor"));
+    arr.append(makeAction("🛡️ Audit Directory Bit-Rot & Integrity...", "app.audit_integrity", "security-high"));
+    arr.append(makeAction("⏪ View File Revision History...", "app.file_history", "document-revert"));
     arr.append(makeAction("🔍 File Inspector & POSIX Permissions", "@internal:ToggleInspector", "system-search"));
     arr.append(makeSeparator());
 

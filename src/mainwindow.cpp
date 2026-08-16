@@ -11,6 +11,9 @@
 #include "bulkrename.h"
 #include "consolepanel.h"
 #include "foldersync.h"
+#include "folderintegritydialog.h"
+#include "filehistorydialog.h"
+#include "fileassociationsdialog.h"
 #include "batchtouchdialog.h"
 #include "filesplitterdialog.h"
 #include "metadatainspectorsidebar.h"
@@ -1281,6 +1284,7 @@ void MainWindow::setupMenus() {
 
     m_menuSettings = menuBar()->addMenu("Settings");
     m_menuSettings->addAction(m_actPreferences);
+    m_menuSettings->addAction("🔗 File Type Associations...", this, &MainWindow::onFileAssociationsAction);
     m_menuSettings->addAction(m_actBypassFolderProfiles);
     m_menuSettings->addSeparator();
 
@@ -7036,6 +7040,14 @@ void MainWindow::executeInternalCommand(const QString& script) {
                     m_activePanel->refresh();
                 }
             }
+        } else if (cmd == "AuditFolderIntegrity" || cmd == "AuditIntegrity" || cmd == "app.audit_integrity") {
+            onAuditFolderIntegrity();
+        } else if (cmd == "GenerateFolderIntegrity" || cmd == "GenerateIntegrity" || cmd == "app.generate_integrity") {
+            onGenerateFolderIntegrity();
+        } else if (cmd == "FileHistory" || cmd == "app.file_history") {
+            onShowFileHistory();
+        } else if (cmd == "FileAssociations" || cmd == "app.file_associations") {
+            onFileAssociationsAction();
         } else if (cmd == "DuplicateFinder") {
             onDuplicateFinderAction();
         } else if (cmd == "SpaceAnalyzer") {
@@ -8919,4 +8931,31 @@ void MainWindow::updateActiveRuleLayoutSetting(const QString& field, bool value)
             break;
         }
     }
+}
+
+void MainWindow::onAuditFolderIntegrity() {
+    if (!m_activePanel) return;
+    QString path = m_activePanel->currentPath();
+    FolderIntegrityDialog dlg(path, true, this);
+    dlg.exec();
+}
+
+void MainWindow::onGenerateFolderIntegrity() {
+    if (!m_activePanel) return;
+    QString path = m_activePanel->currentPath();
+    FolderIntegrityDialog dlg(path, false, this);
+    dlg.exec();
+}
+
+void MainWindow::onShowFileHistory() {
+    if (!m_activePanel) return;
+    QStringList selected = m_activePanel->selectedPaths();
+    if (selected.isEmpty()) return;
+    FileHistoryDialog dlg(selected.first(), this);
+    dlg.exec();
+}
+
+void MainWindow::onFileAssociationsAction() {
+    FileAssociationsDialog dlg(this);
+    dlg.exec();
 }
