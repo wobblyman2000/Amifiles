@@ -376,7 +376,7 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(nullptr, Qt::Windo
 
     // Create HUD Overlay Panel
     m_hudWidget = new QFrame(this);
-    m_hudWidget->setFixedHeight(110);
+    m_hudWidget->setFixedHeight(135);
     m_hudWidget->setAttribute(Qt::WA_StyledBackground, true);
     m_hudWidget->setObjectName("hudPanel");
     m_hudWidget->setFocusPolicy(Qt::NoFocus);
@@ -672,7 +672,7 @@ FullscreenWidget::FullscreenWidget(QWidget* parent) : QWidget(nullptr, Qt::Windo
     hudMainLayout->addLayout(row2Layout);
 
     // Position HUD at the bottom center of the screen
-    m_hudWidget->resize(900, 90);
+    m_hudWidget->resize(900, 135);
 
     // Initialize Overlay Playlist Drawer as a floating window
     m_playlistDrawer = new QFrame(this, Qt::ToolTip | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
@@ -844,7 +844,7 @@ void FullscreenWidget::togglePlaylistDrawer() {
     anim->setEasingCurve(QEasingCurve::OutCubic);
 
     int drawerW = m_drawerW;
-    int hudH = (m_hudWidget && m_hudWidget->isVisible()) ? 110 : 0;
+    int hudH = (m_hudWidget && m_hudWidget->isVisible()) ? 135 : 0;
     int drawerH = screenH - hudH;
 
     QPoint startPos, endPos;
@@ -3027,6 +3027,15 @@ void PreviewPanel::onPositionChanged(qint64 position) {
         updateLyricsPosition(position);
     }
 
+    if (m_fullscreenMusicProgressSlider && !m_fullscreenMusicProgressSlider->isSliderDown()) {
+        m_fullscreenMusicProgressSlider->setValue(position);
+    }
+    if (m_lblFullscreenMusicTime) {
+        m_lblFullscreenMusicTime->setText(QString("%1 / %2")
+                                          .arg(formatDuration(position))
+                                          .arg(formatDuration(m_player ? m_player->duration() : 0)));
+    }
+
     if (m_isVideo && !m_previewedFilePath.isEmpty() && m_player->playbackState() == QMediaPlayer::PlayingState) {
         QSettings settings("Amifiles", "Amifiles");
         if (settings.value("preview/resume_progress", false).toBool()) {
@@ -3053,6 +3062,9 @@ void PreviewPanel::onDurationChanged(qint64 duration) {
                                .arg(formatDuration(duration)));
     if (m_fullscreenWidget) {
         m_fullscreenWidget->updateProgress(m_player->position(), duration);
+    }
+    if (m_fullscreenMusicProgressSlider) {
+        m_fullscreenMusicProgressSlider->setRange(0, duration);
     }
 }
 
@@ -3991,12 +4003,44 @@ void PreviewPanel::buildFullscreenContent(bool isVideo, const QString& activePat
         QWidget* leftPanel = new QWidget(m_fullscreenWidget);
         m_fullscreenLeftPanel = leftPanel;
         QVBoxLayout* leftLayout = new QVBoxLayout(leftPanel);
-        leftLayout->setContentsMargins(0, 0, 0, 0);
         leftLayout->addStretch();
         leftLayout->addWidget(m_fullscreenAudioLabel);
         leftLayout->addSpacing(10);
         leftLayout->addWidget(m_fullscreenTextLabel);
-        leftLayout->addSpacing(20);
+        leftLayout->addSpacing(10);
+
+        // Sleek, Persistent Progress Bar & Time Tracker on Main Fullscreen Music Screen
+        QWidget* progressContainer = new QWidget(leftPanel);
+        QHBoxLayout* progressLayout = new QHBoxLayout(progressContainer);
+        progressLayout->setContentsMargins(20, 4, 20, 4);
+        progressLayout->setSpacing(12);
+
+        m_fullscreenMusicProgressSlider = new ScrubSlider(Qt::Horizontal, progressContainer);
+        m_fullscreenMusicProgressSlider->setRange(0, m_player ? m_player->duration() : 100);
+        m_fullscreenMusicProgressSlider->setValue(m_player ? m_player->position() : 0);
+        m_fullscreenMusicProgressSlider->setFocusPolicy(Qt::StrongFocus);
+        m_fullscreenMusicProgressSlider->setStyleSheet(
+            "QSlider::groove:horizontal { border: none; height: 6px; background: #313244; border-radius: 3px; }"
+            "QSlider::sub-page:horizontal { background: #89b4fa; border-radius: 3px; }"
+            "QSlider::handle:horizontal { background: #cdd6f4; width: 14px; margin-top: -4px; margin-bottom: -4px; border-radius: 7px; }"
+            "QSlider::handle:horizontal:hover { background: #ffffff; width: 16px; margin-top: -5px; margin-bottom: -5px; border-radius: 8px; }"
+        );
+
+        m_lblFullscreenMusicTime = new QLabel(progressContainer);
+        qint64 pos = m_player ? m_player->position() : 0;
+        qint64 dur = m_player ? m_player->duration() : 0;
+        m_lblFullscreenMusicTime->setText(QString("%1 / %2").arg(formatDuration(pos)).arg(formatDuration(dur)));
+        m_lblFullscreenMusicTime->setStyleSheet("QLabel { color: #89b4fa; font-size: 14px; font-weight: bold; font-family: 'Outfit'; background: transparent; }");
+
+        connect(m_fullscreenMusicProgressSlider, &QSlider::sliderMoved, this, [this](int val) {
+            if (m_player) m_player->setPosition(val);
+        });
+
+        progressLayout->addWidget(m_fullscreenMusicProgressSlider, 1);
+        progressLayout->addWidget(m_lblFullscreenMusicTime);
+        leftLayout->addWidget(progressContainer);
+
+        leftLayout->addSpacing(10);
 
         m_fullscreenBottomLyricsWidget = new QWidget(leftPanel);
         QVBoxLayout* bottomLyricsLayout = new QVBoxLayout(m_fullscreenBottomLyricsWidget);

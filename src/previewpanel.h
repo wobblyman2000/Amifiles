@@ -507,6 +507,8 @@ private:
     QScrollArea* m_fullscreenLyricsScroll = nullptr;
     QLabel* m_fullscreenLyricsLabel = nullptr;
     QWidget* m_fullscreenLyricsPanel = nullptr;
+    class ScrubSlider* m_fullscreenMusicProgressSlider = nullptr;
+    QLabel* m_lblFullscreenMusicTime = nullptr;
 
     struct SyncedLyricLine {
         qint64 timestampMs;
