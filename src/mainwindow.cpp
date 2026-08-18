@@ -2573,9 +2573,12 @@ void MainWindow::onToggleCasingOverlays(bool checked) {
 void MainWindow::onToggleAudioCoverArt(bool checked) {
     QSettings settings("Amifiles", "Amifiles");
     settings.setValue("preview/show_audio_cover_art", checked);
+    settings.setValue("filepanel/show_audio_cover_art_icons", checked);
     if (m_previewPanel) {
         m_previewPanel->setAudioCoverArtVisible(checked);
     }
+    if (leftPanel()) leftPanel()->refresh();
+    if (rightPanel()) rightPanel()->refresh();
 }
 
 void MainWindow::onToggleSpectrum(bool checked) {

@@ -3,6 +3,7 @@
 #include "comicthumbnailrunnable.h"
 #include "imagethumbnailrunnable.h"
 #include "videothumbnailrunnable.h"
+#include "audiocoverartrunnable.h"
 #include <QPainter>
 #include <QPainterPath>
 #include <QFontMetricsF>
@@ -685,6 +686,33 @@ QIcon CustomFileSystemModel::getRetroOrComicIcon(const QString& filePath) const 
         QIcon icon = drawRetroDiskIcon(filename, ext, 48);
         m_thumbnailCache[filePath] = icon;
         return icon;
+    }
+
+    if (ext == "mp3" || ext == "flac" || ext == "m4a" || ext == "ogg" || ext == "wav" || ext == "wma" || ext == "opus" || ext == "aac" || ext == "ape") {
+        QSettings settings("Amifiles", "Amifiles");
+        if (settings.value("filepanel/show_audio_cover_art_icons", true).toBool()) {
+            QString appDir = "/home/dave/.gemini/antigravity";
+            QByteArray hash = QCryptographicHash::hash(filePath.toUtf8(), QCryptographicHash::Md5);
+            QString cachedName = "audio_" + hash.toHex() + ".png";
+            QString cachedPath = QDir(appDir).filePath("thumbnails/" + cachedName);
+
+            if (QFile::exists(cachedPath)) {
+                QPixmap pix(cachedPath);
+                if (!pix.isNull()) {
+                    QIcon icon(pix);
+                    m_thumbnailCache[filePath] = icon;
+                    return icon;
+                }
+            }
+
+            if (!isRemotePath(filePath)) {
+                if (!m_pendingThumbnails.contains(filePath)) {
+                    m_pendingThumbnails.insert(filePath);
+                    AudioCoverArtRunnable* task = new AudioCoverArtRunnable(filePath, cachedPath, const_cast<CustomFileSystemModel*>(this));
+                    QThreadPool::globalInstance()->start(task);
+                }
+            }
+        }
     }
 
     if (ext == "cbz" || ext == "cbr") {

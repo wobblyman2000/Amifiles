@@ -70,6 +70,7 @@ private:
     QCheckBox* m_chkCasingOverlays = nullptr;
     QCheckBox* m_chkShowMetadataHoverCard = nullptr;
     QCheckBox* m_chkAudioCoverArt = nullptr;
+    QCheckBox* m_chkAudioCoverArtIcons = nullptr;
     QCheckBox* m_chkSpectrumVisualizer = nullptr;
     QCheckBox* m_chkMutePreview = nullptr;
     QCheckBox* m_chkBuiltinPlayerDoubleclick = nullptr;

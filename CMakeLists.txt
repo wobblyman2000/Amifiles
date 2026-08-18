@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(Amifiles VERSION 1.5.0.61 LANGUAGES CXX)
+project(Amifiles VERSION 1.5.0.62 LANGUAGES CXX)
 
 configure_file(
     "${PROJECT_SOURCE_DIR}/src/version.h.in"
@@ -55,6 +55,8 @@ add_executable(Amifiles
     src/filehistorydialog.cpp
     src/fileassociationsdialog.h
     src/fileassociationsdialog.cpp
+    src/audiocoverartrunnable.h
+    src/audiocoverartrunnable.cpp
     src/dupfinder.h
     src/dupfinder.cpp
     src/copyqueue.h

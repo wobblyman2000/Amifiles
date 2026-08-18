@@ -333,6 +333,10 @@ void PreferencesDialog::setupUI() {
     m_chkAudioCoverArt->setToolTip("Searches and renders metadata track covers when playing music.");
     layMedia->addWidget(m_chkAudioCoverArt);
 
+    m_chkAudioCoverArtIcons = new QCheckBox("Display embedded album cover art as file icons for audio files (MP3/FLAC/M4A/OGG)", this);
+    m_chkAudioCoverArtIcons->setToolTip("Extracts and renders album cover art directly as file icons in list, details, grid, and card views.");
+    layMedia->addWidget(m_chkAudioCoverArtIcons);
+
     m_chkSpectrumVisualizer = new QCheckBox("Render real-time Audio Spectrum visualizer", this);
     m_chkSpectrumVisualizer->setToolTip("Paints interactive bar charts mapping frequency ranges.");
     layMedia->addWidget(m_chkSpectrumVisualizer);
@@ -642,6 +646,7 @@ void PreferencesDialog::loadPreferences() {
     m_chkCasingOverlays->setChecked(settings.value("preferences/casing_overlays", true).toBool());
     m_chkShowMetadataHoverCard->setChecked(settings.value("preview/show_metadata_hover_card", true).toBool());
     m_chkAudioCoverArt->setChecked(settings.value("preview/show_audio_cover_art", true).toBool());
+    m_chkAudioCoverArtIcons->setChecked(settings.value("filepanel/show_audio_cover_art_icons", true).toBool());
     m_chkSpectrumVisualizer->setChecked(settings.value("preview/show_spectrum_visualizer", true).toBool());
     m_chkMutePreview->setChecked(settings.value("preview/muted", false).toBool());
     m_chkBuiltinPlayerDoubleclick->setChecked(settings.value("preferences/builtin_player_doubleclick", false).toBool());
@@ -715,6 +720,7 @@ void PreferencesDialog::savePreferences() {
     settings.setValue("preferences/casing_overlays", m_chkCasingOverlays->isChecked());
     settings.setValue("preview/show_metadata_hover_card", m_chkShowMetadataHoverCard->isChecked());
     settings.setValue("preview/show_audio_cover_art", m_chkAudioCoverArt->isChecked());
+    settings.setValue("filepanel/show_audio_cover_art_icons", m_chkAudioCoverArtIcons->isChecked());
     settings.setValue("preview/show_spectrum_visualizer", m_chkSpectrumVisualizer->isChecked());
     settings.setValue("preview/muted", m_chkMutePreview->isChecked());
     settings.setValue("preferences/builtin_player_doubleclick", m_chkBuiltinPlayerDoubleclick->isChecked());
