@@ -642,6 +642,22 @@ void FilePanel::setupUI() {
     m_btnRepeat->setToolTip("Repeat Album");
     m_btnRepeat->setFixedSize(28, 28);
 
+    m_musicProgressBar = new QSlider(Qt::Horizontal, m_musicControlsWidget);
+    m_musicProgressBar->setRange(0, 100);
+    m_musicProgressBar->setValue(0);
+    m_musicProgressBar->setToolTip("Seek Track Position");
+    m_musicProgressBar->setFocusPolicy(Qt::StrongFocus);
+    m_musicProgressBar->setMinimumWidth(120);
+
+    connect(m_musicProgressBar, &QSlider::sliderMoved, this, [this](int pos) {
+        QWidget* mw = parentWidget();
+        while (mw && !mw->inherits("MainWindow")) mw = mw->parentWidget();
+        MainWindow* mainWin = qobject_cast<MainWindow*>(mw);
+        if (mainWin && mainWin->previewPanel() && mainWin->previewPanel()->player()) {
+            mainWin->previewPanel()->player()->setPosition(pos);
+        }
+    });
+
     m_musicVolumeSlider = new QSlider(Qt::Horizontal, m_musicControlsWidget);
     m_musicVolumeSlider->setRange(0, 100);
     m_musicVolumeSlider->setValue(85);
@@ -656,10 +672,11 @@ void FilePanel::setupUI() {
     musicCtrlLayout->addWidget(m_btnPlayPause);
     musicCtrlLayout->addWidget(m_btnNext);
     musicCtrlLayout->addWidget(m_btnRepeat);
-    musicCtrlLayout->addSpacing(4);
+    musicCtrlLayout->addSpacing(8);
+    musicCtrlLayout->addWidget(m_musicProgressBar, 1);
+    musicCtrlLayout->addSpacing(8);
     musicCtrlLayout->addWidget(m_musicVolumeSlider);
     musicCtrlLayout->addWidget(m_musicProgressLabel);
-    musicCtrlLayout->addStretch(1);
 
     QString toolBtnStyle = "QToolButton { background-color: #313244; color: #cdd6f4; border: none; padding: 4px; border-radius: 4px; } QToolButton:hover { background-color: #45475a; } QToolButton:checked { background-color: #fab387; color: #11111b; }";
     m_btnShuffle->setStyleSheet(toolBtnStyle);
@@ -667,6 +684,7 @@ void FilePanel::setupUI() {
     m_btnPlayPause->setStyleSheet("QToolButton { background-color: #a6e3a1; color: #11111b; border: none; padding: 6px; border-radius: 12px; font-weight: bold; } QToolButton:hover { background-color: #94e2d5; }");
     m_btnNext->setStyleSheet(toolBtnStyle);
     m_btnRepeat->setStyleSheet(toolBtnStyle);
+    m_musicProgressBar->setStyleSheet("QSlider::groove:horizontal { border: none; height: 6px; background: #313244; border-radius: 3px; } QSlider::sub-page:horizontal { background: #89b4fa; border-radius: 3px; } QSlider::handle:horizontal { background: #cdd6f4; width: 12px; margin: -3px 0; border-radius: 6px; } QSlider::handle:horizontal:hover { background: #ffffff; }");
     m_musicVolumeSlider->setStyleSheet("QSlider::groove:horizontal { border: none; height: 4px; background: #313244; border-radius: 2px; } QSlider::handle:horizontal { background: #89b4fa; width: 10px; margin: -3px 0; border-radius: 5px; }");
 
     textLayout->addWidget(m_musicControlsWidget);
@@ -8600,6 +8618,12 @@ void FilePanel::updatePlaybackProgress(qint64 position, qint64 duration) {
         m_musicProgressLabel->setText(QString("%1 / %2")
             .arg(formatDuration(position))
             .arg(formatDuration(duration)));
+    }
+    if (m_musicProgressBar) {
+        if (!m_musicProgressBar->isSliderDown()) {
+            m_musicProgressBar->setRange(0, duration);
+            m_musicProgressBar->setValue(position);
+        }
     }
 }
 

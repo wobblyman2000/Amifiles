@@ -1254,6 +1254,7 @@ private:
     QToolButton* m_btnNext = nullptr;
     QToolButton* m_btnRepeat = nullptr;
     QSlider* m_musicVolumeSlider = nullptr;
+    QSlider* m_musicProgressBar = nullptr;
     QLabel* m_musicProgressLabel = nullptr;
     AudioVisualizerWidget* m_visualizerWidget = nullptr;
     class QListWidget* m_trackListWidget = nullptr;

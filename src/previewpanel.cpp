@@ -3027,15 +3027,6 @@ void PreviewPanel::onPositionChanged(qint64 position) {
         updateLyricsPosition(position);
     }
 
-    if (m_fullscreenMusicProgressSlider && !m_fullscreenMusicProgressSlider->isSliderDown()) {
-        m_fullscreenMusicProgressSlider->setValue(position);
-    }
-    if (m_lblFullscreenMusicPos) {
-        m_lblFullscreenMusicPos->setText(formatDuration(position));
-    }
-    if (m_lblFullscreenMusicDur && m_player) {
-        m_lblFullscreenMusicDur->setText(formatDuration(m_player->duration()));
-    }
 
     if (m_isVideo && !m_previewedFilePath.isEmpty() && m_player->playbackState() == QMediaPlayer::PlayingState) {
         QSettings settings("Amifiles", "Amifiles");
@@ -3063,9 +3054,6 @@ void PreviewPanel::onDurationChanged(qint64 duration) {
                                .arg(formatDuration(duration)));
     if (m_fullscreenWidget) {
         m_fullscreenWidget->updateProgress(m_player->position(), duration);
-    }
-    if (m_fullscreenMusicProgressSlider) {
-        m_fullscreenMusicProgressSlider->setRange(0, duration);
     }
 }
 
@@ -4008,44 +3996,7 @@ void PreviewPanel::buildFullscreenContent(bool isVideo, const QString& activePat
         leftLayout->addWidget(m_fullscreenAudioLabel);
         leftLayout->addSpacing(10);
         leftLayout->addWidget(m_fullscreenTextLabel);
-        leftLayout->addSpacing(10);
-
-        // Sleek, Persistent Progress Bar & Time Tracker on Main Fullscreen Music Screen
-        QWidget* progressContainer = new QWidget(leftPanel);
-        QHBoxLayout* progressLayout = new QHBoxLayout(progressContainer);
-        progressLayout->setContentsMargins(20, 6, 20, 6);
-        progressLayout->setSpacing(14);
-
-        qint64 pos = m_player ? m_player->position() : 0;
-        qint64 dur = m_player ? m_player->duration() : 0;
-
-        m_lblFullscreenMusicPos = new QLabel(formatDuration(pos), progressContainer);
-        m_lblFullscreenMusicPos->setStyleSheet("QLabel { color: #cdd6f4; font-size: 13px; font-weight: bold; font-family: 'Outfit'; background: transparent; }");
-
-        m_fullscreenMusicProgressSlider = new ScrubSlider(Qt::Horizontal, progressContainer);
-        m_fullscreenMusicProgressSlider->setRange(0, dur > 0 ? dur : 100);
-        m_fullscreenMusicProgressSlider->setValue(pos);
-        m_fullscreenMusicProgressSlider->setFocusPolicy(Qt::StrongFocus);
-        m_fullscreenMusicProgressSlider->setStyleSheet(
-            "QSlider::groove:horizontal { border: none; height: 8px; background: #313244; border-radius: 4px; }"
-            "QSlider::sub-page:horizontal { background: #89b4fa; border-radius: 4px; }"
-            "QSlider::handle:horizontal { background: #cdd6f4; width: 16px; margin-top: -4px; margin-bottom: -4px; border-radius: 8px; }"
-            "QSlider::handle:horizontal:hover { background: #ffffff; width: 18px; margin-top: -5px; margin-bottom: -5px; border-radius: 9px; }"
-        );
-
-        m_lblFullscreenMusicDur = new QLabel(formatDuration(dur), progressContainer);
-        m_lblFullscreenMusicDur->setStyleSheet("QLabel { color: #a6adc8; font-size: 13px; font-weight: bold; font-family: 'Outfit'; background: transparent; }");
-
-        connect(m_fullscreenMusicProgressSlider, &QSlider::sliderMoved, this, [this](int val) {
-            if (m_player) m_player->setPosition(val);
-        });
-
-        progressLayout->addWidget(m_lblFullscreenMusicPos);
-        progressLayout->addWidget(m_fullscreenMusicProgressSlider, 1);
-        progressLayout->addWidget(m_lblFullscreenMusicDur);
-        leftLayout->addWidget(progressContainer);
-
-        leftLayout->addSpacing(10);
+        leftLayout->addSpacing(20);
 
         m_fullscreenBottomLyricsWidget = new QWidget(leftPanel);
         QVBoxLayout* bottomLyricsLayout = new QVBoxLayout(m_fullscreenBottomLyricsWidget);
