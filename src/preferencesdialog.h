@@ -76,6 +76,7 @@ private:
     QCheckBox* m_chkBuiltinPlayerDoubleclick = nullptr;
     QCheckBox* m_chkDoubleclickAddsToQueue = nullptr;
     QCheckBox* m_chkAutoFullscreen = nullptr;
+    QCheckBox* m_chkContinuePlaybackOnExit = nullptr;
     QCheckBox* m_chkAutoPlayThemeMusic = nullptr;
     QCheckBox* m_chkRememberVideoProgress = nullptr;
     QCheckBox* m_chkKeyboardRemoteMode = nullptr;

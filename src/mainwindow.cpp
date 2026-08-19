@@ -426,8 +426,12 @@ void MainWindow::setupCentralWidget() {
     connect(m_previewPanel, &PreviewPanel::builtinPlayerDoubleclickToggled, this, &MainWindow::setBuiltinPlayerDoubleclickActive);
     connect(this, &MainWindow::builtinPlayerDoubleclickChanged, m_previewPanel, &PreviewPanel::setBuiltinPlayerDoubleclickActive);
     connect(m_previewPanel, &PreviewPanel::fullscreenExited, this, [this]() {
-        if (m_actTogglePreview && !m_actTogglePreview->isChecked()) {
-            m_previewPanel->clearPreview();
+        QSettings settings("Amifiles", "Amifiles");
+        bool continuePlayback = settings.value("preview/continue_playback_on_fullscreen_exit", true).toBool();
+        if (!continuePlayback) {
+            if (m_actTogglePreview && !m_actTogglePreview->isChecked()) {
+                m_previewPanel->clearPreview();
+            }
         }
         if (m_activePanel) {
             m_activePanel->setFocus();

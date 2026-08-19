@@ -364,6 +364,10 @@ void PreferencesDialog::setupUI() {
     m_chkAutoFullscreen->setToolTip("Opens the full screen borderless media player HUD automatically when starting audio/video playback.");
     layMedia->addWidget(m_chkAutoFullscreen);
 
+    m_chkContinuePlaybackOnExit = new QCheckBox("Continue media playback when exiting full screen HUD", this);
+    m_chkContinuePlaybackOnExit->setToolTip("Keeps audio and video playing seamlessly in the background when closing the full-screen player.");
+    layMedia->addWidget(m_chkContinuePlaybackOnExit);
+
     m_chkAutoPlayThemeMusic = new QCheckBox("Auto-play TV series background theme music (theme.mp3) in Video Showcase", this);
     m_chkAutoPlayThemeMusic->setToolTip("Automatically plays theme.mp3 background audio when entering TV show folders in Video Showcase mode.");
     layMedia->addWidget(m_chkAutoPlayThemeMusic);
@@ -652,6 +656,7 @@ void PreferencesDialog::loadPreferences() {
     m_chkBuiltinPlayerDoubleclick->setChecked(settings.value("preferences/builtin_player_doubleclick", false).toBool());
     m_chkDoubleclickAddsToQueue->setChecked(settings.value("preferences/doubleclick_adds_to_queue", false).toBool());
     m_chkAutoFullscreen->setChecked(settings.value("preview/auto_fullscreen", true).toBool());
+    m_chkContinuePlaybackOnExit->setChecked(settings.value("preview/continue_playback_on_fullscreen_exit", true).toBool());
     m_chkAutoPlayThemeMusic->setChecked(settings.value("theater/auto_play_theme_music", true).toBool());
     m_chkRememberVideoProgress->setChecked(settings.value("preview/resume_progress", false).toBool());
     m_chkKeyboardRemoteMode->setChecked(settings.value("preferences/keyboard_remote_mode", false).toBool());
@@ -726,6 +731,7 @@ void PreferencesDialog::savePreferences() {
     settings.setValue("preferences/builtin_player_doubleclick", m_chkBuiltinPlayerDoubleclick->isChecked());
     settings.setValue("preferences/doubleclick_adds_to_queue", m_chkDoubleclickAddsToQueue->isChecked());
     settings.setValue("preview/auto_fullscreen", m_chkAutoFullscreen->isChecked());
+    settings.setValue("preview/continue_playback_on_fullscreen_exit", m_chkContinuePlaybackOnExit->isChecked());
     settings.setValue("theater/auto_play_theme_music", m_chkAutoPlayThemeMusic->isChecked());
     settings.setValue("preview/resume_progress", m_chkRememberVideoProgress->isChecked());
     settings.setValue("preferences/keyboard_remote_mode", m_chkKeyboardRemoteMode->isChecked());

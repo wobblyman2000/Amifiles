@@ -3847,25 +3847,18 @@ void PreviewPanel::toggleFullscreen() {
 void PreviewPanel::exitFullscreen() {
     if (!m_fullscreenWidget) return;
 
+    QSettings settings("Amifiles", "Amifiles");
+    bool continuePlayback = settings.value("preview/continue_playback_on_fullscreen_exit", true).toBool();
 
-    if (m_player) {
-        bool previewDockVisible = false;
-        QWidget* pTemp = parentWidget();
-        while (pTemp && !pTemp->inherits("MainWindow")) {
-            pTemp = pTemp->parentWidget();
-        }
-        if (pTemp) {
-            QDockWidget* dock = pTemp->findChild<QDockWidget*>("previewDockWidget");
-            if (dock && dock->isVisible()) {
-                previewDockVisible = true;
-            }
-        }
-        if (!previewDockVisible) {
+    if (!continuePlayback) {
+        if (m_player) {
             m_player->pause();
         }
     }
 
-    m_player->setVideoOutput(m_videoWidget);
+    if (m_player) {
+        m_player->setVideoOutput(m_videoWidget);
+    }
 
     m_fullscreenWidget->close();
     m_fullscreenWidget->deleteLater();
